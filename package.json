@@ -1,0 +1,29 @@
+{
+  "name": "pwa-apart",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Apartment Management Progressive Web App",
+  "workspaces": [
+    "packages/server",
+    "packages/client"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "npm run dev --workspace=packages/server",
+    "dev:client": "npm run dev --workspace=packages/client",
+    "build": "npm run build --workspace=packages/server && npm run build --workspace=packages/client",
+    "build:server": "cd packages/server && npx prisma generate && npm run build",
+    "build:client": "npm run build --workspace=packages/client",
+    "db:migrate": "npm run db:migrate --workspace=packages/server",
+    "db:seed": "npm run db:seed --workspace=packages/server",
+    "db:studio": "npm run db:studio --workspace=packages/server",
+    "lint": "concurrently \"npm run lint --workspace=packages/server\" \"npm run lint --workspace=packages/client\"",
+    "postinstall": "cd packages/server && npx prisma generate"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

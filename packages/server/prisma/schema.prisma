@@ -1,0 +1,423 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ──────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  OWNER
+  TENANT
+}
+
+enum FlatType {
+  ONE_BHK
+  TWO_BHK
+  THREE_BHK
+  FOUR_BHK
+  STUDIO
+  PENTHOUSE
+  SHOP
+  OTHER
+}
+
+enum BillStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+}
+
+enum PaymentStatus {
+  INITIATED
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  PHONEPE
+  CASH
+  CHEQUE
+  BANK_TRANSFER
+  UPI_OTHER
+}
+
+enum PaymentGateway {
+  PHONEPE
+}
+
+enum PaymentGatewayEnv {
+  UAT
+  PRODUCTION
+}
+
+enum ComplaintStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  REJECTED
+}
+
+enum ComplaintPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ExpenseCategory {
+  MAINTENANCE
+  REPAIR
+  SALARY
+  ELECTRICITY
+  WATER
+  SECURITY
+  CLEANING
+  GARDENING
+  LIFT
+  SINKING_FUND
+  INSURANCE
+  LEGAL
+  EVENTS
+  OTHER
+}
+
+// ─── SOCIETY / APARTMENT COMPLEX (TENANT) ───────────────
+// Each society is a separate tenant in the multi-tenant system.
+// When a new apartment registers, a new Society + Admin user is created.
+
+model Society {
+  id              String   @id @default(uuid())
+  name            String
+  address         String
+  city            String
+  state           String
+  pincode         String
+  registrationNo  String?  @unique
+  totalBlocks     Int      @default(1)
+  totalFlats      Int      @default(0)
+  logo            String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  blocks            Block[]
+  users             User[]
+  complaints        Complaint[]
+  expenses          Expense[]
+  bylaws            AssociationBylaw[]
+  maintenanceConfig MaintenanceConfig[]
+  paymentConfigs    PaymentGatewayConfig[]
+
+  @@map("societies")
+}
+
+// ─── BLOCK / WING ───────────────────────────────────────
+
+model Block {
+  id        String   @id @default(uuid())
+  name      String   // e.g., "A Wing", "Block 1"
+  floors    Int      @default(1)
+  societyId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  society   Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  flats     Flat[]
+
+  @@index([societyId])
+  @@map("blocks")
+}
+
+// ─── FLAT ───────────────────────────────────────────────
+
+model Flat {
+  id          String   @id @default(uuid())
+  flatNumber  String
+  floor       Int
+  type        FlatType @default(TWO_BHK)
+  areaSqFt    Float?
+  blockId     String
+  isOccupied  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  block       Block    @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  owner       Owner?
+  tenant      Tenant?
+  bills       MaintenanceBill[]
+  complaints  Complaint[]
+
+  @@unique([flatNumber, blockId])
+  @@index([blockId])
+  @@map("flats")
+}
+
+// ─── OWNER ──────────────────────────────────────────────
+
+model Owner {
+  id          String   @id @default(uuid())
+  name        String
+  email       String?
+  phone       String
+  altPhone    String?
+  aadharNo    String?
+  panNo       String?
+  flatId      String   @unique
+  moveInDate  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  flat        Flat     @relation(fields: [flatId], references: [id], onDelete: Cascade)
+  user        User?    @relation(fields: [userId], references: [id])
+  userId      String?  @unique
+
+  @@map("owners")
+}
+
+// ─── TENANT ─────────────────────────────────────────────
+
+model Tenant {
+  id          String    @id @default(uuid())
+  name        String
+  email       String?
+  phone       String
+  altPhone    String?
+  aadharNo    String?
+  flatId      String    @unique
+  leaseStart  DateTime
+  leaseEnd    DateTime?
+  rentAmount  Float?
+  deposit     Float?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  flat        Flat      @relation(fields: [flatId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id])
+  userId      String?   @unique
+
+  @@map("tenants")
+}
+
+// ─── USER (AUTH) ────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  phone        String?
+  role         Role     @default(OWNER)
+  societyId    String?
+  isActive     Boolean  @default(true)
+  lastLogin    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  society      Society?  @relation(fields: [societyId], references: [id])
+  owner        Owner?
+  tenant       Tenant?
+  complaints   Complaint[] @relation("ComplaintCreator")
+  assignedComplaints Complaint[] @relation("ComplaintAssignee")
+
+  @@index([societyId])
+  @@map("users")
+}
+
+// ─── MAINTENANCE CONFIG ─────────────────────────────────
+
+model MaintenanceConfig {
+  id              String   @id @default(uuid())
+  societyId       String
+  flatType        FlatType
+  baseAmount      Float
+  waterCharge     Float    @default(0)
+  parkingCharge   Float    @default(0)
+  sinkingFund     Float    @default(0)
+  repairFund      Float    @default(0)
+  otherCharges    Float    @default(0)
+  lateFeePerDay   Float    @default(0)
+  dueDay          Int      @default(10)
+  effectiveFrom   DateTime @default(now())
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  society         Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  @@unique([societyId, flatType, isActive])
+  @@index([societyId])
+  @@map("maintenance_configs")
+}
+
+// ─── MAINTENANCE BILL ───────────────────────────────────
+
+model MaintenanceBill {
+  id            String      @id @default(uuid())
+  flatId        String
+  month         Int
+  year          Int
+  baseAmount    Float
+  waterCharge   Float       @default(0)
+  parkingCharge Float       @default(0)
+  sinkingFund   Float       @default(0)
+  repairFund    Float       @default(0)
+  otherCharges  Float       @default(0)
+  lateFee       Float       @default(0)
+  totalAmount   Float
+  paidAmount    Float       @default(0)
+  dueDate       DateTime
+  status        BillStatus  @default(PENDING)
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  flat          Flat        @relation(fields: [flatId], references: [id], onDelete: Cascade)
+  payments      Payment[]
+
+  @@unique([flatId, month, year])
+  @@index([flatId])
+  @@map("maintenance_bills")
+}
+
+// ─── PAYMENT ────────────────────────────────────────────
+
+model Payment {
+  id                String        @id @default(uuid())
+  billId            String
+  amount            Float
+  method            PaymentMethod @default(PHONEPE)
+  status            PaymentStatus @default(INITIATED)
+  transactionId     String?       @unique
+  merchantTransId   String?       @unique
+  phonepeResponse   String?
+  receiptNo         String?
+  paidAt            DateTime?
+  notes             String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  bill              MaintenanceBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@index([billId])
+  @@map("payments")
+}
+
+// ─── COMPLAINT ──────────────────────────────────────────
+
+model Complaint {
+  id           String            @id @default(uuid())
+  societyId    String
+  flatId       String?
+  createdById  String
+  assignedToId String?
+  title        String
+  description  String
+  category     String
+  priority     ComplaintPriority @default(MEDIUM)
+  status       ComplaintStatus   @default(OPEN)
+  images       String            @default("[]")
+  resolution   String?
+  resolvedAt   DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  society      Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  flat         Flat?    @relation(fields: [flatId], references: [id])
+  createdBy    User     @relation("ComplaintCreator", fields: [createdById], references: [id])
+  assignedTo   User?    @relation("ComplaintAssignee", fields: [assignedToId], references: [id])
+  comments     ComplaintComment[]
+
+  @@index([societyId])
+  @@index([createdById])
+  @@map("complaints")
+}
+
+model ComplaintComment {
+  id          String   @id @default(uuid())
+  complaintId String
+  authorName  String
+  content     String
+  createdAt   DateTime @default(now())
+
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([complaintId])
+  @@map("complaint_comments")
+}
+
+// ─── EXPENSE ────────────────────────────────────────────
+
+model Expense {
+  id          String          @id @default(uuid())
+  societyId   String
+  category    ExpenseCategory
+  amount      Float
+  description String
+  vendor      String?
+  receiptUrl  String?
+  expenseDate DateTime
+  approvedBy  String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  society     Society @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  @@index([societyId])
+  @@map("expenses")
+}
+
+// ─── ASSOCIATION BYLAWS ─────────────────────────────────
+
+model AssociationBylaw {
+  id            String   @id @default(uuid())
+  societyId     String
+  title         String
+  content       String
+  category      String
+  penaltyAmount Float?
+  effectiveDate DateTime @default(now())
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  society       Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  @@index([societyId])
+  @@map("association_bylaws")
+}
+
+// ─── PAYMENT GATEWAY CONFIG ─────────────────────────────
+
+model PaymentGatewayConfig {
+  id            String            @id @default(uuid())
+  societyId     String
+  gateway       PaymentGateway    @default(PHONEPE)
+  merchantId    String
+  saltKey       String
+  saltIndex     Int               @default(1)
+  environment   PaymentGatewayEnv @default(UAT)
+  baseUrl       String            @default("https://api-preprod.phonepe.com/apis/pg-sandbox")
+  redirectUrl   String            @default("http://localhost:5173/billing?payment=done")
+  callbackUrl   String            @default("http://localhost:4000/api/payments/phonepe/callback")
+  isActive      Boolean           @default(true)
+  lastTestedAt  DateTime?
+  lastTestOk    Boolean?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  society       Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  @@unique([societyId, gateway])
+  @@index([societyId])
+  @@map("payment_gateway_configs")
+}

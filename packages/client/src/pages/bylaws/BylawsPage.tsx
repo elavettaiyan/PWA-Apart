@@ -1,0 +1,185 @@
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ScrollText, Plus, Edit3, Trash2, Shield } from 'lucide-react';
+import toast from 'react-hot-toast';
+import api from '../../lib/api';
+import { formatCurrency, formatDate } from '../../lib/utils';
+import { PageLoader, EmptyState } from '../../components/ui/Loader';
+import Modal from '../../components/ui/Modal';
+import { useAuthStore } from '../../store/authStore';
+import type { AssociationBylaw } from '../../types';
+
+const BYLAW_CATEGORIES = ['General', 'Parking', 'Pets', 'Noise', 'Safety', 'Maintenance', 'Events', 'Other'];
+
+export default function BylawsPage() {
+  const [showCreate, setShowCreate] = useState(false);
+  const [editBylaw, setEditBylaw] = useState<AssociationBylaw | null>(null);
+  const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+
+  const { data, isLoading } = useQuery<{ bylaws: AssociationBylaw[]; grouped: Record<string, AssociationBylaw[]> }>({
+    queryKey: ['bylaws'],
+    queryFn: async () => (await api.get('/association')).data,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/association/${id}`),
+    onSuccess: () => {
+      toast.success('Bylaw removed');
+      queryClient.invalidateQueries({ queryKey: ['bylaws'] });
+    },
+  });
+
+  if (isLoading) return <PageLoader />;
+
+  const grouped = data?.grouped || {};
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Association Bylaws</h1>
+          <p className="text-sm text-gray-500 mt-1">Define and manage society rules, regulations, and penalties</p>
+        </div>
+        {isAdmin && (
+          <button className="btn-primary" onClick={() => setShowCreate(true)}>
+            <Plus className="w-4 h-4" /> Add Bylaw
+          </button>
+        )}
+      </div>
+
+      {Object.keys(grouped).length === 0 ? (
+        <EmptyState
+          icon={ScrollText}
+          title="No bylaws defined"
+          description="Start by adding society rules and regulations"
+          action={isAdmin ? <button className="btn-primary" onClick={() => setShowCreate(true)}>Add First Bylaw</button> : undefined}
+        />
+      ) : (
+        <div className="space-y-6">
+          {Object.entries(grouped).map(([category, bylaws]) => (
+            <div key={category}>
+              <div className="flex items-center gap-2 mb-3">
+                <Shield className="w-4 h-4 text-primary-500" />
+                <h2 className="text-lg font-semibold text-gray-900">{category}</h2>
+                <span className="badge badge-neutral">{bylaws.length}</span>
+              </div>
+              <div className="space-y-3">
+                {bylaws.map((bylaw) => (
+                  <div key={bylaw.id} className="card p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <h3 className="text-sm font-semibold text-gray-900 mb-1">{bylaw.title}</h3>
+                        <p className="text-sm text-gray-600 whitespace-pre-wrap">{bylaw.content}</p>
+                        <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
+                          <span>Effective: {formatDate(bylaw.effectiveDate)}</span>
+                          {bylaw.penaltyAmount && (
+                            <span className="text-red-500 font-medium">
+                              Penalty: {formatCurrency(bylaw.penaltyAmount)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {isAdmin && (
+                        <div className="flex gap-1">
+                          <button
+                            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg"
+                            onClick={() => setEditBylaw(bylaw)}
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                            onClick={() => {
+                              if (confirm('Remove this bylaw?')) deleteMutation.mutate(bylaw.id);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Create/Edit Modal */}
+      <Modal
+        isOpen={showCreate || !!editBylaw}
+        onClose={() => { setShowCreate(false); setEditBylaw(null); }}
+        title={editBylaw ? 'Edit Bylaw' : 'Add New Bylaw'}
+        size="md"
+      >
+        <BylawForm
+          bylaw={editBylaw}
+          onSuccess={() => {
+            setShowCreate(false);
+            setEditBylaw(null);
+            queryClient.invalidateQueries({ queryKey: ['bylaws'] });
+          }}
+        />
+      </Modal>
+    </div>
+  );
+}
+
+function BylawForm({ bylaw, onSuccess }: { bylaw: AssociationBylaw | null; onSuccess: () => void }) {
+  const [form, setForm] = useState({
+    title: bylaw?.title || '',
+    content: bylaw?.content || '',
+    category: bylaw?.category || 'General',
+    penaltyAmount: bylaw?.penaltyAmount?.toString() || '',
+    effectiveDate: bylaw?.effectiveDate?.split('T')[0] || new Date().toISOString().split('T')[0],
+  });
+
+  const mutation = useMutation({
+    mutationFn: (data: any) => {
+      if (bylaw) return api.put(`/association/${bylaw.id}`, data);
+      return api.post('/association', data);
+    },
+    onSuccess: () => {
+      toast.success(bylaw ? 'Bylaw updated!' : 'Bylaw added!');
+      onSuccess();
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
+  });
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(form); }} className="space-y-4">
+      <div>
+        <label className="label">Title</label>
+        <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="label">Category</label>
+          <select className="select" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+            {BYLAW_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label">Penalty Amount (₹)</label>
+          <input type="number" className="input" value={form.penaltyAmount} onChange={(e) => setForm({ ...form, penaltyAmount: e.target.value })} placeholder="Optional" />
+        </div>
+      </div>
+      <div>
+        <label className="label">Content / Rule Description</label>
+        <textarea className="input min-h-[120px]" value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} required />
+      </div>
+      <div>
+        <label className="label">Effective Date</label>
+        <input type="date" className="input w-48" value={form.effectiveDate} onChange={(e) => setForm({ ...form, effectiveDate: e.target.value })} required />
+      </div>
+      <div className="flex justify-end gap-3 pt-4">
+        <button type="submit" className="btn-primary" disabled={mutation.isPending}>
+          {mutation.isPending ? 'Saving...' : bylaw ? 'Update Bylaw' : 'Add Bylaw'}
+        </button>
+      </div>
+    </form>
+  );
+}

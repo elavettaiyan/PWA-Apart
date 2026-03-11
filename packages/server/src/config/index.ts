@@ -1,0 +1,31 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
+export const config = {
+  port: parseInt(process.env.PORT || '4000', 10),
+  nodeEnv: process.env.NODE_ENV || 'development',
+
+  jwt: {
+    secret: process.env.JWT_SECRET || 'fallback-secret',
+    refreshSecret: process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret',
+    expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+  },
+
+  phonepe: {
+    merchantId: process.env.PHONEPE_MERCHANT_ID || '',
+    saltKey: process.env.PHONEPE_SALT_KEY || '',
+    saltIndex: parseInt(process.env.PHONEPE_SALT_INDEX || '1', 10),
+    env: process.env.PHONEPE_ENV || 'UAT',
+    baseUrl: process.env.PHONEPE_BASE_URL || 'https://api-preprod.phonepe.com/apis/pg-sandbox',
+    redirectUrl: process.env.PHONEPE_REDIRECT_URL || 'http://localhost:5173/payments/status',
+    callbackUrl: process.env.PHONEPE_CALLBACK_URL || 'http://localhost:4000/api/payments/phonepe/callback',
+  },
+
+  upload: {
+    dir: process.env.UPLOAD_DIR || './uploads',
+    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '5242880', 10),
+  },
+
+  clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
+};

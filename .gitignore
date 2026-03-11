@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+
+# Database
+*.db
+*.db-journal
+
+# Environment files
+.env
+.env.local
+.env.production
+packages/server/.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Uploads (keep folder, ignore contents)
+packages/server/uploads/*
+!packages/server/uploads/.gitkeep
+
+# Coverage
+coverage/
+
+# Misc
+.turbo/
+check_pg.js
+pg_status.txt
