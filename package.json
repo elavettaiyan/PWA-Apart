@@ -12,13 +12,13 @@
     "dev:server": "npm run dev --workspace=packages/server",
     "dev:client": "npm run dev --workspace=packages/client",
     "build": "npm run build --workspace=packages/server && npm run build --workspace=packages/client",
-    "build:server": "cd packages/server && npx prisma generate && npm run build",
+    "build:server": "cd packages/server && npx prisma@5 generate && npm run build",
     "build:client": "npm run build --workspace=packages/client",
     "db:migrate": "npm run db:migrate --workspace=packages/server",
     "db:seed": "npm run db:seed --workspace=packages/server",
     "db:studio": "npm run db:studio --workspace=packages/server",
     "lint": "concurrently \"npm run lint --workspace=packages/server\" \"npm run lint --workspace=packages/client\"",
-    "postinstall": "cd packages/server && npx prisma generate"
+    "postinstall": "cd packages/server && npx prisma@5 generate"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
