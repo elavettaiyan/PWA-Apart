@@ -11,14 +11,14 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "cd packages/server && npm run dev",
     "dev:client": "cd packages/client && npm run dev",
-    "build": "cd packages/server && npm run build && cd ../client && npm run build",
-    "build:server": "cd packages/server && npx prisma@5.22.0 generate && npm run build",
-    "build:client": "cd packages/client && npm run build",
-    "db:migrate": "cd packages/server && npm run db:migrate",
-    "db:seed": "cd packages/server && npm run db:seed",
-    "db:studio": "cd packages/server && npm run db:studio",
-    "lint": "concurrently \"cd packages/server && npm run lint\" \"cd packages/client && npm run lint\"",
-    "postinstall": "cd packages/server && npx prisma@5.22.0 generate"
+    "build": "npm run build:server && npm run build:client",
+    "build:server": "npm --prefix packages/server run generate && npm --prefix packages/server run build",
+    "build:client": "npm --prefix packages/client run build",
+    "db:migrate": "npm --prefix packages/server run db:migrate",
+    "db:seed": "npm --prefix packages/server run db:seed",
+    "db:studio": "npm --prefix packages/server run db:studio",
+    "lint": "concurrently \"npm --prefix packages/server run lint\" \"npm --prefix packages/client run lint\"",
+    "postinstall": "npx prisma@5.22.0 generate --schema=packages/server/prisma/schema.prisma"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
