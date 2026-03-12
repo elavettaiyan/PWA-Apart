@@ -87,13 +87,19 @@ app.use('/api/settings', settingsRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-// ── START SERVER ────────────────────────────────────────
-app.listen(config.port, () => {
-  logger.info(`🚀 Server running on http://localhost:${config.port}`);
-  logger.info(`📋 Environment: ${config.nodeEnv}`);
-  logger.info(`🔗 Client URL: ${config.clientUrl}`);
+// ── START SERVER (local only, not on Vercel) ────────────
+if (process.env.VERCEL !== '1') {
+  app.listen(config.port, () => {
+    logger.info(`🚀 Server running on http://localhost:${config.port}`);
+    logger.info(`📋 Environment: ${config.nodeEnv}`);
+    logger.info(`🔗 Client URL: ${config.clientUrl}`);
+    logger.info(`🗄️  Database URL: ${process.env.DATABASE_URL ? '***set***' : '⚠️  NOT SET'}`);
+    logger.info(`🔑 JWT Secret: ${config.jwt.secret === 'fallback-secret' ? '⚠️  USING FALLBACK' : '***set***'}`);
+  });
+} else {
+  logger.info('Running on Vercel serverless');
   logger.info(`🗄️  Database URL: ${process.env.DATABASE_URL ? '***set***' : '⚠️  NOT SET'}`);
   logger.info(`🔑 JWT Secret: ${config.jwt.secret === 'fallback-secret' ? '⚠️  USING FALLBACK' : '***set***'}`);
-});
+}
 
 export default app;
