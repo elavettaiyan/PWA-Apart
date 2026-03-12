@@ -1,8 +1,7 @@
 {
-  "buildCommand": "npm --prefix packages/client run build",
-  "outputDirectory": "packages/client/dist",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "installCommand": "npm install",
-  "framework": "vite",
   "rewrites": [
     {
       "source": "/api/:path*",
