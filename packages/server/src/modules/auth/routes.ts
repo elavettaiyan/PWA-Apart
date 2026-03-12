@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { body } from 'express-validator';
 import { config } from '../../config';
 import prisma from '../../config/database';
+import logger from '../../config/logger';
 import { validate } from '../../middleware/errorHandler';
 import { authenticate, AuthRequest } from '../../middleware/auth';
 
@@ -29,9 +30,12 @@ router.post(
     try {
       const { societyName, address, city, state, pincode, adminName, email, password, phone } = req.body;
 
+      logger.info('Register society attempt', { email, societyName });
+
       // Check if email already exists
       const existing = await prisma.user.findUnique({ where: { email } });
       if (existing) {
+        logger.warn('Register society: email already exists', { email });
         return res.status(409).json({ error: 'Email already registered. Please login instead.' });
       }
 
@@ -68,6 +72,13 @@ router.post(
 
       const tokens = generateTokens(result.user);
 
+      logger.info('Society registered successfully', {
+        societyId: result.society.id,
+        societyName: result.society.name,
+        userId: result.user.id,
+        email: result.user.email,
+      });
+
       return res.status(201).json({
         user: { ...result.user, flat: null },
         society: {
@@ -76,7 +87,8 @@ router.post(
         },
         ...tokens,
       });
-    } catch (error) {
+    } catch (error: any) {
+      logger.error('Register society failed', { error: error.message, stack: error.stack });
       return res.status(500).json({ error: 'Registration failed. Please try again.' });
     }
   },
@@ -138,17 +150,21 @@ router.post(
     try {
       const { email, password } = req.body;
 
+      logger.info('Login attempt', { email });
+
       const user = await prisma.user.findUnique({
         where: { email },
         include: { owner: { include: { flat: true } }, tenant: { include: { flat: true } } },
       });
 
       if (!user || !user.isActive) {
+        logger.warn('Login failed: user not found or inactive', { email });
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
       const isValid = await bcrypt.compare(password, user.passwordHash);
       if (!isValid) {
+        logger.warn('Login failed: invalid password', { email });
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
@@ -177,7 +193,8 @@ router.post(
         },
         ...tokens,
       });
-    } catch (error) {
+    } catch (error: any) {
+      logger.error('Login failed', { error: error.message, stack: error.stack });
       return res.status(500).json({ error: 'Login failed' });
     }
   },
@@ -188,6 +205,7 @@ router.post('/refresh', async (req, res) => {
   try {
     const { refreshToken } = req.body;
     if (!refreshToken) {
+      logger.warn('Refresh: no token provided');
       return res.status(400).json({ error: 'Refresh token required' });
     }
 
@@ -201,12 +219,15 @@ router.post('/refresh', async (req, res) => {
     });
 
     if (!user || !user.isActive) {
+      logger.warn('Refresh: user not found or inactive', { userId: decoded.userId });
       return res.status(401).json({ error: 'Invalid refresh token' });
     }
 
     const tokens = generateTokens(user);
+    logger.info('Token refreshed', { userId: user.id, email: user.email });
     return res.json(tokens);
-  } catch (error) {
+  } catch (error: any) {
+    logger.warn('Refresh: token verification failed', { error: error.message });
     return res.status(401).json({ error: 'Invalid refresh token' });
   }
 });
@@ -231,7 +252,8 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
     });
 
     return res.json(user);
-  } catch (error) {
+  } catch (error: any) {
+    logger.error('Profile fetch failed', { userId: req.user!.id, error: error.message });
     return res.status(500).json({ error: 'Failed to fetch profile' });
   }
 });
