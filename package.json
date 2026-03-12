@@ -9,15 +9,15 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:server": "npm run dev --workspace=packages/server",
-    "dev:client": "npm run dev --workspace=packages/client",
-    "build": "npm run build --workspace=packages/server && npm run build --workspace=packages/client",
+    "dev:server": "cd packages/server && npm run dev",
+    "dev:client": "cd packages/client && npm run dev",
+    "build": "cd packages/server && npm run build && cd ../client && npm run build",
     "build:server": "cd packages/server && npx prisma@5.22.0 generate && npm run build",
-    "build:client": "npm run build --workspace=packages/client",
-    "db:migrate": "npm run db:migrate --workspace=packages/server",
-    "db:seed": "npm run db:seed --workspace=packages/server",
-    "db:studio": "npm run db:studio --workspace=packages/server",
-    "lint": "concurrently \"npm run lint --workspace=packages/server\" \"npm run lint --workspace=packages/client\"",
+    "build:client": "cd packages/client && npm run build",
+    "db:migrate": "cd packages/server && npm run db:migrate",
+    "db:seed": "cd packages/server && npm run db:seed",
+    "db:studio": "cd packages/server && npm run db:studio",
+    "lint": "concurrently \"cd packages/server && npm run lint\" \"cd packages/client && npm run lint\"",
     "postinstall": "cd packages/server && npx prisma@5.22.0 generate"
   },
   "devDependencies": {
