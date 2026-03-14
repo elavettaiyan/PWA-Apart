@@ -41,10 +41,22 @@ app.use((req, res, next) => {
 });
 
 // ── MIDDLEWARE ───────────────────────────────────────────
+const allowedOrigins = [config.clientUrl];
+// Always allow the known Vercel client URL
+if (config.clientUrl !== 'https://pwa-apart-client.vercel.app') {
+  allowedOrigins.push('https://pwa-apart-client.vercel.app');
+}
+
 app.use(cors({
   origin: config.nodeEnv === 'production'
-    ? (config.clientUrl === 'http://localhost:5173' ? true : config.clientUrl)
-    : config.clientUrl,
+    ? (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, etc.)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        logger.warn('CORS blocked', { origin, allowedOrigins });
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      }
+    : true,
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -56,19 +68,29 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 // ── HEALTH CHECK ────────────────────────────────────────
 app.get('/api/health', async (_req, res) => {
   let dbStatus = 'disconnected';
+  let dbError: string | undefined;
   try {
     await prisma.$queryRaw`SELECT 1`;
     dbStatus = 'connected';
   } catch (err: any) {
+    dbError = err.message;
     logger.error('Health check DB failure', { error: err.message });
   }
+
+  const diagnostics: Record<string, string> = {};
+  if (!process.env.DATABASE_URL && !process.env.APART_EASE_POSTGRES_PRISMA_URL) diagnostics.DATABASE_URL = 'NOT SET';
+  if (config.jwt.secret === 'fallback-secret') diagnostics.JWT_SECRET = 'NOT SET (using fallback)';
+  if (config.jwt.refreshSecret === 'fallback-refresh-secret') diagnostics.JWT_REFRESH_SECRET = 'NOT SET (using fallback)';
 
   res.json({
     status: dbStatus === 'connected' ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
     version: '1.0.0',
     database: dbStatus,
+    ...(dbError && { databaseError: dbError }),
     environment: config.nodeEnv,
+    clientUrl: config.clientUrl,
+    ...(Object.keys(diagnostics).length > 0 && { missingEnvVars: diagnostics }),
   });
 });
 
@@ -98,7 +120,7 @@ if (process.env.VERCEL !== '1') {
   });
 } else {
   logger.info('Running on Vercel serverless');
-  logger.info(`🗄️  Database URL: ${process.env.DATABASE_URL ? '***set***' : '⚠️  NOT SET'}`);
+  logger.info(`🗄️  Database URL: ${(process.env.DATABASE_URL || process.env.APART_EASE_POSTGRES_PRISMA_URL) ? '***set***' : '⚠️  NOT SET'}`);
   logger.info(`🔑 JWT Secret: ${config.jwt.secret === 'fallback-secret' ? '⚠️  USING FALLBACK' : '***set***'}`);
 }
 
