@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { body, param, query } from 'express-validator';
 import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
@@ -18,7 +18,7 @@ router.get(
     query('toDate').optional().isISO8601(),
   ],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const where: any = {};
 
@@ -54,7 +54,7 @@ router.get(
 );
 
 // ── GET SINGLE EXPENSE ──────────────────────────────────
-router.get('/:id', authorize('SUPER_ADMIN', 'ADMIN'), [param('id').isUUID()], validate, async (req: AuthRequest, res) => {
+router.get('/:id', authorize('SUPER_ADMIN', 'ADMIN'), [param('id').isUUID()], validate, async (req: AuthRequest, res: Response) => {
   try {
     const expense = await prisma.expense.findUnique({
       where: { id: req.params.id },
@@ -82,7 +82,7 @@ router.post(
     body('expenseDate').isISO8601(),
   ],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const receiptUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
@@ -112,7 +112,7 @@ router.put(
   authorize('SUPER_ADMIN', 'ADMIN'),
   [param('id').isUUID()],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { id } = req.params;
       const expense = await prisma.expense.update({
@@ -136,7 +136,7 @@ router.delete(
   authorize('SUPER_ADMIN', 'ADMIN'),
   [param('id').isUUID()],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       await prisma.expense.delete({ where: { id: req.params.id } });
       return res.json({ message: 'Expense deleted successfully' });

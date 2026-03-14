@@ -36,7 +36,13 @@ export default function RegisterPage() {
       toast.success(`Welcome! ${data.society.name} has been created.`);
       navigate('/');
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Registration failed');
+      console.error('Registration error:', error);
+      const data = error.response?.data;
+      const message =
+        data?.error ||
+        (Array.isArray(data?.errors) ? data.errors.map((e: any) => e.msg).join(', ') : null) ||
+        (error.request ? 'Cannot reach the server. Please try again later.' : 'Registration failed');
+      toast.error(message);
     } finally {
       setLoading(false);
     }

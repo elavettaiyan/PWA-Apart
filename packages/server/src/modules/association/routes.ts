@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { body, param } from 'express-validator';
 import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
@@ -8,7 +8,7 @@ const router = Router();
 router.use(authenticate);
 
 // ── GET ALL BYLAWS ──────────────────────────────────────
-router.get('/', async (req: AuthRequest, res) => {
+router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const where: any = { isActive: true };
     if (req.user!.societyId) where.societyId = req.user!.societyId;
@@ -32,7 +32,7 @@ router.get('/', async (req: AuthRequest, res) => {
 });
 
 // ── GET SINGLE BYLAW ────────────────────────────────────
-router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, res) => {
+router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, res: Response) => {
   try {
     const bylaw = await prisma.associationBylaw.findUnique({
       where: { id: req.params.id },
@@ -56,7 +56,7 @@ router.post(
     body('effectiveDate').optional().isISO8601(),
   ],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const bylaw = await prisma.associationBylaw.create({
         data: {
@@ -83,7 +83,7 @@ router.put(
   authorize('SUPER_ADMIN', 'ADMIN'),
   [param('id').isUUID()],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const bylaw = await prisma.associationBylaw.update({
         where: { id: req.params.id },
@@ -107,7 +107,7 @@ router.delete(
   authorize('SUPER_ADMIN', 'ADMIN'),
   [param('id').isUUID()],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       await prisma.associationBylaw.update({
         where: { id: req.params.id },

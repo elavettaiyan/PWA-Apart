@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { query } from 'express-validator';
 import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
@@ -8,7 +8,7 @@ const router = Router();
 router.use(authenticate);
 
 // ── MY DASHBOARD (Owner/Tenant) ─────────────────────────
-router.get('/my-dashboard', async (req: AuthRequest, res) => {
+router.get('/my-dashboard', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
 
@@ -48,7 +48,7 @@ router.get('/my-dashboard', async (req: AuthRequest, res) => {
 });
 
 // ── DASHBOARD SUMMARY (Admin) ───────────────────────────
-router.get('/dashboard', authorize('SUPER_ADMIN', 'ADMIN'), async (req: AuthRequest, res) => {
+router.get('/dashboard', authorize('SUPER_ADMIN', 'ADMIN'), async (req: AuthRequest, res: Response) => {
   try {
     const societyId = (req.query.societyId as string) || req.user!.societyId;
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
@@ -104,7 +104,7 @@ router.get(
   authorize('SUPER_ADMIN', 'ADMIN'),
   [query('month').isInt({ min: 1, max: 12 }), query('year').isInt({ min: 2020 })],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const month = parseInt(req.query.month as string);
       const year = parseInt(req.query.year as string);
@@ -158,7 +158,7 @@ router.get(
 );
 
 // ── DEFAULTERS REPORT ───────────────────────────────────
-router.get('/defaulters', authorize('SUPER_ADMIN', 'ADMIN'), async (req: AuthRequest, res) => {
+router.get('/defaulters', authorize('SUPER_ADMIN', 'ADMIN'), async (req: AuthRequest, res: Response) => {
   try {
     const societyId = (req.query.societyId as string) || req.user!.societyId;
 
@@ -213,7 +213,7 @@ router.get(
   authorize('SUPER_ADMIN', 'ADMIN'),
   [query('fromDate').optional().isISO8601(), query('toDate').optional().isISO8601()],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const societyId = (req.query.societyId as string) || req.user!.societyId;
       const where: any = { societyId };
@@ -260,7 +260,7 @@ router.get(
   authorize('SUPER_ADMIN', 'ADMIN'),
   [query('fromDate').isISO8601(), query('toDate').isISO8601()],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const societyId = (req.query.societyId as string) || req.user!.societyId;
       const fromDate = new Date(req.query.fromDate as string);

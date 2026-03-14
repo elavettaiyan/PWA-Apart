@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { body, param } from 'express-validator';
 import crypto from 'crypto';
 import prisma from '../../config/database';
@@ -11,7 +11,7 @@ router.use(authenticate);
 router.use(authorize('SUPER_ADMIN', 'ADMIN'));
 
 // ── GET PHONEPE CONFIG ──────────────────────────────────
-router.get('/payment-gateway', async (req: AuthRequest, res) => {
+router.get('/payment-gateway', async (req: AuthRequest, res: Response) => {
   try {
     const societyId = (req.query.societyId as string) || req.user!.societyId;
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
@@ -63,7 +63,7 @@ router.post(
     body('callbackUrl').optional().isURL({ require_tld: false }),
   ],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const societyId = req.body.societyId || req.user!.societyId;
       if (!societyId) return res.status(400).json({ error: 'Society ID required' });
@@ -111,7 +111,7 @@ router.post(
 );
 
 // ── TOGGLE ACTIVE ───────────────────────────────────────
-router.patch('/payment-gateway/toggle', async (req: AuthRequest, res) => {
+router.patch('/payment-gateway/toggle', async (req: AuthRequest, res: Response) => {
   try {
     const societyId = req.body.societyId || req.user!.societyId;
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
@@ -134,7 +134,7 @@ router.patch('/payment-gateway/toggle', async (req: AuthRequest, res) => {
 });
 
 // ── TEST PHONEPE CONNECTION ─────────────────────────────
-router.post('/payment-gateway/test', async (req: AuthRequest, res) => {
+router.post('/payment-gateway/test', async (req: AuthRequest, res: Response) => {
   try {
     const societyId = req.body.societyId || req.user!.societyId;
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
@@ -168,7 +168,7 @@ router.post('/payment-gateway/test', async (req: AuthRequest, res) => {
     });
 
     const responseTime = Date.now() - startTime;
-    const responseData = await response.json();
+    const responseData = await response.json() as { code?: string; message?: string };
 
     // Determine test result
     // PhonePe returns specific codes:

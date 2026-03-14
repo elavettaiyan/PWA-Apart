@@ -99,7 +99,7 @@ Add in Vercel dashboard:
 | `PHONEPE_SALT_KEY` | Your PhonePe Salt Key |
 | `PHONEPE_SALT_INDEX` | `1` |
 | `PHONEPE_ENV` | `PRODUCTION` |
-| `FRONTEND_URL` | `https://your-frontend.vercel.app` |
+| `CLIENT_URL` | `https://your-frontend.vercel.app` |
 | `NODE_ENV` | `production` |
 
 ### 4c. Build Settings

@@ -24,7 +24,13 @@ export default function LoginPage() {
       toast.success(`Welcome back, ${data.user.name}!`);
       navigate('/');
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Login failed');
+      console.error('Login error:', error);
+      const data = error.response?.data;
+      const message =
+        data?.error ||
+        (Array.isArray(data?.errors) ? data.errors.map((e: any) => e.msg).join(', ') : null) ||
+        (error.request ? 'Cannot reach the server. Please try again later.' : 'Login failed');
+      toast.error(message);
     } finally {
       setLoading(false);
     }
