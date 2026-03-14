@@ -89,7 +89,11 @@ router.post(
       });
     } catch (error: any) {
       logger.error('Register society failed', { error: error.message, stack: error.stack });
-      return res.status(500).json({ error: 'Registration failed. Please try again.' });
+      return res.status(500).json({
+        error: 'Registration failed. Please try again.',
+        detail: error.message,
+        code: error.code,
+      });
     }
   },
 );

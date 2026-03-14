@@ -94,6 +94,19 @@ app.get('/api/health', async (_req, res) => {
   });
 });
 
+// ── DB DIAGNOSTICS ──────────────────────────────────────
+app.get('/api/debug/tables', async (_req, res) => {
+  try {
+    const tables: any = await prisma.$queryRaw`
+      SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public' ORDER BY table_name;
+    `;
+    res.json({ tables: tables.map((t: any) => t.table_name) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── API ROUTES ──────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/flats', flatRoutes);
