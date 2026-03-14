@@ -65,6 +65,12 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
     });
 
     if (!complaint) return res.status(404).json({ error: 'Complaint not found' });
+
+    // SECURITY: Verify complaint belongs to user's society
+    if (req.user!.role !== 'SUPER_ADMIN' && complaint.societyId !== req.user!.societyId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     return res.json(complaint);
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch complaint' });
@@ -126,6 +132,13 @@ router.patch(
   validate,
   async (req: AuthRequest, res) => {
     try {
+      // SECURITY: Verify complaint belongs to admin's society
+      const existing = await prisma.complaint.findUnique({ where: { id: req.params.id } });
+      if (!existing) return res.status(404).json({ error: 'Complaint not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && existing.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
       const data: any = { status: req.body.status };
 
       if (req.body.assignedToId) data.assignedToId = req.body.assignedToId;

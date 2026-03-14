@@ -8,12 +8,24 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction,
 ): void => {
+  // Sanitize sensitive fields before logging
+  const sanitizedBody = req.method !== 'GET' && req.body
+    ? (() => {
+        const b = { ...req.body };
+        if (b.password) b.password = '[REDACTED]';
+        if (b.passwordHash) b.passwordHash = '[REDACTED]';
+        if (b.saltKey) b.saltKey = '[REDACTED]';
+        if (b.refreshToken) b.refreshToken = '[REDACTED]';
+        return JSON.stringify(b).substring(0, 500);
+      })()
+    : undefined;
+
   logger.error('Unhandled error', {
     error: err.message,
     stack: err.stack,
     method: req.method,
     url: req.originalUrl,
-    body: req.method !== 'GET' ? JSON.stringify(req.body).substring(0, 500) : undefined,
+    body: sanitizedBody,
     ip: req.ip,
   });
 

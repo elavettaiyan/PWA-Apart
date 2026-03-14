@@ -13,7 +13,9 @@ router.use(authorize('SUPER_ADMIN', 'ADMIN'));
 // ── GET PHONEPE CONFIG ──────────────────────────────────
 router.get('/payment-gateway', async (req: AuthRequest, res: Response) => {
   try {
-    const societyId = (req.query.societyId as string) || req.user!.societyId;
+    const societyId = req.user!.role === 'SUPER_ADMIN'
+      ? (req.query.societyId as string) || req.user!.societyId
+      : req.user!.societyId;
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
     const config = await prisma.paymentGatewayConfig.findUnique({
@@ -65,7 +67,9 @@ router.post(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
-      const societyId = req.body.societyId || req.user!.societyId;
+      const societyId = req.user!.role === 'SUPER_ADMIN'
+        ? req.body.societyId || req.user!.societyId
+        : req.user!.societyId;
       if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
       const { merchantId, saltKey, saltIndex, environment, redirectUrl, callbackUrl } = req.body;
@@ -113,7 +117,9 @@ router.post(
 // ── TOGGLE ACTIVE ───────────────────────────────────────
 router.patch('/payment-gateway/toggle', async (req: AuthRequest, res: Response) => {
   try {
-    const societyId = req.body.societyId || req.user!.societyId;
+    const societyId = req.user!.role === 'SUPER_ADMIN'
+      ? req.body.societyId || req.user!.societyId
+      : req.user!.societyId;
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
     const existing = await prisma.paymentGatewayConfig.findUnique({
@@ -136,7 +142,9 @@ router.patch('/payment-gateway/toggle', async (req: AuthRequest, res: Response) 
 // ── TEST PHONEPE CONNECTION ─────────────────────────────
 router.post('/payment-gateway/test', async (req: AuthRequest, res: Response) => {
   try {
-    const societyId = req.body.societyId || req.user!.societyId;
+    const societyId = req.user!.role === 'SUPER_ADMIN'
+      ? req.body.societyId || req.user!.societyId
+      : req.user!.societyId;
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
     const pgConfig = await prisma.paymentGatewayConfig.findUnique({

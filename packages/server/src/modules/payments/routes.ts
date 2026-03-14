@@ -152,10 +152,10 @@ router.post('/phonepe/callback', async (req, res) => {
     }
 
     // Verify checksum
-    const checksum = generateChecksum(response, '/pg/v1/pay');
     const receivedChecksum = req.headers['x-verify'] as string;
 
-    // Decode response
+    // We need to find the society to get the salt key for verification
+    // Decode response first to get merchantTransactionId
     const decodedResponse = JSON.parse(
       Buffer.from(response, 'base64').toString('utf-8'),
     );
@@ -169,12 +169,21 @@ router.post('/phonepe/callback', async (req, res) => {
 
     const payment = await prisma.payment.findUnique({
       where: { merchantTransId },
-      include: { bill: true },
+      include: { bill: { include: { flat: { include: { block: true } } } } },
     });
 
     if (!payment) {
       logger.error('Payment not found for txn:', merchantTransId);
       return res.status(404).json({ error: 'Payment not found' });
+    }
+
+    // SECURITY: Verify checksum with the society's PhonePe config
+    const societyId = payment.bill?.flat?.block?.societyId;
+    const pgConfig = await getPhonePeConfig(societyId ?? null);
+    const expectedChecksum = generateChecksum(response, '/pg/v1/pay', pgConfig.saltKey, pgConfig.saltIndex);
+    if (receivedChecksum && expectedChecksum !== receivedChecksum) {
+      logger.error('PhonePe callback checksum mismatch', { merchantTransId, expected: expectedChecksum, received: receivedChecksum });
+      return res.status(400).json({ error: 'Checksum verification failed' });
     }
 
     const txnStatus = decodedResponse.code;
@@ -239,6 +248,12 @@ router.get(
 
       if (!payment) {
         return res.status(404).json({ error: 'Payment not found' });
+      }
+
+      // SECURITY: Verify the requesting user owns this payment's society
+      const paymentSocietyId = payment.bill?.flat?.block?.societyId;
+      if (req.user!.role !== 'SUPER_ADMIN' && paymentSocietyId && paymentSocietyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
       }
 
       // If still INITIATED, check with PhonePe

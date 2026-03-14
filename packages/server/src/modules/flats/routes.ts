@@ -88,7 +88,15 @@ router.post(
   validate,
   async (req: AuthRequest, res) => {
     try {
-      const society = await prisma.society.create({ data: req.body });
+      const society = await prisma.society.create({
+        data: {
+          name: req.body.name,
+          address: req.body.address,
+          city: req.body.city,
+          state: req.body.state,
+          pincode: req.body.pincode,
+        },
+      });
       return res.status(201).json(society);
     } catch (error) {
       return res.status(500).json({ error: 'Failed to create society' });
@@ -149,6 +157,11 @@ router.get('/flats/:id', [param('id').isUUID()], validate, async (req: AuthReque
       return res.status(404).json({ error: 'Flat not found' });
     }
 
+    // SECURITY: Verify flat belongs to user's society
+    if (req.user!.role !== 'SUPER_ADMIN' && flat.block.societyId !== req.user!.societyId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     return res.json(flat);
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch flat' });
@@ -169,8 +182,22 @@ router.post(
   validate,
   async (req: AuthRequest, res) => {
     try {
+      // SECURITY: Verify block belongs to admin's society
+      const block = await prisma.block.findUnique({ where: { id: req.body.blockId } });
+      if (!block) return res.status(404).json({ error: 'Block not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && block.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // SECURITY: Whitelist allowed fields
       const flat = await prisma.flat.create({
-        data: req.body,
+        data: {
+          flatNumber: req.body.flatNumber,
+          floor: req.body.floor,
+          type: req.body.type,
+          areaSqFt: req.body.areaSqFt || null,
+          blockId: req.body.blockId,
+        },
         include: { block: true },
       });
       return res.status(201).json(flat);
@@ -191,9 +218,26 @@ router.put(
   validate,
   async (req: AuthRequest, res) => {
     try {
+      // SECURITY: Verify flat belongs to admin's society
+      const existing = await prisma.flat.findUnique({
+        where: { id: req.params.id },
+        include: { block: true },
+      });
+      if (!existing) return res.status(404).json({ error: 'Flat not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && existing.block.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // SECURITY: Whitelist allowed fields
       const flat = await prisma.flat.update({
         where: { id: req.params.id },
-        data: req.body,
+        data: {
+          flatNumber: req.body.flatNumber,
+          floor: req.body.floor,
+          type: req.body.type,
+          areaSqFt: req.body.areaSqFt,
+          isOccupied: req.body.isOccupied,
+        },
         include: { block: true, owner: true, tenant: true },
       });
       return res.json(flat);
@@ -211,6 +255,16 @@ router.delete(
   validate,
   async (req: AuthRequest, res) => {
     try {
+      // SECURITY: Verify flat belongs to admin's society
+      const existing = await prisma.flat.findUnique({
+        where: { id: req.params.id },
+        include: { block: true },
+      });
+      if (!existing) return res.status(404).json({ error: 'Flat not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && existing.block.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
       await prisma.flat.delete({ where: { id: req.params.id } });
       return res.json({ message: 'Flat deleted successfully' });
     } catch (error) {
@@ -248,7 +302,19 @@ router.post(
   validate,
   async (req: AuthRequest, res) => {
     try {
-      const block = await prisma.block.create({ data: req.body });
+      // SECURITY: Verify societyId matches admin's society
+      const societyId = req.body.societyId;
+      if (req.user!.role !== 'SUPER_ADMIN' && societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const block = await prisma.block.create({
+        data: {
+          name: req.body.name,
+          floors: req.body.floors,
+          societyId,
+        },
+      });
       return res.status(201).json(block);
     } catch (error) {
       return res.status(500).json({ error: 'Failed to create block' });
@@ -269,8 +335,28 @@ router.post(
   validate,
   async (req: AuthRequest, res) => {
     try {
+      // SECURITY: Verify flat belongs to admin's society
+      const flat = await prisma.flat.findUnique({
+        where: { id: req.body.flatId },
+        include: { block: true },
+      });
+      if (!flat) return res.status(404).json({ error: 'Flat not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && flat.block.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // SECURITY: Whitelist allowed fields
       const owner = await prisma.owner.create({
-        data: req.body,
+        data: {
+          name: req.body.name,
+          phone: req.body.phone,
+          email: req.body.email || null,
+          altPhone: req.body.altPhone || null,
+          aadharNo: req.body.aadharNo || null,
+          panNo: req.body.panNo || null,
+          flatId: req.body.flatId,
+          moveInDate: req.body.moveInDate ? new Date(req.body.moveInDate) : null,
+        },
       });
 
       // Mark flat as occupied
@@ -296,9 +382,18 @@ router.put(
   validate,
   async (req: AuthRequest, res) => {
     try {
+      // SECURITY: Whitelist allowed fields
       const owner = await prisma.owner.update({
         where: { id: req.params.id },
-        data: req.body,
+        data: {
+          name: req.body.name,
+          phone: req.body.phone,
+          email: req.body.email,
+          altPhone: req.body.altPhone,
+          aadharNo: req.body.aadharNo,
+          panNo: req.body.panNo,
+          moveInDate: req.body.moveInDate ? new Date(req.body.moveInDate) : undefined,
+        },
       });
       return res.json(owner);
     } catch (error) {
@@ -320,7 +415,21 @@ router.post(
   validate,
   async (req: AuthRequest, res) => {
     try {
-      const tenant = await prisma.tenant.create({ data: req.body });
+      // SECURITY: Whitelist allowed fields
+      const tenant = await prisma.tenant.create({
+        data: {
+          name: req.body.name,
+          phone: req.body.phone,
+          email: req.body.email || null,
+          altPhone: req.body.altPhone || null,
+          aadharNo: req.body.aadharNo || null,
+          flatId: req.body.flatId,
+          leaseStart: new Date(req.body.leaseStart),
+          leaseEnd: req.body.leaseEnd ? new Date(req.body.leaseEnd) : null,
+          rentAmount: req.body.rentAmount ? parseFloat(req.body.rentAmount) : null,
+          deposit: req.body.deposit ? parseFloat(req.body.deposit) : null,
+        },
+      });
       return res.status(201).json(tenant);
     } catch (error: any) {
       if (error.code === 'P2002') {
@@ -338,9 +447,21 @@ router.put(
   validate,
   async (req: AuthRequest, res) => {
     try {
+      // SECURITY: Whitelist allowed fields
       const tenant = await prisma.tenant.update({
         where: { id: req.params.id },
-        data: req.body,
+        data: {
+          name: req.body.name,
+          phone: req.body.phone,
+          email: req.body.email,
+          altPhone: req.body.altPhone,
+          aadharNo: req.body.aadharNo,
+          leaseStart: req.body.leaseStart ? new Date(req.body.leaseStart) : undefined,
+          leaseEnd: req.body.leaseEnd ? new Date(req.body.leaseEnd) : undefined,
+          rentAmount: req.body.rentAmount !== undefined ? parseFloat(req.body.rentAmount) : undefined,
+          deposit: req.body.deposit !== undefined ? parseFloat(req.body.deposit) : undefined,
+          isActive: req.body.isActive,
+        },
       });
       return res.json(tenant);
     } catch (error) {

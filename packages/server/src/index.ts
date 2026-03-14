@@ -5,6 +5,7 @@ import { config } from './config';
 import logger from './config/logger';
 import prisma from './config/database';
 import { errorHandler, notFound } from './middleware/errorHandler';
+import { rateLimit } from 'express-rate-limit';
 
 // Route modules
 import authRoutes from './modules/auth/routes';
@@ -59,55 +60,64 @@ app.use(cors({
     : true,
   credentials: true,
 }));
-app.use(express.json({ limit: '10mb' }));
+
+// ── SECURITY HEADERS ────────────────────────────────────
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (config.nodeEnv === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
+// ── RATE LIMITING ───────────────────────────────────────
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 attempts per window
+  message: { error: 'Too many attempts. Please try again in 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 registrations per hour
+  message: { error: 'Too many registration attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
-// ── HEALTH CHECK ────────────────────────────────────────
+// ── HEALTH CHECK (sanitized — no secrets/config leaked) ─
 app.get('/api/health', async (_req, res) => {
   let dbStatus = 'disconnected';
-  let dbError: string | undefined;
   try {
     await prisma.$queryRaw`SELECT 1`;
     dbStatus = 'connected';
   } catch (err: any) {
-    dbError = err.message;
     logger.error('Health check DB failure', { error: err.message });
   }
-
-  const diagnostics: Record<string, string> = {};
-  if (!process.env.DATABASE_URL && !process.env.APART_EASE_POSTGRES_PRISMA_URL) diagnostics.DATABASE_URL = 'NOT SET';
-  if (config.jwt.secret === 'fallback-secret') diagnostics.JWT_SECRET = 'NOT SET (using fallback)';
-  if (config.jwt.refreshSecret === 'fallback-refresh-secret') diagnostics.JWT_REFRESH_SECRET = 'NOT SET (using fallback)';
 
   res.json({
     status: dbStatus === 'connected' ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
     version: '1.0.0',
-    database: dbStatus,
-    ...(dbError && { databaseError: dbError }),
-    environment: config.nodeEnv,
-    clientUrl: config.clientUrl,
-    ...(Object.keys(diagnostics).length > 0 && { missingEnvVars: diagnostics }),
   });
 });
 
-// ── DB DIAGNOSTICS ──────────────────────────────────────
-app.get('/api/debug/tables', async (_req, res) => {
-  try {
-    const tables: any = await prisma.$queryRaw`
-      SELECT table_name FROM information_schema.tables
-      WHERE table_schema = 'public' ORDER BY table_name;
-    `;
-    res.json({ tables: tables.map((t: any) => t.table_name) });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // ── API ROUTES ──────────────────────────────────────────
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', registerLimiter);
+app.use('/api/auth/register-society', registerLimiter);
+app.use('/api/auth/refresh', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/flats', flatRoutes);
 app.use('/api/billing', billingRoutes);

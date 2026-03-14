@@ -1,6 +1,18 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+// SECURITY: Block production startup with weak/fallback secrets
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'fallback-secret') {
+    console.error('FATAL: JWT_SECRET must be set in production');
+    process.exit(1);
+  }
+  if (!process.env.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_SECRET === 'fallback-refresh-secret') {
+    console.error('FATAL: JWT_REFRESH_SECRET must be set in production');
+    process.exit(1);
+  }
+}
+
 export const config = {
   port: parseInt(process.env.PORT || '4000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',

@@ -22,7 +22,10 @@ router.post(
     body('pincode').trim().isLength({ min: 6, max: 6 }).withMessage('Valid 6-digit pincode is required'),
     body('adminName').trim().notEmpty().withMessage('Admin name is required'),
     body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
-    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+      .matches(/[A-Z]/).withMessage('Password must contain an uppercase letter')
+      .matches(/[a-z]/).withMessage('Password must contain a lowercase letter')
+      .matches(/[0-9]/).withMessage('Password must contain a number'),
     body('phone').optional().isMobilePhone('en-IN'),
   ],
   validate,
@@ -89,11 +92,7 @@ router.post(
       });
     } catch (error: any) {
       logger.error('Register society failed', { error: error.message, stack: error.stack });
-      return res.status(500).json({
-        error: 'Registration failed. Please try again.',
-        detail: error.message,
-        code: error.code,
-      });
+      return res.status(500).json({ error: 'Registration failed. Please try again.' });
     }
   },
 );
@@ -103,10 +102,10 @@ router.post(
   '/register',
   [
     body('email').isEmail().normalizeEmail(),
-    body('password').isLength({ min: 6 }),
+    body('password').isLength({ min: 8 }),
     body('name').trim().notEmpty(),
     body('phone').optional().isMobilePhone('en-IN'),
-    body('role').optional().isIn(['ADMIN', 'OWNER', 'TENANT']),
+    body('role').optional().isIn(['OWNER', 'TENANT']),
     body('societyId').optional().isUUID(),
   ],
   validate,

@@ -60,6 +60,12 @@ router.get('/:id', authorize('SUPER_ADMIN', 'ADMIN'), [param('id').isUUID()], va
       where: { id: req.params.id },
     });
     if (!expense) return res.status(404).json({ error: 'Expense not found' });
+
+    // SECURITY: Verify expense belongs to admin's society
+    if (req.user!.role !== 'SUPER_ADMIN' && expense.societyId !== req.user!.societyId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     return res.json(expense);
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch expense' });
@@ -115,11 +121,22 @@ router.put(
   async (req: AuthRequest, res: Response) => {
     try {
       const { id } = req.params;
+
+      // SECURITY: Verify expense belongs to admin's society
+      const existing = await prisma.expense.findUnique({ where: { id } });
+      if (!existing) return res.status(404).json({ error: 'Expense not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && existing.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // SECURITY: Whitelist allowed fields
       const expense = await prisma.expense.update({
         where: { id },
         data: {
-          ...req.body,
+          category: req.body.category,
           amount: req.body.amount ? parseFloat(req.body.amount) : undefined,
+          description: req.body.description,
+          vendor: req.body.vendor,
           expenseDate: req.body.expenseDate ? new Date(req.body.expenseDate) : undefined,
         },
       });
@@ -138,6 +155,13 @@ router.delete(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
+      // SECURITY: Verify expense belongs to admin's society
+      const existing = await prisma.expense.findUnique({ where: { id: req.params.id } });
+      if (!existing) return res.status(404).json({ error: 'Expense not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && existing.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
       await prisma.expense.delete({ where: { id: req.params.id } });
       return res.json({ message: 'Expense deleted successfully' });
     } catch (error) {

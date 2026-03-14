@@ -38,6 +38,12 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
       where: { id: req.params.id },
     });
     if (!bylaw) return res.status(404).json({ error: 'Bylaw not found' });
+
+    // SECURITY: Verify bylaw belongs to user's society
+    if (req.user!.role !== 'SUPER_ADMIN' && bylaw.societyId !== req.user!.societyId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     return res.json(bylaw);
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch bylaw' });
@@ -85,13 +91,24 @@ router.put(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
+      // SECURITY: Verify bylaw belongs to admin's society
+      const existing = await prisma.associationBylaw.findUnique({ where: { id: req.params.id } });
+      if (!existing) return res.status(404).json({ error: 'Bylaw not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && existing.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // SECURITY: Whitelist allowed fields
       const bylaw = await prisma.associationBylaw.update({
         where: { id: req.params.id },
         data: {
-          ...req.body,
+          title: req.body.title,
+          content: req.body.content,
+          category: req.body.category,
           penaltyAmount: req.body.penaltyAmount
             ? parseFloat(req.body.penaltyAmount)
             : undefined,
+          effectiveDate: req.body.effectiveDate ? new Date(req.body.effectiveDate) : undefined,
         },
       });
       return res.json(bylaw);
@@ -109,6 +126,13 @@ router.delete(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
+      // SECURITY: Verify bylaw belongs to admin's society
+      const existing = await prisma.associationBylaw.findUnique({ where: { id: req.params.id } });
+      if (!existing) return res.status(404).json({ error: 'Bylaw not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && existing.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
       await prisma.associationBylaw.update({
         where: { id: req.params.id },
         data: { isActive: false },

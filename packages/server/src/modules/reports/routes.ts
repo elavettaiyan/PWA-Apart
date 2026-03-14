@@ -50,7 +50,9 @@ router.get('/my-dashboard', async (req: AuthRequest, res: Response) => {
 // ── DASHBOARD SUMMARY (Admin) ───────────────────────────
 router.get('/dashboard', authorize('SUPER_ADMIN', 'ADMIN'), async (req: AuthRequest, res: Response) => {
   try {
-    const societyId = (req.query.societyId as string) || req.user!.societyId;
+    const societyId = req.user!.role === 'SUPER_ADMIN'
+      ? (req.query.societyId as string) || req.user!.societyId
+      : req.user!.societyId;
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
     const [
@@ -108,7 +110,9 @@ router.get(
     try {
       const month = parseInt(req.query.month as string);
       const year = parseInt(req.query.year as string);
-      const societyId = (req.query.societyId as string) || req.user!.societyId;
+      const societyId = req.user!.role === 'SUPER_ADMIN'
+        ? (req.query.societyId as string) || req.user!.societyId
+        : req.user!.societyId;
 
       const bills = await prisma.maintenanceBill.findMany({
         where: {
@@ -160,7 +164,9 @@ router.get(
 // ── DEFAULTERS REPORT ───────────────────────────────────
 router.get('/defaulters', authorize('SUPER_ADMIN', 'ADMIN'), async (req: AuthRequest, res: Response) => {
   try {
-    const societyId = (req.query.societyId as string) || req.user!.societyId;
+    const societyId = req.user!.role === 'SUPER_ADMIN'
+      ? (req.query.societyId as string) || req.user!.societyId
+      : req.user!.societyId;
 
     const defaulters = await prisma.maintenanceBill.findMany({
       where: {
@@ -215,7 +221,9 @@ router.get(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
-      const societyId = (req.query.societyId as string) || req.user!.societyId;
+      const societyId = req.user!.role === 'SUPER_ADMIN'
+        ? (req.query.societyId as string) || req.user!.societyId
+        : req.user!.societyId;
       const where: any = { societyId };
 
       if (req.query.fromDate || req.query.toDate) {
@@ -262,7 +270,9 @@ router.get(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
-      const societyId = (req.query.societyId as string) || req.user!.societyId;
+      const societyId = req.user!.role === 'SUPER_ADMIN'
+        ? (req.query.societyId as string) || req.user!.societyId
+        : req.user!.societyId;
       const fromDate = new Date(req.query.fromDate as string);
       const toDate = new Date(req.query.toDate as string);
 

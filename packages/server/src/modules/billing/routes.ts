@@ -11,7 +11,9 @@ router.use(authenticate);
 // ── GET MAINTENANCE CONFIGS ─────────────────────────────
 router.get('/config', async (req: AuthRequest, res) => {
   try {
-    const societyId = (req.query.societyId as string) || req.user!.societyId;
+    const societyId = req.user!.role === 'SUPER_ADMIN'
+      ? (req.query.societyId as string) || req.user!.societyId
+      : req.user!.societyId;
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
     const configs = await prisma.maintenanceConfig.findMany({
@@ -38,6 +40,11 @@ router.post(
   async (req: AuthRequest, res) => {
     try {
       // Deactivate existing config for this flatType
+      // SECURITY: Verify societyId matches admin's society
+      if (req.user!.role !== 'SUPER_ADMIN' && req.body.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
       await prisma.maintenanceConfig.updateMany({
         where: {
           societyId: req.body.societyId,
@@ -67,6 +74,11 @@ router.post(
   async (req: AuthRequest, res) => {
     try {
       const { societyId, month, year } = req.body;
+
+      // SECURITY: Verify societyId matches admin's society
+      if (req.user!.role !== 'SUPER_ADMIN' && societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
 
       // Get all flats in society with their types
       const flats = await prisma.flat.findMany({
@@ -205,6 +217,12 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
     });
 
     if (!bill) return res.status(404).json({ error: 'Bill not found' });
+
+    // SECURITY: Verify bill belongs to user's society
+    if (req.user!.role !== 'SUPER_ADMIN' && bill.flat.block.societyId !== req.user!.societyId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     return res.json(bill);
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch bill' });
