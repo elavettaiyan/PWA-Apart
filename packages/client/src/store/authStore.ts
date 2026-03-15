@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { appStorage } from '../lib/storage';
 import type { User } from '../types';
 
 interface AuthState {
@@ -31,6 +32,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'apart-auth',
+      storage: appStorage,
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,

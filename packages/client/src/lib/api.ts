@@ -1,8 +1,10 @@
 import axios from 'axios';
+import { redirectToLogin } from './navigation';
+import { getApiBaseUrl } from './platform';
 import { useAuthStore } from '../store/authStore';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: getApiBaseUrl(),
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -27,17 +29,17 @@ api.interceptors.response.use(
       const refreshToken = useAuthStore.getState().refreshToken;
       if (refreshToken) {
         try {
-          const { data } = await axios.post(`${import.meta.env.VITE_API_URL || '/api'}/auth/refresh`, { refreshToken });
+          const { data } = await axios.post(`${getApiBaseUrl()}/auth/refresh`, { refreshToken });
           useAuthStore.getState().setTokens(data.accessToken, data.refreshToken);
           originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
           return api(originalRequest);
         } catch (refreshError) {
           useAuthStore.getState().logout();
-          window.location.href = '/login';
+          redirectToLogin();
         }
       } else {
         useAuthStore.getState().logout();
-        window.location.href = '/login';
+        redirectToLogin();
       }
     }
 
