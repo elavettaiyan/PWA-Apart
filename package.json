@@ -5,7 +5,8 @@
   "description": "Apartment Management Progressive Web App",
   "workspaces": [
     "packages/server",
-    "packages/client"
+    "packages/client",
+    "packages/marketing"
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",

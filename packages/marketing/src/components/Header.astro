@@ -1,0 +1,31 @@
+---
+const appUrl = 'https://app.resilynk.com';
+---
+
+<header class="fixed top-0 inset-x-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-100">
+  <nav class="max-w-7xl mx-auto flex items-center justify-between px-6 py-4">
+    <a href="/" class="flex items-center gap-2 group">
+      <div class="w-9 h-9 bg-primary-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-200 group-hover:shadow-primary-300 transition-shadow">
+        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+      </div>
+      <span class="text-xl font-bold text-gray-900">Resilynk</span>
+    </a>
+
+    <div class="hidden md:flex items-center gap-8">
+      <a href="#features" class="text-sm font-medium text-gray-600 hover:text-primary-600 transition-colors">Features</a>
+      <a href="#testimonials" class="text-sm font-medium text-gray-600 hover:text-primary-600 transition-colors">Testimonials</a>
+      <a href="#faq" class="text-sm font-medium text-gray-600 hover:text-primary-600 transition-colors">FAQ</a>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <a href={`${appUrl}/login`} class="text-sm font-medium text-gray-700 hover:text-primary-600 transition-colors px-4 py-2">
+        Login
+      </a>
+      <a href={`${appUrl}/register`} class="text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 px-5 py-2.5 rounded-xl shadow-lg shadow-primary-200 hover:shadow-primary-300 transition-all">
+        Register Free
+      </a>
+    </div>
+  </nav>
+</header>

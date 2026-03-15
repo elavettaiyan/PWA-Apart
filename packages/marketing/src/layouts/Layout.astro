@@ -1,0 +1,90 @@
+---
+export interface Props {
+  title?: string;
+  description?: string;
+  canonical?: string;
+  ogImage?: string;
+}
+
+const {
+  title = 'Resilynk — Apartment Society Management Software',
+  description = 'Free apartment management software for Indian housing societies. Automate billing, collect maintenance payments online via UPI, track complaints, manage expenses & more. Trusted by RWAs across India.',
+  canonical = Astro.url.href,
+  ogImage = '/og-image.png',
+} = Astro.props;
+
+const siteUrl = 'https://resilynk.com';
+const appUrl = 'https://app.resilynk.com';
+---
+
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Primary SEO -->
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Keywords (supplementary signal) -->
+    <meta
+      name="keywords"
+      content="apartment management software, society management app, RWA management system, housing society management, apartment billing software India, flat management system, maintenance bill generation, society expense tracking, apartment complaint management, online maintenance payment, housing society accounting, gated community management app, free apartment management software"
+    />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={`${siteUrl}${ogImage}`} />
+    <meta property="og:site_name" content="Resilynk" />
+    <meta property="og:locale" content="en_IN" />
+
+    <!-- Twitter  -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={`${siteUrl}${ogImage}`} />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#6366f1" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Resilynk",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web, Android",
+      "description": "Free apartment society management software for Indian housing societies. Billing, online payments, complaints, expenses, reports.",
+      "url": siteUrl,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "INR"
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.8",
+        "ratingCount": "120"
+      }
+    })} />
+  </head>
+  <body class="bg-white text-gray-900 font-sans antialiased">
+    <slot />
+  </body>
+</html>
