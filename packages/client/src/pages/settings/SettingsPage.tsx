@@ -450,10 +450,9 @@ export default function SettingsPage() {
           <li>For testing, use the UAT sandbox credentials provided by PhonePe</li>
         </ol>
         <div className="mt-3 p-3 bg-white/60 rounded-lg text-xs font-mono text-blue-700">
-          <p><strong>UAT Test Credentials (Sandbox):</strong></p>
-          <p>Merchant ID: PGTESTPAYUAT86</p>
-          <p>Salt Key: 96434309-7796-489d-8924-ab56988a6076</p>
-          <p>Salt Index: 1</p>
+            <p><strong>Sandbox note:</strong></p>
+            <p>Use the UAT Merchant ID, Salt Key, and Salt Index issued to your own PhonePe merchant account.</p>
+            <p>Do not rely on shared sample credentials because they may be expired, disabled, or rate-limited.</p>
         </div>
       </div>
     </div>

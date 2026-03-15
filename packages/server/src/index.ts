@@ -20,6 +20,8 @@ import settingsRoutes from './modules/settings/routes';
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 // ── REQUEST LOGGING MIDDLEWARE ──────────────────────────
 app.use((req, res, next) => {
   const start = Date.now();

@@ -10,6 +10,19 @@ const router = Router();
 router.use(authenticate);
 router.use(authorize('SUPER_ADMIN', 'ADMIN'));
 
+function getRequestOrigin(req: AuthRequest) {
+  const forwardedProto = req.get('x-forwarded-proto')?.split(',')[0]?.trim();
+  const forwardedHost = req.get('x-forwarded-host')?.split(',')[0]?.trim();
+  const protocol = forwardedProto || req.protocol;
+  const host = forwardedHost || req.get('host');
+
+  return host ? `${protocol}://${host}` : '';
+}
+
+function getDefaultRedirectUrl() {
+  return `${process.env.CLIENT_URL || 'http://localhost:5173'}/billing?payment=done`;
+}
+
 // ── GET PHONEPE CONFIG ──────────────────────────────────
 router.get('/payment-gateway', async (req: AuthRequest, res: Response) => {
   try {
@@ -23,6 +36,8 @@ router.get('/payment-gateway', async (req: AuthRequest, res: Response) => {
     });
 
     if (!config) {
+      const requestOrigin = getRequestOrigin(req);
+
       return res.json({
         exists: false,
         config: {
@@ -32,8 +47,8 @@ router.get('/payment-gateway', async (req: AuthRequest, res: Response) => {
           saltIndex: 1,
           environment: 'UAT',
           baseUrl: 'https://api-preprod.phonepe.com/apis/pg-sandbox',
-          redirectUrl: `${req.protocol}://${req.get('host')?.replace(':4000', ':5173')}/billing?payment=done`,
-          callbackUrl: `${req.protocol}://${req.get('host')}/api/payments/phonepe/callback`,
+          redirectUrl: getDefaultRedirectUrl(),
+          callbackUrl: requestOrigin ? `${requestOrigin}/api/payments/phonepe/callback` : '',
           isActive: false,
         },
       });
@@ -73,6 +88,7 @@ router.post(
       if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
       const { merchantId, saltKey, saltIndex, environment, redirectUrl, callbackUrl } = req.body;
+      const requestOrigin = getRequestOrigin(req);
 
       // Determine base URL from environment
       const baseUrl =
@@ -87,8 +103,8 @@ router.post(
         saltIndex: saltIndex || 1,
         environment,
         baseUrl,
-        redirectUrl: redirectUrl || `${req.protocol}://${req.get('host')?.replace(':4000', ':5173')}/billing?payment=done`,
-        callbackUrl: callbackUrl || `${req.protocol}://${req.get('host')}/api/payments/phonepe/callback`,
+        redirectUrl: redirectUrl || getDefaultRedirectUrl(),
+        callbackUrl: callbackUrl || (requestOrigin ? `${requestOrigin}/api/payments/phonepe/callback` : ''),
         isActive: true,
       };
 
