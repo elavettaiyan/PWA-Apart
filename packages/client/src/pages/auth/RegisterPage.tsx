@@ -22,16 +22,41 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const { setAuth } = useAuthStore();
 
+  const passwordRequirements = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const trimmedPincode = form.pincode.trim();
+    const trimmedPhone = form.phone.trim();
+
+    if (!/^\d{6}$/.test(trimmedPincode)) {
+      toast.error('Pincode must be exactly 6 digits.');
+      return;
+    }
+
+    if (!passwordRequirements.test(form.password)) {
+      toast.error('Password must be at least 8 characters and include uppercase, lowercase, and a number.');
+      return;
+    }
+
+    if (trimmedPhone && !/^[6-9]\d{9}$/.test(trimmedPhone)) {
+      toast.error('Phone number must be a valid 10-digit Indian mobile number.');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const { data } = await api.post('/auth/register-society', form);
+      const { data } = await api.post('/auth/register-society', {
+        ...form,
+        pincode: trimmedPincode,
+        phone: trimmedPhone,
+      });
       setAuth(data.user, data.accessToken, data.refreshToken);
       toast.success(`Welcome! ${data.society.name} has been created.`);
       navigate('/');
@@ -182,10 +207,12 @@ export default function RegisterPage() {
                     type={showPassword ? 'text' : 'password'}
                     name="password"
                     className="input pr-10"
-                    placeholder="Minimum 6 characters"
+                    placeholder="Min 8 chars, with Aa1"
                     value={form.password}
                     onChange={handleChange}
-                    minLength={6}
+                    minLength={8}
+                    pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}"
+                    title="Password must be at least 8 characters and include uppercase, lowercase, and a number"
                     required
                   />
                   <button
@@ -212,6 +239,9 @@ export default function RegisterPage() {
               <ArrowLeft className="w-4 h-4" />
               Already have an account? Sign in
             </Link>
+                  inputMode="numeric"
+                  pattern="[6-9][0-9]{9}"
+                  title="Enter a valid 10-digit Indian mobile number"
           </div>
         </div>
       </div>

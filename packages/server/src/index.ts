@@ -88,6 +88,7 @@ const registerLimiter = rateLimit({
   message: { error: 'Too many registration attempts. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => config.nodeEnv !== 'production',
 });
 
 app.use(express.json({ limit: '1mb' }));

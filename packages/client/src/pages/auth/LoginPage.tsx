@@ -106,15 +106,7 @@ export default function LoginPage() {
             </div>
           </form>
 
-          <div className="mt-3 text-right">
-            <Link
-              to="/forgot-password"
-              className="text-sm text-primary-600 hover:text-primary-700 font-medium"
-            >
-              Forgot password?
-            </Link>
-          </div>
-
+        
           <div className="mt-6 p-4 bg-gray-50 rounded-xl">
             <p className="text-xs text-gray-500 font-medium mb-2">Demo Credentials:</p>
             <p className="text-xs text-gray-600">Email: admin@greenvalley.com</p>
