@@ -59,7 +59,7 @@ export default function Layout({ children }: LayoutProps) {
               <Building2 className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-gray-900">ApartEase</h1>
+              <h1 className="text-lg font-bold text-gray-900">Resilynk</h1>
               <p className="text-[10px] text-gray-400 -mt-0.5 uppercase tracking-wider">Management</p>
             </div>
             <button className="lg:hidden ml-auto" onClick={() => setSidebarOpen(false)}>

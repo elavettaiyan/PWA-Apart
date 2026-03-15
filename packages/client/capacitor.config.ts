@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.apartease.mobile',
-  appName: 'ApartEase',
+  appId: 'com.resilynk.mobile',
+  appName: 'Resilynk',
   webDir: 'dist',
   bundledWebRuntime: false,
   server: {

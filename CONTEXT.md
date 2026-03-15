@@ -1,4 +1,4 @@
-# ApartEase – Apartment Management PWA (Multi-Tenant)
+# Resilynk – Apartment Management PWA (Multi-Tenant)
 
 ## Project Location
 `c:\Code\PWA-Apart` (npm workspaces monorepo)

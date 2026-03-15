@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">ApartEase</string>
-    <string name="title_activity_main">ApartEase</string>
-    <string name="package_name">com.apartease.mobile</string>
-    <string name="custom_url_scheme">com.apartease.mobile</string>
+    <string name="app_name">Resilynk</string>
+    <string name="title_activity_main">Resilynk</string>
+    <string name="package_name">com.resilynk.mobile</string>
+    <string name="custom_url_scheme">com.resilynk.mobile</string>
 </resources>

@@ -59,7 +59,7 @@ export default function ChangePasswordPage() {
               <Building2 className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">ApartEase</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Resilynk</h1>
               <p className="text-sm text-gray-500">Apartment Management System</p>
             </div>
           </div>
