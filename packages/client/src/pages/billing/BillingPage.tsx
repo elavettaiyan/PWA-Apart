@@ -7,16 +7,44 @@ import { formatCurrency, getStatusColor, getMonthName, cn } from '../../lib/util
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
 import { useAuthStore } from '../../store/authStore';
-import type { MaintenanceBill } from '../../types';
+import type { BillingGenerationResult, MaintenanceBill, MaintenanceConfigSummary } from '../../types';
 
 const currentDate = new Date();
+const yearOptions = Array.from({ length: 5 }, (_, index) => currentDate.getFullYear() - 1 + index);
+
+type BillingConfigFormState = {
+  baseAmount: number;
+  waterCharge: number;
+  parkingCharge: number;
+  sinkingFund: number;
+  repairFund: number;
+  otherCharges: number;
+  lateFeePerDay: number;
+  dueDay: number;
+};
+
+function buildConfigForm(summary?: MaintenanceConfigSummary): BillingConfigFormState {
+  return {
+    baseAmount: summary?.baseAmount ?? 0,
+    waterCharge: summary?.waterCharge ?? 0,
+    parkingCharge: summary?.parkingCharge ?? 0,
+    sinkingFund: summary?.sinkingFund ?? 0,
+    repairFund: summary?.repairFund ?? 0,
+    otherCharges: summary?.otherCharges ?? 0,
+    lateFeePerDay: summary?.lateFeePerDay ?? 0,
+    dueDay: summary?.dueDay ?? 10,
+  };
+}
 
 export default function BillingPage() {
   const [month, setMonth] = useState(currentDate.getMonth() + 1);
   const [year, setYear] = useState(currentDate.getFullYear());
   const [showGenerate, setShowGenerate] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [selectedBill, setSelectedBill] = useState<MaintenanceBill | null>(null);
+  const [generationResult, setGenerationResult] = useState<BillingGenerationResult | null>(null);
+  const [configForm, setConfigForm] = useState<BillingConfigFormState>(buildConfigForm());
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
@@ -26,22 +54,55 @@ export default function BillingPage() {
     queryFn: async () => (await api.get(`/billing?month=${month}&year=${year}`)).data,
   });
 
+  const { data: configSummary, isLoading: isConfigLoading } = useQuery<MaintenanceConfigSummary>({
+    queryKey: ['billing-config', user?.societyId],
+    queryFn: async () => (await api.get('/billing/config/summary')).data,
+    enabled: isAdmin,
+  });
+
+  const openConfigModal = () => {
+    setConfigForm(buildConfigForm(configSummary));
+    setShowConfig(true);
+  };
+
+  const configMutation = useMutation({
+    mutationFn: (data: BillingConfigFormState) => api.post('/billing/config', { ...data, societyId: user?.societyId }),
+    onSuccess: () => {
+      toast.success('Monthly maintenance settings saved');
+      queryClient.invalidateQueries({ queryKey: ['billing-config'] });
+      setShowConfig(false);
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save maintenance settings'),
+  });
+
   const generateMutation = useMutation({
-    mutationFn: (data: any) => api.post('/billing/generate', data),
+    mutationFn: (data: { societyId: string; month: number; year: number }) => api.post('/billing/generate', data),
     onSuccess: (res) => {
-      toast.success(res.data.message);
+      const result = res.data as BillingGenerationResult;
+      setGenerationResult(result);
+      toast.success(result.message || `Generated ${result.generatedCount} bills`);
+      if (result.errors?.length) {
+        toast.error(`Skipped ${result.errors.length} flats. Review the details below.`);
+      }
       queryClient.invalidateQueries({ queryKey: ['bills'] });
       setShowGenerate(false);
     },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
+    onError: (e: any) => {
+      const result = e.response?.data as BillingGenerationResult | undefined;
+      if (result) {
+        setGenerationResult(result);
+      }
+      toast.error(result?.error || 'Failed to generate bills');
+    },
   });
 
   const totalBilled = bills.reduce((s, b) => s + b.totalAmount, 0);
   const totalCollected = bills.reduce((s, b) => s + b.paidAmount, 0);
   const paidCount = bills.filter((b) => b.status === 'PAID').length;
   const pendingCount = bills.filter((b) => b.status === 'PENDING' || b.status === 'OVERDUE').length;
+  const canGenerateBills = !!user?.societyId && !!configSummary?.isConfigured;
 
-  if (isLoading) return <PageLoader />;
+  if (isLoading || (isAdmin && isConfigLoading)) return <PageLoader />;
 
   return (
     <div>
@@ -51,11 +112,88 @@ export default function BillingPage() {
           <p className="text-sm text-gray-500 mt-1">Generate and manage monthly maintenance bills</p>
         </div>
         {isAdmin && (
-          <button className="btn-primary" onClick={() => setShowGenerate(true)}>
-            <Plus className="w-4 h-4" /> Generate Bills
-          </button>
+          <div className="flex gap-3">
+            <button className="btn-secondary" onClick={openConfigModal}>
+              <Calendar className="w-4 h-4" /> Set Amount
+            </button>
+            <button className="btn-primary" onClick={() => setShowGenerate(true)} disabled={!canGenerateBills}>
+              <Plus className="w-4 h-4" /> Generate Bills
+            </button>
+          </div>
         )}
       </div>
+
+      {isAdmin && (
+        <div className="grid gap-4 mb-6 lg:grid-cols-[1.25fr_0.75fr]">
+          <div className="rounded-2xl border border-gray-200 bg-white p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Monthly Maintenance Amount</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  Apply one shared monthly amount across all flat types in this society.
+                </p>
+              </div>
+              <button className="btn-secondary" onClick={openConfigModal}>Configure</button>
+            </div>
+
+            {configSummary?.isConfigured ? (
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="rounded-xl bg-gray-50 p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Monthly Total</p>
+                  <p className="mt-2 text-2xl font-semibold text-gray-900">{formatCurrency(configSummary.totalMonthlyAmount)}</p>
+                </div>
+                <div className="rounded-xl bg-gray-50 p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Base Amount</p>
+                  <p className="mt-2 text-xl font-semibold text-gray-900">{formatCurrency(configSummary.baseAmount)}</p>
+                </div>
+                <div className="rounded-xl bg-gray-50 p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Due Day</p>
+                  <p className="mt-2 text-xl font-semibold text-gray-900">{configSummary.dueDay}th of every month</p>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                Bills cannot be generated until you set the monthly maintenance amount.
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-white p-5">
+            <p className="text-sm font-semibold text-gray-900">Generation Status</p>
+            <p className="mt-1 text-sm text-gray-500">The latest generation attempt is shown here.</p>
+
+            {generationResult ? (
+              <div className="mt-4 space-y-3 text-sm">
+                <div className="rounded-xl bg-gray-50 p-4">
+                  <p className="font-medium text-gray-900">
+                    {generationResult.error || generationResult.message || 'Generation result'}
+                  </p>
+                  <p className="mt-1 text-gray-600">
+                    Generated {generationResult.generatedCount} of {generationResult.totalFlats} eligible bills.
+                  </p>
+                </div>
+                {generationResult.errors?.length ? (
+                  <div className="rounded-xl border border-gray-200 p-4">
+                    <p className="font-medium text-gray-900">Issues</p>
+                    <ul className="mt-2 space-y-2 text-gray-600">
+                      {generationResult.errors.slice(0, 5).map((error) => (
+                        <li key={error}>{error}</li>
+                      ))}
+                    </ul>
+                    {generationResult.errors.length > 5 ? (
+                      <p className="mt-2 text-xs text-gray-500">+ {generationResult.errors.length - 5} more</p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="mt-4 rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
+                No generation attempt yet for this session.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Month/Year Filter */}
       <div className="flex gap-3 mb-6">
@@ -65,7 +203,7 @@ export default function BillingPage() {
           ))}
         </select>
         <select className="select w-28" value={year} onChange={(e) => setYear(Number(e.target.value))}>
-          {[2024, 2025, 2026, 2027].map((y) => (
+          {yearOptions.map((y) => (
             <option key={y} value={y}>{y}</option>
           ))}
         </select>
@@ -97,7 +235,11 @@ export default function BillingPage() {
           icon={Receipt}
           title="No bills found"
           description={`No bills generated for ${getMonthName(month)} ${year}`}
-          action={isAdmin ? <button className="btn-primary" onClick={() => setShowGenerate(true)}>Generate Bills</button> : undefined}
+          action={isAdmin ? (
+            <button className="btn-primary" onClick={() => (canGenerateBills ? setShowGenerate(true) : openConfigModal())}>
+              {canGenerateBills ? 'Generate Bills' : 'Set Maintenance Amount'}
+            </button>
+          ) : undefined}
         />
       ) : (
         <div className="table-container">
@@ -163,6 +305,11 @@ export default function BillingPage() {
           <p className="text-sm text-gray-600">
             This will generate maintenance bills for all occupied flats based on the configured rates.
           </p>
+          {!canGenerateBills ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              Set the monthly maintenance amount before generating bills.
+            </div>
+          ) : null}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Month</label>
@@ -175,7 +322,7 @@ export default function BillingPage() {
             <div>
               <label className="label">Year</label>
               <select className="select" value={year} onChange={(e) => setYear(Number(e.target.value))}>
-                {[2024, 2025, 2026, 2027].map((y) => <option key={y} value={y}>{y}</option>)}
+                {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
           </div>
@@ -183,13 +330,32 @@ export default function BillingPage() {
             <button className="btn-secondary" onClick={() => setShowGenerate(false)}>Cancel</button>
             <button
               className="btn-primary"
-              onClick={() => generateMutation.mutate({ societyId: user?.societyId || bills[0]?.flat?.block?.society?.id, month, year })}
-              disabled={generateMutation.isPending}
+              onClick={() => {
+                if (!user?.societyId) {
+                  toast.error('Society information is missing for this account.');
+                  return;
+                }
+                if (!canGenerateBills) {
+                  toast.error('Set the monthly maintenance amount before generating bills.');
+                  return;
+                }
+                generateMutation.mutate({ societyId: user.societyId, month, year });
+              }}
+              disabled={generateMutation.isPending || !canGenerateBills}
             >
               {generateMutation.isPending ? 'Generating...' : 'Generate Bills'}
             </button>
           </div>
         </div>
+      </Modal>
+
+      <Modal isOpen={showConfig} onClose={() => setShowConfig(false)} title="Set Monthly Maintenance Amount">
+        <ConfigureBillingForm
+          value={configForm}
+          onChange={setConfigForm}
+          onSubmit={() => configMutation.mutate(configForm)}
+          isPending={configMutation.isPending}
+        />
       </Modal>
 
       {/* Record Payment Modal */}
@@ -202,6 +368,86 @@ export default function BillingPage() {
         )}
       </Modal>
     </div>
+  );
+}
+
+function ConfigureBillingForm({
+  value,
+  onChange,
+  onSubmit,
+  isPending,
+}: {
+  value: BillingConfigFormState;
+  onChange: (value: BillingConfigFormState) => void;
+  onSubmit: () => void;
+  isPending: boolean;
+}) {
+  const totalMonthlyAmount =
+    value.baseAmount +
+    value.waterCharge +
+    value.parkingCharge +
+    value.sinkingFund +
+    value.repairFund +
+    value.otherCharges;
+
+  const updateNumberField = (field: keyof BillingConfigFormState, rawValue: string) => {
+    onChange({ ...value, [field]: Number(rawValue) });
+  };
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit();
+      }}
+      className="space-y-4"
+    >
+      <div className="rounded-xl bg-gray-50 p-4">
+        <p className="text-sm font-medium text-gray-900">Total monthly bill per flat</p>
+        <p className="mt-2 text-2xl font-semibold text-gray-900">{formatCurrency(totalMonthlyAmount)}</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="label">Base Maintenance Amount</label>
+          <input type="number" min={0} className="input" value={value.baseAmount} onChange={(e) => updateNumberField('baseAmount', e.target.value)} required />
+        </div>
+        <div>
+          <label className="label">Water Charge</label>
+          <input type="number" min={0} className="input" value={value.waterCharge} onChange={(e) => updateNumberField('waterCharge', e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Parking Charge</label>
+          <input type="number" min={0} className="input" value={value.parkingCharge} onChange={(e) => updateNumberField('parkingCharge', e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Sinking Fund</label>
+          <input type="number" min={0} className="input" value={value.sinkingFund} onChange={(e) => updateNumberField('sinkingFund', e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Repair Fund</label>
+          <input type="number" min={0} className="input" value={value.repairFund} onChange={(e) => updateNumberField('repairFund', e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Other Charges</label>
+          <input type="number" min={0} className="input" value={value.otherCharges} onChange={(e) => updateNumberField('otherCharges', e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Late Fee Per Day</label>
+          <input type="number" min={0} className="input" value={value.lateFeePerDay} onChange={(e) => updateNumberField('lateFeePerDay', e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Due Day</label>
+          <input type="number" min={1} max={28} className="input" value={value.dueDay} onChange={(e) => updateNumberField('dueDay', e.target.value)} required />
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-3 pt-4">
+        <button type="submit" className="btn-primary" disabled={isPending}>
+          {isPending ? 'Saving...' : 'Save Amount'}
+        </button>
+      </div>
+    </form>
   );
 }
 

@@ -111,6 +111,29 @@ export interface MaintenanceConfig {
   dueDay: number;
 }
 
+export interface MaintenanceConfigSummary {
+  societyId: string;
+  isConfigured: boolean;
+  baseAmount: number;
+  waterCharge: number;
+  parkingCharge: number;
+  sinkingFund: number;
+  repairFund: number;
+  otherCharges: number;
+  lateFeePerDay: number;
+  dueDay: number;
+  configuredFlatTypes: FlatType[];
+  totalMonthlyAmount: number;
+}
+
+export interface BillingGenerationResult {
+  message?: string;
+  generatedCount: number;
+  totalFlats: number;
+  errors?: string[];
+  error?: string;
+}
+
 export interface MaintenanceBill {
   id: string;
   flatId: string;

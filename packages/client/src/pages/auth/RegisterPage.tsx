@@ -196,6 +196,9 @@ export default function RegisterPage() {
                   name="phone"
                   className="input"
                   placeholder="9876543210"
+                  inputMode="numeric"
+                  pattern="[6-9][0-9]{9}"
+                  title="Enter a valid 10-digit Indian mobile number"
                   value={form.phone}
                   onChange={handleChange}
                 />
@@ -239,9 +242,6 @@ export default function RegisterPage() {
               <ArrowLeft className="w-4 h-4" />
               Already have an account? Sign in
             </Link>
-                  inputMode="numeric"
-                  pattern="[6-9][0-9]{9}"
-                  title="Enter a valid 10-digit Indian mobile number"
           </div>
         </div>
       </div>
