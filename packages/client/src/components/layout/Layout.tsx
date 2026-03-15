@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Building2, Receipt, MessageSquareWarning,
-  Wallet, ScrollText, BarChart3, LogOut, Menu, X, ChevronDown, User, Settings,
+  Wallet, ScrollText, BarChart3, LogOut, Menu, X, ChevronDown, User, Settings, KeyRound,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { cn } from '../../lib/utils';
@@ -144,6 +144,16 @@ export default function Layout({ children }: LayoutProps) {
                       <p className="text-sm font-medium text-gray-900">{user?.name}</p>
                       <p className="text-xs text-gray-500">{user?.email}</p>
                     </div>
+                    <button
+                      onClick={() => {
+                        setProfileOpen(false);
+                        navigate('/settings/change-password');
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
+                    >
+                      <KeyRound className="w-4 h-4" />
+                      Change Password
+                    </button>
                     <button
                       onClick={handleLogout}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition"

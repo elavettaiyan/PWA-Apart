@@ -1,8 +1,11 @@
 import { Router } from 'express';
 import { body, param, query } from 'express-validator';
+import bcrypt from 'bcryptjs';
+import * as XLSX from 'xlsx';
 import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
+import logger from '../../config/logger';
 
 const router = Router();
 
@@ -126,7 +129,7 @@ router.get(
         where,
         include: {
           block: { include: { society: { select: { id: true, name: true } } } },
-          owner: { select: { id: true, name: true, phone: true, email: true } },
+          owner: { select: { id: true, name: true, phone: true, email: true, userId: true } },
           tenant: { select: { id: true, name: true, phone: true, email: true, isActive: true } },
         },
         orderBy: [{ block: { name: 'asc' } }, { floor: 'asc' }, { flatNumber: 'asc' }],
@@ -346,26 +349,71 @@ router.post(
       }
 
       // SECURITY: Whitelist allowed fields
-      const owner = await prisma.owner.create({
-        data: {
-          name: req.body.name,
-          phone: req.body.phone,
-          email: req.body.email || null,
-          altPhone: req.body.altPhone || null,
-          aadharNo: req.body.aadharNo || null,
-          panNo: req.body.panNo || null,
-          flatId: req.body.flatId,
-          moveInDate: req.body.moveInDate ? new Date(req.body.moveInDate) : null,
-        },
+      // Use a transaction to create owner + user account atomically
+      const result = await prisma.$transaction(async (tx) => {
+        // Auto-create a user account for the owner (password = phone number)
+        let userId: string | null = null;
+        if (req.body.email && req.body.phone) {
+          // Check if user already exists with this email
+          const existingUser = await tx.user.findUnique({ where: { email: req.body.email } });
+          if (existingUser) {
+            // Link existing user
+            userId = existingUser.id;
+          } else {
+            // Create new user with password = phone number
+            const passwordHash = await bcrypt.hash(req.body.phone, 12);
+            const newUser = await tx.user.create({
+              data: {
+                email: req.body.email,
+                passwordHash,
+                name: req.body.name,
+                phone: req.body.phone,
+                role: 'OWNER',
+                societyId: flat.block.societyId,
+                mustChangePassword: true,
+              },
+            });
+            userId = newUser.id;
+          }
+        }
+
+        const owner = await tx.owner.create({
+          data: {
+            name: req.body.name,
+            phone: req.body.phone,
+            email: req.body.email || null,
+            altPhone: req.body.altPhone || null,
+            aadharNo: req.body.aadharNo || null,
+            panNo: req.body.panNo || null,
+            flatId: req.body.flatId,
+            moveInDate: req.body.moveInDate ? new Date(req.body.moveInDate) : null,
+            userId,
+          },
+        });
+
+        // Mark flat as occupied
+        await tx.flat.update({
+          where: { id: req.body.flatId },
+          data: { isOccupied: true },
+        });
+
+        return { owner, userCreated: !!userId && !req.body.email ? false : !!userId };
       });
 
-      // Mark flat as occupied
-      await prisma.flat.update({
-        where: { id: req.body.flatId },
-        data: { isOccupied: true },
+      logger.info('Owner created', {
+        ownerId: result.owner.id,
+        flatId: req.body.flatId,
+        userCreated: result.userCreated,
       });
 
-      return res.status(201).json(owner);
+      return res.status(201).json({
+        ...result.owner,
+        userCreated: result.userCreated,
+        loginInfo: result.userCreated ? {
+          email: req.body.email,
+          defaultPassword: 'Phone number is the default password',
+        } : null,
+      });
     } catch (error: any) {
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'This flat already has an owner' });
@@ -466,6 +514,236 @@ router.put(
       return res.json(tenant);
     } catch (error) {
       return res.status(500).json({ error: 'Failed to update tenant' });
+    }
+  },
+);
+
+// ── DOWNLOAD BULK FLAT TEMPLATE ──────────────────────────
+router.get(
+  '/bulk-upload/template',
+  authorize('SUPER_ADMIN', 'ADMIN'),
+  async (req: AuthRequest, res) => {
+    try {
+      const headers = [
+        ['Block Name*', 'Flat Number*', 'Floor*', 'Type*', 'Area (sq.ft)', 'Owner Name', 'Owner Phone', 'Owner Email'],
+      ];
+      const sampleData = [
+        ['A Wing', 'A-101', '1', 'TWO_BHK', '950', 'Rajesh Kumar', '9876543210', 'rajesh@email.com'],
+        ['A Wing', 'A-102', '1', 'THREE_BHK', '1200', 'Priya Sharma', '9876543211', 'priya@email.com'],
+        ['B Wing', 'B-201', '2', 'ONE_BHK', '650', '', '', ''],
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet([...headers, ...sampleData]);
+
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 15 }, { wch: 15 }, { wch: 8 }, { wch: 14 },
+        { wch: 12 }, { wch: 20 }, { wch: 15 }, { wch: 25 },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Flats');
+
+      // Add instructions sheet
+      const instrData = [
+        ['ApartEase - Bulk Flat Upload Template'],
+        [''],
+        ['Instructions:'],
+        ['1. Fill in the flat details in the "Flats" sheet'],
+        ['2. Fields marked with * are required'],
+        ['3. Block Name must match an existing block in your society'],
+        ['4. Valid flat types: ONE_BHK, TWO_BHK, THREE_BHK, FOUR_BHK, STUDIO, PENTHOUSE, SHOP, OTHER'],
+        ['5. If Owner Phone and Owner Email are provided, a login account will be auto-created'],
+        ['6. The default password for owner accounts will be their phone number'],
+        ['7. Owners will be prompted to change their password on first login'],
+        [''],
+        ['Column Reference:'],
+        ['Block Name* - Must match an existing block (e.g., "A Wing", "Tower 1")'],
+        ['Flat Number* - Unique flat number within the block (e.g., "A-101")'],
+        ['Floor* - Floor number (0 for ground floor)'],
+        ['Type* - ONE_BHK, TWO_BHK, THREE_BHK, FOUR_BHK, STUDIO, PENTHOUSE, SHOP, OTHER'],
+        ['Area (sq.ft) - Optional, numeric value'],
+        ['Owner Name - Optional, name of the flat owner'],
+        ['Owner Phone - Required if owner name is provided (10-digit Indian mobile)'],
+        ['Owner Email - Optional, used for creating login account'],
+      ];
+      const instrWs = XLSX.utils.aoa_to_sheet(instrData);
+      instrWs['!cols'] = [{ wch: 80 }];
+      XLSX.utils.book_append_sheet(wb, instrWs, 'Instructions');
+
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="flat_upload_template.xlsx"');
+      return res.send(buffer);
+    } catch (error: any) {
+      logger.error('Template download failed', { error: error.message });
+      return res.status(500).json({ error: 'Failed to generate template' });
+    }
+  },
+);
+
+// ── BULK UPLOAD FLATS FROM EXCEL ─────────────────────────
+router.post(
+  '/bulk-upload',
+  authorize('SUPER_ADMIN', 'ADMIN'),
+  async (req: AuthRequest, res) => {
+    try {
+      // Read the raw body as buffer (frontend sends as multipart or raw)
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      const buffer = Buffer.concat(chunks);
+
+      if (buffer.length === 0) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      const workbook = XLSX.read(buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+      if (rows.length === 0) {
+        return res.status(400).json({ error: 'Excel file is empty' });
+      }
+
+      // Get user's society blocks
+      const societyId = req.user!.societyId;
+      if (!societyId) {
+        return res.status(400).json({ error: 'No society linked to your account' });
+      }
+
+      const blocks = await prisma.block.findMany({
+        where: { societyId },
+      });
+
+      const blockMap = new Map(blocks.map((b) => [b.name.toLowerCase().trim(), b]));
+
+      const results: { row: number; flatNumber: string; status: string; error?: string }[] = [];
+      const validTypes = ['ONE_BHK', 'TWO_BHK', 'THREE_BHK', 'FOUR_BHK', 'STUDIO', 'PENTHOUSE', 'SHOP', 'OTHER'];
+      let createdCount = 0;
+      let errorCount = 0;
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const rowNum = i + 2; // Excel row (1-indexed header + data)
+
+        // Map column names (flexible matching)
+        const blockName = (row['Block Name*'] || row['Block Name'] || row['block name'] || '').toString().trim();
+        const flatNumber = (row['Flat Number*'] || row['Flat Number'] || row['flat number'] || '').toString().trim();
+        const floor = parseInt(row['Floor*'] || row['Floor'] || row['floor'] || '0');
+        const type = (row['Type*'] || row['Type'] || row['type'] || 'TWO_BHK').toString().trim().toUpperCase();
+        const areaSqFt = row['Area (sq.ft)'] || row['Area'] || row['area'];
+        const ownerName = (row['Owner Name'] || row['owner name'] || '').toString().trim();
+        const ownerPhone = (row['Owner Phone'] || row['owner phone'] || '').toString().trim();
+        const ownerEmail = (row['Owner Email'] || row['owner email'] || '').toString().trim();
+
+        // Validate required fields
+        if (!blockName || !flatNumber) {
+          results.push({ row: rowNum, flatNumber: flatNumber || '(empty)', status: 'error', error: 'Block Name and Flat Number are required' });
+          errorCount++;
+          continue;
+        }
+
+        if (isNaN(floor)) {
+          results.push({ row: rowNum, flatNumber, status: 'error', error: 'Invalid floor number' });
+          errorCount++;
+          continue;
+        }
+
+        if (!validTypes.includes(type)) {
+          results.push({ row: rowNum, flatNumber, status: 'error', error: `Invalid type "${type}". Must be one of: ${validTypes.join(', ')}` });
+          errorCount++;
+          continue;
+        }
+
+        const block = blockMap.get(blockName.toLowerCase());
+        if (!block) {
+          results.push({ row: rowNum, flatNumber, status: 'error', error: `Block "${blockName}" not found in your society. Available: ${blocks.map(b => b.name).join(', ')}` });
+          errorCount++;
+          continue;
+        }
+
+        try {
+          await prisma.$transaction(async (tx) => {
+            // Create flat
+            const flat = await tx.flat.create({
+              data: {
+                flatNumber,
+                floor,
+                type: type as any,
+                areaSqFt: areaSqFt ? parseFloat(areaSqFt) : null,
+                blockId: block.id,
+                isOccupied: !!ownerName,
+              },
+            });
+
+            // Create owner + user if owner details provided
+            if (ownerName && ownerPhone) {
+              let userId: string | null = null;
+
+              if (ownerEmail) {
+                const existingUser = await tx.user.findUnique({ where: { email: ownerEmail } });
+                if (!existingUser) {
+                  const passwordHash = await bcrypt.hash(ownerPhone, 12);
+                  const newUser = await tx.user.create({
+                    data: {
+                      email: ownerEmail,
+                      passwordHash,
+                      name: ownerName,
+                      phone: ownerPhone,
+                      role: 'OWNER',
+                      societyId,
+                      mustChangePassword: true,
+                    },
+                  });
+                  userId = newUser.id;
+                } else {
+                  userId = existingUser.id;
+                }
+              }
+
+              await tx.owner.create({
+                data: {
+                  name: ownerName,
+                  phone: ownerPhone,
+                  email: ownerEmail || null,
+                  flatId: flat.id,
+                  userId,
+                },
+              });
+            }
+          });
+
+          results.push({ row: rowNum, flatNumber, status: 'success' });
+          createdCount++;
+        } catch (error: any) {
+          const msg = error.code === 'P2002' ? 'Flat already exists in this block' : error.message;
+          results.push({ row: rowNum, flatNumber, status: 'error', error: msg });
+          errorCount++;
+        }
+      }
+
+      logger.info('Bulk flat upload completed', {
+        userId: req.user!.id,
+        societyId,
+        total: rows.length,
+        created: createdCount,
+        errors: errorCount,
+      });
+
+      return res.json({
+        message: `Processed ${rows.length} rows: ${createdCount} created, ${errorCount} errors`,
+        total: rows.length,
+        created: createdCount,
+        errors: errorCount,
+        results,
+      });
+    } catch (error: any) {
+      logger.error('Bulk upload failed', { error: error.message });
+      return res.status(500).json({ error: 'Failed to process bulk upload' });
     }
   },
 );

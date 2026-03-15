@@ -93,6 +93,9 @@ const registerLimiter = rateLimit({
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Allow larger body for bulk Excel upload (5mb)
+app.use('/api/flats/bulk-upload', express.raw({ type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', limit: '5mb' }));
+
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
@@ -118,6 +121,8 @@ app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', registerLimiter);
 app.use('/api/auth/register-society', registerLimiter);
 app.use('/api/auth/refresh', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/flats', flatRoutes);
 app.use('/api/billing', billingRoutes);

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Building2, User, Phone, Mail, Layers, Trash2 } from 'lucide-react';
+import { Plus, Search, Building2, User, Phone, Mail, Layers, Trash2, Upload, Download, FileSpreadsheet } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
@@ -13,6 +13,7 @@ export default function FlatsPage() {
   const [showAddFlat, setShowAddFlat] = useState(false);
   const [showAddBlock, setShowAddBlock] = useState(false);
   const [showAddOwner, setShowAddOwner] = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [selectedFlat, setSelectedFlat] = useState<Flat | null>(null);
   const [search, setSearch] = useState('');
   const queryClient = useQueryClient();
@@ -47,6 +48,9 @@ export default function FlatsPage() {
         </div>
         {isAdmin && (
           <div className="flex gap-2">
+            <button className="btn-secondary" onClick={() => setShowBulkUpload(true)}>
+              <Upload className="w-4 h-4" /> Bulk Upload
+            </button>
             <button className="btn-secondary" onClick={() => setShowAddBlock(true)}>
               <Layers className="w-4 h-4" /> Add Block
             </button>
@@ -175,6 +179,11 @@ export default function FlatsPage() {
         {selectedFlat && (
           <AddOwnerForm flat={selectedFlat} onSuccess={() => { setShowAddOwner(false); queryClient.invalidateQueries({ queryKey: ['flats'] }); }} />
         )}
+      </Modal>
+
+      {/* Bulk Upload Modal */}
+      <Modal isOpen={showBulkUpload} onClose={() => setShowBulkUpload(false)} title="Bulk Upload Flats from Excel" size="lg">
+        <BulkUploadForm onSuccess={() => { setShowBulkUpload(false); queryClient.invalidateQueries({ queryKey: ['flats'] }); queryClient.invalidateQueries({ queryKey: ['blocks'] }); }} />
       </Modal>
     </div>
   );
@@ -350,6 +359,17 @@ function AddOwnerForm({ flat, onSuccess }: { flat: Flat; onSuccess: () => void }
       </div>
 
       <h3 className="font-semibold text-gray-900 mb-3">Owner Details</h3>
+
+      {!flat.owner && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+          <p className="text-xs text-blue-700">
+            <strong>📱 Auto Login Creation:</strong> When you provide both email & phone number,
+            a login account will be automatically created. The default password will be the phone number.
+            The owner will be asked to change it on first login.
+          </p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -379,6 +399,196 @@ function AddOwnerForm({ flat, onSuccess }: { flat: Flat; onSuccess: () => void }
           </button>
         </div>
       </form>
+
+      {flat.owner?.email && (
+        <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+          <p className="text-xs text-blue-700">
+            <strong>Login Account:</strong> A login account {flat.owner.userId ? 'is linked' : 'will be created when email & phone are provided'} for this owner.
+            Default password is the owner's phone number.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Bulk Upload Form ────────────────────────────────────
+function BulkUploadForm({ onSuccess }: { onSuccess: () => void }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [results, setResults] = useState<{
+    message: string;
+    total: number;
+    created: number;
+    errors: number;
+    results: { row: number; flatNumber: string; status: string; error?: string }[];
+  } | null>(null);
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await api.get('/flats/bulk-upload/template', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'flat_upload_template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success('Template downloaded!');
+    } catch (error: any) {
+      toast.error('Failed to download template');
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (selected) {
+      if (!selected.name.endsWith('.xlsx') && !selected.name.endsWith('.xls')) {
+        toast.error('Please upload an Excel file (.xlsx or .xls)');
+        return;
+      }
+      setFile(selected);
+      setResults(null);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!file) {
+      toast.error('Please select a file first');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const response = await api.post('/flats/bulk-upload', buffer, {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+      });
+      setResults(response.data);
+      if (response.data.created > 0) {
+        toast.success(`${response.data.created} flats created successfully!`);
+      }
+      if (response.data.errors > 0) {
+        toast.error(`${response.data.errors} rows had errors. Check details below.`);
+      }
+      if (response.data.created > 0) {
+        setTimeout(onSuccess, 2000);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Step 1: Download Template */}
+      <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+        <h3 className="text-sm font-semibold text-blue-900 mb-2 flex items-center gap-2">
+          <FileSpreadsheet className="w-4 h-4" />
+          Step 1: Download Template
+        </h3>
+        <p className="text-xs text-blue-700 mb-3">
+          Download the Excel template, fill in your flat details, and upload it back.
+          Owner accounts will be auto-created with phone number as default password.
+        </p>
+        <button onClick={handleDownloadTemplate} className="btn-secondary text-sm">
+          <Download className="w-4 h-4" /> Download Template
+        </button>
+      </div>
+
+      {/* Step 2: Upload File */}
+      <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+        <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <Upload className="w-4 h-4" />
+          Step 2: Upload Filled Excel
+        </h3>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+
+        <div
+          onClick={() => fileInputRef.current?.click()}
+          className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-primary-400 hover:bg-primary-50/50 transition"
+        >
+          {file ? (
+            <div>
+              <FileSpreadsheet className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+              <p className="text-sm font-medium text-gray-900">{file.name}</p>
+              <p className="text-xs text-gray-500 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
+              <p className="text-xs text-primary-600 mt-2">Click to change file</p>
+            </div>
+          ) : (
+            <div>
+              <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+              <p className="text-sm text-gray-600">Click to select Excel file</p>
+              <p className="text-xs text-gray-400 mt-1">Supports .xlsx and .xls files</p>
+            </div>
+          )}
+        </div>
+
+        {file && (
+          <div className="mt-3 flex justify-end">
+            <button
+              onClick={handleUpload}
+              disabled={uploading}
+              className="btn-primary"
+            >
+              {uploading ? 'Processing...' : 'Upload & Create Flats'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Step 3: Results */}
+      {results && (
+        <div className="p-4 bg-white border border-gray-200 rounded-xl">
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">Upload Results</h3>
+
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="p-3 bg-gray-50 rounded-lg text-center">
+              <p className="text-lg font-bold text-gray-900">{results.total}</p>
+              <p className="text-xs text-gray-500">Total Rows</p>
+            </div>
+            <div className="p-3 bg-emerald-50 rounded-lg text-center">
+              <p className="text-lg font-bold text-emerald-700">{results.created}</p>
+              <p className="text-xs text-emerald-600">Created</p>
+            </div>
+            <div className="p-3 bg-red-50 rounded-lg text-center">
+              <p className="text-lg font-bold text-red-700">{results.errors}</p>
+              <p className="text-xs text-red-600">Errors</p>
+            </div>
+          </div>
+
+          {/* Detailed results */}
+          <div className="max-h-48 overflow-y-auto space-y-1">
+            {results.results.map((r, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'flex items-center justify-between text-xs px-3 py-2 rounded',
+                  r.status === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700',
+                )}
+              >
+                <span>Row {r.row}: {r.flatNumber}</span>
+                <span className="text-right max-w-[60%] truncate">
+                  {r.status === 'success' ? '✓ Created' : r.error}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

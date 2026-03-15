@@ -10,6 +10,7 @@ export interface User {
   role: Role;
   societyId?: string;
   flat?: Flat;
+  mustChangePassword?: boolean;
 }
 
 export interface AuthResponse {
@@ -74,6 +75,7 @@ export interface Owner {
   panNo?: string;
   flatId: string;
   moveInDate?: string;
+  userId?: string;
 }
 
 // ─── TENANT ─────────────────────────────────────────────

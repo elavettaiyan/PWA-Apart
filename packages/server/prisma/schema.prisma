@@ -212,17 +212,20 @@ model Tenant {
 // ─── USER (AUTH) ────────────────────────────────────────
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  name         String
-  phone        String?
-  role         Role     @default(OWNER)
-  societyId    String?
-  isActive     Boolean  @default(true)
-  lastLogin    DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                   String    @id @default(uuid())
+  email                String    @unique
+  passwordHash         String
+  name                 String
+  phone                String?
+  role                 Role      @default(OWNER)
+  societyId            String?
+  isActive             Boolean   @default(true)
+  mustChangePassword   Boolean   @default(false)
+  passwordResetToken   String?   @unique
+  passwordResetExpiry  DateTime?
+  lastLogin            DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   society      Society?  @relation(fields: [societyId], references: [id])
   owner        Owner?
