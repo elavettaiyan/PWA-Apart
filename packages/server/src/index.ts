@@ -55,6 +55,12 @@ for (const domain of ['https://www.resilynk.com', 'https://resilynk.com']) {
     allowedOrigins.push(domain);
   }
 }
+// Allow Capacitor WebView origins for mobile apps.
+for (const mobileOrigin of ['https://localhost', 'http://localhost', 'capacitor://localhost']) {
+  if (!allowedOrigins.includes(mobileOrigin)) {
+    allowedOrigins.push(mobileOrigin);
+  }
+}
 
 app.use(cors({
   origin: config.nodeEnv === 'production'
