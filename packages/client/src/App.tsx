@@ -16,7 +16,6 @@ import ReportsPage from './pages/reports/ReportsPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import ChangePasswordSettingsPage from './pages/settings/ChangePasswordSettingsPage';
 import RegisterPage from './pages/auth/RegisterPage';
-import NetworkDebugOverlay from './components/ui/NetworkDebugOverlay';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuthStore();
@@ -38,8 +37,7 @@ export default function App() {
   const { isAuthenticated, user } = useAuthStore();
 
   return (
-    <>
-      <Routes>
+    <Routes>
         <Route
           path="/login"
           element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
@@ -76,9 +74,7 @@ export default function App() {
         <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
         <Route path="/settings/change-password" element={<ProtectedRoute><ChangePasswordSettingsPage /></ProtectedRoute>} />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-      <NetworkDebugOverlay />
-    </>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
