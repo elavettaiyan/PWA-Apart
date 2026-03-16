@@ -2,15 +2,15 @@
 const faqs = [
   {
     question: 'What is Resilynk?',
-    answer: 'Resilynk is a complete apartment society management platform built for Indian housing societies. It helps RWA committees manage billing, collect maintenance payments online, track complaints, record expenses, share bylaws, and generate financial reports — all from one dashboard.',
+    answer: 'Resilynk is an apartment society management platform built for Indian housing societies. It helps committees manage billing, collect maintenance payments online, track complaints, record expenses, share bylaws, and review reports from one dashboard.',
   },
   {
-    question: 'Is Resilynk really free?',
-    answer: 'Yes, Resilynk is completely free to use for all housing societies. There are no hidden charges, no premium tiers, and no credit card required. Register your society and start using all features immediately.',
+    question: 'Who is Resilynk for?',
+    answer: 'Resilynk is designed for apartment associations, RWAs, and housing society committees that want a simpler way to manage dues, records, resident issues, and shared documents.',
   },
   {
     question: 'How do I register my society?',
-    answer: 'Click the "Register Your Society" button, fill in your society details (name, address, admin info), and you\'re ready to go in under 2 minutes. As the admin, you can then add blocks, flats, and invite residents.',
+    answer: 'Click the "Register Your Society" button and fill in your society details, including the name, address, and admin information. After setup, you can add blocks, flats, and residents from the dashboard.',
   },
   {
     question: 'Can residents pay maintenance online?',
@@ -27,10 +27,10 @@ const faqs = [
 ];
 ---
 
-<section id="faq" class="py-20 md:py-32 bg-gray-50">
+<section id="faq" class="py-16 md:py-24 bg-gray-50">
   <div class="max-w-3xl mx-auto px-6">
     <!-- Section header -->
-    <div class="text-center mb-16">
+    <div class="text-center mb-12">
       <div class="inline-flex items-center gap-2 bg-primary-100 text-primary-700 text-sm font-medium px-4 py-1.5 rounded-full mb-4">
         Got questions?
       </div>
@@ -38,12 +38,12 @@ const faqs = [
         Frequently asked questions
       </h2>
       <p class="mt-4 text-lg text-gray-600">
-        Everything you need to know about Resilynk. Can't find an answer? Email us at support@resilynk.com.
+        A quick overview of how Resilynk fits into day-to-day society operations. For anything else, email support@resilynk.com.
       </p>
     </div>
 
     <!-- FAQ items -->
-    <div class="space-y-4">
+    <div class="space-y-3">
       {faqs.map((faq, i) => (
         <details class="group bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" open={i === 0}>
           <summary class="flex items-center justify-between cursor-pointer p-6 text-left font-semibold text-gray-900 hover:text-primary-600 transition-colors [&::-webkit-details-marker]:hidden list-none">
