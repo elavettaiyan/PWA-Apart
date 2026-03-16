@@ -27,7 +27,10 @@ router.post(
       .matches(/[A-Z]/).withMessage('Password must contain an uppercase letter')
       .matches(/[a-z]/).withMessage('Password must contain a lowercase letter')
       .matches(/[0-9]/).withMessage('Password must contain a number'),
-    body('phone').optional().isMobilePhone('en-IN'),
+    body('phone')
+      .optional({ values: 'falsy' })
+      .isMobilePhone('en-IN')
+      .withMessage('Phone must be a valid mobile number'),
   ],
   validate,
   async (req: AuthRequest, res) => {
@@ -102,12 +105,15 @@ router.post(
 router.post(
   '/register',
   [
-    body('email').isEmail().normalizeEmail(),
-    body('password').isLength({ min: 8 }),
-    body('name').trim().notEmpty(),
-    body('phone').optional().isMobilePhone('en-IN'),
-    body('role').optional().isIn(['OWNER', 'TENANT']),
-    body('societyId').optional().isUUID(),
+    body('email').isEmail().withMessage('Valid email is required').normalizeEmail(),
+    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+    body('name').trim().notEmpty().withMessage('Name is required'),
+    body('phone')
+      .optional({ values: 'falsy' })
+      .isMobilePhone('en-IN')
+      .withMessage('Phone must be a valid mobile number'),
+    body('role').optional({ values: 'falsy' }).isIn(['OWNER', 'TENANT']).withMessage('Role must be OWNER or TENANT'),
+    body('societyId').optional({ values: 'falsy' }).isUUID().withMessage('Invalid society ID'),
   ],
   validate,
   async (req: AuthRequest, res) => {

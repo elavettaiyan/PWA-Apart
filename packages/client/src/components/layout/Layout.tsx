@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Building2, Receipt, MessageSquareWarning,
   Wallet, ScrollText, BarChart3, LogOut, Menu, X, ChevronDown, User, Settings, KeyRound,
@@ -30,6 +30,11 @@ export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
 
+  useEffect(() => {
+    setSidebarOpen(false);
+    setProfileOpen(false);
+  }, [location.key]);
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -48,8 +53,8 @@ export default function Layout({ children }: LayoutProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform lg:translate-x-0 lg:static lg:z-0',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+          'fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform lg:static lg:z-0 lg:translate-x-0',
+          sidebarOpen ? 'block translate-x-0' : 'hidden -translate-x-full lg:block',
         )}
       >
         <div className="flex flex-col h-full">
@@ -75,20 +80,23 @@ export default function Layout({ children }: LayoutProps) {
               const isActive = location.pathname === item.href ||
                 (item.href !== '/' && location.pathname.startsWith(item.href));
               return (
-                <Link
+                <button
                   key={item.name}
-                  to={item.href}
-                  onClick={() => setSidebarOpen(false)}
+                  type="button"
+                  onClick={() => {
+                    setSidebarOpen(false);
+                    navigate(item.href);
+                  }}
                   className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
+                    'w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all touch-manipulation',
                     isActive
                       ? 'bg-primary-50 text-primary-700'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                   )}
                 >
-                  <item.icon className={cn('w-5 h-5', isActive ? 'text-primary-600' : 'text-gray-400')} />
-                  {item.name}
-                </Link>
+                  <item.icon className={cn('w-5 h-5 pointer-events-none', isActive ? 'text-primary-600' : 'text-gray-400')} />
+                  <span className="pointer-events-none">{item.name}</span>
+                </button>
               );
             })}
           </nav>
@@ -126,14 +134,14 @@ export default function Layout({ children }: LayoutProps) {
             <div className="relative">
               <button
                 onClick={() => setProfileOpen(!profileOpen)}
-                className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-gray-100 transition"
+                className="min-h-10 min-w-10 flex items-center gap-2 p-1.5 rounded-lg hover:bg-gray-100 transition touch-manipulation"
               >
-                <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+                <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center pointer-events-none">
                   <span className="text-sm font-semibold text-primary-600">
                     {user?.name?.charAt(0).toUpperCase()}
                   </span>
                 </div>
-                <ChevronDown className="w-4 h-4 text-gray-400 hidden sm:block" />
+                <ChevronDown className="w-4 h-4 text-gray-400 hidden sm:block pointer-events-none" />
               </button>
 
               {profileOpen && (

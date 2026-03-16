@@ -1,11 +1,11 @@
-import express from 'express';
+import express, { Request } from 'express';
 import cors from 'cors';
 import path from 'path';
 import { config } from './config';
 import logger from './config/logger';
 import prisma from './config/database';
 import { errorHandler, notFound } from './middleware/errorHandler';
-import { rateLimit } from 'express-rate-limit';
+import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 
 // Route modules
 import authRoutes from './modules/auth/routes';
@@ -20,7 +20,27 @@ import settingsRoutes from './modules/settings/routes';
 
 const app = express();
 
-app.set('trust proxy', 1);
+// In production (Vercel/reverse proxy), trust forwarded headers for real client IP.
+app.set('trust proxy', config.nodeEnv === 'production');
+
+const normalizeIdentifier = (value: unknown): string => {
+  if (typeof value !== 'string') {
+    return 'unknown';
+  }
+
+  return value.trim().toLowerCase();
+};
+
+const registrationKey = (req: Request): string => {
+  const body = typeof req.body === 'object' && req.body !== null ? req.body as Record<string, unknown> : {};
+
+  const email = normalizeIdentifier(body.email);
+  const phone = normalizeIdentifier(body.phone);
+  const identity = email !== 'unknown' ? `email:${email}` : phone !== 'unknown' ? `phone:${phone}` : 'anonymous';
+  const ipKey = ipKeyGenerator(req.ip || 'unknown');
+
+  return `${req.path}:${identity}:${ipKey}`;
+};
 
 // ── REQUEST LOGGING MIDDLEWARE ──────────────────────────
 app.use((req, res, next) => {
@@ -102,6 +122,7 @@ const registerLimiter = rateLimit({
   message: { error: 'Too many registration attempts. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: registrationKey,
   skip: () => config.nodeEnv !== 'production',
 });
 
