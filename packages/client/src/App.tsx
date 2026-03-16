@@ -16,6 +16,7 @@ import ReportsPage from './pages/reports/ReportsPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import ChangePasswordSettingsPage from './pages/settings/ChangePasswordSettingsPage';
 import RegisterPage from './pages/auth/RegisterPage';
+import NetworkDebugOverlay from './components/ui/NetworkDebugOverlay';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuthStore();
@@ -37,44 +38,47 @@ export default function App() {
   const { isAuthenticated, user } = useAuthStore();
 
   return (
-    <Routes>
-      <Route
-        path="/login"
-        element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
-      />
-      <Route
-        path="/register"
-        element={isAuthenticated ? <Navigate to="/" replace /> : <RegisterPage />}
-      />
-      <Route
-        path="/forgot-password"
-        element={isAuthenticated ? <Navigate to="/" replace /> : <ForgotPasswordPage />}
-      />
-      <Route
-        path="/reset-password"
-        element={isAuthenticated ? <Navigate to="/" replace /> : <ResetPasswordPage />}
-      />
-      <Route
-        path="/change-password"
-        element={
-          !isAuthenticated ? <Navigate to="/login" replace /> :
-          !user?.mustChangePassword ? <Navigate to="/" replace /> :
-          <ChangePasswordPage />
-        }
-      />
+    <>
+      <Routes>
+        <Route
+          path="/login"
+          element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
+        />
+        <Route
+          path="/register"
+          element={isAuthenticated ? <Navigate to="/" replace /> : <RegisterPage />}
+        />
+        <Route
+          path="/forgot-password"
+          element={isAuthenticated ? <Navigate to="/" replace /> : <ForgotPasswordPage />}
+        />
+        <Route
+          path="/reset-password"
+          element={isAuthenticated ? <Navigate to="/" replace /> : <ResetPasswordPage />}
+        />
+        <Route
+          path="/change-password"
+          element={
+            !isAuthenticated ? <Navigate to="/login" replace /> :
+            !user?.mustChangePassword ? <Navigate to="/" replace /> :
+            <ChangePasswordPage />
+          }
+        />
 
-      <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-      <Route path="/flats" element={<AdminRoute><FlatsPage /></AdminRoute>} />
-      <Route path="/my-flat" element={<ProtectedRoute><MyFlatPage /></ProtectedRoute>} />
-      <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
-      <Route path="/complaints" element={<ProtectedRoute><ComplaintsPage /></ProtectedRoute>} />
-      <Route path="/expenses" element={<AdminRoute><ExpensesPage /></AdminRoute>} />
-      <Route path="/bylaws" element={<ProtectedRoute><BylawsPage /></ProtectedRoute>} />
-      <Route path="/reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
-      <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
-      <Route path="/settings/change-password" element={<ProtectedRoute><ChangePasswordSettingsPage /></ProtectedRoute>} />
+        <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+        <Route path="/flats" element={<AdminRoute><FlatsPage /></AdminRoute>} />
+        <Route path="/my-flat" element={<ProtectedRoute><MyFlatPage /></ProtectedRoute>} />
+        <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
+        <Route path="/complaints" element={<ProtectedRoute><ComplaintsPage /></ProtectedRoute>} />
+        <Route path="/expenses" element={<AdminRoute><ExpensesPage /></AdminRoute>} />
+        <Route path="/bylaws" element={<ProtectedRoute><BylawsPage /></ProtectedRoute>} />
+        <Route path="/reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
+        <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
+        <Route path="/settings/change-password" element={<ProtectedRoute><ChangePasswordSettingsPage /></ProtectedRoute>} />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <NetworkDebugOverlay />
+    </>
   );
 }
