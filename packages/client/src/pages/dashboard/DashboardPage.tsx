@@ -1,9 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Building2, Users, Receipt, MessageSquareWarning,
-  Wallet, TrendingUp, TrendingDown, Home, CreditCard,
+  Wallet, TrendingUp, TrendingDown, Home, CreditCard, Shield, Trash2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
 import { PageLoader } from '../../components/ui/Loader';
@@ -12,9 +14,185 @@ import type { DashboardData } from '../../types';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
-  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isAdmin = user?.role === 'ADMIN';
 
-  return isAdmin ? <AdminDashboard /> : <ResidentDashboard />;
+  if (isSuperAdmin) return <SuperAdminDashboard />;
+  if (isAdmin) return <AdminDashboard />;
+  return <ResidentDashboard />;
+}
+
+type RegisteredUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  society: { id: string; name: string } | null;
+};
+
+type SocietyRecord = {
+  id: string;
+  name: string;
+  city: string;
+  state: string;
+  createdAt: string;
+  _count: {
+    users: number;
+    blocks: number;
+    complaints: number;
+    expenses: number;
+  };
+};
+
+function SuperAdminDashboard() {
+  const queryClient = useQueryClient();
+  const [societyToDelete, setSocietyToDelete] = useState<string | null>(null);
+  const [confirmationName, setConfirmationName] = useState('');
+
+  const { data: users = [], isLoading: usersLoading } = useQuery<RegisteredUser[]>({
+    queryKey: ['admin-registrations'],
+    queryFn: async () => (await api.get('/admin/users')).data,
+  });
+
+  const { data: societies = [], isLoading: societiesLoading } = useQuery<SocietyRecord[]>({
+    queryKey: ['admin-societies'],
+    queryFn: async () => (await api.get('/admin/societies')).data,
+  });
+
+  const deleteSociety = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      api.delete(`/admin/societies/${id}`, { data: { confirmationName: name } }),
+    onSuccess: () => {
+      toast.success('Apartment and all linked data deleted');
+      setSocietyToDelete(null);
+      setConfirmationName('');
+      queryClient.invalidateQueries({ queryKey: ['admin-societies'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-registrations'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to delete apartment');
+    },
+  });
+
+  if (usersLoading || societiesLoading) return <PageLoader />;
+
+  const resolvedSociety = societies.find((society) => society.id === societyToDelete);
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Super Admin Panel</h1>
+          <p className="text-sm text-gray-500 mt-1">All user registrations and full apartment deletion controls</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="stat-card">
+          <p className="stat-label">Registered Users</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{users.length}</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-label">Registered Apartments</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{societies.length}</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-label">Super Admin Scope</p>
+          <p className="text-sm font-semibold text-emerald-700 mt-2 flex items-center gap-2">
+            <Shield className="w-4 h-4" /> Platform-wide
+          </p>
+        </div>
+      </div>
+
+      <div className="card p-5 mb-8">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">All User Registrations</h2>
+        <div className="overflow-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-500 border-b border-gray-100">
+                <th className="py-2 pr-4">Name</th>
+                <th className="py-2 pr-4">Email</th>
+                <th className="py-2 pr-4">Role</th>
+                <th className="py-2 pr-4">Apartment</th>
+                <th className="py-2 pr-4">Status</th>
+                <th className="py-2">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((user) => (
+                <tr key={user.id} className="border-b border-gray-50">
+                  <td className="py-2 pr-4 font-medium text-gray-900">{user.name}</td>
+                  <td className="py-2 pr-4 text-gray-700">{user.email}</td>
+                  <td className="py-2 pr-4 text-gray-700">{user.role.replace('_', ' ')}</td>
+                  <td className="py-2 pr-4 text-gray-600">{user.society?.name || '-'}</td>
+                  <td className="py-2 pr-4">
+                    <span className={user.isActive ? 'badge badge-success' : 'badge badge-neutral'}>
+                      {user.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="py-2 text-gray-500">{new Date(user.createdAt).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="card p-5">
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">Apartment Registrations</h2>
+        <p className="text-sm text-gray-500 mb-4">Delete removes the society and all linked blocks, flats, users, bills, complaints, and expenses.</p>
+
+        <div className="space-y-3">
+          {societies.map((society) => (
+            <div key={society.id} className="rounded-xl border border-gray-100 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">{society.name}</p>
+                <p className="text-xs text-gray-500 mt-1">{society.city}, {society.state}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Users: {society._count.users} · Blocks: {society._count.blocks} · Complaints: {society._count.complaints} · Expenses: {society._count.expenses}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary text-red-600 border-red-200 hover:bg-red-50"
+                onClick={() => {
+                  setSocietyToDelete(society.id);
+                  setConfirmationName('');
+                }}
+              >
+                <Trash2 className="w-4 h-4" /> Delete Entire Apartment
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {resolvedSociety && (
+          <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4">
+            <p className="text-sm font-semibold text-red-800">Confirm full deletion: {resolvedSociety.name}</p>
+            <p className="text-xs text-red-700 mt-1">Type the apartment name exactly to continue.</p>
+            <div className="mt-3 flex flex-col sm:flex-row gap-2">
+              <input
+                className="input"
+                value={confirmationName}
+                onChange={(event) => setConfirmationName(event.target.value)}
+                placeholder={`Type ${resolvedSociety.name}`}
+              />
+              <button
+                type="button"
+                className="btn-primary bg-red-600 hover:bg-red-700 focus:ring-red-500 disabled:opacity-50"
+                disabled={deleteSociety.isPending || confirmationName.trim() !== resolvedSociety.name}
+                onClick={() => deleteSociety.mutate({ id: resolvedSociety.id, name: confirmationName.trim() })}
+              >
+                {deleteSociety.isPending ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /* ─── Resident (Owner / Tenant) Dashboard ──────────────────── */

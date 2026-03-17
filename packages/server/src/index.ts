@@ -17,6 +17,7 @@ import expenseRoutes from './modules/expenses/routes';
 import associationRoutes from './modules/association/routes';
 import reportRoutes from './modules/reports/routes';
 import settingsRoutes from './modules/settings/routes';
+import adminRoutes from './modules/admin/routes';
 
 const app = express();
 
@@ -169,6 +170,7 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/association', associationRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/admin', adminRoutes);
 
 // ── ERROR HANDLING ──────────────────────────────────────
 app.use(notFound);
