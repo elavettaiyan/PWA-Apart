@@ -40,4 +40,9 @@ export const config = {
   },
 
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
+
+  resend: {
+    apiKey: process.env.RESEND_API_KEY || '',
+    fromEmail: process.env.FROM_EMAIL || 'Resilynk <noreply@resilynk.com>',
+  },
 };

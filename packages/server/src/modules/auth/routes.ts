@@ -8,6 +8,7 @@ import prisma from '../../config/database';
 import logger from '../../config/logger';
 import { validate } from '../../middleware/errorHandler';
 import { authenticate, AuthRequest } from '../../middleware/auth';
+import { sendPasswordResetEmail, sendRegistrationEmail } from '../../config/email';
 
 const router = Router();
 
@@ -84,6 +85,11 @@ router.post(
         societyName: result.society.name,
         userId: result.user.id,
         email: result.user.email,
+      });
+
+      // Send welcome email (non-blocking)
+      sendRegistrationEmail(result.user.email, result.user.name, result.society.name).catch((emailError: any) => {
+        logger.error('Failed to send registration email', { userId: result.user.id, error: emailError.message });
       });
 
       return res.status(201).json({
@@ -339,14 +345,17 @@ router.post(
         },
       });
 
-      // In production, send this via email. For now, return the token.
-      // TODO: Integrate email service (SendGrid, Resend, etc.)
-      logger.info('Password reset token generated', { userId: user.id, email });
+      // Send reset email
+      try {
+        await sendPasswordResetEmail(user.email, resetToken, user.name);
+        logger.info('Password reset email sent', { userId: user.id, email });
+      } catch (emailError: any) {
+        logger.error('Failed to send reset email', { userId: user.id, error: emailError.message });
+        // Don't expose email delivery failure to user
+      }
 
       return res.json({
-        message: 'If an account with that email exists, a reset token has been generated.',
-        // Return token directly for now (remove in production once email is set up)
-        resetToken,
+        message: 'If an account with that email exists, a password reset link has been sent to your email.',
       });
     } catch (error: any) {
       logger.error('Forgot password failed', { error: error.message });
