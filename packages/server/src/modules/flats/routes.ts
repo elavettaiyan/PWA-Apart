@@ -616,12 +616,19 @@ router.post(
   authorize('SUPER_ADMIN', 'ADMIN'),
   async (req: AuthRequest, res) => {
     try {
-      // Read the raw body as buffer (frontend sends as multipart or raw)
-      const chunks: Buffer[] = [];
-      for await (const chunk of req) {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      // express.raw() middleware pre-parses the body into req.body when
+      // Content-Type matches. Use it directly; fall back to streaming for
+      // any other client that hasn't triggered the middleware.
+      let buffer: Buffer;
+      if (Buffer.isBuffer(req.body) && req.body.length > 0) {
+        buffer = req.body;
+      } else {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        buffer = Buffer.concat(chunks);
       }
-      const buffer = Buffer.concat(chunks);
 
       if (buffer.length === 0) {
         return res.status(400).json({ error: 'No file uploaded' });
