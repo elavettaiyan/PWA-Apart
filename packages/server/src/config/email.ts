@@ -26,7 +26,7 @@ export async function sendPasswordResetEmail(to: string, resetToken: string, use
       <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #ffffff;">
         <div style="text-align: center; margin-bottom: 32px;">
           <h1 style="color: #6366f1; font-size: 28px; margin: 0;">Resilynk</h1>
-          <p style="color: #6b7280; font-size: 14px; margin: 4px 0 0;">Apartment Management System</p>
+          <p style="color: #6b7280; font-size: 14px; margin: 4px 0 0;">Your Apartment, Connected</p>
         </div>
         <div style="background: #f9fafb; border-radius: 12px; padding: 32px; border: 1px solid #e5e7eb;">
           <h2 style="color: #111827; font-size: 20px; margin: 0 0 16px;">Password Reset Request</h2>
@@ -64,7 +64,7 @@ export async function sendRegistrationEmail(to: string, userName: string, societ
       <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #ffffff;">
         <div style="text-align: center; margin-bottom: 32px;">
           <h1 style="color: #6366f1; font-size: 28px; margin: 0;">Resilynk</h1>
-          <p style="color: #6b7280; font-size: 14px; margin: 4px 0 0;">Apartment Management System</p>
+          <p style="color: #6b7280; font-size: 14px; margin: 4px 0 0;">Your Apartment, Connected</p>
         </div>
         <div style="background: #f9fafb; border-radius: 12px; padding: 32px; border: 1px solid #e5e7eb;">
           <h2 style="color: #111827; font-size: 20px; margin: 0 0 16px;">Welcome aboard! 🏠</h2>

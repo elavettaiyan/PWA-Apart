@@ -60,7 +60,7 @@ export default function ChangePasswordPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Resilynk</h1>
-              <p className="text-sm text-gray-500">Apartment Management System</p>
+              <p className="text-sm text-gray-500">Your Apartment, Connected</p>
             </div>
           </div>
 

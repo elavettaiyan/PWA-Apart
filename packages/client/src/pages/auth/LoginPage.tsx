@@ -47,7 +47,7 @@ export default function LoginPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Resilynk</h1>
-              <p className="text-sm text-gray-500">Apartment Management System</p>
+              <p className="text-sm text-gray-500">Your Apartment, Connected</p>
             </div>
           </div>
 
@@ -107,11 +107,7 @@ export default function LoginPage() {
           </form>
 
         
-          <div className="mt-6 p-4 bg-gray-50 rounded-xl">
-            <p className="text-xs text-gray-500 font-medium mb-2">Demo Credentials:</p>
-            <p className="text-xs text-gray-600">Email: admin@greenvalley.com</p>
-            <p className="text-xs text-gray-600">Password: admin123</p>
-          </div>
+         
 
           <div className="mt-4 text-center">
             <Link
