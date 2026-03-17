@@ -1,7 +1,8 @@
 import { Resend } from 'resend';
 import logger from './logger';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const apiKey = process.env.RESEND_API_KEY;
+const resend = new Resend(apiKey);
 
 const FROM_EMAIL = process.env.FROM_EMAIL || 'Resilynk <noreply@resilynk.com>';
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
@@ -9,7 +10,15 @@ const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 export async function sendPasswordResetEmail(to: string, resetToken: string, userName: string) {
   const resetUrl = `${CLIENT_URL}/reset-password?token=${resetToken}`;
 
-  const { error } = await resend.emails.send({
+  logger.info('Resend: attempting password reset email', {
+    to,
+    from: FROM_EMAIL,
+    clientUrl: CLIENT_URL,
+    apiKeySet: !!apiKey,
+    apiKeyPrefix: apiKey ? apiKey.substring(0, 8) + '...' : 'MISSING',
+  });
+
+  const { data, error } = await resend.emails.send({
     from: FROM_EMAIL,
     to,
     subject: 'Reset your Resilynk password',
@@ -37,11 +46,11 @@ export async function sendPasswordResetEmail(to: string, resetToken: string, use
   });
 
   if (error) {
-    logger.error('Resend: failed to send password reset email', { to, error });
+    logger.error('Resend: failed to send password reset email', { to, error: JSON.stringify(error) });
     throw new Error(`Failed to send email: ${error.message}`);
   }
 
-  logger.info('Password reset email sent', { to });
+  logger.info('Resend: password reset email sent successfully', { to, emailId: data?.id });
 }
 
 export async function sendRegistrationEmail(to: string, userName: string, societyName: string) {
