@@ -119,11 +119,19 @@ export default function SettingsPage() {
     if (!form.merchantId.trim()) return toast.error('Merchant ID is required');
     if (!form.saltKey.trim() && !data?.exists) return toast.error('Salt Key is required');
 
-    const payload: any = { ...form };
-    // If editing and salt key not changed, send existing indicator
-    if (data?.exists && !form.saltKey.trim()) {
-      return toast.error('Please enter the Salt Key to save (we cannot show the current one for security)');
+    const payload: any = {
+      merchantId: form.merchantId,
+      saltIndex: form.saltIndex,
+      environment: form.environment,
+      redirectUrl: form.redirectUrl,
+      callbackUrl: form.callbackUrl,
+    };
+
+    // Keep existing stored salt key when editing and input is left blank.
+    if (form.saltKey.trim()) {
+      payload.saltKey = form.saltKey.trim();
     }
+
     saveMutation.mutate(payload);
   };
 
@@ -268,7 +276,7 @@ export default function SettingsPage() {
                   type={showSaltKey ? 'text' : 'password'}
                   value={form.saltKey}
                   onChange={(e) => handleChange('saltKey', e.target.value)}
-                  placeholder={isConfigured ? 'Enter new key to update' : 'Your PhonePe salt key'}
+                  placeholder={isConfigured ? 'Leave blank to keep existing key' : 'Your PhonePe salt key'}
                 />
                 <button
                   type="button"
@@ -280,7 +288,7 @@ export default function SettingsPage() {
               </div>
               {isConfigured && cfg?.saltKeySet && (
                 <p className="text-xs text-amber-600 mt-1">
-                  Current key is set (masked). Enter a new value to update it.
+                  Current key is already saved. Leave this blank to keep it, or enter a new value to rotate it.
                 </p>
               )}
             </div>
@@ -323,7 +331,7 @@ export default function SettingsPage() {
                   onChange={(e) => handleChange('callbackUrl', e.target.value)}
                   placeholder="Server callback endpoint"
                 />
-                <p className="text-xs text-gray-400 mt-1">PhonePe sends payment status to this URL (must be publicly accessible)</p>
+                <p className="text-xs text-gray-400 mt-1">PhonePe sends payment status to this URL (must be publicly accessible). Recommended path: /api/payments/phonepe/callback</p>
               </div>
             </div>
           </details>

@@ -129,7 +129,19 @@ router.get(
         where,
         include: {
           block: { include: { society: { select: { id: true, name: true } } } },
-          owner: { select: { id: true, name: true, phone: true, email: true, userId: true } },
+          owner: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              email: true,
+              userId: true,
+              aadharNo: true,
+              panNo: true,
+              altPhone: true,
+              moveInDate: true,
+            },
+          },
           tenant: { select: { id: true, name: true, phone: true, email: true, isActive: true } },
         },
         orderBy: [{ block: { name: 'asc' } }, { floor: 'asc' }, { flatNumber: 'asc' }],

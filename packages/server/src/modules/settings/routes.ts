@@ -73,11 +73,11 @@ router.post(
   '/payment-gateway',
   [
     body('merchantId').isString().notEmpty().withMessage('Merchant ID is required'),
-    body('saltKey').isString().notEmpty().withMessage('Salt Key is required'),
+    body('saltKey').optional({ values: 'falsy' }).isString(),
     body('saltIndex').optional().isInt({ min: 1 }),
     body('environment').isIn(['UAT', 'PRODUCTION']).withMessage('Environment must be UAT or PRODUCTION'),
-    body('redirectUrl').optional().isURL({ require_tld: false }),
-    body('callbackUrl').optional().isURL({ require_tld: false }),
+    body('redirectUrl').optional({ values: 'falsy' }).isURL({ require_tld: false }),
+    body('callbackUrl').optional({ values: 'falsy' }).isURL({ require_tld: false }),
   ],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -90,37 +90,62 @@ router.post(
       const { merchantId, saltKey, saltIndex, environment, redirectUrl, callbackUrl } = req.body;
       const requestOrigin = getRequestOrigin(req);
 
+      const existing = await prisma.paymentGatewayConfig.findUnique({
+        where: { societyId_gateway: { societyId, gateway: 'PHONEPE' } },
+      });
+
+      // Salt key must be provided on first-time setup, but can be omitted on updates.
+      if (!existing && !saltKey) {
+        return res.status(400).json({ error: 'Salt Key is required' });
+      }
+
       // Determine base URL from environment
       const baseUrl =
         environment === 'PRODUCTION'
           ? 'https://api.phonepe.com/apis/hermes'
           : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
 
-      const data = {
-        gateway: 'PHONEPE' as const,
-        merchantId,
-        saltKey,
-        saltIndex: saltIndex || 1,
-        environment,
-        baseUrl,
-        redirectUrl: redirectUrl || getDefaultRedirectUrl(),
-        callbackUrl: callbackUrl || (requestOrigin ? `${requestOrigin}/api/payments/phonepe/callback` : ''),
-        isActive: true,
-      };
+      const resolvedCallbackUrl = callbackUrl || (requestOrigin ? `${requestOrigin}/api/payments/phonepe/callback` : '');
+      const resolvedSaltKey = saltKey || existing?.saltKey || '';
 
       const config = await prisma.paymentGatewayConfig.upsert({
         where: { societyId_gateway: { societyId, gateway: 'PHONEPE' } },
-        update: data,
-        create: { ...data, societyId },
+        update: {
+          gateway: 'PHONEPE',
+          merchantId,
+          saltKey: resolvedSaltKey,
+          saltIndex: saltIndex || 1,
+          environment,
+          baseUrl,
+          redirectUrl: redirectUrl || getDefaultRedirectUrl(),
+          callbackUrl: resolvedCallbackUrl,
+          isActive: true,
+        },
+        create: {
+          societyId,
+          gateway: 'PHONEPE',
+          merchantId,
+          saltKey: resolvedSaltKey,
+          saltIndex: saltIndex || 1,
+          environment,
+          baseUrl,
+          redirectUrl: redirectUrl || getDefaultRedirectUrl(),
+          callbackUrl: resolvedCallbackUrl,
+          isActive: true,
+        },
       });
 
-      logger.info(`PhonePe config updated for society ${societyId}`);
+      logger.info(`PhonePe config updated for society ${societyId}`, {
+        callbackUrl: config.callbackUrl,
+        saltKeyUpdated: !!saltKey,
+      });
 
       return res.json({
         message: 'Payment gateway configuration saved successfully',
         config: {
           ...config,
           saltKey: `${'•'.repeat(Math.max(0, config.saltKey.length - 4))}${config.saltKey.slice(-4)}`,
+          saltKeySet: !!config.saltKey,
         },
       });
     } catch (error) {
