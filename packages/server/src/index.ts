@@ -21,7 +21,8 @@ import settingsRoutes from './modules/settings/routes';
 const app = express();
 
 // In production (Vercel/reverse proxy), trust forwarded headers for real client IP.
-app.set('trust proxy', config.nodeEnv === 'production');
+// Use numeric value (1 = trust first proxy) to avoid express-rate-limit ERR_ERL_PERMISSIVE_TRUST_PROXY.
+app.set('trust proxy', config.nodeEnv === 'production' ? 1 : false);
 
 const normalizeIdentifier = (value: unknown): string => {
   if (typeof value !== 'string') {

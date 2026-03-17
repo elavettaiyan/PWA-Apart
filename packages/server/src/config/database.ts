@@ -14,6 +14,11 @@ try {
   }
 
   prisma = new PrismaClient({
+    datasources: process.env.NODE_ENV === 'production' ? {
+      db: {
+        url: `${process.env.DATABASE_URL}${process.env.DATABASE_URL?.includes('?') ? '&' : '?'}connection_limit=10&pool_timeout=20`,
+      },
+    } : undefined,
     log: process.env.NODE_ENV === 'development'
       ? [
           { emit: 'event', level: 'query' },
