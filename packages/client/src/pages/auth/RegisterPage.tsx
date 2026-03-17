@@ -115,7 +115,7 @@ export default function RegisterPage() {
                   type="text"
                   name="address"
                   className="input"
-                  placeholder="e.g., 123, MG Road, Sector 15"
+                  placeholder="e.g., 123, Mount Road, Chennai"
                   value={form.address}
                   onChange={handleChange}
                   required
@@ -128,7 +128,7 @@ export default function RegisterPage() {
                     type="text"
                     name="city"
                     className="input"
-                    placeholder="Bangalore"
+                    placeholder="Chennai"
                     value={form.city}
                     onChange={handleChange}
                     required
@@ -140,7 +140,7 @@ export default function RegisterPage() {
                     type="text"
                     name="state"
                     className="input"
-                    placeholder="Karnataka"
+                    placeholder="Tamil Nadu"
                     value={form.state}
                     onChange={handleChange}
                     required
@@ -152,7 +152,7 @@ export default function RegisterPage() {
                     type="text"
                     name="pincode"
                     className="input"
-                    placeholder="560001"
+                    placeholder="600001"
                     maxLength={6}
                     value={form.pincode}
                     onChange={handleChange}
@@ -183,7 +183,7 @@ export default function RegisterPage() {
                   type="email"
                   name="email"
                   className="input"
-                  placeholder="admin@yoursociety.com"
+                  placeholder="adminy_oursociety@gmail.com"
                   value={form.email}
                   onChange={handleChange}
                   required
