@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Building2, User, Phone, Layers, Trash2, Upload, Download, FileSpreadsheet } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -419,6 +419,13 @@ function AddBlockForm({ onSuccess }: { onSuccess: () => void }) {
 function AddFlatForm({ blocks, onSuccess }: { blocks: Block[]; onSuccess: () => void }) {
   const [form, setForm] = useState({ flatNumber: '', floor: 1, type: 'TWO_BHK', areaSqFt: '', blockId: blocks[0]?.id || '' });
 
+  useEffect(() => {
+    // Blocks are loaded asynchronously; ensure blockId is set once data arrives.
+    if (!form.blockId && blocks.length > 0) {
+      setForm((prev) => ({ ...prev, blockId: blocks[0].id }));
+    }
+  }, [blocks, form.blockId]);
+
   const mutation = useMutation({
     mutationFn: (data: any) => api.post('/flats/flats', data),
     onSuccess: () => { toast.success('Flat added!'); onSuccess(); },
@@ -427,6 +434,10 @@ function AddFlatForm({ blocks, onSuccess }: { blocks: Block[]; onSuccess: () => 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.blockId) {
+      toast.error('Please create/select a block before adding a flat.');
+      return;
+    }
     mutation.mutate({ ...form, floor: Number(form.floor), areaSqFt: form.areaSqFt ? Number(form.areaSqFt) : undefined });
   };
 
@@ -435,9 +446,10 @@ function AddFlatForm({ blocks, onSuccess }: { blocks: Block[]; onSuccess: () => 
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="label">Block/Wing</label>
-          <select className="select" value={form.blockId} onChange={(e) => setForm({ ...form, blockId: e.target.value })} required>
+          <select className="select" value={form.blockId} onChange={(e) => setForm({ ...form, blockId: e.target.value })} required disabled={blocks.length === 0}>
             {blocks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
+          {blocks.length === 0 && <p className="text-xs text-red-600 mt-1">No blocks found. Add a block first.</p>}
         </div>
         <div>
           <label className="label">Flat Number</label>
@@ -466,7 +478,7 @@ function AddFlatForm({ blocks, onSuccess }: { blocks: Block[]; onSuccess: () => 
         </div>
       </div>
       <div className="flex justify-end gap-3 pt-4">
-        <button type="submit" className="btn-primary" disabled={mutation.isPending}>
+        <button type="submit" className="btn-primary" disabled={mutation.isPending || blocks.length === 0}>
           {mutation.isPending ? 'Adding...' : 'Add Flat'}
         </button>
       </div>
