@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Receipt, Plus, CreditCard, Banknote, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useSearchParams } from 'react-router-dom';
 import api from '../../lib/api';
 import { formatCurrency, getStatusColor, getMonthName, cn } from '../../lib/utils';
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
@@ -45,6 +46,8 @@ export default function BillingPage() {
   const [selectedBill, setSelectedBill] = useState<MaintenanceBill | null>(null);
   const [generationResult, setGenerationResult] = useState<BillingGenerationResult | null>(null);
   const [configForm, setConfigForm] = useState<BillingConfigFormState>(buildConfigForm());
+  const [searchParams, setSearchParams] = useSearchParams();
+  const txnStatusCheckRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
@@ -101,6 +104,60 @@ export default function BillingPage() {
   const paidCount = bills.filter((b) => b.status === 'PAID').length;
   const pendingCount = bills.filter((b) => b.status === 'PENDING' || b.status === 'OVERDUE').length;
   const canGenerateBills = !!user?.societyId && !!configSummary?.isConfigured;
+
+  const txnId = searchParams.get('txnId');
+
+  useEffect(() => {
+    if (!txnId || txnStatusCheckRef.current === txnId) return;
+
+    txnStatusCheckRef.current = txnId;
+    let isCancelled = false;
+
+    const checkStatus = async () => {
+      const maxAttempts = 6;
+
+      for (let attempt = 1; attempt <= maxAttempts && !isCancelled; attempt++) {
+        try {
+          const { data } = await api.get(`/payments/status/${txnId}`);
+          const status = data?.status;
+
+          if (status === 'SUCCESS') {
+            toast.success('Payment successful. Bill status updated.');
+            queryClient.invalidateQueries({ queryKey: ['bills'] });
+
+            const nextParams = new URLSearchParams(window.location.search);
+            nextParams.delete('txnId');
+            nextParams.set('payment', 'success');
+            setSearchParams(nextParams, { replace: true });
+            return;
+          }
+
+          if (status === 'FAILED') {
+            toast.error('Payment failed. Please try again.');
+            const nextParams = new URLSearchParams(window.location.search);
+            nextParams.delete('txnId');
+            nextParams.set('payment', 'failed');
+            setSearchParams(nextParams, { replace: true });
+            return;
+          }
+        } catch (error: any) {
+          if (attempt === maxAttempts) {
+            toast.error(error.response?.data?.error || 'Unable to confirm payment status right now');
+          }
+        }
+
+        if (attempt < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      }
+    };
+
+    checkStatus();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [txnId, queryClient, setSearchParams]);
 
   if (isLoading || (isAdmin && isConfigLoading)) return <PageLoader />;
 

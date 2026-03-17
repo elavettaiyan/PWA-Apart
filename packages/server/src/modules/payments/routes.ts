@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import { body, param } from 'express-validator';
-import crypto from 'crypto';
+import { body } from 'express-validator';
 import { config } from '../../config';
 import prisma from '../../config/database';
 import { authenticate, AuthRequest } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 import { v4 as uuidv4 } from 'uuid';
+import { calculateBillPaymentUpdate, generateChecksum, verifyCallbackChecksum } from './phonepeUtils';
 
 const router = Router();
 
@@ -40,11 +40,44 @@ async function getPhonePeConfig(societyId: string | null) {
   };
 }
 
-// Helper: Generate PhonePe Checksum
-function generateChecksum(payload: string, endpoint: string, saltKey: string, saltIndex: number): string {
-  const data = payload + endpoint + saltKey;
-  const sha256 = crypto.createHash('sha256').update(data).digest('hex');
-  return `${sha256}###${saltIndex}`;
+async function markPaymentSuccess(paymentId: string, transactionId: string | undefined, phonepePayload: unknown) {
+  return prisma.$transaction(async (tx) => {
+    const existingPayment = await tx.payment.findUnique({
+      where: { id: paymentId },
+      include: { bill: true },
+    });
+
+    if (!existingPayment) {
+      throw new Error(`Payment not found: ${paymentId}`);
+    }
+
+    if (existingPayment.status === 'SUCCESS') {
+      return { alreadyProcessed: true };
+    }
+
+    const { newPaidAmount, newStatus } = calculateBillPaymentUpdate(
+      existingPayment.bill.paidAmount,
+      existingPayment.bill.totalAmount,
+      existingPayment.amount,
+    );
+
+    await tx.payment.update({
+      where: { id: existingPayment.id },
+      data: {
+        status: 'SUCCESS',
+        transactionId,
+        phonepeResponse: JSON.stringify(phonepePayload),
+        paidAt: new Date(),
+      },
+    });
+
+    await tx.maintenanceBill.update({
+      where: { id: existingPayment.bill.id },
+      data: { paidAmount: newPaidAmount, status: newStatus },
+    });
+
+    return { alreadyProcessed: false };
+  });
 }
 
 // ── INITIATE PHONEPE PAYMENT ────────────────────────────
@@ -110,7 +143,7 @@ router.post(
         body: JSON.stringify({ request: payloadBase64 }),
       });
 
-      const phonePeData = await phonePeResponse.json();
+      const phonePeData: any = await phonePeResponse.json();
 
       if (phonePeData.success) {
         const redirectUrl =
@@ -180,36 +213,17 @@ router.post('/phonepe/callback', async (req, res) => {
     // SECURITY: Verify checksum with the society's PhonePe config
     const societyId = payment.bill?.flat?.block?.societyId;
     const pgConfig = await getPhonePeConfig(societyId ?? null);
-    const expectedChecksum = generateChecksum(response, '/pg/v1/pay', pgConfig.saltKey, pgConfig.saltIndex);
-    if (receivedChecksum && expectedChecksum !== receivedChecksum) {
-      logger.error('PhonePe callback checksum mismatch', { merchantTransId, expected: expectedChecksum, received: receivedChecksum });
+    if (receivedChecksum && !verifyCallbackChecksum(response, receivedChecksum, pgConfig.saltKey, pgConfig.saltIndex)) {
+      logger.error('PhonePe callback checksum mismatch', { merchantTransId, received: receivedChecksum });
       return res.status(400).json({ error: 'Checksum verification failed' });
     }
 
     const txnStatus = decodedResponse.code;
 
     if (txnStatus === 'PAYMENT_SUCCESS') {
-      // Update payment
-      await prisma.payment.update({
-        where: { id: payment.id },
-        data: {
-          status: 'SUCCESS',
-          transactionId: decodedResponse.data?.transactionId,
-          phonepeResponse: JSON.stringify(decodedResponse),
-          paidAt: new Date(),
-        },
-      });
+      const result = await markPaymentSuccess(payment.id, decodedResponse.data?.transactionId, decodedResponse);
 
-      // Update bill
-      const newPaidAmount = payment.bill.paidAmount + payment.amount;
-      const newStatus = newPaidAmount >= payment.bill.totalAmount ? 'PAID' : 'PARTIAL';
-
-      await prisma.maintenanceBill.update({
-        where: { id: payment.bill.id },
-        data: { paidAmount: newPaidAmount, status: newStatus },
-      });
-
-      logger.info(`Payment successful: ${merchantTransId}`);
+      logger.info(`Payment successful: ${merchantTransId}`, { alreadyProcessed: result.alreadyProcessed });
     } else {
       await prisma.payment.update({
         where: { id: payment.id },
@@ -278,29 +292,11 @@ router.get(
             },
           );
 
-          const statusData = await statusResponse.json();
+          const statusData: any = await statusResponse.json();
 
           if (statusData.code === 'PAYMENT_SUCCESS') {
-            await prisma.payment.update({
-              where: { id: payment.id },
-              data: {
-                status: 'SUCCESS',
-                transactionId: statusData.data?.transactionId,
-                phonepeResponse: JSON.stringify(statusData),
-                paidAt: new Date(),
-              },
-            });
-
-            const newPaidAmount = payment.bill.paidAmount + payment.amount;
-            await prisma.maintenanceBill.update({
-              where: { id: payment.bill.id },
-              data: {
-                paidAmount: newPaidAmount,
-                status: newPaidAmount >= payment.bill.totalAmount ? 'PAID' : 'PARTIAL',
-              },
-            });
-
-            return res.json({ ...payment, status: 'SUCCESS' });
+            const result = await markPaymentSuccess(payment.id, statusData.data?.transactionId, statusData);
+            return res.json({ ...payment, status: 'SUCCESS', alreadyProcessed: result.alreadyProcessed });
           }
         } catch (e) {
           logger.warn('Status check to PhonePe failed:', e);

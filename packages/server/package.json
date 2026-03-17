@@ -13,7 +13,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "npx prisma@5.22.0 studio",
     "db:generate": "npx prisma@5.22.0 generate",
-    "lint": "eslint src/"
+    "lint": "eslint src/",
+    "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "@prisma/client": "5.22.0",
