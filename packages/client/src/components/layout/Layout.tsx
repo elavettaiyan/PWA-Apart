@@ -36,8 +36,9 @@ export default function Layout({ children }: LayoutProps) {
   }, [location.key]);
 
   const handleLogout = () => {
+    const nextPath = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' ? '/admin/login' : '/login';
     logout();
-    navigate('/login');
+    navigate(nextPath);
   };
 
   return (

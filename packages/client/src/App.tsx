@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import Layout from './components/layout/Layout';
 import LoginPage from './pages/auth/LoginPage';
+import AdminLoginPage from './pages/auth/AdminLoginPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import ChangePasswordPage from './pages/auth/ChangePasswordPage';
@@ -27,7 +28,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuthStore();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAuthenticated) return <Navigate to="/admin/login" replace />;
   if (user?.mustChangePassword) return <Navigate to="/change-password" replace />;
   if (user?.role !== 'SUPER_ADMIN' && user?.role !== 'ADMIN') return <Navigate to="/" replace />;
   return <Layout>{children}</Layout>;
@@ -41,6 +42,10 @@ export default function App() {
         <Route
           path="/login"
           element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
+        />
+        <Route
+          path="/admin/login"
+          element={isAuthenticated ? <Navigate to="/" replace /> : <AdminLoginPage />}
         />
         <Route
           path="/register"

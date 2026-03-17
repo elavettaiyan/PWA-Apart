@@ -254,18 +254,33 @@ router.put(
 router.delete(
   '/flats/:id',
   authorize('SUPER_ADMIN', 'ADMIN'),
-  [param('id').isUUID()],
+  [param('id').isUUID(), body('confirmation').trim().notEmpty()],
   validate,
   async (req: AuthRequest, res) => {
     try {
       // SECURITY: Verify flat belongs to admin's society
       const existing = await prisma.flat.findUnique({
         where: { id: req.params.id },
-        include: { block: true },
+        include: {
+          block: true,
+          owner: { select: { id: true } },
+          tenant: { select: { id: true } },
+          _count: { select: { bills: true, complaints: true } },
+        },
       });
       if (!existing) return res.status(404).json({ error: 'Flat not found' });
       if (req.user!.role !== 'SUPER_ADMIN' && existing.block.societyId !== req.user!.societyId) {
         return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if (req.body.confirmation !== existing.flatNumber) {
+        return res.status(400).json({ error: 'Confirmation does not match the selected flat number' });
+      }
+
+      if (existing.owner || existing.tenant || existing.isOccupied || existing._count.bills > 0 || existing._count.complaints > 0) {
+        return res.status(409).json({
+          error: 'Only vacant flats without linked owners, tenants, bills, or complaints can be deleted',
+        });
       }
 
       await prisma.flat.delete({ where: { id: req.params.id } });

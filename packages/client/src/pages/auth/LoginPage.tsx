@@ -7,8 +7,8 @@ import { useAuthStore } from '../../store/authStore';
 import type { AuthResponse } from '../../types';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('admin@greenvalley.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -20,11 +20,17 @@ export default function LoginPage() {
 
     try {
       const { data } = await api.post<AuthResponse>('/auth/login', { email, password });
+
+      if (data.user.role === 'SUPER_ADMIN' || data.user.role === 'ADMIN') {
+        toast.error('Use the admin portal login for admin accounts.');
+        navigate('/admin/login', { replace: true });
+        return;
+      }
+
       setAuth(data.user, data.accessToken, data.refreshToken);
       toast.success(`Welcome back, ${data.user.name}!`);
       navigate('/');
     } catch (error: any) {
-      console.error('Login error:', error);
       const data = error.response?.data;
       const message =
         data?.error ||
@@ -110,6 +116,12 @@ export default function LoginPage() {
          
 
           <div className="mt-4 text-center">
+            <Link
+              to="/admin/login"
+              className="block text-sm text-gray-500 hover:text-gray-700 font-medium mb-3"
+            >
+              Admin portal login
+            </Link>
             <Link
               to="/register"
               className="text-sm text-primary-600 hover:text-primary-700 font-medium"

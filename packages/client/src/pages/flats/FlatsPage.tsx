@@ -1,10 +1,10 @@
-import { useState, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Building2, User, Phone, Mail, Layers, Trash2, Upload, Download, FileSpreadsheet } from 'lucide-react';
+import { Plus, Search, Building2, User, Phone, Layers, Trash2, Upload, Download, FileSpreadsheet } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
-import { getFlatTypeLabel, getStatusColor, cn } from '../../lib/utils';
+import { getFlatTypeLabel, cn } from '../../lib/utils';
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
 import type { Flat, Block } from '../../types';
@@ -14,7 +14,9 @@ export default function FlatsPage() {
   const [showAddBlock, setShowAddBlock] = useState(false);
   const [showAddOwner, setShowAddOwner] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
-  const [selectedFlat, setSelectedFlat] = useState<Flat | null>(null);
+  const [activeFlat, setActiveFlat] = useState<Flat | null>(null);
+  const [selectedFlatId, setSelectedFlatId] = useState<string | null>(null);
+  const [showDeleteFlat, setShowDeleteFlat] = useState(false);
   const [search, setSearch] = useState('');
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
@@ -28,6 +30,26 @@ export default function FlatsPage() {
   const { data: blocks = [] } = useQuery<Block[]>({
     queryKey: ['blocks'],
     queryFn: async () => (await api.get('/flats/blocks')).data,
+  });
+
+  const selectedFlat = useMemo(
+    () => flats.find((flat) => flat.id === selectedFlatId) ?? null,
+    [flats, selectedFlatId],
+  );
+
+  const deleteMutation = useMutation({
+    mutationFn: ({ id, confirmation }: { id: string; confirmation: string }) =>
+      api.delete(`/flats/flats/${id}`, { data: { confirmation } }),
+    onSuccess: () => {
+      toast.success('Flat deleted');
+      setShowDeleteFlat(false);
+      setSelectedFlatId(null);
+      queryClient.invalidateQueries({ queryKey: ['flats'] });
+      queryClient.invalidateQueries({ queryKey: ['blocks'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to delete flat');
+    },
   });
 
   const filtered = flats.filter(
@@ -48,6 +70,13 @@ export default function FlatsPage() {
         </div>
         {isAdmin && (
           <div className="flex gap-2">
+            <button
+              className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => setShowDeleteFlat(true)}
+              disabled={!selectedFlat}
+            >
+              <Trash2 className="w-4 h-4" /> Delete Selected
+            </button>
             <button className="btn-secondary" onClick={() => setShowBulkUpload(true)}>
               <Upload className="w-4 h-4" /> Bulk Upload
             </button>
@@ -90,6 +119,27 @@ export default function FlatsPage() {
         />
       </div>
 
+      <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-amber-900">Admin delete control</p>
+            <p className="text-xs text-amber-800 mt-1">
+              Select one apartment, then confirm its flat number to delete it. Deletion is blocked if the flat still has an owner, tenant, bills, or complaints.
+            </p>
+          </div>
+          <div className="rounded-xl bg-white/80 px-3 py-2 text-sm text-gray-700 border border-amber-100 min-w-[220px]">
+            {selectedFlat ? (
+              <>
+                <p className="font-semibold text-gray-900">{selectedFlat.flatNumber}</p>
+                <p className="text-xs text-gray-500">{selectedFlat.block?.name} · Floor {selectedFlat.floor}</p>
+              </>
+            ) : (
+              <p className="text-xs text-gray-500">No apartment selected</p>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Flat Cards Grid */}
       {filtered.length === 0 ? (
         <EmptyState
@@ -103,8 +153,11 @@ export default function FlatsPage() {
           {filtered.map((flat) => (
             <div
               key={flat.id}
-              className="card p-4 hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => { setSelectedFlat(flat); setShowAddOwner(true); }}
+              className={cn(
+                'card p-4 hover:shadow-md transition-shadow cursor-pointer border-2',
+                selectedFlatId === flat.id ? 'border-primary-500 ring-2 ring-primary-100' : 'border-transparent',
+              )}
+              onClick={() => setSelectedFlatId(flat.id)}
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -135,6 +188,10 @@ export default function FlatsPage() {
                     <span className="font-medium text-gray-700">{flat.areaSqFt} sq.ft</span>
                   </div>
                 )}
+                <div className="flex justify-between">
+                  <span>Status</span>
+                  <span className="font-medium text-gray-700">{flat.isOccupied ? 'Occupied' : 'Vacant'}</span>
+                </div>
               </div>
 
               {flat.owner && (
@@ -159,6 +216,30 @@ export default function FlatsPage() {
                   </div>
                 </div>
               )}
+
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  className="btn-secondary flex-1"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setSelectedFlatId(flat.id);
+                  }}
+                >
+                  {selectedFlatId === flat.id ? 'Selected' : 'Select'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary flex-1"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setActiveFlat(flat);
+                    setShowAddOwner(true);
+                  }}
+                >
+                  Manage
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -175,9 +256,24 @@ export default function FlatsPage() {
       </Modal>
 
       {/* Add Owner Modal */}
-      <Modal isOpen={showAddOwner} onClose={() => setShowAddOwner(false)} title={`Manage - ${selectedFlat?.flatNumber}`} size="lg">
-        {selectedFlat && (
-          <AddOwnerForm flat={selectedFlat} onSuccess={() => { setShowAddOwner(false); queryClient.invalidateQueries({ queryKey: ['flats'] }); }} />
+      <Modal isOpen={showAddOwner} onClose={() => setShowAddOwner(false)} title={`Manage - ${activeFlat?.flatNumber}`} size="lg">
+        {activeFlat && (
+          <AddOwnerForm flat={activeFlat} onSuccess={() => { setShowAddOwner(false); queryClient.invalidateQueries({ queryKey: ['flats'] }); }} />
+        )}
+      </Modal>
+
+      {/* Delete Flat Modal */}
+      <Modal isOpen={showDeleteFlat} onClose={() => setShowDeleteFlat(false)} title="Delete Apartment" size="md">
+        {selectedFlat ? (
+          <DeleteFlatForm
+            flat={selectedFlat}
+            isPending={deleteMutation.isPending}
+            onConfirm={(confirmation) => deleteMutation.mutate({ id: selectedFlat.id, confirmation })}
+          />
+        ) : (
+          <div className="py-4">
+            <p className="text-sm text-gray-600">Select an apartment first.</p>
+          </div>
         )}
       </Modal>
 
@@ -186,6 +282,60 @@ export default function FlatsPage() {
         <BulkUploadForm onSuccess={() => { setShowBulkUpload(false); queryClient.invalidateQueries({ queryKey: ['flats'] }); queryClient.invalidateQueries({ queryKey: ['blocks'] }); }} />
       </Modal>
     </div>
+  );
+}
+
+function DeleteFlatForm({
+  flat,
+  isPending,
+  onConfirm,
+}: {
+  flat: Flat;
+  isPending: boolean;
+  onConfirm: (confirmation: string) => void;
+}) {
+  const [confirmation, setConfirmation] = useState('');
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    onConfirm(confirmation.trim());
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3">
+        <p className="text-sm font-semibold text-red-900">Delete {flat.flatNumber}</p>
+        <p className="mt-1 text-xs text-red-700">
+          This action is restricted to vacant flats with no linked owner, tenant, billing, or complaint history.
+        </p>
+      </div>
+
+      <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
+        <p className="font-medium text-gray-900">{flat.block?.name} · Floor {flat.floor}</p>
+        <p className="mt-1">Type the flat number exactly to confirm deletion.</p>
+      </div>
+
+      <div>
+        <label className="label">Confirmation</label>
+        <input
+          className="input"
+          value={confirmation}
+          onChange={(event) => setConfirmation(event.target.value)}
+          placeholder={`Type ${flat.flatNumber}`}
+          autoFocus
+        />
+      </div>
+
+      <div className="flex justify-end gap-3 pt-2">
+        <button
+          type="submit"
+          className="btn-primary bg-red-600 hover:bg-red-700 focus:ring-red-500 disabled:opacity-50"
+          disabled={isPending || confirmation.trim() !== flat.flatNumber}
+        >
+          {isPending ? 'Deleting...' : 'Delete Apartment'}
+        </button>
+      </div>
+    </form>
   );
 }
 

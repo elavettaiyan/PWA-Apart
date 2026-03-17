@@ -1,5 +1,6 @@
 import type { NavigateFunction } from 'react-router-dom';
 import { buildAppLocation } from './platform';
+import { useAuthStore } from '../store/authStore';
 
 let navigator: NavigateFunction | null = null;
 
@@ -28,5 +29,7 @@ export function navigateTo(path: string, replace = true) {
 }
 
 export function redirectToLogin() {
-  navigateTo('/login');
+  const user = useAuthStore.getState().user;
+  const nextPath = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' ? '/admin/login' : '/login';
+  navigateTo(nextPath);
 }
