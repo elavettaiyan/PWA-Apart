@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Response, Router } from 'express';
 import { body, param, query } from 'express-validator';
 import bcrypt from 'bcryptjs';
 import * as XLSX from 'xlsx';
@@ -13,13 +13,17 @@ const router = Router();
 router.use(authenticate);
 
 // ── GET MY FLAT (Owner/Tenant) ───────────────────────────
-router.get('/my-flat', async (req: AuthRequest, res) => {
+router.get('/my-flat', [query('societyId').optional().isUUID()], validate, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
+    const selectedSocietyId = (req.query.societyId as string) || req.user!.societyId || undefined;
 
     // Check if user is an owner
-    const owner = await prisma.owner.findUnique({
-      where: { userId },
+    const owner = await prisma.owner.findFirst({
+      where: {
+        userId,
+        ...(selectedSocietyId ? { flat: { block: { societyId: selectedSocietyId } } } : {}),
+      },
       include: {
         flat: {
           include: {
@@ -35,8 +39,11 @@ router.get('/my-flat', async (req: AuthRequest, res) => {
     if (owner) return res.json(owner.flat);
 
     // Check if user is a tenant
-    const tenant = await prisma.tenant.findUnique({
-      where: { userId },
+    const tenant = await prisma.tenant.findFirst({
+      where: {
+        userId,
+        ...(selectedSocietyId ? { flat: { block: { societyId: selectedSocietyId } } } : {}),
+      },
       include: {
         flat: {
           include: {
@@ -51,6 +58,37 @@ router.get('/my-flat', async (req: AuthRequest, res) => {
 
     if (tenant) return res.json(tenant.flat);
 
+    // Fallback for users whose active society does not currently have a flat link.
+    const fallbackOwner = await prisma.owner.findFirst({
+      where: { userId },
+      include: {
+        flat: {
+          include: {
+            block: { include: { society: { select: { id: true, name: true } } } },
+            owner: true,
+            tenant: true,
+            bills: { orderBy: { createdAt: 'desc' }, take: 12 },
+          },
+        },
+      },
+    });
+    if (fallbackOwner) return res.json(fallbackOwner.flat);
+
+    const fallbackTenant = await prisma.tenant.findFirst({
+      where: { userId },
+      include: {
+        flat: {
+          include: {
+            block: { include: { society: { select: { id: true, name: true } } } },
+            owner: true,
+            tenant: true,
+            bills: { orderBy: { createdAt: 'desc' }, take: 12 },
+          },
+        },
+      },
+    });
+    if (fallbackTenant) return res.json(fallbackTenant.flat);
+
     return res.status(404).json({ error: 'No flat linked to your account' });
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch your flat' });
@@ -58,7 +96,7 @@ router.get('/my-flat', async (req: AuthRequest, res) => {
 });
 
 // ── GET ALL SOCIETIES ───────────────────────────────────
-router.get('/societies', async (req: AuthRequest, res) => {
+router.get('/societies', async (req: AuthRequest, res: Response) => {
   try {
     const where: any = {};
     // Non-SUPER_ADMIN users can only see their own society
@@ -89,7 +127,7 @@ router.post(
     body('pincode').trim().isLength({ min: 6, max: 6 }),
   ],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const society = await prisma.society.create({
         data: {
@@ -112,7 +150,7 @@ router.get(
   '/flats',
   [query('blockId').optional().isUUID(), query('societyId').optional().isUUID()],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { blockId, societyId } = req.query;
 
@@ -155,7 +193,7 @@ router.get(
 );
 
 // ── GET SINGLE FLAT ─────────────────────────────────────
-router.get('/flats/:id', [param('id').isUUID()], validate, async (req: AuthRequest, res) => {
+router.get('/flats/:id', [param('id').isUUID()], validate, async (req: AuthRequest, res: Response) => {
   try {
     const flat = await prisma.flat.findUnique({
       where: { id: req.params.id },
@@ -195,7 +233,7 @@ router.post(
     body('blockId').isUUID(),
   ],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       // SECURITY: Verify block belongs to admin's society
       const block = await prisma.block.findUnique({ where: { id: req.body.blockId } });
@@ -231,7 +269,7 @@ router.put(
   authorize('SUPER_ADMIN', 'ADMIN'),
   [param('id').isUUID()],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       // SECURITY: Verify flat belongs to admin's society
       const existing = await prisma.flat.findUnique({
@@ -268,7 +306,7 @@ router.delete(
   authorize('SUPER_ADMIN', 'ADMIN'),
   [param('id').isUUID(), body('confirmation').trim().notEmpty()],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       // SECURITY: Verify flat belongs to admin's society
       const existing = await prisma.flat.findUnique({
@@ -304,7 +342,7 @@ router.delete(
 );
 
 // ── BLOCKS CRUD ─────────────────────────────────────────
-router.get('/blocks', async (req: AuthRequest, res) => {
+router.get('/blocks', async (req: AuthRequest, res: Response) => {
   try {
     const where: any = {};
     // Always scope to user's society (SUPER_ADMIN can optionally filter by societyId)
@@ -330,7 +368,7 @@ router.post(
   authorize('SUPER_ADMIN', 'ADMIN'),
   [body('name').trim().notEmpty(), body('floors').isInt({ min: 1 }), body('societyId').isUUID()],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       // SECURITY: Verify societyId matches admin's society
       const societyId = req.body.societyId;
@@ -359,11 +397,11 @@ router.post(
   [
     body('name').trim().notEmpty(),
     body('phone').notEmpty(),
-    body('email').optional().isEmail(),
+    body('email').optional({ values: 'falsy' }).isEmail(),
     body('flatId').isUUID(),
   ],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       // SECURITY: Verify flat belongs to admin's society
       const flat = await prisma.flat.findUnique({
@@ -378,26 +416,67 @@ router.post(
       // SECURITY: Whitelist allowed fields
       // Use a transaction to create owner + user account atomically
       const result = await prisma.$transaction(async (tx) => {
+        const normalizedEmail = req.body.email ? String(req.body.email).trim().toLowerCase() : '';
+
+        if (normalizedEmail) {
+          const existingOwner = await tx.owner.findFirst({
+            where: {
+              email: normalizedEmail,
+              flat: { block: { societyId: flat.block.societyId } },
+            },
+            select: { id: true },
+          });
+          if (existingOwner) {
+            throw new Error('OWNER_EMAIL_ALREADY_EXISTS');
+          }
+        }
+
         // Auto-create a user account for the owner (password = phone number)
         let userId: string | null = null;
         if (req.body.email && req.body.phone) {
-          // Check if user already exists with this email
-          const existingUser = await tx.user.findUnique({ where: { email: req.body.email } });
+          const normalizedOwnerEmail = String(req.body.email).trim().toLowerCase();
+
+          const existingUser = await tx.user.findUnique({
+            where: { email: normalizedOwnerEmail },
+            select: { id: true, role: true },
+          });
+
           if (existingUser) {
-            // Link existing user
+            const sameSocietyMembership = await tx.userSocietyMembership.findUnique({
+              where: { userId_societyId: { userId: existingUser.id, societyId: flat.block.societyId } },
+              select: { id: true },
+            });
+            if (sameSocietyMembership) {
+              throw new Error('USER_EMAIL_ALREADY_EXISTS_IN_SOCIETY');
+            }
+
+            await tx.userSocietyMembership.create({
+              data: {
+                userId: existingUser.id,
+                societyId: flat.block.societyId,
+                role: 'OWNER',
+              },
+            });
             userId = existingUser.id;
           } else {
-            // Create new user with password = phone number
             const passwordHash = await bcrypt.hash(req.body.phone, 12);
             const newUser = await tx.user.create({
               data: {
-                email: req.body.email,
+                email: normalizedOwnerEmail,
                 passwordHash,
                 name: req.body.name,
                 phone: req.body.phone,
                 role: 'OWNER',
                 societyId: flat.block.societyId,
+                activeSocietyId: flat.block.societyId,
                 mustChangePassword: true,
+              },
+            });
+            await tx.userSocietyMembership.create({
+              data: {
+                userId: newUser.id,
+                societyId: flat.block.societyId,
+                role: 'OWNER',
               },
             });
             userId = newUser.id;
@@ -408,7 +487,7 @@ router.post(
           data: {
             name: req.body.name,
             phone: req.body.phone,
-            email: req.body.email || null,
+            email: req.body.email ? String(req.body.email).trim().toLowerCase() : null,
             altPhone: req.body.altPhone || null,
             aadharNo: req.body.aadharNo || null,
             panNo: req.body.panNo || null,
@@ -445,6 +524,13 @@ router.post(
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'This flat already has an owner' });
       }
+      if (
+        error.message === 'OWNER_EMAIL_ALREADY_EXISTS' ||
+        error.message === 'USER_EMAIL_ALREADY_EXISTS' ||
+        error.message === 'USER_EMAIL_ALREADY_EXISTS_IN_SOCIETY'
+      ) {
+        return res.status(409).json({ error: 'Owner email already exists' });
+      }
       return res.status(500).json({ error: 'Failed to create owner' });
     }
   },
@@ -455,7 +541,7 @@ router.put(
   authorize('SUPER_ADMIN', 'ADMIN'),
   [param('id').isUUID()],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       // SECURITY: Whitelist allowed fields
       const owner = await prisma.owner.update({
@@ -488,7 +574,7 @@ router.post(
     body('leaseStart').isISO8601(),
   ],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       // SECURITY: Whitelist allowed fields
       const tenant = await prisma.tenant.create({
@@ -520,7 +606,7 @@ router.put(
   authorize('SUPER_ADMIN', 'ADMIN'),
   [param('id').isUUID()],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       // SECURITY: Whitelist allowed fields
       const tenant = await prisma.tenant.update({
@@ -717,25 +803,63 @@ router.post(
             // Create owner + user if owner details provided
             if (ownerName && ownerPhone) {
               let userId: string | null = null;
+              const normalizedOwnerEmail = ownerEmail ? ownerEmail.toLowerCase() : '';
 
-              if (ownerEmail) {
-                const existingUser = await tx.user.findUnique({ where: { email: ownerEmail } });
-                if (!existingUser) {
+              if (normalizedOwnerEmail) {
+                const existingOwner = await tx.owner.findFirst({
+                  where: {
+                    email: normalizedOwnerEmail,
+                    flat: { block: { societyId } },
+                  },
+                  select: { id: true },
+                });
+                if (existingOwner) {
+                  throw new Error('OWNER_EMAIL_ALREADY_EXISTS');
+                }
+
+                const existingUser = await tx.user.findUnique({
+                  where: { email: normalizedOwnerEmail },
+                  select: { id: true },
+                });
+                if (existingUser) {
+                  const sameSocietyMembership = await tx.userSocietyMembership.findUnique({
+                    where: { userId_societyId: { userId: existingUser.id, societyId } },
+                    select: { id: true },
+                  });
+                  if (sameSocietyMembership) {
+                    throw new Error('USER_EMAIL_ALREADY_EXISTS_IN_SOCIETY');
+                  }
+
+                  await tx.userSocietyMembership.create({
+                    data: {
+                      userId: existingUser.id,
+                      societyId,
+                      role: 'OWNER',
+                    },
+                  });
+                  userId = existingUser.id;
+                } else {
                   const passwordHash = await bcrypt.hash(ownerPhone, 12);
                   const newUser = await tx.user.create({
                     data: {
-                      email: ownerEmail,
+                      email: normalizedOwnerEmail,
                       passwordHash,
                       name: ownerName,
                       phone: ownerPhone,
                       role: 'OWNER',
                       societyId,
+                      activeSocietyId: societyId,
                       mustChangePassword: true,
                     },
                   });
+                  await tx.userSocietyMembership.create({
+                    data: {
+                      userId: newUser.id,
+                      societyId,
+                      role: 'OWNER',
+                    },
+                  });
                   userId = newUser.id;
-                } else {
-                  userId = existingUser.id;
                 }
               }
 
@@ -743,7 +867,7 @@ router.post(
                 data: {
                   name: ownerName,
                   phone: ownerPhone,
-                  email: ownerEmail || null,
+                  email: normalizedOwnerEmail || null,
                   flatId: flat.id,
                   userId,
                 },
@@ -754,7 +878,14 @@ router.post(
           results.push({ row: rowNum, flatNumber, status: 'success' });
           createdCount++;
         } catch (error: any) {
-          const msg = error.code === 'P2002' ? 'Flat already exists in this block' : error.message;
+          let msg = error.code === 'P2002' ? 'Flat already exists in this block' : error.message;
+          if (
+            error.message === 'OWNER_EMAIL_ALREADY_EXISTS' ||
+            error.message === 'USER_EMAIL_ALREADY_EXISTS' ||
+            error.message === 'USER_EMAIL_ALREADY_EXISTS_IN_SOCIETY'
+          ) {
+            msg = 'Owner email already exists';
+          }
           results.push({ row: rowNum, flatNumber, status: 'error', error: msg });
           errorCount++;
         }

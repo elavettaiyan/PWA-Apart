@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Request, Response, Router } from 'express';
 import { body } from 'express-validator';
 import { config } from '../../config';
 import prisma from '../../config/database';
@@ -86,7 +86,7 @@ router.post(
   authenticate,
   [body('billId').isUUID()],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const bill = await prisma.maintenanceBill.findUnique({
         where: { id: req.body.billId },
@@ -176,7 +176,7 @@ router.post(
 );
 
 // ── PHONEPE CALLBACK (Server-to-Server) ─────────────────
-router.post('/phonepe/callback', async (req, res) => {
+router.post('/phonepe/callback', async (req: Request, res: Response) => {
   try {
     const { response } = req.body;
 

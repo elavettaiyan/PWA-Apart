@@ -9,6 +9,8 @@ export interface User {
   phone?: string;
   role: Role;
   societyId?: string;
+  activeSocietyId?: string;
+  societies?: Array<{ id: string; name: string; role?: Role }>;
   flat?: Flat;
   mustChangePassword?: boolean;
 }

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Response, Router } from 'express';
 import { body, param, query } from 'express-validator';
 import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
@@ -17,7 +17,7 @@ router.get(
     query('category').optional().isString(),
   ],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const where: any = {};
 
@@ -52,7 +52,7 @@ router.get(
 );
 
 // ── GET SINGLE COMPLAINT ────────────────────────────────
-router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, res) => {
+router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, res: Response) => {
   try {
     const complaint = await prisma.complaint.findUnique({
       where: { id: req.params.id },
@@ -89,7 +89,7 @@ router.post(
     body('flatId').optional().isUUID(),
   ],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const imageList = (req.files as Express.Multer.File[])?.map(
         (f) => `/uploads/${f.filename}`,
@@ -130,7 +130,7 @@ router.patch(
     body('resolution').optional().isString(),
   ],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       // SECURITY: Verify complaint belongs to admin's society
       const existing = await prisma.complaint.findUnique({ where: { id: req.params.id } });
@@ -168,7 +168,7 @@ router.post(
   '/:id/comments',
   [param('id').isUUID(), body('content').trim().notEmpty()],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const user = await prisma.user.findUnique({
         where: { id: req.user!.id },

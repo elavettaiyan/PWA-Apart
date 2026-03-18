@@ -10,6 +10,7 @@ export interface AuthRequest extends Request {
     email: string;
     role: string;
     societyId: string | null;
+    activeSocietyId?: string | null;
   };
 }
 
@@ -36,7 +37,7 @@ export const authenticate = async (
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { id: true, email: true, role: true, societyId: true, isActive: true },
+      select: { id: true, email: true, role: true, societyId: true, activeSocietyId: true, isActive: true },
     });
 
     if (!user || !user.isActive) {
@@ -45,11 +46,21 @@ export const authenticate = async (
       return;
     }
 
+    const effectiveSocietyId = user.activeSocietyId || user.societyId || decoded.societyId || null;
+    const membership = effectiveSocietyId
+      ? await prisma.userSocietyMembership.findUnique({
+          where: { userId_societyId: { userId: user.id, societyId: effectiveSocietyId } },
+          select: { role: true },
+        })
+      : null;
+    const effectiveRole = membership?.role || user.role;
+
     req.user = {
       id: user.id,
       email: user.email,
-      role: user.role,
-      societyId: user.societyId,
+      role: effectiveRole,
+      societyId: effectiveSocietyId,
+      activeSocietyId: user.activeSocietyId,
     };
 
     next();

@@ -29,7 +29,5 @@ export function navigateTo(path: string, replace = true) {
 }
 
 export function redirectToLogin() {
-  const user = useAuthStore.getState().user;
-  const nextPath = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' ? '/admin/login' : '/login';
-  navigateTo(nextPath);
+  navigateTo('/login');
 }

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Response, Router } from 'express';
 import { body, param, query } from 'express-validator';
 import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
@@ -52,7 +52,7 @@ function normalizeSharedConfig(societyId: string, configs: Array<any>) {
 }
 
 // ── GET MAINTENANCE CONFIGS ─────────────────────────────
-router.get('/config', async (req: AuthRequest, res) => {
+router.get('/config', async (req: AuthRequest, res: Response) => {
   try {
     const societyId = getSocietyId(req);
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
@@ -68,7 +68,7 @@ router.get('/config', async (req: AuthRequest, res) => {
   }
 });
 
-router.get('/config/summary', async (req: AuthRequest, res) => {
+router.get('/config/summary', async (req: AuthRequest, res: Response) => {
   try {
     const societyId = getSocietyId(req);
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
@@ -101,7 +101,7 @@ router.post(
     body('dueDay').optional().isInt({ min: 1, max: 28 }),
   ],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       if (req.user!.role !== 'SUPER_ADMIN' && req.body.societyId !== req.user!.societyId) {
         return res.status(403).json({ error: 'Access denied' });
@@ -167,7 +167,7 @@ router.post(
   authorize('SUPER_ADMIN', 'ADMIN'),
   [body('societyId').isUUID(), body('month').isInt({ min: 1, max: 12 }), body('year').isInt({ min: 2020 })],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { societyId, month, year } = req.body;
 
@@ -290,7 +290,7 @@ router.get(
     query('flatId').optional().isUUID(),
   ],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const where: any = {};
 
@@ -305,7 +305,7 @@ router.get(
 
       // Non-admin: only their own flat's bills
       if (req.user!.role === 'OWNER' || req.user!.role === 'TENANT') {
-        const userFlat = await getUserFlat(req.user!.id);
+        const userFlat = await getUserFlat(req.user!.id, req.user!.societyId);
         if (userFlat) where.flatId = userFlat.id;
         else return res.json([]);
       }
@@ -332,7 +332,7 @@ router.get(
 );
 
 // ── GET SINGLE BILL ─────────────────────────────────────
-router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, res) => {
+router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, res: Response) => {
   try {
     const bill = await prisma.maintenanceBill.findUnique({
       where: { id: req.params.id },
@@ -365,7 +365,7 @@ router.post(
     body('method').isIn(['CASH', 'CHEQUE', 'BANK_TRANSFER', 'UPI_OTHER']),
   ],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const bill = await prisma.maintenanceBill.findUnique({
         where: { id: req.params.id },
@@ -403,10 +403,19 @@ router.post(
 );
 
 // Helper
-async function getUserFlat(userId: string) {
-  const owner = await prisma.owner.findUnique({ where: { userId }, select: { flatId: true } });
+async function getUserFlat(userId: string, societyId?: string | null) {
+  const societyFilter = societyId ? { flat: { block: { societyId } } } : {};
+
+  const owner = await prisma.owner.findFirst({
+    where: { userId, ...societyFilter },
+    select: { flatId: true },
+  });
   if (owner) return { id: owner.flatId };
-  const tenant = await prisma.tenant.findUnique({ where: { userId }, select: { flatId: true } });
+
+  const tenant = await prisma.tenant.findFirst({
+    where: { userId, ...societyFilter },
+    select: { flatId: true },
+  });
   if (tenant) return { id: tenant.flatId };
   return null;
 }

@@ -21,15 +21,9 @@ export default function LoginPage() {
     try {
       const { data } = await api.post<AuthResponse>('/auth/login', { email, password });
 
-      if (data.user.role === 'SUPER_ADMIN' || data.user.role === 'ADMIN') {
-        toast.error('Use the admin portal login for admin accounts.');
-        navigate('/admin/login', { replace: true });
-        return;
-      }
-
       setAuth(data.user, data.accessToken, data.refreshToken);
       toast.success(`Welcome back, ${data.user.name}!`);
-      navigate('/');
+      navigate('/', { replace: true });
     } catch (error: any) {
       const data = error.response?.data;
       const message =

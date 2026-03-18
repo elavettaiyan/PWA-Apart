@@ -110,13 +110,14 @@ model Society {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  blocks            Block[]
-  users             User[]
-  complaints        Complaint[]
-  expenses          Expense[]
-  bylaws            AssociationBylaw[]
-  maintenanceConfig MaintenanceConfig[]
-  paymentConfigs    PaymentGatewayConfig[]
+  blocks             Block[]
+  users              User[]
+  userMemberships    UserSocietyMembership[]
+  complaints         Complaint[]
+  expenses           Expense[]
+  bylaws             AssociationBylaw[]
+  maintenanceConfig  MaintenanceConfig[]
+  paymentConfigs     PaymentGatewayConfig[]
 
   @@map("societies")
 }
@@ -179,7 +180,7 @@ model Owner {
 
   flat        Flat     @relation(fields: [flatId], references: [id], onDelete: Cascade)
   user        User?    @relation(fields: [userId], references: [id])
-  userId      String?  @unique
+  userId      String?
 
   @@map("owners")
 }
@@ -204,7 +205,7 @@ model Tenant {
 
   flat        Flat      @relation(fields: [flatId], references: [id], onDelete: Cascade)
   user        User?     @relation(fields: [userId], references: [id])
-  userId      String?   @unique
+  userId      String?
 
   @@map("tenants")
 }
@@ -219,6 +220,7 @@ model User {
   phone                String?
   role                 Role      @default(OWNER)
   societyId            String?
+  activeSocietyId      String?
   isActive             Boolean   @default(true)
   mustChangePassword   Boolean   @default(false)
   passwordResetToken   String?   @unique
@@ -228,13 +230,29 @@ model User {
   updatedAt            DateTime  @updatedAt
 
   society      Society?  @relation(fields: [societyId], references: [id])
-  owner        Owner?
-  tenant       Tenant?
+  owners       Owner[]
+  tenants      Tenant[]
+  societyMemberships UserSocietyMembership[]
   complaints   Complaint[] @relation("ComplaintCreator")
   assignedComplaints Complaint[] @relation("ComplaintAssignee")
 
   @@index([societyId])
   @@map("users")
+}
+
+model UserSocietyMembership {
+  id         String   @id @default(uuid())
+  userId     String
+  societyId  String
+  role       Role
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  society    Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, societyId])
+  @@index([societyId])
+  @@map("user_society_memberships")
 }
 
 // ─── MAINTENANCE CONFIG ─────────────────────────────────

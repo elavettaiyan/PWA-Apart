@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   LayoutDashboard, Building2, Receipt, MessageSquareWarning,
   Wallet, ScrollText, BarChart3, LogOut, Menu, X, ChevronDown, User, Settings, KeyRound,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { cn } from '../../lib/utils';
+import api from '../../lib/api';
 
 const allNavigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: '*' as const },
@@ -28,7 +30,34 @@ export default function Layout({ children }: LayoutProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const queryClient = useQueryClient();
+  const { user, logout, setUser, setTokens, setActiveSociety } = useAuthStore();
+
+  const { data: societiesData } = useQuery<{ activeSocietyId?: string; societies: Array<{ id: string; name: string; role?: string }> }>({
+    queryKey: ['my-societies'],
+    queryFn: async () => (await api.get('/auth/my-societies')).data,
+    enabled: !!user,
+  });
+
+  const switchSocietyMutation = useMutation({
+    mutationFn: async (societyId: string) => (await api.post('/auth/switch-society', { societyId })).data,
+    onSuccess: (data, societyId) => {
+      setTokens(data.accessToken, data.refreshToken);
+      setActiveSociety(societyId);
+      if (user) {
+        setUser({
+          ...user,
+          ...(data?.user || {}),
+          societyId,
+          activeSocietyId: societyId,
+        });
+      }
+      queryClient.invalidateQueries();
+      if (location.pathname === '/my-flat') {
+        navigate('/my-flat', { replace: true });
+      }
+    },
+  });
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -36,9 +65,8 @@ export default function Layout({ children }: LayoutProps) {
   }, [location.key]);
 
   const handleLogout = () => {
-    const nextPath = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' ? '/admin/login' : '/login';
     logout();
-    navigate(nextPath);
+    navigate('/login');
   };
 
   return (
@@ -129,7 +157,20 @@ export default function Layout({ children }: LayoutProps) {
               <Menu className="w-5 h-5 text-gray-600" />
             </button>
 
-            <div className="flex-1" />
+            <div className="flex-1 flex items-center justify-end gap-3">
+              {(societiesData?.societies?.length || 0) > 1 && (
+                <select
+                  className="select w-56"
+                  value={user?.societyId || societiesData?.activeSocietyId || ''}
+                  onChange={(e) => switchSocietyMutation.mutate(e.target.value)}
+                  disabled={switchSocietyMutation.isPending}
+                >
+                  {societiesData?.societies.map((society) => (
+                    <option key={society.id} value={society.id}>{society.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
 
             {/* Profile Dropdown */}
             <div className="relative">

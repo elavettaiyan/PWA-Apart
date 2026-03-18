@@ -13,8 +13,11 @@ router.get('/my-dashboard', async (req: AuthRequest, res: Response) => {
     const userId = req.user!.id;
 
     // Find user's flat
-    const owner = await prisma.owner.findUnique({ where: { userId }, select: { flatId: true } });
-    const tenant = !owner ? await prisma.tenant.findUnique({ where: { userId }, select: { flatId: true } }) : null;
+    const societyId = req.user!.societyId;
+    const relationWhere = societyId ? { userId, flat: { block: { societyId } } } : { userId };
+
+    const owner = await prisma.owner.findFirst({ where: relationWhere, select: { flatId: true } });
+    const tenant = !owner ? await prisma.tenant.findFirst({ where: relationWhere, select: { flatId: true } }) : null;
     const flatId = owner?.flatId || tenant?.flatId;
 
     if (!flatId) return res.json({ pendingBills: 0, totalDue: 0, totalPaid: 0, openComplaints: 0 });

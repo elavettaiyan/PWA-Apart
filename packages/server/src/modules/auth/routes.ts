@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Request, Response, Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
@@ -11,6 +11,14 @@ import { authenticate, AuthRequest } from '../../middleware/auth';
 import { sendPasswordResetEmail, sendRegistrationEmail } from '../../config/email';
 
 const router = Router();
+
+async function ensureMembership(tx: any, userId: string, societyId: string, role: 'SUPER_ADMIN' | 'ADMIN' | 'OWNER' | 'TENANT') {
+  await tx.userSocietyMembership.upsert({
+    where: { userId_societyId: { userId, societyId } },
+    update: { role },
+    create: { userId, societyId, role },
+  });
+}
 
 // ── REGISTER SOCIETY (Create new apartment) ─────────────
 // Public endpoint: creates a Society + ADMIN user in one step.
@@ -34,7 +42,7 @@ router.post(
       .withMessage('Phone must be a valid mobile number'),
   ],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { societyName, address, city, state, pincode, adminName, email, password, phone } = req.body;
 
@@ -71,9 +79,12 @@ router.post(
             phone,
             role: 'ADMIN',
             societyId: society.id,
+            activeSocietyId: society.id,
           },
           select: { id: true, email: true, name: true, role: true, societyId: true },
         });
+
+        await ensureMembership(tx, user.id, society.id, 'ADMIN');
 
         return { society, user };
       });
@@ -122,7 +133,7 @@ router.post(
     body('societyId').optional({ values: 'falsy' }).isUUID().withMessage('Invalid society ID'),
   ],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { email, password, name, phone, role, societyId } = req.body;
 
@@ -141,9 +152,14 @@ router.post(
           phone,
           role: role || 'OWNER',
           societyId,
+          activeSocietyId: societyId || null,
         },
         select: { id: true, email: true, name: true, role: true, societyId: true },
       });
+
+      if (societyId) {
+        await ensureMembership(prisma, user.id, societyId, (role || 'OWNER') as any);
+      }
 
       const tokens = generateTokens(user);
 
@@ -162,7 +178,7 @@ router.post(
     body('password').notEmpty(),
   ],
   validate,
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const { email, password } = req.body;
 
@@ -170,7 +186,11 @@ router.post(
 
       const user = await prisma.user.findUnique({
         where: { email },
-        include: { owner: { include: { flat: true } }, tenant: { include: { flat: true } } },
+        include: {
+          owners: { include: { flat: { include: { block: true } } } },
+          tenants: { include: { flat: { include: { block: true } } } },
+          societyMemberships: { include: { society: { select: { id: true, name: true } } } },
+        },
       });
 
       if (!user || !user.isActive) {
@@ -190,12 +210,66 @@ router.post(
         data: { lastLogin: new Date() },
       });
 
+      const ownerSocietyIds = user.owners
+        .map((owner) => owner.flat?.block?.societyId)
+        .filter((id): id is string => !!id);
+      const tenantSocietyIds = user.tenants
+        .map((tenant) => tenant.flat?.block?.societyId)
+        .filter((id): id is string => !!id);
+      const knownSocietyIds = new Set<string>([
+        ...(user.societyId ? [user.societyId] : []),
+        ...ownerSocietyIds,
+        ...tenantSocietyIds,
+        ...user.societyMemberships.map((m) => m.societyId),
+      ]);
+
+      if (knownSocietyIds.size > 0) {
+        await prisma.$transaction(async (tx) => {
+          for (const sid of knownSocietyIds) {
+            const existingMembership = await tx.userSocietyMembership.findUnique({
+              where: { userId_societyId: { userId: user.id, societyId: sid } },
+              select: { id: true },
+            });
+            if (!existingMembership) {
+              await tx.userSocietyMembership.create({
+                data: { userId: user.id, societyId: sid, role: user.role as any },
+              });
+            }
+          }
+        });
+      }
+
+      const activeSocietyId = user.activeSocietyId || user.societyId || [...knownSocietyIds][0] || null;
+
+      if (activeSocietyId && activeSocietyId !== user.activeSocietyId) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            activeSocietyId,
+            societyId: user.societyId || activeSocietyId,
+          },
+        });
+      }
+
+      const flatFromOwners = user.owners.find((owner) => owner.flat?.block?.societyId === activeSocietyId)?.flat;
+      const flatFromTenants = user.tenants.find((tenant) => tenant.flat?.block?.societyId === activeSocietyId)?.flat;
+
+      const societies = await prisma.userSocietyMembership.findMany({
+        where: { userId: user.id },
+        include: { society: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      const activeMembership = activeSocietyId
+        ? societies.find((membership) => membership.societyId === activeSocietyId)
+        : null;
+      const effectiveRole = activeMembership?.role || user.role;
+
       const tokens = generateTokens({
         id: user.id,
         email: user.email,
-        name: user.name,
-        role: user.role,
-        societyId: user.societyId,
+        role: effectiveRole,
+        societyId: activeSocietyId,
       });
 
       return res.json({
@@ -203,10 +277,11 @@ router.post(
           id: user.id,
           email: user.email,
           name: user.name,
-          role: user.role,
-          societyId: user.societyId,
-          flat: user.owner?.flat || user.tenant?.flat || null,
+          role: effectiveRole,
+          societyId: activeSocietyId,
+          flat: flatFromOwners || flatFromTenants || null,
           mustChangePassword: user.mustChangePassword,
+          societies: societies.map((membership) => ({ id: membership.society.id, name: membership.society.name })),
         },
         ...tokens,
       });
@@ -218,7 +293,7 @@ router.post(
 );
 
 // ── REFRESH TOKEN ───────────────────────────────────────
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', async (req: Request, res: Response) => {
   try {
     const { refreshToken } = req.body;
     if (!refreshToken) {
@@ -232,7 +307,7 @@ router.post('/refresh', async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { id: true, email: true, name: true, role: true, societyId: true, isActive: true },
+      select: { id: true, email: true, name: true, role: true, societyId: true, activeSocietyId: true, isActive: true },
     });
 
     if (!user || !user.isActive) {
@@ -240,7 +315,19 @@ router.post('/refresh', async (req, res) => {
       return res.status(401).json({ error: 'Invalid refresh token' });
     }
 
-    const tokens = generateTokens(user);
+    const effectiveSocietyId = user.activeSocietyId || user.societyId;
+    const membership = effectiveSocietyId
+      ? await prisma.userSocietyMembership.findUnique({
+          where: { userId_societyId: { userId: user.id, societyId: effectiveSocietyId } },
+          select: { role: true },
+        })
+      : null;
+
+    const tokens = generateTokens({
+      ...user,
+      role: membership?.role || user.role,
+      societyId: effectiveSocietyId,
+    });
     logger.info('Token refreshed', { userId: user.id, email: user.email });
     return res.json(tokens);
   } catch (error: any) {
@@ -250,7 +337,7 @@ router.post('/refresh', async (req, res) => {
 });
 
 // ── GET PROFILE ─────────────────────────────────────────
-router.get('/me', authenticate, async (req: AuthRequest, res) => {
+router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
@@ -261,10 +348,12 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
         phone: true,
         role: true,
         societyId: true,
+        activeSocietyId: true,
         lastLogin: true,
         createdAt: true,
-        owner: { include: { flat: { include: { block: true } } } },
-        tenant: { include: { flat: { include: { block: true } } } },
+        owners: { include: { flat: { include: { block: true } } } },
+        tenants: { include: { flat: { include: { block: true } } } },
+        societyMemberships: { include: { society: { select: { id: true, name: true } } } },
       },
     });
 
@@ -274,6 +363,66 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
     return res.status(500).json({ error: 'Failed to fetch profile' });
   }
 });
+
+router.get('/my-societies', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const memberships = await prisma.userSocietyMembership.findMany({
+      where: { userId: req.user!.id },
+      include: { society: { select: { id: true, name: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return res.json({
+      activeSocietyId: req.user!.societyId,
+      societies: memberships.map((m) => ({ id: m.society.id, name: m.society.name, role: m.role })),
+    });
+  } catch (error: any) {
+    logger.error('Fetch user societies failed', { userId: req.user!.id, error: error.message });
+    return res.status(500).json({ error: 'Failed to fetch societies' });
+  }
+});
+
+router.post(
+  '/switch-society',
+  authenticate,
+  [body('societyId').isUUID().withMessage('Valid societyId is required')],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { societyId } = req.body;
+      const membership = await prisma.userSocietyMembership.findUnique({
+        where: { userId_societyId: { userId: req.user!.id, societyId } },
+      });
+      if (!membership) {
+        return res.status(403).json({ error: 'You are not assigned to this society' });
+      }
+
+      const updatedUser = await prisma.user.update({
+        where: { id: req.user!.id },
+        data: {
+          activeSocietyId: societyId,
+          societyId,
+        },
+        select: { id: true, email: true, name: true, role: true, societyId: true, mustChangePassword: true },
+      });
+
+      const effectiveRole = membership.role;
+      const tokens = generateTokens({ ...updatedUser, role: effectiveRole });
+
+      return res.json({
+        message: 'Active society switched',
+        user: {
+          ...updatedUser,
+          role: effectiveRole,
+        },
+        ...tokens,
+      });
+    } catch (error: any) {
+      logger.error('Switch society failed', { userId: req.user!.id, error: error.message });
+      return res.status(500).json({ error: 'Failed to switch society' });
+    }
+  },
+);
 
 // ── CHANGE PASSWORD (authenticated) ─────────────────────
 router.post(
@@ -287,7 +436,7 @@ router.post(
       .matches(/[0-9]/).withMessage('Password must contain a number'),
   ],
   validate,
-  async (req: AuthRequest, res) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { currentPassword, newPassword } = req.body;
 
@@ -321,7 +470,7 @@ router.post(
     body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   ],
   validate,
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const { email } = req.body;
 
@@ -375,7 +524,7 @@ router.post(
       .matches(/[0-9]/).withMessage('Password must contain a number'),
   ],
   validate,
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const { token, newPassword } = req.body;
 
