@@ -136,6 +136,7 @@ model Block {
   flats     Flat[]
 
   @@index([societyId])
+  @@index([societyId, name])
   @@map("blocks")
 }
 
@@ -160,6 +161,7 @@ model Flat {
 
   @@unique([flatNumber, blockId])
   @@index([blockId])
+  @@index([blockId, isOccupied])
   @@map("flats")
 }
 
@@ -182,6 +184,8 @@ model Owner {
   user        User?    @relation(fields: [userId], references: [id])
   userId      String?
 
+  @@index([userId])
+  @@index([email])
   @@map("owners")
 }
 
@@ -207,6 +211,8 @@ model Tenant {
   user        User?     @relation(fields: [userId], references: [id])
   userId      String?
 
+  @@index([userId])
+  @@index([email])
   @@map("tenants")
 }
 
@@ -237,6 +243,7 @@ model User {
   assignedComplaints Complaint[] @relation("ComplaintAssignee")
 
   @@index([societyId])
+  @@index([activeSocietyId])
   @@map("users")
 }
 
@@ -308,6 +315,10 @@ model MaintenanceBill {
 
   @@unique([flatId, month, year])
   @@index([flatId])
+  @@index([flatId, status])
+  @@index([year, month])
+  @@index([status])
+  @@index([dueDate])
   @@map("maintenance_bills")
 }
 
@@ -331,6 +342,8 @@ model Payment {
   bill              MaintenanceBill @relation(fields: [billId], references: [id], onDelete: Cascade)
 
   @@index([billId])
+  @@index([status, paidAt])
+  @@index([notes])
   @@map("payments")
 }
 
@@ -361,6 +374,8 @@ model Complaint {
 
   @@index([societyId])
   @@index([createdById])
+  @@index([societyId, status])
+  @@index([createdById, status])
   @@map("complaints")
 }
 
@@ -395,6 +410,8 @@ model Expense {
   society     Society @relation(fields: [societyId], references: [id], onDelete: Cascade)
 
   @@index([societyId])
+  @@index([societyId, expenseDate])
+  @@index([societyId, category])
   @@map("expenses")
 }
 

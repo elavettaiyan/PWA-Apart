@@ -52,7 +52,9 @@ export default function Layout({ children }: LayoutProps) {
           activeSocietyId: societyId,
         });
       }
-      queryClient.invalidateQueries();
+      queryClient.removeQueries({
+        predicate: (query) => Array.isArray(query.queryKey) && query.queryKey[0] !== 'my-societies',
+      });
       if (location.pathname === '/my-flat') {
         navigate('/my-flat', { replace: true });
       }

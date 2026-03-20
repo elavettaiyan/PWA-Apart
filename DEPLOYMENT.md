@@ -104,8 +104,17 @@ Add in Vercel dashboard:
 
 ### 4c. Build Settings
 
-- **Build Command:** `npx prisma generate && npm run build`
+- **Build Command:** `npm run vercel-build`
 - **Output Directory:** `dist`
+
+`npm run vercel-build` now runs `prisma migrate deploy` and then `prisma generate`, so backend deployments apply pending production migrations before the serverless build is finalized.
+
+If your Vercel backend project was created before this change, verify these two points in the Vercel dashboard:
+
+- Root Directory is `packages/server`
+- Build Command is `npm run vercel-build`
+
+If the project is still using old cached settings, redeploy after saving the updated Build Command once in the dashboard.
 
 ---
 
