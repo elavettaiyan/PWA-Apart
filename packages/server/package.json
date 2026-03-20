@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "postinstall": "npx prisma generate",
-    "vercel-build": "npm run db:deploy && npm run generate",
+    "vercel-build": "sh -c 'export DATABASE_URL=\"${DATABASE_URL:-$APART_EASE_POSTGRES_PRISMA_URL}\" && echo Prisma DB URL: $([ -n \"$DATABASE_URL\" ] && echo set || echo missing) && npm run db:deploy && npm run generate'",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",

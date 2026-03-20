@@ -109,6 +109,8 @@ Add in Vercel dashboard:
 
 `npm run vercel-build` now runs `prisma migrate deploy` and then `prisma generate`, so backend deployments apply pending production migrations before the serverless build is finalized.
 
+Prisma CLI reads `DATABASE_URL` directly during build-time migration. If your Vercel project currently only has `APART_EASE_POSTGRES_PRISMA_URL`, the deploy script now maps it to `DATABASE_URL` automatically before running `migrate deploy`.
+
 If your Vercel backend project was created before this change, verify these two points in the Vercel dashboard:
 
 - Root Directory is `packages/server`
