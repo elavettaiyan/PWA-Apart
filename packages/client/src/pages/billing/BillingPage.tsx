@@ -55,10 +55,12 @@ export default function BillingPage() {
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
   const shouldApplyMonthYear = isAdmin || applyMonthYearFilter;
   const billsBaseKey = ['bills', user?.id || 'anonymous', user?.societyId || 'no-society'];
-  const billsQueryKey = [...billsBaseKey, shouldApplyMonthYear ? month : 'all-months', shouldApplyMonthYear ? year : 'all-years'];
+  const billsQueryKey = isAdmin
+    ? [...billsBaseKey, 'admin-all']
+    : [...billsBaseKey, shouldApplyMonthYear ? month : 'all-months', shouldApplyMonthYear ? year : 'all-years'];
   const configBaseKey = ['billing-config', user?.id || 'anonymous', user?.societyId || 'no-society'];
 
-  const billsEndpoint = shouldApplyMonthYear ? `/billing?month=${month}&year=${year}` : '/billing';
+  const billsEndpoint = isAdmin ? '/billing' : shouldApplyMonthYear ? `/billing?month=${month}&year=${year}` : '/billing';
   const pendingStatuses = new Set(['PENDING', 'OVERDUE', 'PARTIAL']);
 
   const { data: bills = [], isLoading } = useQuery<MaintenanceBill[]>({
@@ -67,7 +69,9 @@ export default function BillingPage() {
     enabled: !!user,
   });
 
-  const displayedBills = isAdmin ? bills : bills.filter((bill) => pendingStatuses.has(bill.status));
+  const displayedBills = isAdmin
+    ? bills.filter((bill) => bill.month === month && bill.year === year)
+    : bills.filter((bill) => pendingStatuses.has(bill.status));
   const selectableBillIds = displayedBills.filter((bill) => bill.status !== 'PAID').map((bill) => bill.id);
   const selectableBillIdsKey = selectableBillIds.join(',');
   const selectedCount = selectedBillIds.length;
