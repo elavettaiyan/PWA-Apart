@@ -93,6 +93,7 @@ Add in Vercel dashboard:
 | Variable | Value |
 |----------|-------|
 | `DATABASE_URL` | `postgresql://user:pass@host:5432/db?sslmode=require` |
+| `DIRECT_URL` | `postgresql://user:pass@direct-host:5432/db?sslmode=require` |
 | `JWT_SECRET` | (generate a strong 64-char random string) |
 | `JWT_REFRESH_SECRET` | (generate another strong 64-char random string) |
 | `PHONEPE_MERCHANT_ID` | Your PhonePe Merchant ID |
@@ -110,6 +111,8 @@ Add in Vercel dashboard:
 `npm run vercel-build` now runs `prisma migrate deploy` and then `prisma generate`, so backend deployments apply pending production migrations before the serverless build is finalized.
 
 Prisma CLI reads `DATABASE_URL` directly during build-time migration. If your Vercel project currently only has `APART_EASE_POSTGRES_PRISMA_URL`, the deploy script now maps it to `DATABASE_URL` automatically before running `migrate deploy`.
+
+For Supabase and similar providers, use `DIRECT_URL` for migrations (direct Postgres host/port `5432`). Pooled URLs (often port `6543`) can stall or fail for schema migration/DDL operations.
 
 If your Vercel backend project was created before this change, verify these two points in the Vercel dashboard:
 
