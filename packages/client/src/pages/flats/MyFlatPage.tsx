@@ -1,14 +1,24 @@
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Building2, User, Phone, Mail, Home, Calendar } from 'lucide-react';
 import api from '../../lib/api';
-import { formatCurrency, formatDate } from '../../lib/utils';
+import { formatCurrency, formatDate, getMonthName, getStatusColor, cn } from '../../lib/utils';
 import { PageLoader } from '../../components/ui/Loader';
+import type { MaintenanceBill, PaymentMethod } from '../../types';
 
 export default function MyFlatPage() {
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+
   const { data: flat, isLoading, error } = useQuery<any>({
-    queryKey: ['my-flat'],
-    queryFn: async () => (await api.get('/flats/my-flat')).data,
+    queryKey: ['my-flat', selectedYear],
+    queryFn: async () => (await api.get(`/flats/my-flat?year=${selectedYear}`)).data,
   });
+
+  const yearOptions = useMemo(
+    () => Array.from({ length: 6 }, (_, index) => currentYear - index),
+    [currentYear],
+  );
 
   if (isLoading) return <PageLoader />;
 
@@ -84,42 +94,76 @@ export default function MyFlatPage() {
         </div>
       </div>
 
-      {/* Recent Bills */}
+      {/* Bill Summary */}
       {flat.bills && flat.bills.length > 0 && (
         <div className="mt-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Bills</h2>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-gray-900">Bill Summary</h2>
+            <select className="select w-32" value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}>
+              {yearOptions.map((year) => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
           <div className="table-container">
             <table>
               <thead>
                 <tr>
                   <th>Month</th>
+                  <th>Due Date</th>
                   <th>Amount</th>
                   <th>Paid</th>
                   <th>Balance</th>
+                  <th>Payment Date</th>
+                  <th>Payment Mode</th>
                   <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {flat.bills.map((bill: any) => (
+                {flat.bills.map((bill: MaintenanceBill) => {
+                  const latestPayment = bill.payments?.[0];
+
+                  return (
                   <tr key={bill.id}>
-                    <td className="font-medium">{bill.month}/{bill.year}</td>
+                    <td className="font-medium">{getMonthName(bill.month)} {bill.year}</td>
+                    <td>{formatDate(bill.dueDate)}</td>
                     <td>{formatCurrency(bill.totalAmount)}</td>
                     <td className="text-emerald-600">{formatCurrency(bill.paidAmount)}</td>
                     <td className="text-red-600">{formatCurrency(bill.totalAmount - bill.paidAmount)}</td>
+                    <td>{latestPayment?.paidAt ? formatDate(latestPayment.paidAt) : '—'}</td>
+                    <td>{latestPayment ? getPaymentMethodLabel(latestPayment.method) : '—'}</td>
                     <td>
-                      <span className={`badge ${bill.status === 'PAID' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                      <span className={cn('badge', getStatusColor(bill.status))}>
                         {bill.status}
                       </span>
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
         </div>
       )}
+
+      {flat.bills && flat.bills.length === 0 && (
+        <div className="mt-6 card p-6 text-sm text-gray-500">
+          No bill transactions found for {selectedYear}.
+        </div>
+      )}
     </div>
   );
+}
+
+function getPaymentMethodLabel(method: PaymentMethod) {
+  const labels: Record<PaymentMethod, string> = {
+    PHONEPE: 'PhonePe',
+    CASH: 'Cash',
+    CHEQUE: 'Cheque',
+    BANK_TRANSFER: 'Bank Transfer',
+    UPI_OTHER: 'UPI',
+  };
+
+  return labels[method] || method;
 }
 
 function Row({ label, value, icon }: { label: string; value: string | number | null | undefined; icon?: React.ReactNode }) {

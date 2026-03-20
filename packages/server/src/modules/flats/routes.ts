@@ -2,6 +2,7 @@ import { Response, Router } from 'express';
 import { body, param, query } from 'express-validator';
 import bcrypt from 'bcryptjs';
 import * as XLSX from 'xlsx';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
@@ -12,11 +13,30 @@ const router = Router();
 // All routes require authentication
 router.use(authenticate);
 
+function buildMyFlatInclude(year?: number): Prisma.FlatInclude {
+  return {
+    block: { include: { society: { select: { id: true, name: true } } } },
+    owner: true,
+    tenant: true,
+    bills: {
+      where: year ? { year } : undefined,
+      include: {
+        payments: {
+          where: { status: 'SUCCESS' },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+      orderBy: [{ year: 'desc' }, { month: 'desc' }],
+    },
+  };
+}
+
 // ── GET MY FLAT (Owner/Tenant) ───────────────────────────
-router.get('/my-flat', [query('societyId').optional().isUUID()], validate, async (req: AuthRequest, res: Response) => {
+router.get('/my-flat', [query('societyId').optional().isUUID(), query('year').optional().isInt({ min: 2020 })], validate, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const selectedSocietyId = (req.query.societyId as string) || req.user!.societyId || undefined;
+    const selectedYear = req.query.year ? Number(req.query.year) : undefined;
 
     // Check if user is an owner
     const owner = await prisma.owner.findFirst({
@@ -26,12 +46,7 @@ router.get('/my-flat', [query('societyId').optional().isUUID()], validate, async
       },
       include: {
         flat: {
-          include: {
-            block: { include: { society: { select: { id: true, name: true } } } },
-            owner: true,
-            tenant: true,
-            bills: { orderBy: { createdAt: 'desc' }, take: 12 },
-          },
+          include: buildMyFlatInclude(selectedYear),
         },
       },
     });
@@ -46,12 +61,7 @@ router.get('/my-flat', [query('societyId').optional().isUUID()], validate, async
       },
       include: {
         flat: {
-          include: {
-            block: { include: { society: { select: { id: true, name: true } } } },
-            owner: true,
-            tenant: true,
-            bills: { orderBy: { createdAt: 'desc' }, take: 12 },
-          },
+          include: buildMyFlatInclude(selectedYear),
         },
       },
     });
@@ -63,12 +73,7 @@ router.get('/my-flat', [query('societyId').optional().isUUID()], validate, async
       where: { userId },
       include: {
         flat: {
-          include: {
-            block: { include: { society: { select: { id: true, name: true } } } },
-            owner: true,
-            tenant: true,
-            bills: { orderBy: { createdAt: 'desc' }, take: 12 },
-          },
+          include: buildMyFlatInclude(selectedYear),
         },
       },
     });
@@ -78,12 +83,7 @@ router.get('/my-flat', [query('societyId').optional().isUUID()], validate, async
       where: { userId },
       include: {
         flat: {
-          include: {
-            block: { include: { society: { select: { id: true, name: true } } } },
-            owner: true,
-            tenant: true,
-            bills: { orderBy: { createdAt: 'desc' }, take: 12 },
-          },
+          include: buildMyFlatInclude(selectedYear),
         },
       },
     });
