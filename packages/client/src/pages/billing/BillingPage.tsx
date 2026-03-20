@@ -51,14 +51,18 @@ export default function BillingPage() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const billsBaseKey = ['bills', user?.id || 'anonymous', user?.societyId || 'no-society'];
+  const billsQueryKey = [...billsBaseKey, month, year];
+  const configBaseKey = ['billing-config', user?.id || 'anonymous', user?.societyId || 'no-society'];
 
   const { data: bills = [], isLoading } = useQuery<MaintenanceBill[]>({
-    queryKey: ['bills', month, year],
+    queryKey: billsQueryKey,
     queryFn: async () => (await api.get(`/billing?month=${month}&year=${year}`)).data,
+    enabled: !!user,
   });
 
   const { data: configSummary, isLoading: isConfigLoading } = useQuery<MaintenanceConfigSummary>({
-    queryKey: ['billing-config', user?.societyId],
+    queryKey: configBaseKey,
     queryFn: async () => (await api.get('/billing/config/summary')).data,
     enabled: isAdmin,
   });
@@ -72,7 +76,7 @@ export default function BillingPage() {
     mutationFn: (data: BillingConfigFormState) => api.post('/billing/config', { ...data, societyId: user?.societyId }),
     onSuccess: () => {
       toast.success('Monthly maintenance settings saved');
-      queryClient.invalidateQueries({ queryKey: ['billing-config'] });
+      queryClient.invalidateQueries({ queryKey: configBaseKey });
       setShowConfig(false);
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save maintenance settings'),
@@ -87,7 +91,7 @@ export default function BillingPage() {
       if (result.errors?.length) {
         toast.error(`Skipped ${result.errors.length} flats. Review the details below.`);
       }
-      queryClient.invalidateQueries({ queryKey: ['bills'] });
+      queryClient.invalidateQueries({ queryKey: billsBaseKey });
       setShowGenerate(false);
     },
     onError: (e: any) => {
@@ -123,7 +127,7 @@ export default function BillingPage() {
 
           if (status === 'SUCCESS') {
             toast.success('Payment successful. Bill status updated.');
-            queryClient.invalidateQueries({ queryKey: ['bills'] });
+            queryClient.invalidateQueries({ queryKey: billsBaseKey });
 
             const nextParams = new URLSearchParams(window.location.search);
             nextParams.delete('txnId');
@@ -420,7 +424,7 @@ export default function BillingPage() {
         {selectedBill && (
           <RecordPaymentForm
             bill={selectedBill}
-            onSuccess={() => { setShowPayment(false); queryClient.invalidateQueries({ queryKey: ['bills'] }); }}
+            onSuccess={() => { setShowPayment(false); queryClient.invalidateQueries({ queryKey: billsBaseKey }); }}
           />
         )}
       </Modal>

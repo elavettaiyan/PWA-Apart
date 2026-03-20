@@ -65,6 +65,7 @@ export default function Layout({ children }: LayoutProps) {
   }, [location.key]);
 
   const handleLogout = () => {
+    queryClient.clear();
     logout();
     navigate('/login');
   };

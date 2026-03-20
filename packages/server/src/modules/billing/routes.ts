@@ -4,6 +4,7 @@ import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
+import { buildResidentBillFilter, canResidentAccessBill } from './scope';
 
 const router = Router();
 router.use(authenticate);
@@ -303,11 +304,20 @@ router.get(
         where.flat = { block: { societyId: req.user!.societyId } };
       }
 
-      // Non-admin: only their own flat's bills
+      // Non-admin: only their linked flats in active society
       if (req.user!.role === 'OWNER' || req.user!.role === 'TENANT') {
-        const userFlat = await getUserFlat(req.user!.id, req.user!.societyId);
-        if (userFlat) where.flatId = userFlat.id;
+        if (!req.user!.societyId) return res.json([]);
+
+        const userFlatIds = await getUserFlatIds(req.user!.id, req.user!.societyId);
+        if (userFlatIds.length > 0) {
+          Object.assign(where, buildResidentBillFilter(userFlatIds));
+        }
         else return res.json([]);
+
+        where.flat = {
+          ...(where.flat || {}),
+          block: { societyId: req.user!.societyId },
+        };
       }
 
       const bills = await prisma.maintenanceBill.findMany({
@@ -349,6 +359,15 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
       return res.status(403).json({ error: 'Access denied' });
     }
 
+    // SECURITY: Owner/Tenant can only access bills for their linked flats.
+    if (req.user!.role === 'OWNER' || req.user!.role === 'TENANT') {
+      if (!req.user!.societyId) return res.status(403).json({ error: 'Access denied' });
+      const userFlatIds = await getUserFlatIds(req.user!.id, req.user!.societyId);
+      if (!canResidentAccessBill(bill.flatId, userFlatIds)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
     return res.json(bill);
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch bill' });
@@ -369,9 +388,15 @@ router.post(
     try {
       const bill = await prisma.maintenanceBill.findUnique({
         where: { id: req.params.id },
+        include: { flat: { include: { block: true } } },
       });
 
       if (!bill) return res.status(404).json({ error: 'Bill not found' });
+
+      // SECURITY: Admin can only record payment inside their active society.
+      if (req.user!.role !== 'SUPER_ADMIN' && bill.flat.block.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
 
       const { amount, method, notes, receiptNo } = req.body;
       const newPaidAmount = bill.paidAmount + amount;
@@ -403,21 +428,19 @@ router.post(
 );
 
 // Helper
-async function getUserFlat(userId: string, societyId?: string | null) {
-  const societyFilter = societyId ? { flat: { block: { societyId } } } : {};
+async function getUserFlatIds(userId: string, societyId: string) {
+  const [owners, tenants] = await Promise.all([
+    prisma.owner.findMany({
+      where: { userId, flat: { block: { societyId } } },
+      select: { flatId: true },
+    }),
+    prisma.tenant.findMany({
+      where: { userId, flat: { block: { societyId } } },
+      select: { flatId: true },
+    }),
+  ]);
 
-  const owner = await prisma.owner.findFirst({
-    where: { userId, ...societyFilter },
-    select: { flatId: true },
-  });
-  if (owner) return { id: owner.flatId };
-
-  const tenant = await prisma.tenant.findFirst({
-    where: { userId, ...societyFilter },
-    select: { flatId: true },
-  });
-  if (tenant) return { id: tenant.flatId };
-  return null;
+  return [...new Set([...owners.map((owner) => owner.flatId), ...tenants.map((tenant) => tenant.flatId)])];
 }
 
 export default router;
