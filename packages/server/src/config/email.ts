@@ -10,12 +10,17 @@ const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 export async function sendPasswordResetEmail(to: string, resetToken: string, userName: string) {
   const resetUrl = `${CLIENT_URL}/reset-password?token=${resetToken}`;
 
+  if (!apiKey || apiKey.startsWith('re_local_')) {
+    const reason = !apiKey ? 'RESEND_API_KEY is missing' : 'RESEND_API_KEY is using local placeholder key';
+    logger.error('Resend: password reset email blocked by configuration', { to, reason });
+    throw new Error(`Email configuration error: ${reason}`);
+  }
+
   logger.info('Resend: attempting password reset email', {
     to,
     from: FROM_EMAIL,
     clientUrl: CLIENT_URL,
     apiKeySet: !!apiKey,
-    apiKeyPrefix: apiKey ? apiKey.substring(0, 8) + '...' : 'MISSING',
   });
 
   const { data, error } = await resend.emails.send({
@@ -46,8 +51,13 @@ export async function sendPasswordResetEmail(to: string, resetToken: string, use
   });
 
   if (error) {
-    logger.error('Resend: failed to send password reset email', { to, error: JSON.stringify(error) });
-    throw new Error(`Failed to send email: ${error.message}`);
+    logger.error('Resend: failed to send password reset email', {
+      to,
+      error,
+      from: FROM_EMAIL,
+      clientUrl: CLIENT_URL,
+    });
+    throw new Error(`Failed to send email: ${error.name || 'ResendError'} ${error.message || 'Unknown error'}`);
   }
 
   logger.info('Resend: password reset email sent successfully', { to, emailId: data?.id });

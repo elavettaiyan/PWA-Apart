@@ -474,6 +474,8 @@ router.post(
     try {
       const { email } = req.body;
 
+      logger.info('Forgot password requested', { email });
+
       const user = await prisma.user.findUnique({ where: { email } });
 
       // Always return success to prevent email enumeration
@@ -499,7 +501,12 @@ router.post(
         await sendPasswordResetEmail(user.email, resetToken, user.name);
         logger.info('Password reset email sent', { userId: user.id, email });
       } catch (emailError: any) {
-        logger.error('Failed to send reset email', { userId: user.id, error: emailError.message });
+        logger.error('Failed to send reset email', {
+          userId: user.id,
+          email,
+          error: emailError?.message,
+          stack: emailError?.stack,
+        });
         // Don't expose email delivery failure to user
       }
 
