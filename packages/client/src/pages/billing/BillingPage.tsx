@@ -40,26 +40,59 @@ function buildConfigForm(summary?: MaintenanceConfigSummary): BillingConfigFormS
 export default function BillingPage() {
   const [month, setMonth] = useState(currentDate.getMonth() + 1);
   const [year, setYear] = useState(currentDate.getFullYear());
+  const [applyMonthYearFilter, setApplyMonthYearFilter] = useState(false);
   const [showGenerate, setShowGenerate] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [selectedBill, setSelectedBill] = useState<MaintenanceBill | null>(null);
   const [generationResult, setGenerationResult] = useState<BillingGenerationResult | null>(null);
   const [configForm, setConfigForm] = useState<BillingConfigFormState>(buildConfigForm());
+  const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
   const txnStatusCheckRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
   const billsBaseKey = ['bills', user?.id || 'anonymous', user?.societyId || 'no-society'];
-  const billsQueryKey = [...billsBaseKey, month, year];
+  const billsQueryKey = [...billsBaseKey, applyMonthYearFilter ? month : 'all-months', applyMonthYearFilter ? year : 'all-years'];
   const configBaseKey = ['billing-config', user?.id || 'anonymous', user?.societyId || 'no-society'];
+
+  const shouldApplyMonthYear = isAdmin || applyMonthYearFilter;
+  const billsEndpoint = shouldApplyMonthYear ? `/billing?month=${month}&year=${year}` : '/billing';
+  const pendingStatuses = new Set(['PENDING', 'OVERDUE', 'PARTIAL']);
 
   const { data: bills = [], isLoading } = useQuery<MaintenanceBill[]>({
     queryKey: billsQueryKey,
-    queryFn: async () => (await api.get(`/billing?month=${month}&year=${year}`)).data,
+    queryFn: async () => (await api.get(billsEndpoint)).data,
     enabled: !!user,
   });
+
+  const displayedBills = isAdmin ? bills : bills.filter((bill) => pendingStatuses.has(bill.status));
+  const selectableBillIds = displayedBills.filter((bill) => bill.status !== 'PAID').map((bill) => bill.id);
+  const selectableBillIdsKey = selectableBillIds.join(',');
+  const selectedCount = selectedBillIds.length;
+
+  useEffect(() => {
+    const selectable = new Set(selectableBillIds);
+    setSelectedBillIds((prev) => {
+      const next = prev.filter((id) => selectable.has(id));
+      if (next.length === prev.length && next.every((id, idx) => id === prev[idx])) {
+        return prev;
+      }
+      return next;
+    });
+  }, [selectableBillIdsKey]);
+
+  const toggleBillSelection = (billId: string, checked: boolean) => {
+    setSelectedBillIds((prev) => {
+      if (checked) return prev.includes(billId) ? prev : [...prev, billId];
+      return prev.filter((id) => id !== billId);
+    });
+  };
+
+  const toggleSelectAll = (checked: boolean) => {
+    setSelectedBillIds(checked ? selectableBillIds : []);
+  };
 
   const { data: configSummary, isLoading: isConfigLoading } = useQuery<MaintenanceConfigSummary>({
     queryKey: configBaseKey,
@@ -103,10 +136,10 @@ export default function BillingPage() {
     },
   });
 
-  const totalBilled = bills.reduce((s, b) => s + b.totalAmount, 0);
-  const totalCollected = bills.reduce((s, b) => s + b.paidAmount, 0);
-  const paidCount = bills.filter((b) => b.status === 'PAID').length;
-  const pendingCount = bills.filter((b) => b.status === 'PENDING' || b.status === 'OVERDUE').length;
+  const totalBilled = displayedBills.reduce((s, b) => s + b.totalAmount, 0);
+  const totalCollected = displayedBills.reduce((s, b) => s + b.paidAmount, 0);
+  const paidCount = displayedBills.filter((b) => b.status === 'PAID').length;
+  const pendingCount = displayedBills.filter((b) => b.status === 'PENDING' || b.status === 'OVERDUE' || b.status === 'PARTIAL').length;
   const canGenerateBills = !!user?.societyId && !!configSummary?.isConfigured;
 
   const txnId = searchParams.get('txnId');
@@ -257,17 +290,41 @@ export default function BillingPage() {
       )}
 
       {/* Month/Year Filter */}
-      <div className="flex gap-3 mb-6">
-        <select className="select w-40" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
-          {Array.from({ length: 12 }, (_, i) => (
-            <option key={i + 1} value={i + 1}>{getMonthName(i + 1)}</option>
-          ))}
-        </select>
-        <select className="select w-28" value={year} onChange={(e) => setYear(Number(e.target.value))}>
-          {yearOptions.map((y) => (
-            <option key={y} value={y}>{y}</option>
-          ))}
-        </select>
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        {!isAdmin && (
+          <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={applyMonthYearFilter}
+              onChange={(e) => setApplyMonthYearFilter(e.target.checked)}
+            />
+            Apply month/year filter
+          </label>
+        )}
+
+        {(isAdmin || applyMonthYearFilter) && (
+          <>
+            <select className="select w-40" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i + 1} value={i + 1}>{getMonthName(i + 1)}</option>
+              ))}
+            </select>
+            <select className="select w-28" value={year} onChange={(e) => setYear(Number(e.target.value))}>
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </>
+        )}
+
+        {!isAdmin && selectedCount >= 2 && (
+          <button
+            className="btn-primary"
+            onClick={() => handlePhonePeBulkPay(selectedBillIds)}
+          >
+            <CreditCard className="w-4 h-4" /> Pay Selected ({selectedCount})
+          </button>
+        )}
       </div>
 
       {/* Summary Cards */}
@@ -291,11 +348,15 @@ export default function BillingPage() {
       </div>
 
       {/* Bills Table */}
-      {bills.length === 0 ? (
+      {displayedBills.length === 0 ? (
         <EmptyState
           icon={Receipt}
           title="No bills found"
-          description={`No bills generated for ${getMonthName(month)} ${year}`}
+          description={
+            isAdmin || applyMonthYearFilter
+              ? `No bills generated for ${getMonthName(month)} ${year}`
+              : 'No pending dues found'
+          }
           action={isAdmin ? (
             <button className="btn-primary" onClick={() => (canGenerateBills ? setShowGenerate(true) : openConfigModal())}>
               {canGenerateBills ? 'Generate Bills' : 'Set Maintenance Amount'}
@@ -307,6 +368,15 @@ export default function BillingPage() {
           <table>
             <thead>
               <tr>
+                {!isAdmin && <th>
+                  <input
+                    type="checkbox"
+                    checked={selectableBillIds.length > 0 && selectedBillIds.length === selectableBillIds.length}
+                    onChange={(e) => toggleSelectAll(e.target.checked)}
+                    aria-label="Select all payable bills"
+                  />
+                </th>}
+                <th>Month</th>
                 <th>Flat</th>
                 <th>Owner</th>
                 <th>Total</th>
@@ -317,8 +387,23 @@ export default function BillingPage() {
               </tr>
             </thead>
             <tbody>
-              {bills.map((bill) => (
+              {displayedBills.map((bill) => (
                 <tr key={bill.id}>
+                  {!isAdmin && (
+                    <td>
+                      {bill.status !== 'PAID' ? (
+                        <input
+                          type="checkbox"
+                          checked={selectedBillIds.includes(bill.id)}
+                          onChange={(e) => toggleBillSelection(bill.id, e.target.checked)}
+                          aria-label={`Select bill ${bill.id}`}
+                        />
+                      ) : null}
+                    </td>
+                  )}
+                  <td>
+                    <p className="text-sm">{getMonthName(bill.month)} {bill.year}</p>
+                  </td>
                   <td>
                     <div>
                       <p className="font-medium text-gray-900">{bill.flat?.flatNumber}</p>
@@ -570,5 +655,23 @@ async function handlePhonePePay(billId: string) {
     }
   } catch (error: any) {
     toast.error(error.response?.data?.error || 'Payment initiation failed');
+  }
+}
+
+async function handlePhonePeBulkPay(billIds: string[]) {
+  try {
+    if (billIds.length < 2) {
+      toast.error('Select at least 2 bills for bulk payment');
+      return;
+    }
+
+    const { data } = await api.post('/payments/phonepe/initiate-bulk', { billIds });
+    if (data.redirectUrl) {
+      window.location.href = data.redirectUrl;
+    } else {
+      toast.error('Failed to get bulk payment URL');
+    }
+  } catch (error: any) {
+    toast.error(error.response?.data?.error || 'Bulk payment initiation failed');
   }
 }
