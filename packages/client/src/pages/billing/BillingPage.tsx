@@ -53,11 +53,11 @@ export default function BillingPage() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const shouldApplyMonthYear = isAdmin || applyMonthYearFilter;
   const billsBaseKey = ['bills', user?.id || 'anonymous', user?.societyId || 'no-society'];
-  const billsQueryKey = [...billsBaseKey, applyMonthYearFilter ? month : 'all-months', applyMonthYearFilter ? year : 'all-years'];
+  const billsQueryKey = [...billsBaseKey, shouldApplyMonthYear ? month : 'all-months', shouldApplyMonthYear ? year : 'all-years'];
   const configBaseKey = ['billing-config', user?.id || 'anonymous', user?.societyId || 'no-society'];
 
-  const shouldApplyMonthYear = isAdmin || applyMonthYearFilter;
   const billsEndpoint = shouldApplyMonthYear ? `/billing?month=${month}&year=${year}` : '/billing';
   const pendingStatuses = new Set(['PENDING', 'OVERDUE', 'PARTIAL']);
 
