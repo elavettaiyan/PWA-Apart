@@ -140,7 +140,7 @@ async function markBulkPaymentsSuccess(merchantTransId: string, transactionId: s
         where: { id: payment.id },
         data: {
           status: 'SUCCESS',
-          transactionId,
+          transactionId: payment.merchantTransId === merchantTransId ? transactionId : undefined,
           phonepeResponse: JSON.stringify(phonepePayload),
           paidAt: new Date(),
         },
