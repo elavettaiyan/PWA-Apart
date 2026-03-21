@@ -14,6 +14,50 @@ export interface AuthRequest extends Request {
   };
 }
 
+type AuthUserLookup = {
+  id: string;
+  email: string;
+  role: string;
+  societyId: string | null;
+  activeSocietyId: string | null;
+  isActive: boolean;
+};
+
+const AUTH_USER_CACHE_TTL_MS = Number(process.env.AUTH_USER_CACHE_TTL_MS || 60_000);
+const authUserCache = new Map<string, { value: AuthUserLookup | null; expiresAt: number }>();
+const authUserInFlight = new Map<string, Promise<AuthUserLookup | null>>();
+
+async function getAuthUser(userId: string): Promise<{ user: AuthUserLookup | null; cacheHit: boolean }> {
+  const now = Date.now();
+  const cached = authUserCache.get(userId);
+  if (cached && cached.expiresAt > now) {
+    return { user: cached.value, cacheHit: true };
+  }
+
+  const inFlight = authUserInFlight.get(userId);
+  if (inFlight) {
+    return { user: await inFlight, cacheHit: true };
+  }
+
+  const lookupPromise = prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, role: true, societyId: true, activeSocietyId: true, isActive: true },
+  });
+
+  authUserInFlight.set(userId, lookupPromise);
+
+  try {
+    const user = await lookupPromise;
+    authUserCache.set(userId, {
+      value: user,
+      expiresAt: Date.now() + AUTH_USER_CACHE_TTL_MS,
+    });
+    return { user, cacheHit: false };
+  } finally {
+    authUserInFlight.delete(userId);
+  }
+}
+
 export const authenticate = async (
   req: AuthRequest,
   res: Response,
@@ -37,10 +81,7 @@ export const authenticate = async (
     };
 
     const userLookupStart = Date.now();
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: { id: true, email: true, role: true, societyId: true, activeSocietyId: true, isActive: true },
-    });
+    const { user, cacheHit } = await getAuthUser(decoded.userId);
     const userLookupMs = Date.now() - userLookupStart;
 
     if (!user || !user.isActive) {
@@ -67,6 +108,7 @@ export const authenticate = async (
       role: effectiveRole,
       societyId: effectiveSocietyId,
       url: req.originalUrl,
+      cacheHit,
       timings: {
         userLookupMs,
         totalMs: Date.now() - startMs,
