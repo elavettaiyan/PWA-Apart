@@ -112,6 +112,13 @@ Add in Vercel dashboard:
 
 By default, the auto-recovery targets migration `20260317130000_multi_society_membership`. You can override this with environment variable `PRISMA_FAILED_MIGRATION_NAME` in Vercel when recovering a different migration.
 
+If a migration was partially applied manually (for example, deploy fails with `column \"activeSocietyId\" already exists`), set:
+
+- `PRISMA_FAILED_MIGRATION_NAME=20260317130000_multi_society_membership`
+- `PRISMA_FAILED_MIGRATION_RESOLVE_MODE=applied`
+
+This marks that migration as applied (skips re-running its SQL) and lets `prisma migrate deploy` continue with newer migrations.
+
 Prisma CLI reads `DATABASE_URL` directly during build-time migration. If your Vercel project currently only has `APART_EASE_POSTGRES_PRISMA_URL`, the deploy script now maps it to `DATABASE_URL` automatically before running `migrate deploy`.
 
 For Supabase and similar providers, use `DIRECT_URL` for migrations (direct Postgres host/port `5432`). Pooled URLs (often port `6543`) can stall or fail for schema migration/DDL operations.
