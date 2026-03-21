@@ -329,7 +329,6 @@ router.get(
               owner: { select: { name: true, phone: true } },
             },
           },
-          payments: { orderBy: { createdAt: 'desc' } },
         },
         orderBy: [{ year: 'desc' }, { month: 'desc' }],
       });

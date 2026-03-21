@@ -55,12 +55,17 @@ export default function BillingPage() {
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
   const shouldApplyMonthYear = isAdmin || applyMonthYearFilter;
   const billsBaseKey = ['bills', user?.id || 'anonymous', user?.societyId || 'no-society'];
-  const billsQueryKey = isAdmin
-    ? [...billsBaseKey, 'admin-all']
-    : [...billsBaseKey, shouldApplyMonthYear ? month : 'all-months', shouldApplyMonthYear ? year : 'all-years'];
+  const billsQueryKey = [
+    ...billsBaseKey,
+    isAdmin ? 'admin' : 'resident',
+    shouldApplyMonthYear ? month : 'all-months',
+    shouldApplyMonthYear ? year : 'all-years',
+  ];
   const configBaseKey = ['billing-config', user?.id || 'anonymous', user?.societyId || 'no-society'];
 
-  const billsEndpoint = isAdmin ? '/billing' : shouldApplyMonthYear ? `/billing?month=${month}&year=${year}` : '/billing';
+  const billsEndpoint = shouldApplyMonthYear
+    ? `/billing?month=${month}&year=${year}`
+    : '/billing';
   const pendingStatuses = new Set(['PENDING', 'OVERDUE', 'PARTIAL']);
 
   const { data: bills = [], isLoading } = useQuery<MaintenanceBill[]>({
