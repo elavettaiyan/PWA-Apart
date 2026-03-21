@@ -112,6 +112,11 @@ Add in Vercel dashboard:
 
 By default, the auto-recovery targets migration `20260317130000_multi_society_membership`. You can override this with environment variable `PRISMA_FAILED_MIGRATION_NAME` in Vercel when recovering a different migration.
 
+Recovery mode defaults to `auto`, which tries:
+
+- resolve as `rolled-back` and retry deploy
+- if that still fails (including duplicate object/column cases), resolve as `applied` and retry deploy
+
 If a migration was partially applied manually (for example, deploy fails with `column \"activeSocietyId\" already exists`), set:
 
 - `PRISMA_FAILED_MIGRATION_NAME=20260317130000_multi_society_membership`
