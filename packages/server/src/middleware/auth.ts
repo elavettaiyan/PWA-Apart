@@ -27,16 +27,16 @@ const AUTH_USER_CACHE_TTL_MS = Number(process.env.AUTH_USER_CACHE_TTL_MS || 60_0
 const authUserCache = new Map<string, { value: AuthUserLookup | null; expiresAt: number }>();
 const authUserInFlight = new Map<string, Promise<AuthUserLookup | null>>();
 
-async function getAuthUser(userId: string): Promise<{ user: AuthUserLookup | null; cacheHit: boolean }> {
+async function getAuthUser(userId: string): Promise<{ user: AuthUserLookup | null; cacheHit: boolean; inFlightHit: boolean }> {
   const now = Date.now();
   const cached = authUserCache.get(userId);
   if (cached && cached.expiresAt > now) {
-    return { user: cached.value, cacheHit: true };
+    return { user: cached.value, cacheHit: true, inFlightHit: false };
   }
 
   const inFlight = authUserInFlight.get(userId);
   if (inFlight) {
-    return { user: await inFlight, cacheHit: true };
+    return { user: await inFlight, cacheHit: false, inFlightHit: true };
   }
 
   const lookupPromise = prisma.user.findUnique({
@@ -52,7 +52,7 @@ async function getAuthUser(userId: string): Promise<{ user: AuthUserLookup | nul
       value: user,
       expiresAt: Date.now() + AUTH_USER_CACHE_TTL_MS,
     });
-    return { user, cacheHit: false };
+    return { user, cacheHit: false, inFlightHit: false };
   } finally {
     authUserInFlight.delete(userId);
   }
@@ -81,7 +81,7 @@ export const authenticate = async (
     };
 
     const userLookupStart = Date.now();
-    const { user, cacheHit } = await getAuthUser(decoded.userId);
+    const { user, cacheHit, inFlightHit } = await getAuthUser(decoded.userId);
     const userLookupMs = Date.now() - userLookupStart;
 
     if (!user || !user.isActive) {
@@ -109,6 +109,7 @@ export const authenticate = async (
       societyId: effectiveSocietyId,
       url: req.originalUrl,
       cacheHit,
+      inFlightHit,
       timings: {
         userLookupMs,
         totalMs: Date.now() - startMs,

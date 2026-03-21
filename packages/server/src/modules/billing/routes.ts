@@ -414,50 +414,65 @@ router.get(
 
       const dbStart = nowMs();
 
-      // Two-step parallel query: avoids Prisma's 4-round-trip include strategy
+      // Single raw SQL query for admin: 1 DB round trip instead of Prisma's multiple
       const societyId = req.user!.societyId;
       const isAdminRole = req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN';
 
       let payload: any[];
 
       if (isAdminRole && societyId) {
-        // Step 1 & 2 in parallel: fetch flat info + bills separately
-        const [flats, bills] = await Promise.all([
-          prisma.flat.findMany({
-            where: { block: { societyId } },
-            select: {
-              id: true,
-              flatNumber: true,
-              block: { select: { name: true } },
-              owner: { select: { name: true, phone: true } },
-            },
-          }),
-          prisma.maintenanceBill.findMany({
-            where: {
-              flat: { block: { societyId } },
-              ...(where.month != null && { month: where.month }),
-              ...(where.year != null && { year: where.year }),
-              ...(where.status && { status: where.status }),
-              ...(where.flatId && { flatId: where.flatId }),
-            },
-            select: {
-              id: true,
-              flatId: true,
-              month: true,
-              year: true,
-              totalAmount: true,
-              paidAmount: true,
-              status: true,
-              dueDate: true,
-            },
-            orderBy: [{ year: 'desc' }, { month: 'desc' }],
-          }),
-        ]);
+        // Build dynamic WHERE clauses for optional filters
+        const params: any[] = [societyId];
+        const conditions = ['bl."societyId" = $1'];
 
-        const flatMap = new Map(flats.map((f) => [f.id, { flatNumber: f.flatNumber, block: f.block, owner: f.owner }]));
-        payload = bills.map((bill) => ({
-          ...bill,
-          flat: flatMap.get(bill.flatId) || null,
+        if (where.month != null) {
+          params.push(where.month);
+          conditions.push(`b.month = $${params.length}`);
+        }
+        if (where.year != null) {
+          params.push(where.year);
+          conditions.push(`b.year = $${params.length}`);
+        }
+        if (where.status) {
+          params.push(where.status);
+          conditions.push(`b.status::text = $${params.length}`);
+        }
+        if (where.flatId) {
+          params.push(where.flatId);
+          conditions.push(`b."flatId" = $${params.length}`);
+        }
+
+        const sql = `
+          SELECT
+            b.id, b."flatId", b.month, b.year,
+            b."totalAmount", b."paidAmount", b.status, b."dueDate",
+            f."flatNumber",
+            bl.name AS "blockName",
+            o.name AS "ownerName", o.phone AS "ownerPhone"
+          FROM maintenance_bills b
+          JOIN flats f ON f.id = b."flatId"
+          JOIN blocks bl ON bl.id = f."blockId"
+          LEFT JOIN owners o ON o."flatId" = f.id
+          WHERE ${conditions.join(' AND ')}
+          ORDER BY b.year DESC, b.month DESC
+        `;
+
+        const rows: any[] = await prisma.$queryRawUnsafe(sql, ...params);
+
+        payload = rows.map((r) => ({
+          id: r.id,
+          flatId: r.flatId,
+          month: r.month,
+          year: r.year,
+          totalAmount: Number(r.totalAmount),
+          paidAmount: Number(r.paidAmount),
+          status: r.status,
+          dueDate: r.dueDate,
+          flat: {
+            flatNumber: r.flatNumber,
+            block: { name: r.blockName },
+            owner: r.ownerName ? { name: r.ownerName, phone: r.ownerPhone } : null,
+          },
         }));
       } else {
         // Resident path: small result set, use original include
