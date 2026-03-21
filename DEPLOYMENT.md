@@ -108,7 +108,9 @@ Add in Vercel dashboard:
 - **Build Command:** `npm run vercel-build`
 - **Output Directory:** `dist`
 
-`npm run vercel-build` now runs `prisma migrate deploy` and then `prisma generate`, so backend deployments apply pending production migrations before the serverless build is finalized.
+`npm run vercel-build` now runs a safe migration flow: it executes `prisma migrate deploy`, and if deploy fails due to a known previously failed migration, it resolves that migration as rolled back and retries once. Then it runs `prisma generate`.
+
+By default, the auto-recovery targets migration `20260317130000_multi_society_membership`. You can override this with environment variable `PRISMA_FAILED_MIGRATION_NAME` in Vercel when recovering a different migration.
 
 Prisma CLI reads `DATABASE_URL` directly during build-time migration. If your Vercel project currently only has `APART_EASE_POSTGRES_PRISMA_URL`, the deploy script now maps it to `DATABASE_URL` automatically before running `migrate deploy`.
 
