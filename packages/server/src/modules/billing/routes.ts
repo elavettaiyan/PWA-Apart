@@ -11,6 +11,22 @@ router.use(authenticate);
 
 const nowMs = () => Date.now();
 
+// ── CONFIG SUMMARY CACHE ────────────────────────────────
+type ConfigSummaryCache = { data: any; expiresAt: number };
+const configSummaryCache = new Map<string, ConfigSummaryCache>();
+const CONFIG_SUMMARY_TTL = 60_000; // 60s
+
+function getCachedConfigSummary(societyId: string) {
+  const entry = configSummaryCache.get(societyId);
+  if (entry && entry.expiresAt > Date.now()) return entry.data;
+  configSummaryCache.delete(societyId);
+  return null;
+}
+
+function setCachedConfigSummary(societyId: string, data: any) {
+  configSummaryCache.set(societyId, { data, expiresAt: Date.now() + CONFIG_SUMMARY_TTL });
+}
+
 const ALL_FLAT_TYPES = [
   'ONE_BHK',
   'TWO_BHK',
@@ -79,6 +95,19 @@ router.get('/config/summary', async (req: AuthRequest, res: Response) => {
     const scopeMs = nowMs() - scopeStart;
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
+    // Check cache first
+    const cached = getCachedConfigSummary(societyId);
+    if (cached) {
+      logger.info('billing.config.summary.performance', {
+        userId: req.user?.id,
+        role: req.user?.role,
+        societyId,
+        cacheHit: true,
+        timings: { scopeMs, dbQueryMs: 0, totalMs: nowMs() - requestStart },
+      });
+      return res.json(cached);
+    }
+
     const dbStart = nowMs();
     const configs = await prisma.maintenanceConfig.findMany({
       where: { societyId, isActive: true },
@@ -86,10 +115,14 @@ router.get('/config/summary', async (req: AuthRequest, res: Response) => {
     });
     const dbQueryMs = nowMs() - dbStart;
 
+    const result = normalizeSharedConfig(societyId, configs);
+    setCachedConfigSummary(societyId, result);
+
     logger.info('billing.config.summary.performance', {
       userId: req.user?.id,
       role: req.user?.role,
       societyId,
+      cacheHit: false,
       configCount: configs.length,
       timings: {
         scopeMs,
@@ -98,7 +131,7 @@ router.get('/config/summary', async (req: AuthRequest, res: Response) => {
       },
     });
 
-    return res.json(normalizeSharedConfig(societyId, configs));
+    return res.json(result);
   } catch (error) {
     logger.error('billing.config.summary.performance.error', {
       userId: req.user?.id,
@@ -183,7 +216,9 @@ router.post(
         });
       });
 
-      return res.status(201).json(normalizeSharedConfig(societyId, configs));
+      const result = normalizeSharedConfig(societyId, configs);
+      configSummaryCache.delete(societyId); // Invalidate cache on config change
+      return res.status(201).json(result);
     } catch (error) {
       return res.status(500).json({ error: 'Failed to create maintenance config' });
     }
@@ -378,22 +413,72 @@ router.get(
       timing.scopeMs = nowMs() - scopeStart;
 
       const dbStart = nowMs();
-      const bills = await prisma.maintenanceBill.findMany({
-        where,
-        include: {
-          flat: {
-            include: {
+
+      // Two-step parallel query: avoids Prisma's 4-round-trip include strategy
+      const societyId = req.user!.societyId;
+      const isAdminRole = req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN';
+
+      let payload: any[];
+
+      if (isAdminRole && societyId) {
+        // Step 1 & 2 in parallel: fetch flat info + bills separately
+        const [flats, bills] = await Promise.all([
+          prisma.flat.findMany({
+            where: { block: { societyId } },
+            select: {
+              id: true,
+              flatNumber: true,
               block: { select: { name: true } },
               owner: { select: { name: true, phone: true } },
             },
+          }),
+          prisma.maintenanceBill.findMany({
+            where: {
+              flat: { block: { societyId } },
+              ...(where.month != null && { month: where.month }),
+              ...(where.year != null && { year: where.year }),
+              ...(where.status && { status: where.status }),
+              ...(where.flatId && { flatId: where.flatId }),
+            },
+            select: {
+              id: true,
+              flatId: true,
+              month: true,
+              year: true,
+              totalAmount: true,
+              paidAmount: true,
+              status: true,
+              dueDate: true,
+            },
+            orderBy: [{ year: 'desc' }, { month: 'desc' }],
+          }),
+        ]);
+
+        const flatMap = new Map(flats.map((f) => [f.id, { flatNumber: f.flatNumber, block: f.block, owner: f.owner }]));
+        payload = bills.map((bill) => ({
+          ...bill,
+          flat: flatMap.get(bill.flatId) || null,
+        }));
+      } else {
+        // Resident path: small result set, use original include
+        const bills = await prisma.maintenanceBill.findMany({
+          where,
+          include: {
+            flat: {
+              include: {
+                block: { select: { name: true } },
+                owner: { select: { name: true, phone: true } },
+              },
+            },
           },
-        },
-        orderBy: [{ year: 'desc' }, { month: 'desc' }],
-      });
+          orderBy: [{ year: 'desc' }, { month: 'desc' }],
+        });
+        payload = bills;
+      }
+
       timing.dbQueryMs = nowMs() - dbStart;
 
       const responseStart = nowMs();
-      const payload = bills;
       timing.responseMs = nowMs() - responseStart;
 
       const serializeStart = nowMs();
@@ -410,7 +495,7 @@ router.get(
         effectiveYear: where.year ?? null,
         status: req.query.status ?? null,
         flatId: req.query.flatId ?? null,
-        resultCount: bills.length,
+        resultCount: payload.length,
         payloadBytes,
         timings: {
           ...timing,
