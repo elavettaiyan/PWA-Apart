@@ -144,6 +144,11 @@ export default function Layout({ children }: LayoutProps) {
                 <p className="text-xs text-gray-500 truncate">{user?.role?.replace('_', ' ')}</p>
               </div>
             </div>
+            {societiesData?.societies?.length ? (
+              <p className="mt-2 text-xs text-gray-400 truncate" title={societiesData.societies.find(s => s.id === user?.societyId)?.name}>
+                {societiesData.societies.find(s => s.id === user?.societyId)?.name}
+              </p>
+            ) : null}
           </div>
         </div>
       </aside>
