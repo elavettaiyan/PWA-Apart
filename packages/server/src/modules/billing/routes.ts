@@ -72,17 +72,43 @@ router.get('/config', async (req: AuthRequest, res: Response) => {
 });
 
 router.get('/config/summary', async (req: AuthRequest, res: Response) => {
+  const requestStart = nowMs();
   try {
+    const scopeStart = nowMs();
     const societyId = getSocietyId(req);
+    const scopeMs = nowMs() - scopeStart;
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
+    const dbStart = nowMs();
     const configs = await prisma.maintenanceConfig.findMany({
       where: { societyId, isActive: true },
       orderBy: { flatType: 'asc' },
     });
+    const dbQueryMs = nowMs() - dbStart;
+
+    logger.info('billing.config.summary.performance', {
+      userId: req.user?.id,
+      role: req.user?.role,
+      societyId,
+      configCount: configs.length,
+      timings: {
+        scopeMs,
+        dbQueryMs,
+        totalMs: nowMs() - requestStart,
+      },
+    });
 
     return res.json(normalizeSharedConfig(societyId, configs));
   } catch (error) {
+    logger.error('billing.config.summary.performance.error', {
+      userId: req.user?.id,
+      role: req.user?.role,
+      societyId: req.user?.societyId,
+      timings: {
+        totalMs: nowMs() - requestStart,
+      },
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
     return res.status(500).json({ error: 'Failed to fetch maintenance config summary' });
   }
 });
@@ -311,6 +337,19 @@ router.get(
       if (req.query.year) where.year = parseInt(req.query.year as string);
       if (req.query.status) where.status = req.query.status;
       if (req.query.flatId) where.flatId = req.query.flatId;
+
+      // Safety fallback: if admin/super-admin does not send month/year,
+      // default to current month to avoid heavy full-history scans.
+      if (
+        (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN')
+        && where.month === undefined
+        && where.year === undefined
+      ) {
+        const now = new Date();
+        where.month = now.getMonth() + 1;
+        where.year = now.getFullYear();
+      }
+
       timing.parseFiltersMs = nowMs() - parseStart;
 
       const scopeStart = nowMs();

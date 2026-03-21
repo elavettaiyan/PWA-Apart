@@ -20,6 +20,8 @@ import settingsRoutes from './modules/settings/routes';
 import adminRoutes from './modules/admin/routes';
 
 const app = express();
+const processStartMs = Date.now();
+const serverInstanceId = Math.random().toString(36).slice(2, 10);
 
 // In production (Vercel/reverse proxy), trust forwarded headers for real client IP.
 // Use numeric value (1 = trust first proxy) to avoid express-rate-limit ERR_ERL_PERMISSIVE_TRUST_PROXY.
@@ -51,6 +53,7 @@ app.use((req, res, next) => {
 
   res.on('finish', () => {
     const duration = Date.now() - start;
+    const uptimeMs = Date.now() - processStartMs;
     const { statusCode } = res;
     const level = statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'info';
     logger[level](`${method} ${originalUrl} ${statusCode} - ${duration}ms`, {
@@ -59,6 +62,10 @@ app.use((req, res, next) => {
       status: statusCode,
       duration,
       ip: req.ip,
+      uptimeMs,
+      coldStart: uptimeMs < 30000,
+      instanceId: serverInstanceId,
+      region: process.env.VERCEL_REGION || 'unknown',
     });
   });
 
