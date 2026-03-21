@@ -108,7 +108,9 @@ Add in Vercel dashboard:
 - **Build Command:** `npm run vercel-build`
 - **Output Directory:** `dist`
 
-`npm run vercel-build` now runs a safe migration flow: it executes `prisma migrate deploy`, and if deploy fails due to a known previously failed migration, it resolves that migration as rolled back and retries once. Then it runs `prisma generate`.
+`npm run vercel-build` now runs `prisma generate` by default and skips database migrations to avoid deploy-time failures from inconsistent migration states.
+
+If you want to run migrations during build, set `RUN_PRISMA_MIGRATIONS=1` in Vercel. In that mode, it runs a safe migration flow: execute `prisma migrate deploy`, recover known failed migration states, and retry once.
 
 By default, the auto-recovery targets migration `20260317130000_multi_society_membership`. You can override this with environment variable `PRISMA_FAILED_MIGRATION_NAME` in Vercel when recovering a different migration.
 

@@ -2,8 +2,10 @@
 
 set -e
 
-if [ "$SKIP_PRISMA_MIGRATE_DEPLOY" = "1" ]; then
-  echo "Skipping prisma migrate deploy because SKIP_PRISMA_MIGRATE_DEPLOY=1"
+RUN_PRISMA_MIGRATIONS="${RUN_PRISMA_MIGRATIONS:-0}"
+
+if [ "$RUN_PRISMA_MIGRATIONS" != "1" ]; then
+  echo "Skipping prisma migrate deploy during build (RUN_PRISMA_MIGRATIONS != 1)."
   npm run generate
   exit 0
 fi
