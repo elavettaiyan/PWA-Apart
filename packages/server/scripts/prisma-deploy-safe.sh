@@ -15,6 +15,7 @@ run_deploy() {
 
 resolve_and_retry() {
   MODE="$1"
+  RESOLVE_LOG_FILE="$(mktemp)"
   if [ "$MODE" = "applied" ]; then
     FLAG="--applied"
   else
@@ -22,7 +23,16 @@ resolve_and_retry() {
   fi
 
   echo "Attempting one-time recovery by resolving failed migration as $MODE: $FAILED_MIGRATION_NAME"
-  if npx prisma@5.22.0 migrate resolve "$FLAG" "$FAILED_MIGRATION_NAME"; then
+  npx prisma@5.22.0 migrate resolve "$FLAG" "$FAILED_MIGRATION_NAME" >"$RESOLVE_LOG_FILE" 2>&1
+  resolve_status=$?
+  cat "$RESOLVE_LOG_FILE"
+
+  if [ "$resolve_status" -ne 0 ] && grep -Eiq "already recorded as applied|already recorded as rolled back|already marked as applied|already marked as rolled back" "$RESOLVE_LOG_FILE"; then
+    echo "Migration is already resolved in _prisma_migrations. Continuing with deploy retry."
+    resolve_status=0
+  fi
+
+  if [ "$resolve_status" -eq 0 ]; then
     echo "Recovery resolve succeeded. Retrying prisma migrate deploy."
     if run_deploy; then
       return 0
