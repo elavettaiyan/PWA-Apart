@@ -9,6 +9,8 @@ import { buildResidentBillFilter, canResidentAccessBill } from './scope';
 const router = Router();
 router.use(authenticate);
 
+const nowMs = () => Date.now();
+
 const ALL_FLAT_TYPES = [
   'ONE_BHK',
   'TWO_BHK',
@@ -292,14 +294,26 @@ router.get(
   ],
   validate,
   async (req: AuthRequest, res: Response) => {
+    const requestStart = nowMs();
+    const timing = {
+      parseFiltersMs: 0,
+      scopeMs: 0,
+      residentLookupMs: 0,
+      dbQueryMs: 0,
+      responseMs: 0,
+    };
+
     try {
+      const parseStart = nowMs();
       const where: any = {};
 
       if (req.query.month) where.month = parseInt(req.query.month as string);
       if (req.query.year) where.year = parseInt(req.query.year as string);
       if (req.query.status) where.status = req.query.status;
       if (req.query.flatId) where.flatId = req.query.flatId;
+      timing.parseFiltersMs = nowMs() - parseStart;
 
+      const scopeStart = nowMs();
       if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN') {
         where.flat = { block: { societyId: req.user!.societyId } };
       }
@@ -308,7 +322,9 @@ router.get(
       if (req.user!.role === 'OWNER' || req.user!.role === 'TENANT') {
         if (!req.user!.societyId) return res.json([]);
 
+        const residentLookupStart = nowMs();
         const userFlatIds = await getUserFlatIds(req.user!.id, req.user!.societyId);
+        timing.residentLookupMs = nowMs() - residentLookupStart;
         if (userFlatIds.length > 0) {
           Object.assign(where, buildResidentBillFilter(userFlatIds));
         }
@@ -319,7 +335,9 @@ router.get(
           block: { societyId: req.user!.societyId },
         };
       }
+      timing.scopeMs = nowMs() - scopeStart;
 
+      const dbStart = nowMs();
       const bills = await prisma.maintenanceBill.findMany({
         where,
         include: {
@@ -332,9 +350,43 @@ router.get(
         },
         orderBy: [{ year: 'desc' }, { month: 'desc' }],
       });
+      timing.dbQueryMs = nowMs() - dbStart;
 
-      return res.json(bills);
+      const responseStart = nowMs();
+      const payload = bills;
+      timing.responseMs = nowMs() - responseStart;
+
+      logger.info('billing.list.performance', {
+        userId: req.user?.id,
+        role: req.user?.role,
+        societyId: req.user?.societyId,
+        month: req.query.month ?? null,
+        year: req.query.year ?? null,
+        status: req.query.status ?? null,
+        flatId: req.query.flatId ?? null,
+        resultCount: bills.length,
+        timings: {
+          ...timing,
+          totalMs: nowMs() - requestStart,
+        },
+      });
+
+      return res.json(payload);
     } catch (error) {
+      logger.error('billing.list.performance.error', {
+        userId: req.user?.id,
+        role: req.user?.role,
+        societyId: req.user?.societyId,
+        month: req.query.month ?? null,
+        year: req.query.year ?? null,
+        status: req.query.status ?? null,
+        flatId: req.query.flatId ?? null,
+        timings: {
+          ...timing,
+          totalMs: nowMs() - requestStart,
+        },
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
       return res.status(500).json({ error: 'Failed to fetch bills' });
     }
   },
