@@ -170,6 +170,13 @@ router.post(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
+      // SECURITY: Verify complaint belongs to user's society
+      const complaint = await prisma.complaint.findUnique({ where: { id: req.params.id } });
+      if (!complaint) return res.status(404).json({ error: 'Complaint not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && complaint.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
       const user = await prisma.user.findUnique({
         where: { id: req.user!.id },
         select: { name: true },

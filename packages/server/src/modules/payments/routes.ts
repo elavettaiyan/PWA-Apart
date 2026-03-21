@@ -65,14 +65,10 @@ async function markPaymentSuccess(paymentId: string, transactionId: string | und
       return { alreadyProcessed: true };
     }
 
-    const { newPaidAmount, newStatus } = calculateBillPaymentUpdate(
-      existingPayment.bill.paidAmount,
-      existingPayment.bill.totalAmount,
-      existingPayment.amount,
-    );
-
-    await tx.payment.update({
-      where: { id: existingPayment.id },
+    // Use updateMany with status guard to prevent double-processing race condition.
+    // If two callbacks arrive simultaneously, only one will match status != 'SUCCESS'.
+    const updated = await tx.payment.updateMany({
+      where: { id: existingPayment.id, status: { not: 'SUCCESS' } },
       data: {
         status: 'SUCCESS',
         transactionId,
@@ -80,6 +76,16 @@ async function markPaymentSuccess(paymentId: string, transactionId: string | und
         paidAt: new Date(),
       },
     });
+
+    if (updated.count === 0) {
+      return { alreadyProcessed: true };
+    }
+
+    const { newPaidAmount, newStatus } = calculateBillPaymentUpdate(
+      existingPayment.bill.paidAmount,
+      existingPayment.bill.totalAmount,
+      existingPayment.amount,
+    );
 
     await tx.maintenanceBill.update({
       where: { id: existingPayment.bill.id },

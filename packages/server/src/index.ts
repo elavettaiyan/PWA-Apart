@@ -4,6 +4,7 @@ import path from 'path';
 import { config } from './config';
 import logger from './config/logger';
 import prisma from './config/database';
+import { dbReady } from './config/database';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 
@@ -159,6 +160,16 @@ app.get('/api/health', async (_req, res) => {
     timestamp: new Date().toISOString(),
     version: '1.0.0',
   });
+});
+
+// ── WAIT FOR DB ON COLD START ───────────────────────────
+// On serverless cold starts, $connect() runs in the background during module
+// init. This middleware ensures the connection is open before any route handler
+// touches the database, so the first request's auth query doesn't pay the
+// ~1-2s connection establishment cost.
+app.use('/api', async (_req, _res, next) => {
+  await dbReady;
+  next();
 });
 
 // ── API ROUTES ──────────────────────────────────────────

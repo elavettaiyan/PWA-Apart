@@ -543,7 +543,16 @@ router.put(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
-      // SECURITY: Whitelist allowed fields
+      // SECURITY: Verify owner belongs to admin's society
+      const existing = await prisma.owner.findUnique({
+        where: { id: req.params.id },
+        include: { flat: { include: { block: { select: { societyId: true } } } } },
+      });
+      if (!existing) return res.status(404).json({ error: 'Owner not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && existing.flat.block.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
       const owner = await prisma.owner.update({
         where: { id: req.params.id },
         data: {
@@ -576,7 +585,16 @@ router.post(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
-      // SECURITY: Whitelist allowed fields
+      // SECURITY: Verify flat belongs to admin's society
+      const flat = await prisma.flat.findUnique({
+        where: { id: req.body.flatId },
+        include: { block: { select: { societyId: true } } },
+      });
+      if (!flat) return res.status(404).json({ error: 'Flat not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && flat.block.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
       const tenant = await prisma.tenant.create({
         data: {
           name: req.body.name,
@@ -608,7 +626,16 @@ router.put(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
-      // SECURITY: Whitelist allowed fields
+      // SECURITY: Verify tenant belongs to admin's society
+      const existing = await prisma.tenant.findUnique({
+        where: { id: req.params.id },
+        include: { flat: { include: { block: { select: { societyId: true } } } } },
+      });
+      if (!existing) return res.status(404).json({ error: 'Tenant not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && existing.flat.block.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
       const tenant = await prisma.tenant.update({
         where: { id: req.params.id },
         data: {
