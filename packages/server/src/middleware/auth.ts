@@ -19,6 +19,7 @@ export const authenticate = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
+  const startMs = Date.now();
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -35,10 +36,12 @@ export const authenticate = async (
       societyId: string | null;
     };
 
+    const userLookupStart = Date.now();
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: { id: true, email: true, role: true, societyId: true, activeSocietyId: true, isActive: true },
     });
+    const userLookupMs = Date.now() - userLookupStart;
 
     if (!user || !user.isActive) {
       logger.warn('Auth: User not found or inactive', { userId: decoded.userId, url: req.originalUrl });
@@ -47,13 +50,9 @@ export const authenticate = async (
     }
 
     const effectiveSocietyId = user.activeSocietyId || user.societyId || decoded.societyId || null;
-    const membership = effectiveSocietyId
-      ? await prisma.userSocietyMembership.findUnique({
-          where: { userId_societyId: { userId: user.id, societyId: effectiveSocietyId } },
-          select: { role: true },
-        })
-      : null;
-    const effectiveRole = membership?.role || user.role;
+    // Use token role as effective role for current token context.
+    // This avoids an extra DB lookup on every request and reduces latency.
+    const effectiveRole = decoded.role || user.role;
 
     req.user = {
       id: user.id,
@@ -62,6 +61,17 @@ export const authenticate = async (
       societyId: effectiveSocietyId,
       activeSocietyId: user.activeSocietyId,
     };
+
+    logger.info('auth.performance', {
+      userId: user.id,
+      role: effectiveRole,
+      societyId: effectiveSocietyId,
+      url: req.originalUrl,
+      timings: {
+        userLookupMs,
+        totalMs: Date.now() - startMs,
+      },
+    });
 
     next();
   } catch (error: any) {
