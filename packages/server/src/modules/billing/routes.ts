@@ -327,6 +327,7 @@ router.get(
       residentLookupMs: 0,
       dbQueryMs: 0,
       responseMs: 0,
+      serializeMs: 0,
     };
 
     try {
@@ -395,15 +396,22 @@ router.get(
       const payload = bills;
       timing.responseMs = nowMs() - responseStart;
 
+      const serializeStart = nowMs();
+      const payloadBytes = Buffer.byteLength(JSON.stringify(payload), 'utf8');
+      timing.serializeMs = nowMs() - serializeStart;
+
       logger.info('billing.list.performance', {
         userId: req.user?.id,
         role: req.user?.role,
         societyId: req.user?.societyId,
         month: req.query.month ?? null,
         year: req.query.year ?? null,
+        effectiveMonth: where.month ?? null,
+        effectiveYear: where.year ?? null,
         status: req.query.status ?? null,
         flatId: req.query.flatId ?? null,
         resultCount: bills.length,
+        payloadBytes,
         timings: {
           ...timing,
           totalMs: nowMs() - requestStart,
@@ -418,6 +426,8 @@ router.get(
         societyId: req.user?.societyId,
         month: req.query.month ?? null,
         year: req.query.year ?? null,
+        effectiveMonth: null,
+        effectiveYear: null,
         status: req.query.status ?? null,
         flatId: req.query.flatId ?? null,
         timings: {
