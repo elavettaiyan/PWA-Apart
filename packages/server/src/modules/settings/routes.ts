@@ -6,6 +6,8 @@ import { authenticate, authorize, AuthRequest, SOCIETY_ADMINS } from '../../midd
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 
+const ASSIGNABLE_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT', 'SERVICE_STAFF'] as const;
+
 const router = Router();
 router.use(authenticate);
 router.use(authorize('SUPER_ADMIN', ...SOCIETY_ADMINS));
@@ -290,5 +292,107 @@ router.post('/payment-gateway/test', async (req: AuthRequest, res: Response) => 
     });
   }
 });
+
+// ── LIST SOCIETY MEMBERS WITH ROLES ─────────────────────
+router.get('/members', async (req: AuthRequest, res: Response) => {
+  try {
+    const societyId = req.user!.societyId;
+    if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+
+    const memberships = await prisma.userSocietyMembership.findMany({
+      where: { societyId },
+      include: {
+        user: {
+          select: { id: true, name: true, email: true, phone: true, specialization: true, isActive: true },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return res.json(
+      memberships.map((m) => ({
+        id: m.user.id,
+        name: m.user.name,
+        email: m.user.email,
+        phone: m.user.phone,
+        specialization: m.user.specialization,
+        isActive: m.user.isActive,
+        role: m.role,
+        membershipId: m.id,
+      })),
+    );
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to fetch members' });
+  }
+});
+
+// ── CHANGE MEMBER ROLE ──────────────────────────────────
+router.patch(
+  '/members/:userId/role',
+  [
+    param('userId').isUUID(),
+    body('role').isIn([...ASSIGNABLE_ROLES]).withMessage('Invalid role'),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const societyId = req.user!.societyId;
+      if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+
+      const { userId } = req.params;
+      const { role: newRole } = req.body;
+
+      // Cannot change your own role
+      if (userId === req.user!.id) {
+        return res.status(400).json({ error: 'You cannot change your own role' });
+      }
+
+      // Verify target user belongs to this society
+      const membership = await prisma.userSocietyMembership.findUnique({
+        where: { userId_societyId: { userId, societyId } },
+      });
+      if (!membership) return res.status(404).json({ error: 'Member not found in this society' });
+
+      // SECRETARY cannot change an ADMIN's role
+      if (req.user!.role === 'SECRETARY' && membership.role === 'ADMIN') {
+        return res.status(403).json({ error: 'Cannot change the Admin\'s role' });
+      }
+
+      // Prevent removing the last ADMIN
+      if (membership.role === 'ADMIN' && newRole !== 'ADMIN') {
+        const adminCount = await prisma.userSocietyMembership.count({
+          where: { societyId, role: 'ADMIN' },
+        });
+        if (adminCount <= 1) {
+          return res.status(400).json({ error: 'Society must have at least one Admin' });
+        }
+      }
+
+      // Update the membership role
+      await prisma.userSocietyMembership.update({
+        where: { userId_societyId: { userId, societyId } },
+        data: { role: newRole },
+      });
+
+      // Also update user.role to match (for backward compat with token generation)
+      await prisma.user.update({
+        where: { id: userId },
+        data: { role: newRole },
+      });
+
+      logger.info('Member role changed', {
+        changedBy: req.user!.id,
+        targetUser: userId,
+        oldRole: membership.role,
+        newRole,
+        societyId,
+      });
+
+      return res.json({ message: 'Role updated successfully' });
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to update role' });
+    }
+  },
+);
 
 export default router;

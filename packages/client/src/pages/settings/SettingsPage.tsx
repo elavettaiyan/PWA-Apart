@@ -3,11 +3,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Settings, CreditCard, Eye, EyeOff, CheckCircle2, XCircle,
   Loader2, Zap, ToggleLeft, ToggleRight, ShieldCheck, Globe, Clock,
+  Users, ChevronDown,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { PageLoader } from '../../components/ui/Loader';
 import { cn } from '../../lib/utils';
+import { useAuthStore } from '../../store/authStore';
 
 interface PhonePeConfig {
   id?: string;
@@ -148,6 +150,9 @@ export default function SettingsPage() {
           <p className="text-sm text-gray-500 mt-1">Configure payment gateway and application settings</p>
         </div>
       </div>
+
+      {/* Members & Roles */}
+      <MembersRoles />
 
       {/* PhonePe Configuration Card */}
       <div className="card p-6 mb-6">
@@ -463,6 +468,146 @@ export default function SettingsPage() {
             <p>Do not rely on shared sample credentials because they may be expired, disabled, or rate-limited.</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── MEMBERS & ROLES ─────────────────────────────────────
+
+type Member = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  isActive: boolean;
+};
+
+const ROLE_OPTIONS = [
+  { value: 'ADMIN', label: 'Admin (President)' },
+  { value: 'SECRETARY', label: 'Secretary' },
+  { value: 'JOINT_SECRETARY', label: 'Joint Secretary' },
+  { value: 'TREASURER', label: 'Treasurer' },
+  { value: 'OWNER', label: 'Owner' },
+  { value: 'TENANT', label: 'Tenant' },
+  { value: 'SERVICE_STAFF', label: 'Service Staff' },
+];
+
+const ROLE_BADGE: Record<string, string> = {
+  ADMIN: 'bg-purple-50 text-purple-700',
+  SECRETARY: 'bg-blue-50 text-blue-700',
+  JOINT_SECRETARY: 'bg-cyan-50 text-cyan-700',
+  TREASURER: 'bg-amber-50 text-amber-700',
+  OWNER: 'bg-green-50 text-green-700',
+  TENANT: 'bg-gray-100 text-gray-700',
+  SERVICE_STAFF: 'bg-orange-50 text-orange-700',
+};
+
+function MembersRoles() {
+  const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState('');
+
+  const { data: members = [], isLoading } = useQuery<Member[]>({
+    queryKey: ['settings-members'],
+    queryFn: async () => (await api.get('/settings/members')).data,
+  });
+
+  const changeMutation = useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: string }) =>
+      api.patch(`/settings/members/${userId}/role`, { role }),
+    onSuccess: () => {
+      toast.success('Role updated');
+      setEditingId(null);
+      queryClient.invalidateQueries({ queryKey: ['settings-members'] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to update role'),
+  });
+
+  const formatRole = (role: string) =>
+    ROLE_OPTIONS.find((r) => r.value === role)?.label || role.replace(/_/g, ' ');
+
+  return (
+    <div className="card p-6 mb-6">
+      <div className="flex items-center gap-3 mb-5">
+        <div className="w-11 h-11 bg-blue-50 rounded-xl flex items-center justify-center">
+          <Users className="w-6 h-6 text-blue-600" />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Members & Roles</h2>
+          <p className="text-xs text-gray-500">Assign committee roles — President, Secretary, Treasurer, etc.</p>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+      ) : members.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-6">No members found</p>
+      ) : (
+        <div className="overflow-x-auto -mx-6">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-xs text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-2.5">Name</th>
+                <th className="px-6 py-2.5">Email</th>
+                <th className="px-6 py-2.5">Current Role</th>
+                <th className="px-6 py-2.5 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {members.map((m) => (
+                <tr key={m.id} className="border-b last:border-0 hover:bg-gray-50/50">
+                  <td className="px-6 py-3 font-medium text-gray-900">{m.name}</td>
+                  <td className="px-6 py-3 text-gray-500">{m.email}</td>
+                  <td className="px-6 py-3">
+                    {editingId === m.id ? (
+                      <div className="flex items-center gap-2">
+                        <select
+                          className="select text-sm py-1"
+                          value={selectedRole}
+                          onChange={(e) => setSelectedRole(e.target.value)}
+                        >
+                          {ROLE_OPTIONS.map((r) => (
+                            <option key={r.value} value={r.value}>{r.label}</option>
+                          ))}
+                        </select>
+                        <button
+                          className="btn-primary btn-sm text-xs"
+                          onClick={() => changeMutation.mutate({ userId: m.id, role: selectedRole })}
+                          disabled={changeMutation.isPending || selectedRole === m.role}
+                        >
+                          Save
+                        </button>
+                        <button className="btn-secondary btn-sm text-xs" onClick={() => setEditingId(null)}>
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <span className={cn('inline-block px-2.5 py-0.5 rounded-full text-xs font-medium', ROLE_BADGE[m.role] || 'bg-gray-100 text-gray-600')}>
+                        {formatRole(m.role)}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-3 text-right">
+                    {editingId !== m.id && m.id !== user?.id && (
+                      <button
+                        className="text-xs text-primary-600 hover:text-primary-800 font-medium"
+                        onClick={() => { setEditingId(m.id); setSelectedRole(m.role); }}
+                      >
+                        Change Role
+                      </button>
+                    )}
+                    {m.id === user?.id && (
+                      <span className="text-xs text-gray-400">You</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
