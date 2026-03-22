@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { body, param } from 'express-validator';
 import crypto from 'crypto';
 import prisma from '../../config/database';
-import { authenticate, authorize, AuthRequest, SOCIETY_ADMINS } from '../../middleware/auth';
+import { authenticate, authorize, AuthRequest, SOCIETY_ADMINS, invalidateAuthCache } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 
@@ -401,6 +401,9 @@ router.patch(
         where: { id: userId },
         data: { role: newRole },
       });
+
+      // Evict cached auth data so the new role takes effect immediately
+      invalidateAuthCache(userId);
 
       logger.info('Member role changed', {
         changedBy: req.user!.id,

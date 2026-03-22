@@ -17,9 +17,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor — handle 401 + token refresh
+// Response interceptor — handle 401 + token refresh + role sync
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Sync role if the server reports a different one (e.g. admin changed it)
+    const serverRole = response.headers['x-user-role'];
+    if (serverRole) {
+      const store = useAuthStore.getState();
+      if (store.user && store.user.role !== serverRole) {
+        store.setUser({ ...store.user, role: serverRole });
+      }
+    }
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
 

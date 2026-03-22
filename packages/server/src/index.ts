@@ -104,6 +104,7 @@ app.use(cors({
       }
     : true,
   credentials: true,
+  exposedHeaders: ['X-User-Role'],
 }));
 
 // ── SECURITY HEADERS ────────────────────────────────────

@@ -34,6 +34,11 @@ const AUTH_USER_CACHE_TTL_MS = Number(process.env.AUTH_USER_CACHE_TTL_MS || 60_0
 const authUserCache = new Map<string, { value: AuthUserLookup | null; expiresAt: number }>();
 const authUserInFlight = new Map<string, Promise<AuthUserLookup | null>>();
 
+/** Evict a specific user from the auth cache so the next request re-fetches from DB */
+export function invalidateAuthCache(userId: string) {
+  authUserCache.delete(userId);
+}
+
 async function getAuthUser(userId: string): Promise<{ user: AuthUserLookup | null; cacheHit: boolean; inFlightHit: boolean }> {
   const now = Date.now();
   const cached = authUserCache.get(userId);
@@ -98,9 +103,8 @@ export const authenticate = async (
     }
 
     const effectiveSocietyId = user.activeSocietyId || user.societyId || decoded.societyId || null;
-    // Use token role as effective role for current token context.
-    // This avoids an extra DB lookup on every request and reduces latency.
-    const effectiveRole = decoded.role || user.role;
+    // Always use DB role so role changes take effect immediately (within cache TTL)
+    const effectiveRole = user.role;
 
     req.user = {
       id: user.id,
@@ -109,6 +113,9 @@ export const authenticate = async (
       societyId: effectiveSocietyId,
       activeSocietyId: user.activeSocietyId,
     };
+
+    // Send current role in response header so client can detect role changes
+    res.setHeader('X-User-Role', effectiveRole);
 
     logger.info('auth.performance', {
       userId: user.id,
