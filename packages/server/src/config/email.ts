@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 import logger from './logger';
 
-const SMTP_HOST = process.env.SMTP_HOST || 'smtppro.zoho.in';
+const SMTP_HOST = process.env.SMTP_HOST || ' smtp.zoho.com'; // 'smtppro.zoho.in';
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
 const SMTP_USER = process.env.SMTP_USER || '';
 const SMTP_PASS = process.env.SMTP_PASS || '';
@@ -16,6 +16,17 @@ const transporter = nodemailer.createTransport({
     user: SMTP_USER,
     pass: SMTP_PASS,
   },
+  tls: {
+    rejectUnauthorized: false,
+  },
+});
+
+logger.info('SMTP transport configured', {
+  host: SMTP_HOST,
+  port: SMTP_PORT,
+  user: SMTP_USER ? `${SMTP_USER.substring(0, 4)}***` : '(empty)',
+  passSet: !!SMTP_PASS,
+  from: FROM_EMAIL,
 });
 
 export async function sendPasswordResetEmail(to: string, resetToken: string, userName: string) {
