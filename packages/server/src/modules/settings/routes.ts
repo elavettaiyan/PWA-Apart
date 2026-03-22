@@ -8,6 +8,14 @@ import logger from '../../config/logger';
 
 const ASSIGNABLE_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT', 'SERVICE_STAFF'] as const;
 
+// Max members allowed per committee role in a society (0 = unlimited)
+const ROLE_LIMITS: Partial<Record<string, number>> = {
+  ADMIN: 1,
+  SECRETARY: 1,
+  JOINT_SECRETARY: 2,
+  TREASURER: 1,
+};
+
 const router = Router();
 router.use(authenticate);
 router.use(authorize('SUPER_ADMIN', ...SOCIETY_ADMINS));
@@ -365,6 +373,20 @@ router.patch(
         });
         if (adminCount <= 1) {
           return res.status(400).json({ error: 'Society must have at least one Admin' });
+        }
+      }
+
+      // Enforce role limits (only when assigning TO a limited role)
+      const limit = ROLE_LIMITS[newRole];
+      if (limit) {
+        const currentCount = await prisma.userSocietyMembership.count({
+          where: { societyId, role: newRole as any },
+        });
+        if (currentCount >= limit) {
+          const roleName = newRole.replace(/_/g, ' ').toLowerCase();
+          return res.status(400).json({
+            error: `Only ${limit} ${roleName}${limit > 1 ? 's' : ''} allowed per society. Remove the existing one first.`,
+          });
         }
       }
 
