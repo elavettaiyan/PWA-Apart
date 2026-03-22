@@ -595,24 +595,81 @@ router.post(
         return res.status(403).json({ error: 'Access denied' });
       }
 
-      const tenant = await prisma.tenant.create({
-        data: {
-          name: req.body.name,
-          phone: req.body.phone,
-          email: req.body.email || null,
-          altPhone: req.body.altPhone || null,
-          aadharNo: req.body.aadharNo || null,
-          flatId: req.body.flatId,
-          leaseStart: new Date(req.body.leaseStart),
-          leaseEnd: req.body.leaseEnd ? new Date(req.body.leaseEnd) : null,
-          rentAmount: req.body.rentAmount ? parseFloat(req.body.rentAmount) : null,
-          deposit: req.body.deposit ? parseFloat(req.body.deposit) : null,
-        },
+      const result = await prisma.$transaction(async (tx) => {
+        // Auto-create user account if email + phone provided
+        let tenantUserId: string | null = null;
+        if (req.body.email && req.body.phone) {
+          const normalizedEmail = String(req.body.email).trim().toLowerCase();
+          const existingUser = await tx.user.findUnique({
+            where: { email: normalizedEmail },
+            select: { id: true },
+          });
+
+          if (existingUser) {
+            const sameSocietyMembership = await tx.userSocietyMembership.findUnique({
+              where: { userId_societyId: { userId: existingUser.id, societyId: flat.block.societyId } },
+              select: { id: true },
+            });
+            if (sameSocietyMembership) {
+              throw new Error('TENANT_EMAIL_ALREADY_IN_SOCIETY');
+            }
+            await tx.userSocietyMembership.create({
+              data: { userId: existingUser.id, societyId: flat.block.societyId, role: 'TENANT' },
+            });
+            tenantUserId = existingUser.id;
+          } else {
+            const passwordHash = await bcrypt.hash(req.body.phone, 12);
+            const newUser = await tx.user.create({
+              data: {
+                email: normalizedEmail,
+                passwordHash,
+                name: req.body.name,
+                phone: req.body.phone,
+                role: 'TENANT',
+                societyId: flat.block.societyId,
+                activeSocietyId: flat.block.societyId,
+                mustChangePassword: true,
+              },
+            });
+            await tx.userSocietyMembership.create({
+              data: { userId: newUser.id, societyId: flat.block.societyId, role: 'TENANT' },
+            });
+            tenantUserId = newUser.id;
+          }
+        }
+
+        const tenant = await tx.tenant.create({
+          data: {
+            name: req.body.name,
+            phone: req.body.phone,
+            email: req.body.email ? String(req.body.email).trim().toLowerCase() : null,
+            altPhone: req.body.altPhone || null,
+            aadharNo: req.body.aadharNo || null,
+            flatId: req.body.flatId,
+            leaseStart: new Date(req.body.leaseStart),
+            leaseEnd: req.body.leaseEnd ? new Date(req.body.leaseEnd) : null,
+            rentAmount: req.body.rentAmount ? parseFloat(req.body.rentAmount) : null,
+            deposit: req.body.deposit ? parseFloat(req.body.deposit) : null,
+            userId: tenantUserId,
+          },
+        });
+
+        return { tenant, userCreated: !!tenantUserId };
       });
-      return res.status(201).json(tenant);
+
+      return res.status(201).json({
+        ...result.tenant,
+        userCreated: result.userCreated,
+        loginInfo: result.userCreated
+          ? { email: req.body.email, defaultPassword: 'Phone number is the default password' }
+          : null,
+      });
     } catch (error: any) {
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'This flat already has a tenant' });
+      }
+      if (error.message === 'TENANT_EMAIL_ALREADY_IN_SOCIETY') {
+        return res.status(409).json({ error: 'A user with this email already exists in this society' });
       }
       return res.status(500).json({ error: 'Failed to create tenant' });
     }
@@ -654,6 +711,207 @@ router.put(
       return res.json(tenant);
     } catch (error) {
       return res.status(500).json({ error: 'Failed to update tenant' });
+    }
+  },
+);
+
+// ── OWNER: ADD TENANT TO OWN FLAT ───────────────────────
+router.post(
+  '/my-flat/tenant',
+  [
+    body('name').trim().notEmpty().withMessage('Tenant name is required'),
+    body('phone').trim().notEmpty().withMessage('Phone is required'),
+    body('email').optional({ values: 'falsy' }).isEmail().withMessage('Invalid email'),
+    body('leaseStart').optional({ values: 'falsy' }).isISO8601(),
+    body('leaseEnd').optional({ values: 'falsy' }).isISO8601(),
+    body('rentAmount').optional({ values: 'falsy' }).isFloat({ min: 0 }),
+    body('deposit').optional({ values: 'falsy' }).isFloat({ min: 0 }),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const societyId = req.user!.societyId;
+      if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+
+      // Find flat owned by this user in their active society
+      const owner = await prisma.owner.findFirst({
+        where: { userId, flat: { block: { societyId } } },
+        include: { flat: { include: { tenant: true, block: { select: { societyId: true } } } } },
+      });
+      if (!owner) return res.status(403).json({ error: 'You are not an owner in this society' });
+      if (owner.flat.tenant && owner.flat.tenant.isActive) {
+        return res.status(409).json({ error: 'This flat already has an active tenant. Remove the existing tenant first.' });
+      }
+
+      const result = await prisma.$transaction(async (tx) => {
+        // Auto-create user account if email + phone provided
+        let tenantUserId: string | null = null;
+        if (req.body.email && req.body.phone) {
+          const normalizedEmail = String(req.body.email).trim().toLowerCase();
+          const existingUser = await tx.user.findUnique({
+            where: { email: normalizedEmail },
+            select: { id: true },
+          });
+
+          if (existingUser) {
+            const sameSocietyMembership = await tx.userSocietyMembership.findUnique({
+              where: { userId_societyId: { userId: existingUser.id, societyId } },
+              select: { id: true },
+            });
+            if (sameSocietyMembership) {
+              throw new Error('USER_EMAIL_ALREADY_EXISTS_IN_SOCIETY');
+            }
+            await tx.userSocietyMembership.create({
+              data: { userId: existingUser.id, societyId, role: 'TENANT' },
+            });
+            tenantUserId = existingUser.id;
+          } else {
+            const passwordHash = await bcrypt.hash(req.body.phone, 12);
+            const newUser = await tx.user.create({
+              data: {
+                email: normalizedEmail,
+                passwordHash,
+                name: req.body.name,
+                phone: req.body.phone,
+                role: 'TENANT',
+                societyId,
+                activeSocietyId: societyId,
+                mustChangePassword: true,
+              },
+            });
+            await tx.userSocietyMembership.create({
+              data: { userId: newUser.id, societyId, role: 'TENANT' },
+            });
+            tenantUserId = newUser.id;
+          }
+        }
+
+        // If there's an inactive tenant record for this flat, remove it first
+        if (owner.flat.tenant && !owner.flat.tenant.isActive) {
+          await tx.tenant.delete({ where: { id: owner.flat.tenant.id } });
+        }
+
+        const tenant = await tx.tenant.create({
+          data: {
+            name: req.body.name,
+            phone: req.body.phone,
+            email: req.body.email ? String(req.body.email).trim().toLowerCase() : null,
+            flatId: owner.flat.id,
+            leaseStart: req.body.leaseStart ? new Date(req.body.leaseStart) : new Date(),
+            leaseEnd: req.body.leaseEnd ? new Date(req.body.leaseEnd) : null,
+            rentAmount: req.body.rentAmount ? parseFloat(req.body.rentAmount) : null,
+            deposit: req.body.deposit ? parseFloat(req.body.deposit) : null,
+            userId: tenantUserId,
+          },
+        });
+
+        return { tenant, userCreated: !!tenantUserId };
+      });
+
+      logger.info('Owner added tenant', {
+        ownerId: owner.id,
+        tenantId: result.tenant.id,
+        flatId: owner.flat.id,
+        userCreated: result.userCreated,
+      });
+
+      return res.status(201).json({
+        ...result.tenant,
+        userCreated: result.userCreated,
+        loginInfo: result.userCreated
+          ? { email: req.body.email, defaultPassword: 'Phone number is the default password' }
+          : null,
+      });
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        return res.status(409).json({ error: 'This flat already has a tenant' });
+      }
+      if (error.message === 'USER_EMAIL_ALREADY_EXISTS_IN_SOCIETY') {
+        return res.status(409).json({ error: 'A user with this email already exists in this society' });
+      }
+      logger.error('Failed to add tenant', { error: error.message });
+      return res.status(500).json({ error: 'Failed to add tenant' });
+    }
+  },
+);
+
+// ── OWNER: UPDATE OWN FLAT'S TENANT ─────────────────────
+router.put(
+  '/my-flat/tenant',
+  [
+    body('name').optional().trim().notEmpty(),
+    body('phone').optional().trim().notEmpty(),
+    body('email').optional({ values: 'falsy' }).isEmail(),
+    body('leaseStart').optional({ values: 'falsy' }).isISO8601(),
+    body('leaseEnd').optional({ values: 'falsy' }).isISO8601(),
+    body('rentAmount').optional({ values: 'falsy' }).isFloat({ min: 0 }),
+    body('deposit').optional({ values: 'falsy' }).isFloat({ min: 0 }),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const societyId = req.user!.societyId;
+      if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+
+      const owner = await prisma.owner.findFirst({
+        where: { userId, flat: { block: { societyId } } },
+        include: { flat: { include: { tenant: true } } },
+      });
+      if (!owner) return res.status(403).json({ error: 'You are not an owner in this society' });
+      if (!owner.flat.tenant) return res.status(404).json({ error: 'No tenant found for this flat' });
+
+      const tenant = await prisma.tenant.update({
+        where: { id: owner.flat.tenant.id },
+        data: {
+          name: req.body.name,
+          phone: req.body.phone,
+          email: req.body.email,
+          leaseStart: req.body.leaseStart ? new Date(req.body.leaseStart) : undefined,
+          leaseEnd: req.body.leaseEnd ? new Date(req.body.leaseEnd) : undefined,
+          rentAmount: req.body.rentAmount !== undefined ? parseFloat(req.body.rentAmount) : undefined,
+          deposit: req.body.deposit !== undefined ? parseFloat(req.body.deposit) : undefined,
+        },
+      });
+
+      return res.json(tenant);
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to update tenant' });
+    }
+  },
+);
+
+// ── OWNER: REMOVE OWN FLAT'S TENANT ─────────────────────
+router.delete(
+  '/my-flat/tenant',
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const societyId = req.user!.societyId;
+      if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+
+      const owner = await prisma.owner.findFirst({
+        where: { userId, flat: { block: { societyId } } },
+        include: { flat: { include: { tenant: true } } },
+      });
+      if (!owner) return res.status(403).json({ error: 'You are not an owner in this society' });
+      if (!owner.flat.tenant) return res.status(404).json({ error: 'No tenant found for this flat' });
+
+      await prisma.tenant.update({
+        where: { id: owner.flat.tenant.id },
+        data: { isActive: false },
+      });
+
+      logger.info('Owner removed tenant', {
+        ownerId: owner.id,
+        tenantId: owner.flat.tenant.id,
+        flatId: owner.flat.id,
+      });
+
+      return res.json({ message: 'Tenant removed successfully' });
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to remove tenant' });
     }
   },
 );

@@ -489,7 +489,6 @@ const ROLE_OPTIONS = [
   { value: 'JOINT_SECRETARY', label: 'Joint Secretary' },
   { value: 'TREASURER', label: 'Treasurer' },
   { value: 'OWNER', label: 'Owner' },
-  { value: 'TENANT', label: 'Tenant' },
   { value: 'SERVICE_STAFF', label: 'Service Staff' },
 ];
 

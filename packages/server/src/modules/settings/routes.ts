@@ -6,7 +6,7 @@ import { authenticate, authorize, AuthRequest, SOCIETY_ADMINS } from '../../midd
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 
-const ASSIGNABLE_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT', 'SERVICE_STAFF'] as const;
+const ASSIGNABLE_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'SERVICE_STAFF'] as const;
 
 // Max members allowed per committee role in a society (0 = unlimited)
 const ROLE_LIMITS: Partial<Record<string, number>> = {
@@ -308,7 +308,7 @@ router.get('/members', async (req: AuthRequest, res: Response) => {
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
     const memberships = await prisma.userSocietyMembership.findMany({
-      where: { societyId },
+      where: { societyId, role: { not: 'TENANT' } },
       include: {
         user: {
           select: { id: true, name: true, email: true, phone: true, specialization: true, isActive: true },
