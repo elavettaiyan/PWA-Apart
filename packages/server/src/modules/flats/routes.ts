@@ -442,21 +442,20 @@ router.post(
           });
 
           if (existingUser) {
+            // If user already belongs to this society (e.g. admin who also owns a flat), reuse them
             const sameSocietyMembership = await tx.userSocietyMembership.findUnique({
               where: { userId_societyId: { userId: existingUser.id, societyId: flat.block.societyId } },
               select: { id: true },
             });
-            if (sameSocietyMembership) {
-              throw new Error('USER_EMAIL_ALREADY_EXISTS_IN_SOCIETY');
+            if (!sameSocietyMembership) {
+              await tx.userSocietyMembership.create({
+                data: {
+                  userId: existingUser.id,
+                  societyId: flat.block.societyId,
+                  role: 'OWNER',
+                },
+              });
             }
-
-            await tx.userSocietyMembership.create({
-              data: {
-                userId: existingUser.id,
-                societyId: flat.block.societyId,
-                role: 'OWNER',
-              },
-            });
             userId = existingUser.id;
           } else {
             const passwordHash = await bcrypt.hash(req.body.phone, 12);
@@ -606,16 +605,16 @@ router.post(
           });
 
           if (existingUser) {
+            // If user already belongs to this society, reuse them
             const sameSocietyMembership = await tx.userSocietyMembership.findUnique({
               where: { userId_societyId: { userId: existingUser.id, societyId: flat.block.societyId } },
               select: { id: true },
             });
-            if (sameSocietyMembership) {
-              throw new Error('TENANT_EMAIL_ALREADY_IN_SOCIETY');
+            if (!sameSocietyMembership) {
+              await tx.userSocietyMembership.create({
+                data: { userId: existingUser.id, societyId: flat.block.societyId, role: 'TENANT' },
+              });
             }
-            await tx.userSocietyMembership.create({
-              data: { userId: existingUser.id, societyId: flat.block.societyId, role: 'TENANT' },
-            });
             tenantUserId = existingUser.id;
           } else {
             const passwordHash = await bcrypt.hash(req.body.phone, 12);
@@ -755,16 +754,16 @@ router.post(
           });
 
           if (existingUser) {
+            // If user already belongs to this society, reuse them
             const sameSocietyMembership = await tx.userSocietyMembership.findUnique({
               where: { userId_societyId: { userId: existingUser.id, societyId } },
               select: { id: true },
             });
-            if (sameSocietyMembership) {
-              throw new Error('USER_EMAIL_ALREADY_EXISTS_IN_SOCIETY');
+            if (!sameSocietyMembership) {
+              await tx.userSocietyMembership.create({
+                data: { userId: existingUser.id, societyId, role: 'TENANT' },
+              });
             }
-            await tx.userSocietyMembership.create({
-              data: { userId: existingUser.id, societyId, role: 'TENANT' },
-            });
             tenantUserId = existingUser.id;
           } else {
             const passwordHash = await bcrypt.hash(req.body.phone, 12);
@@ -1107,21 +1106,20 @@ router.post(
                   select: { id: true },
                 });
                 if (existingUser) {
+                  // If user already belongs to this society, reuse them
                   const sameSocietyMembership = await tx.userSocietyMembership.findUnique({
                     where: { userId_societyId: { userId: existingUser.id, societyId } },
                     select: { id: true },
                   });
-                  if (sameSocietyMembership) {
-                    throw new Error('USER_EMAIL_ALREADY_EXISTS_IN_SOCIETY');
+                  if (!sameSocietyMembership) {
+                    await tx.userSocietyMembership.create({
+                      data: {
+                        userId: existingUser.id,
+                        societyId,
+                        role: 'OWNER',
+                      },
+                    });
                   }
-
-                  await tx.userSocietyMembership.create({
-                    data: {
-                      userId: existingUser.id,
-                      societyId,
-                      role: 'OWNER',
-                    },
-                  });
                   userId = existingUser.id;
                 } else {
                   const passwordHash = await bcrypt.hash(ownerPhone, 12);
