@@ -42,8 +42,11 @@ export const config = {
 
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
 
-  resend: {
-    apiKey: process.env.RESEND_API_KEY || '',
+  smtp: {
+    host: process.env.SMTP_HOST || 'smtppro.zoho.in',
+    port: parseInt(process.env.SMTP_PORT || '465', 10),
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
     fromEmail: process.env.FROM_EMAIL || 'Resilynk <noreply@resilynk.com>',
   },
 };
