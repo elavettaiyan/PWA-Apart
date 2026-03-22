@@ -48,7 +48,7 @@ export default function StaffPage() {
       )}
 
       {staff.length === 0 ? (
-        <div className="card text-center py-12">
+        <div className="card p-6 text-center">
           <UserCog className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500">No staff members yet</p>
           <p className="text-sm text-gray-400">Add service staff like electricians, plumbers, cleaners, etc.</p>
@@ -74,7 +74,7 @@ function CreateStaffForm({ onClose, onSuccess }: { onClose: () => void; onSucces
   });
 
   return (
-    <div className="card">
+    <div className="card p-6">
       <h3 className="font-semibold text-gray-900 mb-4">Add New Staff Member</h3>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
@@ -125,7 +125,7 @@ function StaffCard({ member }: { member: StaffMember }) {
   });
 
   return (
-    <div className={`card ${!member.isActive ? 'opacity-60' : ''}`}>
+    <div className={`card p-5 ${!member.isActive ? 'opacity-60' : ''}`}>
       <div className="flex items-start justify-between mb-3">
         <div>
           <h3 className="font-semibold text-gray-900">{member.name}</h3>
