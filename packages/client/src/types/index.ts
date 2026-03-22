@@ -1,6 +1,13 @@
 // ─── USER & AUTH ────────────────────────────────────────
 
-export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'OWNER' | 'TENANT';
+export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'SECRETARY' | 'JOINT_SECRETARY' | 'TREASURER' | 'OWNER' | 'TENANT' | 'SERVICE_STAFF';
+
+// Role group helpers
+export const SOCIETY_ADMINS: Role[] = ['ADMIN', 'SECRETARY'];
+export const SOCIETY_MANAGERS: Role[] = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'];
+export const FINANCIAL_ROLES: Role[] = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'];
+export const RESIDENT_ROLES: Role[] = ['OWNER', 'TENANT'];
+export const ALL_SOCIETY_ROLES: Role[] = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT', 'SERVICE_STAFF'];
 
 export interface User {
   id: string;

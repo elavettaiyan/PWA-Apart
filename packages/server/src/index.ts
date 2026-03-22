@@ -19,6 +19,7 @@ import associationRoutes from './modules/association/routes';
 import reportRoutes from './modules/reports/routes';
 import settingsRoutes from './modules/settings/routes';
 import adminRoutes from './modules/admin/routes';
+import staffRoutes from './modules/staff/routes';
 
 const app = express();
 const processStartMs = Date.now();
@@ -189,6 +190,7 @@ app.use('/api/association', associationRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/staff', staffRoutes);
 
 // ── ERROR HANDLING ──────────────────────────────────────
 app.use(notFound);

@@ -20,7 +20,7 @@ export default function FlatsPage() {
   const [search, setSearch] = useState('');
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
-  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const isAdmin = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'] as string[]).includes(user?.role || '');
 
   const { data: flats = [], isLoading } = useQuery<Flat[]>({
     queryKey: ['flats'],

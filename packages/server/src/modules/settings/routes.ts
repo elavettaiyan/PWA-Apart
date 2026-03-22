@@ -2,13 +2,13 @@ import { Router, Response } from 'express';
 import { body, param } from 'express-validator';
 import crypto from 'crypto';
 import prisma from '../../config/database';
-import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
+import { authenticate, authorize, AuthRequest, SOCIETY_ADMINS } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 
 const router = Router();
 router.use(authenticate);
-router.use(authorize('SUPER_ADMIN', 'ADMIN'));
+router.use(authorize('SUPER_ADMIN', ...SOCIETY_ADMINS));
 
 function getRequestOrigin(req: AuthRequest) {
   const forwardedProto = req.get('x-forwarded-proto')?.split(',')[0]?.trim();

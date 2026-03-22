@@ -4,6 +4,13 @@ import { config } from '../config';
 import prisma from '../config/database';
 import logger from '../config/logger';
 
+// ─── ROLE GROUPS ────────────────────────────────────────
+export const SOCIETY_ADMINS = ['ADMIN', 'SECRETARY'] as const;
+export const SOCIETY_MANAGERS = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'] as const;
+export const FINANCIAL_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'] as const;
+export const RESIDENT_ROLES = ['OWNER', 'TENANT'] as const;
+export const ALL_SOCIETY_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT', 'SERVICE_STAFF'] as const;
+
 export interface AuthRequest extends Request {
   user?: {
     id: string;

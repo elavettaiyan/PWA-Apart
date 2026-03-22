@@ -8,17 +8,19 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { cn } from '../../lib/utils';
 import api from '../../lib/api';
+import { SOCIETY_ADMINS, SOCIETY_MANAGERS, FINANCIAL_ROLES } from '../../types';
 
 const allNavigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: '*' as const },
-  { name: 'Flats & Residents', href: '/flats', icon: Building2, roles: ['SUPER_ADMIN', 'ADMIN'] },
-  { name: 'My Flat', href: '/my-flat', icon: Building2, roles: ['OWNER', 'TENANT'] },
+  { name: 'Flats & Residents', href: '/flats', icon: Building2, roles: ['SUPER_ADMIN', ...SOCIETY_MANAGERS] },
+  { name: 'My Flat', href: '/my-flat', icon: Building2, roles: ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT', 'SERVICE_STAFF'] },
   { name: 'Billing', href: '/billing', icon: Receipt, roles: '*' as const },
   { name: 'Complaints', href: '/complaints', icon: MessageSquareWarning, roles: '*' as const },
-  { name: 'Expenses', href: '/expenses', icon: Wallet, roles: ['SUPER_ADMIN', 'ADMIN'] },
+  { name: 'Expenses', href: '/expenses', icon: Wallet, roles: ['SUPER_ADMIN', ...FINANCIAL_ROLES] },
   { name: 'Association Bylaws', href: '/bylaws', icon: ScrollText, roles: '*' as const },
-  { name: 'Reports', href: '/reports', icon: BarChart3, roles: ['SUPER_ADMIN', 'ADMIN'] },
-  { name: 'Settings', href: '/settings', icon: Settings, roles: ['SUPER_ADMIN', 'ADMIN'] },
+  { name: 'Reports', href: '/reports', icon: BarChart3, roles: ['SUPER_ADMIN', ...FINANCIAL_ROLES] },
+  { name: 'Settings', href: '/settings', icon: Settings, roles: ['SUPER_ADMIN', ...SOCIETY_ADMINS] },
+  { name: 'Manage Staff', href: '/staff', icon: User, roles: ['SUPER_ADMIN', ...SOCIETY_ADMINS] },
 ];
 
 interface LayoutProps {

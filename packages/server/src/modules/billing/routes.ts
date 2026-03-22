@@ -1,7 +1,7 @@
 import { Response, Router } from 'express';
 import { body, param, query } from 'express-validator';
 import prisma from '../../config/database';
-import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
+import { authenticate, authorize, AuthRequest, FINANCIAL_ROLES, RESIDENT_ROLES } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 import { buildResidentBillFilter, canResidentAccessBill } from './scope';
@@ -149,7 +149,7 @@ router.get('/config/summary', async (req: AuthRequest, res: Response) => {
 // ── CREATE/UPDATE MAINTENANCE CONFIG ────────────────────
 router.post(
   '/config',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
   [
     body('societyId').isUUID(),
     body('flatType').optional().isIn(ALL_FLAT_TYPES),
@@ -228,7 +228,7 @@ router.post(
 // ── GENERATE MONTHLY BILLS ──────────────────────────────
 router.post(
   '/generate',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
   [body('societyId').isUUID(), body('month').isInt({ min: 1, max: 12 }), body('year').isInt({ min: 2020 })],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -389,12 +389,12 @@ router.get(
       timing.parseFiltersMs = nowMs() - parseStart;
 
       const scopeStart = nowMs();
-      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN') {
+      if (req.user!.role === 'SUPER_ADMIN' || [...FINANCIAL_ROLES].includes(req.user!.role as any)) {
         where.flat = { block: { societyId: req.user!.societyId } };
       }
 
-      // Non-admin: only their linked flats in active society
-      if (req.user!.role === 'OWNER' || req.user!.role === 'TENANT') {
+      // Residents and SERVICE_STAFF: only their linked flats in active society
+      if ([...RESIDENT_ROLES, 'SERVICE_STAFF'].includes(req.user!.role as any)) {
         if (!req.user!.societyId) return res.json([]);
 
         const residentLookupStart = nowMs();
@@ -559,8 +559,8 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // SECURITY: Owner/Tenant can only access bills for their linked flats.
-    if (req.user!.role === 'OWNER' || req.user!.role === 'TENANT') {
+    // SECURITY: Owner/Tenant/SERVICE_STAFF can only access bills for their linked flats.
+    if ([...RESIDENT_ROLES, 'SERVICE_STAFF'].includes(req.user!.role as any)) {
       if (!req.user!.societyId) return res.status(403).json({ error: 'Access denied' });
       const userFlatIds = await getUserFlatIds(req.user!.id, req.user!.societyId);
       if (!canResidentAccessBill(bill.flatId, userFlatIds)) {
@@ -577,7 +577,7 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
 // ── RECORD MANUAL PAYMENT (cash/cheque) ─────────────────
 router.post(
   '/:id/pay',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
   [
     param('id').isUUID(),
     body('amount').isFloat({ min: 1 }),

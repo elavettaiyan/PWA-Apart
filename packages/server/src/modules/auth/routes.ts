@@ -12,7 +12,7 @@ import { sendPasswordResetEmail, sendRegistrationEmail } from '../../config/emai
 
 const router = Router();
 
-async function ensureMembership(tx: any, userId: string, societyId: string, role: 'SUPER_ADMIN' | 'ADMIN' | 'OWNER' | 'TENANT') {
+async function ensureMembership(tx: any, userId: string, societyId: string, role: string) {
   await tx.userSocietyMembership.upsert({
     where: { userId_societyId: { userId, societyId } },
     update: { role },

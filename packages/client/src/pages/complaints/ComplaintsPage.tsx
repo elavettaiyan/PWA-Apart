@@ -249,7 +249,9 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
   const [comment, setComment] = useState('');
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const isAdmin = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'] as string[]).includes(user?.role || '');
+  const isStaff = user?.role === 'SERVICE_STAFF';
+  const canUpdateStatus = isAdmin || isStaff;
 
   const statusMutation = useMutation({
     mutationFn: (data: any) => api.patch(`/complaints/${complaint.id}/status`, data),
@@ -289,8 +291,8 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
         </div>
       )}
 
-      {/* Update Status - Admin Only */}
-      {isAdmin && (
+      {/* Update Status - Admin / Staff */}
+      {canUpdateStatus && (
         <div className="flex items-center gap-3">
           <select className="select w-40" value={status} onChange={(e) => setStatus(e.target.value as any)}>
             <option value="OPEN">Open</option>

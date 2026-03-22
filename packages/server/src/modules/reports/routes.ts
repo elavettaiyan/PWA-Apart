@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { query } from 'express-validator';
 import prisma from '../../config/database';
-import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
+import { authenticate, authorize, AuthRequest, FINANCIAL_ROLES } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 
 const router = Router();
@@ -51,7 +51,7 @@ router.get('/my-dashboard', async (req: AuthRequest, res: Response) => {
 });
 
 // ── DASHBOARD SUMMARY (Admin) ───────────────────────────
-router.get('/dashboard', authorize('SUPER_ADMIN', 'ADMIN'), async (req: AuthRequest, res: Response) => {
+router.get('/dashboard', authorize('SUPER_ADMIN', ...FINANCIAL_ROLES), async (req: AuthRequest, res: Response) => {
   try {
     const societyId = req.user!.role === 'SUPER_ADMIN'
       ? (req.query.societyId as string) || req.user!.societyId
@@ -106,7 +106,7 @@ router.get('/dashboard', authorize('SUPER_ADMIN', 'ADMIN'), async (req: AuthRequ
 // ── MONTHLY COLLECTION REPORT ───────────────────────────
 router.get(
   '/collection',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
   [query('month').isInt({ min: 1, max: 12 }), query('year').isInt({ min: 2020 })],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -165,7 +165,7 @@ router.get(
 );
 
 // ── DEFAULTERS REPORT ───────────────────────────────────
-router.get('/defaulters', authorize('SUPER_ADMIN', 'ADMIN'), async (req: AuthRequest, res: Response) => {
+router.get('/defaulters', authorize('SUPER_ADMIN', ...FINANCIAL_ROLES), async (req: AuthRequest, res: Response) => {
   try {
     const societyId = req.user!.role === 'SUPER_ADMIN'
       ? (req.query.societyId as string) || req.user!.societyId
@@ -219,7 +219,7 @@ router.get('/defaulters', authorize('SUPER_ADMIN', 'ADMIN'), async (req: AuthReq
 // ── EXPENSE SUMMARY REPORT ──────────────────────────────
 router.get(
   '/expense-summary',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
   [query('fromDate').optional().isISO8601(), query('toDate').optional().isISO8601()],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -268,7 +268,7 @@ router.get(
 // ── P&L REPORT ──────────────────────────────────────────
 router.get(
   '/pnl',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
   [query('fromDate').isISO8601(), query('toDate').isISO8601()],
   validate,
   async (req: AuthRequest, res: Response) => {

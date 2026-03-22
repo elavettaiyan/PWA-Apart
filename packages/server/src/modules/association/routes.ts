@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { body, param } from 'express-validator';
 import prisma from '../../config/database';
-import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
+import { authenticate, authorize, AuthRequest, SOCIETY_MANAGERS } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 
 const router = Router();
@@ -53,7 +53,7 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
 // ── CREATE BYLAW ────────────────────────────────────────
 router.post(
   '/',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [
     body('title').trim().notEmpty(),
     body('content').trim().notEmpty(),
@@ -86,7 +86,7 @@ router.post(
 // ── UPDATE BYLAW ────────────────────────────────────────
 router.put(
   '/:id',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [param('id').isUUID()],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -121,7 +121,7 @@ router.put(
 // ── DELETE (DEACTIVATE) BYLAW ───────────────────────────
 router.delete(
   '/:id',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [param('id').isUUID()],
   validate,
   async (req: AuthRequest, res: Response) => {

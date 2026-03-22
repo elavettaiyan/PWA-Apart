@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import * as XLSX from 'xlsx';
 import type { Prisma } from '@prisma/client';
 import prisma from '../../config/database';
-import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
+import { authenticate, authorize, AuthRequest, SOCIETY_MANAGERS } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 
@@ -224,7 +224,7 @@ router.get('/flats/:id', [param('id').isUUID()], validate, async (req: AuthReque
 // ── CREATE FLAT ─────────────────────────────────────────
 router.post(
   '/flats',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [
     body('flatNumber').trim().notEmpty(),
     body('floor').isInt({ min: 0 }),
@@ -266,7 +266,7 @@ router.post(
 // ── UPDATE FLAT ─────────────────────────────────────────
 router.put(
   '/flats/:id',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [param('id').isUUID()],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -303,7 +303,7 @@ router.put(
 // ── DELETE FLAT ─────────────────────────────────────────
 router.delete(
   '/flats/:id',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [param('id').isUUID(), body('confirmation').trim().notEmpty()],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -365,7 +365,7 @@ router.get('/blocks', async (req: AuthRequest, res: Response) => {
 
 router.post(
   '/blocks',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [body('name').trim().notEmpty(), body('floors').isInt({ min: 1 }), body('societyId').isUUID()],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -393,7 +393,7 @@ router.post(
 // ── OWNER CRUD ──────────────────────────────────────────
 router.post(
   '/owners',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [
     body('name').trim().notEmpty(),
     body('phone').notEmpty(),
@@ -538,7 +538,7 @@ router.post(
 
 router.put(
   '/owners/:id',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [param('id').isUUID()],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -575,7 +575,7 @@ router.put(
 // ── TENANT CRUD ─────────────────────────────────────────
 router.post(
   '/tenants',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [
     body('name').trim().notEmpty(),
     body('phone').notEmpty(),
@@ -621,7 +621,7 @@ router.post(
 
 router.put(
   '/tenants/:id',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [param('id').isUUID()],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -661,7 +661,7 @@ router.put(
 // ── DOWNLOAD BULK FLAT TEMPLATE ──────────────────────────
 router.get(
   '/bulk-upload/template',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   async (req: AuthRequest, res) => {
     try {
       const headers = [
@@ -726,7 +726,7 @@ router.get(
 // ── BULK UPLOAD FLATS FROM EXCEL ─────────────────────────
 router.post(
   '/bulk-upload',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   async (req: AuthRequest, res) => {
     try {
       // express.raw() middleware pre-parses the body into req.body when

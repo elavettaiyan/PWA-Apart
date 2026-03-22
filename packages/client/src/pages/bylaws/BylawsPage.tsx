@@ -16,7 +16,7 @@ export default function BylawsPage() {
   const [editBylaw, setEditBylaw] = useState<AssociationBylaw | null>(null);
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const isAdmin = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'] as string[]).includes(user?.role || '');
 
   const { data, isLoading } = useQuery<{ bylaws: AssociationBylaw[]; grouped: Record<string, AssociationBylaw[]> }>({
     queryKey: ['bylaws'],

@@ -1,7 +1,7 @@
 import { Response, Router } from 'express';
 import { body, param, query } from 'express-validator';
 import prisma from '../../config/database';
-import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
+import { authenticate, authorize, AuthRequest, SOCIETY_MANAGERS, RESIDENT_ROLES } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import { upload } from '../../middleware/upload';
 
@@ -28,9 +28,14 @@ router.get(
       // Restrict to user's society
       if (req.user!.societyId) where.societyId = req.user!.societyId;
 
-      // Non-admin: only their own complaints
-      if (req.user!.role === 'OWNER' || req.user!.role === 'TENANT') {
+      // Non-manager: only their own complaints or assigned complaints
+      if ([...RESIDENT_ROLES, 'TREASURER'].includes(req.user!.role as any)) {
         where.createdById = req.user!.id;
+      } else if (req.user!.role === 'SERVICE_STAFF') {
+        where.OR = [
+          { assignedToId: req.user!.id },
+          { createdById: req.user!.id },
+        ];
       }
 
       const complaints = await prisma.complaint.findMany({
@@ -129,7 +134,7 @@ router.post(
 // ── UPDATE COMPLAINT STATUS ─────────────────────────────
 router.patch(
   '/:id/status',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS, 'SERVICE_STAFF'),
   [
     param('id').isUUID(),
     body('status').isIn(['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REJECTED']),
@@ -143,6 +148,11 @@ router.patch(
       const existing = await prisma.complaint.findUnique({ where: { id: req.params.id } });
       if (!existing) return res.status(404).json({ error: 'Complaint not found' });
       if (req.user!.role !== 'SUPER_ADMIN' && existing.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // SERVICE_STAFF can only update complaints assigned to them
+      if (req.user!.role === 'SERVICE_STAFF' && existing.assignedToId !== req.user!.id) {
         return res.status(403).json({ error: 'Access denied' });
       }
 

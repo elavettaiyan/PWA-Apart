@@ -17,6 +17,8 @@ import ReportsPage from './pages/reports/ReportsPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import ChangePasswordSettingsPage from './pages/settings/ChangePasswordSettingsPage';
 import RegisterPage from './pages/auth/RegisterPage';
+import StaffPage from './pages/staff/StaffPage';
+import { SOCIETY_ADMINS, SOCIETY_MANAGERS, FINANCIAL_ROLES } from './types';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuthStore();
@@ -26,11 +28,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <Layout>{children}</Layout>;
 }
 
-function AdminRoute({ children }: { children: React.ReactNode }) {
+function RoleRoute({ children, roles }: { children: React.ReactNode; roles: string[] }) {
   const { isAuthenticated, user } = useAuthStore();
   if (!isAuthenticated) return <Navigate to="/admin/login" replace />;
   if (user?.mustChangePassword) return <Navigate to="/change-password" replace />;
-  if (user?.role !== 'SUPER_ADMIN' && user?.role !== 'ADMIN') return <Navigate to="/" replace />;
+  if (!roles.includes(user?.role || '')) return <Navigate to="/" replace />;
   return <Layout>{children}</Layout>;
 }
 
@@ -69,14 +71,15 @@ export default function App() {
         />
 
         <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-        <Route path="/flats" element={<AdminRoute><FlatsPage /></AdminRoute>} />
+        <Route path="/flats" element={<RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_MANAGERS]}><FlatsPage /></RoleRoute>} />
         <Route path="/my-flat" element={<ProtectedRoute><MyFlatPage /></ProtectedRoute>} />
         <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
         <Route path="/complaints" element={<ProtectedRoute><ComplaintsPage /></ProtectedRoute>} />
-        <Route path="/expenses" element={<AdminRoute><ExpensesPage /></AdminRoute>} />
+        <Route path="/expenses" element={<RoleRoute roles={['SUPER_ADMIN', ...FINANCIAL_ROLES]}><ExpensesPage /></RoleRoute>} />
         <Route path="/bylaws" element={<ProtectedRoute><BylawsPage /></ProtectedRoute>} />
-        <Route path="/reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
-        <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
+        <Route path="/reports" element={<RoleRoute roles={['SUPER_ADMIN', ...FINANCIAL_ROLES]}><ReportsPage /></RoleRoute>} />
+        <Route path="/settings" element={<RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_ADMINS]}><SettingsPage /></RoleRoute>} />
+        <Route path="/staff" element={<RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_ADMINS]}><StaffPage /></RoleRoute>} />
         <Route path="/settings/change-password" element={<ProtectedRoute><ChangePasswordSettingsPage /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />

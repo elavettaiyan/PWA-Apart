@@ -11,14 +11,15 @@ import { formatCurrency } from '../../lib/utils';
 import { PageLoader } from '../../components/ui/Loader';
 import { useAuthStore } from '../../store/authStore';
 import type { DashboardData } from '../../types';
+import { FINANCIAL_ROLES } from '../../types';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
-  const isAdmin = user?.role === 'ADMIN';
+  const isManager = FINANCIAL_ROLES.includes(user?.role as any);
 
   if (isSuperAdmin) return <SuperAdminDashboard />;
-  if (isAdmin) return <AdminDashboard />;
+  if (isManager) return <AdminDashboard />;
   return <ResidentDashboard />;
 }
 

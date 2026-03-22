@@ -13,8 +13,12 @@ datasource db {
 enum Role {
   SUPER_ADMIN
   ADMIN
+  SECRETARY
+  JOINT_SECRETARY
+  TREASURER
   OWNER
   TENANT
+  SERVICE_STAFF
 }
 
 enum FlatType {
@@ -225,6 +229,7 @@ model User {
   name                 String
   phone                String?
   role                 Role      @default(OWNER)
+  specialization       String?
   societyId            String?
   activeSocietyId      String?
   isActive             Boolean   @default(true)

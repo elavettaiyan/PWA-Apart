@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { body, param, query } from 'express-validator';
 import prisma from '../../config/database';
-import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
+import { authenticate, authorize, AuthRequest, FINANCIAL_ROLES } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import { upload } from '../../middleware/upload';
 
@@ -11,7 +11,7 @@ router.use(authenticate);
 // ── GET ALL EXPENSES ────────────────────────────────────
 router.get(
   '/',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
   [
     query('category').optional().isString(),
     query('fromDate').optional().isISO8601(),
@@ -54,7 +54,7 @@ router.get(
 );
 
 // ── GET SINGLE EXPENSE ──────────────────────────────────
-router.get('/:id', authorize('SUPER_ADMIN', 'ADMIN'), [param('id').isUUID()], validate, async (req: AuthRequest, res: Response) => {
+router.get('/:id', authorize('SUPER_ADMIN', ...FINANCIAL_ROLES), [param('id').isUUID()], validate, async (req: AuthRequest, res: Response) => {
   try {
     const expense = await prisma.expense.findUnique({
       where: { id: req.params.id },
@@ -75,7 +75,7 @@ router.get('/:id', authorize('SUPER_ADMIN', 'ADMIN'), [param('id').isUUID()], va
 // ── CREATE EXPENSE ──────────────────────────────────────
 router.post(
   '/',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
   upload.single('receipt'),
   [
     body('category').isIn([
@@ -115,7 +115,7 @@ router.post(
 // ── UPDATE EXPENSE ──────────────────────────────────────
 router.put(
   '/:id',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
   [param('id').isUUID()],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -150,7 +150,7 @@ router.put(
 // ── DELETE EXPENSE ──────────────────────────────────────
 router.delete(
   '/:id',
-  authorize('SUPER_ADMIN', 'ADMIN'),
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
   [param('id').isUUID()],
   validate,
   async (req: AuthRequest, res: Response) => {
