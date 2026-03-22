@@ -129,7 +129,7 @@ export default function ExpensesPage() {
                     <div className="flex items-center gap-2">
                       {expense.receiptUrl && (
                         <a
-                          href={`${getApiBaseUrl().replace('/api', '')}${expense.receiptUrl}`}
+                          href={expense.receiptUrl.startsWith('data:') ? expense.receiptUrl : `${getApiBaseUrl().replace('/api', '')}${expense.receiptUrl}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"

@@ -282,11 +282,14 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
         <div>
           <h4 className="font-semibold text-gray-900 mb-2 text-sm">Attachments</h4>
           <div className="flex gap-3 flex-wrap">
-            {complaint.images.map((img, i) => (
-              <a key={i} href={`${getApiBaseUrl().replace('/api', '')}${img}`} target="_blank" rel="noopener noreferrer" className="block w-24 h-24 rounded-lg overflow-hidden border hover:shadow-md transition">
-                <img src={`${getApiBaseUrl().replace('/api', '')}${img}`} alt={`Attachment ${i + 1}`} className="w-full h-full object-cover" />
-              </a>
-            ))}
+            {complaint.images.map((img, i) => {
+              const src = img.startsWith('data:') ? img : `${getApiBaseUrl().replace('/api', '')}${img}`;
+              return (
+                <a key={i} href={src} target="_blank" rel="noopener noreferrer" className="block w-24 h-24 rounded-lg overflow-hidden border hover:shadow-md transition">
+                  <img src={src} alt={`Attachment ${i + 1}`} className="w-full h-full object-cover" />
+                </a>
+              );
+            })}
           </div>
         </div>
       )}

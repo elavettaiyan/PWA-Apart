@@ -3,7 +3,7 @@ import { body, param, query } from 'express-validator';
 import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest, SOCIETY_MANAGERS, RESIDENT_ROLES } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
-import { upload } from '../../middleware/upload';
+import { upload, getFileUrl } from '../../middleware/upload';
 
 const router = Router();
 router.use(authenticate);
@@ -116,7 +116,7 @@ router.post(
         }
       }
 
-      const imageList = files.map((f) => `/uploads/${f.filename}`) || [];
+      const imageList = files.map((f) => getFileUrl(f));
 
       const complaint = await prisma.complaint.create({
         data: {

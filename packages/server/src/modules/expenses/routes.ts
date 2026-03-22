@@ -3,7 +3,7 @@ import { body, param, query } from 'express-validator';
 import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest, FINANCIAL_ROLES } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
-import { upload } from '../../middleware/upload';
+import { upload, getFileUrl } from '../../middleware/upload';
 
 const router = Router();
 router.use(authenticate);
@@ -90,7 +90,7 @@ router.post(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
-      const receiptUrl = req.file ? `/uploads/${req.file.filename}` : null;
+      const receiptUrl = req.file ? getFileUrl(req.file) : null;
 
       const expense = await prisma.expense.create({
         data: {

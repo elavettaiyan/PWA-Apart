@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config';
 import fs from 'fs';
 
-const isVercel = process.env.VERCEL === '1';
+export const isVercel = process.env.VERCEL === '1';
 
 // On Vercel the filesystem is read-only — use /tmp for ephemeral uploads
 const uploadDir = isVercel ? '/tmp/uploads' : config.upload.dir;
@@ -45,3 +45,15 @@ export const upload = multer({
   fileFilter,
   limits: { fileSize: config.upload.maxFileSize },
 });
+
+/**
+ * Get a servable URL for an uploaded file.
+ * - Local (disk storage): returns `/uploads/<filename>` served by express.static
+ * - Vercel (memory storage): returns a base64 data URI (persisted in the DB)
+ */
+export function getFileUrl(file: Express.Multer.File): string {
+  if (isVercel && file.buffer) {
+    return `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+  }
+  return `/uploads/${file.filename}`;
+}
