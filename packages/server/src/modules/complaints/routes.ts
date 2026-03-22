@@ -80,7 +80,7 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
 // ── CREATE COMPLAINT ────────────────────────────────────
 router.post(
   '/',
-  upload.array('images', 5),
+  upload.array('images', 2),
   [
     body('title').trim().notEmpty(),
     body('description').trim().notEmpty(),
@@ -91,9 +91,16 @@ router.post(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
-      const imageList = (req.files as Express.Multer.File[])?.map(
-        (f) => `/uploads/${f.filename}`,
-      ) || [];
+      // Validate each image is under 2 MB
+      const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2 MB
+      const files = (req.files as Express.Multer.File[]) || [];
+      for (const f of files) {
+        if (f.size > MAX_IMAGE_SIZE) {
+          return res.status(400).json({ error: `Each image must be under 2 MB. "${f.originalname}" is too large.` });
+        }
+      }
+
+      const imageList = files.map((f) => `/uploads/${f.filename}`) || [];
 
       const complaint = await prisma.complaint.create({
         data: {

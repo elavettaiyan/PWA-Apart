@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Wallet, Plus, Trash2, Receipt } from 'lucide-react';
+import { Wallet, Plus, Trash2, Receipt, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
+import { getApiBaseUrl } from '../../lib/platform';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
@@ -125,14 +126,27 @@ export default function ExpensesPage() {
                   <td className="text-sm text-gray-500">{expense.vendor || '-'}</td>
                   <td className="font-semibold text-red-600">{formatCurrency(expense.amount)}</td>
                   <td>
-                    <button
-                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                      onClick={() => {
-                        if (confirm('Delete this expense?')) deleteMutation.mutate(expense.id);
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {expense.receiptUrl && (
+                        <a
+                          href={`${getApiBaseUrl().replace('/api', '')}${expense.receiptUrl}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                          title="View receipt"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </a>
+                      )}
+                      <button
+                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                        onClick={() => {
+                          if (confirm('Delete this expense?')) deleteMutation.mutate(expense.id);
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -162,16 +176,40 @@ function AddExpenseForm({ onSuccess }: { onSuccess: () => void }) {
     vendor: '',
     expenseDate: new Date().toISOString().split('T')[0],
   });
+  const [receipt, setReceipt] = useState<File | null>(null);
 
   const mutation = useMutation({
-    mutationFn: (data: any) => api.post('/expenses', data),
+    mutationFn: (formData: FormData) => api.post('/expenses', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
     onSuccess: () => { toast.success('Expense added!'); onSuccess(); },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
   });
 
+  const handleReceiptChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.size > 5 * 1024 * 1024) {
+      toast.error('Receipt must be under 5 MB');
+      return;
+    }
+    setReceipt(file || null);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append('category', form.category);
+    formData.append('amount', form.amount);
+    formData.append('description', form.description);
+    if (form.vendor) formData.append('vendor', form.vendor);
+    formData.append('expenseDate', form.expenseDate);
+    if (receipt) formData.append('receipt', receipt);
+    mutation.mutate(formData);
+  };
+
   return (
     <form
-      onSubmit={(e) => { e.preventDefault(); mutation.mutate(form); }}
+      onSubmit={handleSubmit}
       className="space-y-4"
     >
       <div className="grid grid-cols-2 gap-4">
@@ -196,6 +234,17 @@ function AddExpenseForm({ onSuccess }: { onSuccess: () => void }) {
         <div>
           <label className="label">Date</label>
           <input type="date" className="input" value={form.expenseDate} onChange={(e) => setForm({ ...form, expenseDate: e.target.value })} required />
+        </div>
+        <div className="col-span-2">
+          <label className="label">Receipt (optional)</label>
+          <label className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-primary-400 transition w-fit">
+            <FileText className="w-4 h-4 text-gray-400" />
+            <span className="text-sm text-gray-500">{receipt ? receipt.name : 'Choose file (image or PDF, max 5 MB)'}</span>
+            <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" onChange={handleReceiptChange} />
+          </label>
+          {receipt && (
+            <button type="button" onClick={() => setReceipt(null)} className="text-xs text-red-500 mt-1 hover:underline">Remove</button>
+          )}
         </div>
       </div>
       <div className="flex justify-end gap-3 pt-4">

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { MessageSquareWarning, Plus, MessageCircle, AlertTriangle } from 'lucide-react';
+import { MessageSquareWarning, Plus, MessageCircle, AlertTriangle, ImageIcon, X } from 'lucide-react';
+import { getApiBaseUrl } from '../../lib/platform';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { getStatusColor, formatDate, cn } from '../../lib/utils';
@@ -136,17 +137,54 @@ export default function ComplaintsPage() {
   );
 }
 
+const MAX_IMAGES = 2;
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2 MB
+
 function CreateComplaintForm({ onSuccess }: { onSuccess: () => void }) {
   const [form, setForm] = useState({ title: '', description: '', category: 'Plumbing', priority: 'MEDIUM' });
+  const [images, setImages] = useState<File[]>([]);
 
   const mutation = useMutation({
-    mutationFn: (data: any) => api.post('/complaints', data),
+    mutationFn: (formData: FormData) => api.post('/complaints', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
     onSuccess: () => { toast.success('Complaint submitted!'); onSuccess(); },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
   });
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const valid: File[] = [];
+    for (const file of files) {
+      if (valid.length + images.length >= MAX_IMAGES) {
+        toast.error(`Maximum ${MAX_IMAGES} images allowed`);
+        break;
+      }
+      if (file.size > MAX_IMAGE_SIZE) {
+        toast.error(`"${file.name}" exceeds 2 MB limit`);
+        continue;
+      }
+      valid.push(file);
+    }
+    setImages((prev) => [...prev, ...valid]);
+    e.target.value = ''; // reset input
+  };
+
+  const removeImage = (index: number) => setImages((prev) => prev.filter((_, i) => i !== index));
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append('title', form.title);
+    formData.append('description', form.description);
+    formData.append('category', form.category);
+    formData.append('priority', form.priority);
+    images.forEach((img) => formData.append('images', img));
+    mutation.mutate(formData);
+  };
+
   return (
-    <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(form); }} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="label">Title</label>
         <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required placeholder="Brief description of the issue" />
@@ -172,6 +210,31 @@ function CreateComplaintForm({ onSuccess }: { onSuccess: () => void }) {
         <label className="label">Description</label>
         <textarea className="input min-h-[100px]" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required placeholder="Detailed description..." />
       </div>
+
+      {/* Image Upload */}
+      <div>
+        <label className="label">Images (max {MAX_IMAGES}, under 2 MB each)</label>
+        {images.length < MAX_IMAGES && (
+          <label className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-primary-400 transition w-fit">
+            <ImageIcon className="w-4 h-4 text-gray-400" />
+            <span className="text-sm text-gray-500">Choose images</span>
+            <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={handleImageChange} />
+          </label>
+        )}
+        {images.length > 0 && (
+          <div className="flex gap-3 mt-3">
+            {images.map((img, i) => (
+              <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border">
+                <img src={URL.createObjectURL(img)} alt="" className="w-full h-full object-cover" />
+                <button type="button" onClick={() => removeImage(i)} className="absolute top-0.5 right-0.5 bg-black/50 text-white rounded-full p-0.5">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="flex justify-end gap-3 pt-4">
         <button type="submit" className="btn-primary" disabled={mutation.isPending}>
           {mutation.isPending ? 'Submitting...' : 'Submit Complaint'}
@@ -211,6 +274,20 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
       <div className="p-3 bg-gray-50 rounded-lg">
         <p className="text-sm text-gray-700">{complaint.description}</p>
       </div>
+
+      {/* Complaint Images */}
+      {complaint.images && complaint.images.length > 0 && (
+        <div>
+          <h4 className="font-semibold text-gray-900 mb-2 text-sm">Attachments</h4>
+          <div className="flex gap-3 flex-wrap">
+            {complaint.images.map((img, i) => (
+              <a key={i} href={`${getApiBaseUrl().replace('/api', '')}${img}`} target="_blank" rel="noopener noreferrer" className="block w-24 h-24 rounded-lg overflow-hidden border hover:shadow-md transition">
+                <img src={`${getApiBaseUrl().replace('/api', '')}${img}`} alt={`Attachment ${i + 1}`} className="w-full h-full object-cover" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Update Status - Admin Only */}
       {isAdmin && (
