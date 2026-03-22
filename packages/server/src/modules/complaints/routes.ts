@@ -8,6 +8,17 @@ import { upload } from '../../middleware/upload';
 const router = Router();
 router.use(authenticate);
 
+/** Parse the images JSON string into an actual array */
+function parseImages(complaint: any) {
+  if (!complaint) return complaint;
+  try {
+    complaint.images = typeof complaint.images === 'string' ? JSON.parse(complaint.images) : (complaint.images || []);
+  } catch {
+    complaint.images = [];
+  }
+  return complaint;
+}
+
 // ── GET ALL COMPLAINTS ──────────────────────────────────
 router.get(
   '/',
@@ -49,7 +60,7 @@ router.get(
         orderBy: { createdAt: 'desc' },
       });
 
-      return res.json(complaints);
+      return res.json(complaints.map(parseImages));
     } catch (error) {
       return res.status(500).json({ error: 'Failed to fetch complaints' });
     }
@@ -76,7 +87,7 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    return res.json(complaint);
+    return res.json(parseImages(complaint));
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch complaint' });
   }
@@ -124,7 +135,7 @@ router.post(
         },
       });
 
-      return res.status(201).json(complaint);
+      return res.status(201).json(parseImages(complaint));
     } catch (error) {
       return res.status(500).json({ error: 'Failed to create complaint' });
     }
@@ -173,7 +184,7 @@ router.patch(
         },
       });
 
-      return res.json(complaint);
+      return res.json(parseImages(complaint));
     } catch (error) {
       return res.status(500).json({ error: 'Failed to update complaint' });
     }
