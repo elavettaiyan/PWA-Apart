@@ -237,7 +237,7 @@ export default function SettingsPage() {
                     form.environment === env
                       ? env === 'PRODUCTION'
                         ? 'border-error bg-error-container text-error'
-                        : 'border-primary-500 bg-primary-container text-primary'
+                        : 'border-primary bg-emerald-50 text-primary'
                       : 'border-outline-variant/15 bg-white text-on-surface-variant hover:border-outline-variant',
                   )}
                 >

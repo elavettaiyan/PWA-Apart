@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -31,10 +31,25 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [barsVisible, setBarsVisible] = useState(true);
+  const lastScrollY = useRef(0);
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, logout, setUser, setTokens, setActiveSociety } = useAuthStore();
+
+  // Hide mobile header & bottom nav on scroll down, show on scroll up
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (y < 10) { setBarsVisible(true); }
+      else if (y > lastScrollY.current + 5) { setBarsVisible(false); }
+      else if (y < lastScrollY.current - 5) { setBarsVisible(true); }
+      lastScrollY.current = y;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const { data: societiesData } = useQuery<{ activeSocietyId?: string; societies: Array<{ id: string; name: string; role?: string }> }>({
     queryKey: ['my-societies'],
@@ -165,13 +180,13 @@ export default function Layout({ children }: LayoutProps) {
               <HelpCircle className="w-5 h-5" />
               <span>Help Center</span>
             </button>
-            <button
+            {/* <button
               onClick={handleLogout}
               className="w-full flex items-center gap-3 px-4 py-2 text-white/40 hover:text-rose-300 transition-colors text-sm"
             >
               <LogOut className="w-5 h-5" />
               <span>Logout</span>
-            </button>
+            </button> */}
           </div>
         </div>
       </aside>
@@ -179,7 +194,10 @@ export default function Layout({ children }: LayoutProps) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile Top App Bar */}
-        <header className="lg:hidden fixed top-0 z-30 w-full flex justify-between items-center px-5 py-3 bg-surface/80 backdrop-blur-xl">
+        <header className={cn(
+          'lg:hidden fixed top-0 z-30 w-full flex justify-between items-center px-5 py-3 bg-surface/80 backdrop-blur-xl transition-transform duration-300',
+          barsVisible ? 'translate-y-0' : '-translate-y-full',
+        )}>
           <div className="flex items-center gap-3">
             <button
               className="p-1.5 -ml-1 rounded-lg hover:bg-surface-container"
@@ -214,14 +232,14 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex items-center justify-between px-8 py-4">
             <div className="flex items-center gap-4">
               {/* Search Bar */}
-              <div className="flex items-center bg-surface-container-low rounded-full px-4 py-2 w-96">
+              {/* <div className="flex items-center bg-surface-container-low rounded-full px-4 py-2 w-96">
                 <span className="material-symbols-outlined text-outline mr-2 text-xl">search</span>
                 <input
                   className="bg-transparent border-none focus:ring-0 focus:outline-none text-sm w-full placeholder:text-outline text-on-surface"
                   placeholder="Search residents, bills, or units..."
                   type="text"
                 />
-              </div>
+              </div> */}
             </div>
 
             <div className="flex items-center gap-4">
@@ -312,7 +330,10 @@ export default function Layout({ children }: LayoutProps) {
       </div>
 
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex justify-around items-center px-4 pt-2 pb-3 mobile-bottom-safe bg-surface/80 backdrop-blur-xl rounded-t-3xl shadow-[0_-4px_20px_0_rgba(0,0,0,0.04)] border-t border-on-surface/5">
+      <nav className={cn(
+        'lg:hidden fixed bottom-0 left-0 right-0 z-50 flex justify-around items-center px-4 pt-2 pb-3 mobile-bottom-safe bg-surface/80 backdrop-blur-xl rounded-t-3xl shadow-[0_-4px_20px_0_rgba(0,0,0,0.04)] border-t border-on-surface/5 transition-transform duration-300',
+        barsVisible ? 'translate-y-0' : 'translate-y-full',
+      )}>
         {bottomNavItems.map((item) => {
           const isActive = location.pathname === item.href ||
             (item.href !== '/' && location.pathname.startsWith(item.href));
