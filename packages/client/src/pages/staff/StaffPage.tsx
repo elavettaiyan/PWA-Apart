@@ -131,13 +131,13 @@ function StaffCard({ member }: { member: StaffMember }) {
         <div>
           <h3 className="font-semibold text-on-surface">{member.name}</h3>
           {member.specialization && (
-            <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full mt-1">
+            <span className="inline-flex items-center gap-1 text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full mt-1">
               <Wrench className="w-3 h-3" /> {member.specialization}
             </span>
           )}
         </div>
         <button
-          className={`text-xs px-2.5 py-1 rounded-full font-medium ${member.isActive ? 'bg-green-50 text-green-700' : 'bg-error-container text-error'}`}
+          className={`text-xs px-2.5 py-1 rounded-full font-medium ${member.isActive ? 'bg-emerald-50 text-emerald-900' : 'bg-rose-50 text-rose-900'}`}
           onClick={() => toggleActive.mutate()}
           disabled={toggleActive.isPending}
         >

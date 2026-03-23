@@ -76,7 +76,7 @@ export default function ForgotPasswordPage() {
           ) : (
             <div className="text-center">
               <div className="w-16 h-16 bg-tertiary-container rounded-full flex items-center justify-center mx-auto mb-4">
-                <Mail className="w-8 h-8 text-tertiary" />
+                <Mail className="w-8 h-8 text-emerald-700" />
               </div>
               <h2 className="text-xl font-semibold text-on-surface mb-2">Check Your Email</h2>
               <p className="text-sm text-on-surface-variant mb-6">

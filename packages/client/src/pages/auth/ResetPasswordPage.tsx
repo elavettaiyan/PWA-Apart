@@ -123,7 +123,7 @@ export default function ResetPasswordPage() {
                     { check: passwordChecks.number, label: 'One number' },
                     { check: passwordChecks.match, label: 'Passwords match' },
                   ].map(({ check, label }) => (
-                    <div key={label} className={`flex items-center gap-2 text-xs ${check ? 'text-tertiary' : 'text-outline'}`}>
+                    <div key={label} className={`flex items-center gap-2 text-xs ${check ? 'text-emerald-700' : 'text-outline'}`}>
                       <CheckCircle className="w-3.5 h-3.5" />
                       <span>{label}</span>
                     </div>
@@ -142,7 +142,7 @@ export default function ResetPasswordPage() {
           ) : (
             <div className="text-center">
               <div className="w-16 h-16 bg-tertiary-container rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-8 h-8 text-tertiary" />
+                <CheckCircle className="w-8 h-8 text-emerald-700" />
               </div>
               <h2 className="text-xl font-semibold text-on-surface mb-2">Password Reset!</h2>
               <p className="text-sm text-on-surface-variant mb-4">

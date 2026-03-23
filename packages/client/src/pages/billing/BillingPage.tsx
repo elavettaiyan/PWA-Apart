@@ -345,11 +345,11 @@ export default function BillingPage() {
         </div>
         <div className="stat-card">
           <p className="stat-label">Collected</p>
-          <p className="text-base sm:text-lg font-bold text-tertiary">{formatCurrency(totalCollected)}</p>
+          <p className="text-base sm:text-lg font-bold text-emerald-900">{formatCurrency(totalCollected)}</p>
         </div>
         <div className="stat-card">
           <p className="stat-label">Paid</p>
-          <p className="text-base sm:text-lg font-bold text-tertiary">{paidCount} flats</p>
+          <p className="text-base sm:text-lg font-bold text-emerald-900">{paidCount} flats</p>
         </div>
         <div className="stat-card">
           <p className="stat-label">Pending</p>
@@ -412,11 +412,11 @@ export default function BillingPage() {
                   </div>
                   <div>
                     <span className="text-outline block">Paid</span>
-                    <span className="font-semibold text-tertiary">{formatCurrency(bill.paidAmount)}</span>
+                    <span className="font-semibold text-emerald-900">{formatCurrency(bill.paidAmount)}</span>
                   </div>
                   <div>
                     <span className="text-outline block">Due</span>
-                    <span className="font-semibold text-error">{formatCurrency(bill.totalAmount - bill.paidAmount)}</span>
+                    <span className="font-semibold text-rose-900">{formatCurrency(bill.totalAmount - bill.paidAmount)}</span>
                   </div>
                 </div>
                 {bill.status !== 'PAID' && (
@@ -494,8 +494,8 @@ export default function BillingPage() {
                     <p className="text-xs text-on-surface-variant">{bill.flat?.owner?.phone}</p>
                   </td>
                   <td className="font-medium whitespace-nowrap">{formatCurrency(bill.totalAmount)}</td>
-                  <td className="text-tertiary font-medium whitespace-nowrap">{formatCurrency(bill.paidAmount)}</td>
-                  <td className="text-error font-medium whitespace-nowrap">{formatCurrency(bill.totalAmount - bill.paidAmount)}</td>
+                  <td className="text-emerald-900 font-medium whitespace-nowrap">{formatCurrency(bill.paidAmount)}</td>
+                  <td className="text-rose-900 font-medium whitespace-nowrap">{formatCurrency(bill.totalAmount - bill.paidAmount)}</td>
                   <td><span className={cn('badge', getStatusColor(bill.status))}>{bill.status}</span></td>
                   <td>
                     {bill.status !== 'PAID' && (

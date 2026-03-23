@@ -96,7 +96,7 @@ export default function FlatsPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 mb-6">
           {blocks.map((block) => (
             <div key={block.id} className="card p-3 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
                 <Layers className="w-4 h-4" />
               </div>
               <div className="min-w-0">
@@ -156,7 +156,7 @@ export default function FlatsPage() {
               key={flat.id}
               className={cn(
                 'card p-4 hover:shadow-md transition-shadow cursor-pointer border-2',
-                selectedFlatId === flat.id ? 'border-primary-500 ring-2 ring-primary-100' : 'border-transparent',
+                selectedFlatId === flat.id ? 'border-primary ring-2 ring-primary/10' : 'border-transparent',
               )}
               onClick={() => setSelectedFlatId(flat.id)}
             >
@@ -164,7 +164,7 @@ export default function FlatsPage() {
                 <div className="flex items-center gap-2">
                   <div className={cn(
                     'w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold',
-                    flat.isOccupied ? 'bg-tertiary-container text-tertiary' : 'bg-surface-container text-outline',
+                    flat.isOccupied ? 'bg-emerald-50 text-emerald-900' : 'bg-slate-100 text-slate-500',
                   )}>
                     {flat.flatNumber}
                   </div>
@@ -212,8 +212,8 @@ export default function FlatsPage() {
                 <div className="mt-2 pt-2 border-t border-dashed border-outline-variant/10">
                   <p className="text-[10px] text-outline uppercase tracking-wider mb-1">Tenant</p>
                   <div className="flex items-center gap-2">
-                    <User className="w-3.5 h-3.5 text-blue-400" />
-                    <span className="text-xs font-medium text-blue-700">{flat.tenant.name}</span>
+                    <User className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-xs font-medium text-slate-700">{flat.tenant.name}</span>
                   </div>
                 </div>
               )}
@@ -524,8 +524,8 @@ function AddOwnerForm({ flat, onSuccess }: { flat: Flat; onSuccess: () => void }
       <h3 className="font-semibold text-on-surface mb-3">Owner Details</h3>
 
       {!flat.owner && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-          <p className="text-xs text-blue-700">
+        <div className="mb-4 p-3 bg-slate-100 border border-slate-200 rounded-lg">
+          <p className="text-xs text-slate-700">
             <strong>📱 Auto Login Creation:</strong> When you provide both email & phone number,
             a login account will be automatically created. The default password will be the phone number.
             The owner will be asked to change it on first login.
@@ -564,8 +564,8 @@ function AddOwnerForm({ flat, onSuccess }: { flat: Flat; onSuccess: () => void }
       </form>
 
       {flat.owner?.email && (
-        <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-          <p className="text-xs text-blue-700">
+        <div className="mt-4 p-3 bg-slate-100 border border-slate-200 rounded-lg">
+          <p className="text-xs text-slate-700">
             <strong>Login Account:</strong> A login account {flat.owner.userId ? 'is linked' : 'will be created when email & phone are provided'} for this owner.
             Default password is the owner's phone number.
           </p>
@@ -651,12 +651,12 @@ function BulkUploadForm({ onSuccess }: { onSuccess: () => void }) {
   return (
     <div className="space-y-6">
       {/* Step 1: Download Template */}
-      <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
-        <h3 className="text-sm font-semibold text-blue-900 mb-2 flex items-center gap-2">
+      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+        <h3 className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
           <FileSpreadsheet className="w-4 h-4" />
           Step 1: Download Template
         </h3>
-        <p className="text-xs text-blue-700 mb-3">
+        <p className="text-xs text-slate-700 mb-3">
           Download the Excel template, fill in your flat details, and upload it back.
           Owner accounts will be auto-created with phone number as default password.
         </p>
@@ -686,7 +686,7 @@ function BulkUploadForm({ onSuccess }: { onSuccess: () => void }) {
         >
           {file ? (
             <div>
-              <FileSpreadsheet className="w-8 h-8 text-tertiary mx-auto mb-2" />
+              <FileSpreadsheet className="w-8 h-8 text-primary mx-auto mb-2" />
               <p className="text-sm font-medium text-on-surface">{file.name}</p>
               <p className="text-xs text-on-surface-variant mt-1">{(file.size / 1024).toFixed(1)} KB</p>
               <p className="text-xs text-primary mt-2">Click to change file</p>
@@ -723,13 +723,13 @@ function BulkUploadForm({ onSuccess }: { onSuccess: () => void }) {
               <p className="text-lg font-bold text-on-surface">{results.total}</p>
               <p className="text-xs text-on-surface-variant">Total Rows</p>
             </div>
-            <div className="p-3 bg-tertiary-container rounded-lg text-center">
-              <p className="text-lg font-bold text-tertiary">{results.created}</p>
-              <p className="text-xs text-tertiary">Created</p>
+            <div className="p-3 bg-emerald-50 rounded-lg text-center">
+              <p className="text-lg font-bold text-emerald-900">{results.created}</p>
+              <p className="text-xs text-emerald-700">Created</p>
             </div>
-            <div className="p-3 bg-error-container rounded-lg text-center">
-              <p className="text-lg font-bold text-error">{results.errors}</p>
-              <p className="text-xs text-error">Errors</p>
+            <div className="p-3 bg-rose-50 rounded-lg text-center">
+              <p className="text-lg font-bold text-rose-900">{results.errors}</p>
+              <p className="text-xs text-rose-700">Errors</p>
             </div>
           </div>
 
@@ -740,7 +740,7 @@ function BulkUploadForm({ onSuccess }: { onSuccess: () => void }) {
                 key={i}
                 className={cn(
                   'flex items-center justify-between text-xs px-3 py-2 rounded',
-                  r.status === 'success' ? 'bg-tertiary-container text-tertiary' : 'bg-error-container text-error',
+                  r.status === 'success' ? 'bg-emerald-50 text-emerald-900' : 'bg-rose-50 text-rose-900',
                 )}
               >
                 <span>Row {r.row}: {r.flatNumber}</span>

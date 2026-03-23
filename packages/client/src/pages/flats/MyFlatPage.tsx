@@ -128,7 +128,7 @@ export default function MyFlatPage() {
                     <td className="font-medium">{getMonthName(bill.month)} {bill.year}</td>
                     <td>{formatDate(bill.dueDate)}</td>
                     <td>{formatCurrency(bill.totalAmount)}</td>
-                    <td className="text-tertiary">{formatCurrency(bill.paidAmount)}</td>
+                    <td className="text-emerald-900">{formatCurrency(bill.paidAmount)}</td>
                     <td className="text-error">{formatCurrency(bill.totalAmount - bill.paidAmount)}</td>
                     <td>{latestPayment?.paidAt ? formatDate(latestPayment.paidAt) : '—'}</td>
                     <td>{latestPayment ? getPaymentMethodLabel(latestPayment.method) : '—'}</td>
@@ -234,7 +234,7 @@ function TenantForm({ initial, onSubmit, onCancel, isPending, submitLabel }: {
       </div>
 
       {form.email && form.phone && (
-        <div className="flex items-start gap-2 bg-blue-50 text-blue-700 text-xs rounded-lg p-3">
+        <div className="flex items-start gap-2 bg-slate-100 text-slate-700 text-xs rounded-lg p-3">
           <Info className="w-4 h-4 shrink-0 mt-0.5" />
           <span>A login account will be created for the tenant. Default password is the phone number.</span>
         </div>
@@ -298,7 +298,7 @@ function AddTenantCard() {
   return (
     <div className="card p-6">
       <h2 className="text-lg font-semibold text-on-surface mb-4 flex items-center gap-2">
-        <UserPlus className="w-5 h-5 text-teal-500" /> Add Tenant
+        <UserPlus className="w-5 h-5 text-primary" /> Add Tenant
       </h2>
       <TenantForm
         initial={emptyForm}
@@ -352,7 +352,7 @@ function TenantCard({ tenant, isOwner }: { tenant: any; isOwner: boolean }) {
     return (
       <div className="card p-6">
         <h2 className="text-lg font-semibold text-on-surface mb-4 flex items-center gap-2">
-          <Pencil className="w-5 h-5 text-teal-500" /> Edit Tenant
+          <Pencil className="w-5 h-5 text-primary" /> Edit Tenant
         </h2>
         <TenantForm
           initial={{
@@ -377,7 +377,7 @@ function TenantCard({ tenant, isOwner }: { tenant: any; isOwner: boolean }) {
     <div className="card p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-on-surface flex items-center gap-2">
-          <User className="w-5 h-5 text-teal-500" /> Tenant
+          <User className="w-5 h-5 text-primary" /> Tenant
         </h2>
         {isOwner && (
           <div className="flex items-center gap-2">

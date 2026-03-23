@@ -137,7 +137,7 @@ export default function ChangePasswordPage() {
                 { check: passwordChecks.match, label: 'Passwords match' },
                 { check: passwordChecks.notSame, label: 'New password differs from current' },
               ].map(({ check, label }) => (
-                <div key={label} className={`flex items-center gap-2 text-xs ${check ? 'text-tertiary' : 'text-outline'}`}>
+                <div key={label} className={`flex items-center gap-2 text-xs ${check ? 'text-emerald-700' : 'text-outline'}`}>
                   <CheckCircle className="w-3.5 h-3.5" />
                   <span>{label}</span>
                 </div>

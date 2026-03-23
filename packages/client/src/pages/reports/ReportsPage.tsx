@@ -100,7 +100,7 @@ function CollectionReportTab({ month, year, setMonth, setYear }: any) {
             </div>
             <div className="stat-card">
               <p className="stat-label">Collected</p>
-              <p className="text-lg font-bold text-tertiary">{formatCurrency(summary.totalCollected)}</p>
+              <p className="text-lg font-bold text-emerald-900">{formatCurrency(summary.totalCollected)}</p>
             </div>
             <div className="stat-card">
               <p className="stat-label">Pending</p>
@@ -157,11 +157,11 @@ function DefaultersTab() {
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="stat-card">
           <p className="stat-label">Total Defaulters</p>
-          <p className="text-2xl font-bold text-error">{data?.totalDefaulters || 0}</p>
+          <p className="text-2xl font-bold text-rose-900">{data?.totalDefaulters || 0}</p>
         </div>
         <div className="stat-card">
           <p className="stat-label">Total Outstanding</p>
-          <p className="text-2xl font-bold text-error">{formatCurrency(data?.totalOutstanding || 0)}</p>
+          <p className="text-2xl font-bold text-rose-900">{formatCurrency(data?.totalOutstanding || 0)}</p>
         </div>
       </div>
 
@@ -186,7 +186,7 @@ function DefaultersTab() {
                 <td>{d.flat.owner?.name || '-'}</td>
                 <td className="text-sm text-on-surface-variant">{d.flat.owner?.phone}</td>
                 <td><span className="badge badge-danger">{d.bills.length} months</span></td>
-                <td className="font-bold text-error">{formatCurrency(d.totalOutstanding)}</td>
+                <td className="font-bold text-rose-900">{formatCurrency(d.totalOutstanding)}</td>
               </tr>
             ))}
           </tbody>
@@ -223,7 +223,7 @@ function ExpenseSummaryTab() {
     <div>
       <div className="stat-card mb-6">
         <p className="stat-label">Total Expenses</p>
-        <p className="text-2xl font-bold text-error">{formatCurrency(data?.total || 0)}</p>
+        <p className="text-2xl font-bold text-rose-900">{formatCurrency(data?.total || 0)}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -299,30 +299,30 @@ function PnLTab({ from, to, setFrom, setTo }: { from: string; to: string; setFro
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="stat-card">
           <div className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-tertiary" />
+            <TrendingUp className="w-5 h-5 text-emerald-700" />
             <p className="stat-label">Total Income</p>
           </div>
-          <p className="text-2xl font-bold text-tertiary">{formatCurrency(data?.income?.total || 0)}</p>
+          <p className="text-2xl font-bold text-emerald-900">{formatCurrency(data?.income?.total || 0)}</p>
         </div>
         <div className="stat-card">
           <div className="flex items-center gap-2">
-            <TrendingDown className="w-5 h-5 text-error" />
+            <TrendingDown className="w-5 h-5 text-rose-700" />
             <p className="stat-label">Total Expenses</p>
           </div>
-          <p className="text-2xl font-bold text-error">{formatCurrency(data?.expenses?.total || 0)}</p>
+          <p className="text-2xl font-bold text-rose-900">{formatCurrency(data?.expenses?.total || 0)}</p>
         </div>
         <div className="stat-card">
           <div className="flex items-center gap-2">
-            {isProfit ? <TrendingUp className="w-5 h-5 text-tertiary" /> : <TrendingDown className="w-5 h-5 text-error" />}
+            {isProfit ? <TrendingUp className="w-5 h-5 text-emerald-700" /> : <TrendingDown className="w-5 h-5 text-rose-700" />}
             <p className="stat-label">Net {isProfit ? 'Profit' : 'Loss'}</p>
           </div>
-          <p className={cn('text-2xl font-bold', isProfit ? 'text-tertiary' : 'text-error')}>
+          <p className={cn('text-2xl font-bold', isProfit ? 'text-emerald-900' : 'text-rose-900')}>
             {formatCurrency(Math.abs(data?.netProfitLoss || 0))}
           </p>
         </div>
         <div className="stat-card">
           <p className="stat-label">Profit Margin</p>
-          <p className={cn('text-2xl font-bold', isProfit ? 'text-tertiary' : 'text-error')}>
+          <p className={cn('text-2xl font-bold', isProfit ? 'text-emerald-900' : 'text-rose-900')}>
             {data?.profitMargin || '0'}%
           </p>
         </div>

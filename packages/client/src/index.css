@@ -58,12 +58,12 @@
     @apply px-6 py-3 text-base;
   }
 
-  /* Cards — tonal layering, no borders (ghost borders only) */
+  /* Cards — soft shadows + subtle slate borders */
   .card {
-    @apply bg-surface-container-lowest rounded-2xl;
+    @apply bg-white rounded-2xl border border-slate-100;
   }
   .card-elevated {
-    @apply bg-surface-container-lowest rounded-2xl editorial-shadow;
+    @apply bg-white rounded-2xl border border-slate-100 editorial-shadow;
   }
 
   /* Inputs — editorial form fields */
@@ -82,16 +82,16 @@
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold;
   }
   .badge-success {
-    @apply badge bg-tertiary-container text-tertiary-fixed;
+    @apply badge bg-emerald-50 text-emerald-900;
   }
   .badge-warning {
     @apply badge bg-secondary-container text-on-secondary-container;
   }
   .badge-danger {
-    @apply badge bg-error-container text-on-error-container;
+    @apply badge bg-rose-50 text-rose-900;
   }
   .badge-info {
-    @apply badge bg-primary-fixed text-on-primary-fixed;
+    @apply badge bg-slate-100 text-slate-900;
   }
   .badge-neutral {
     @apply badge bg-surface-container-high text-on-surface-variant;
@@ -125,10 +125,10 @@
     @apply bg-surface-container-lowest p-5 rounded-2xl flex flex-col gap-1;
   }
   .stat-card .stat-label {
-    @apply text-[10px] font-bold text-outline uppercase tracking-widest font-label;
+    @apply text-[10px] font-bold text-slate-500 uppercase tracking-widest font-label;
   }
   .stat-card .stat-value {
-    @apply text-2xl font-bold text-primary font-headline;
+    @apply text-2xl font-bold text-slate-950 font-headline;
   }
 
   /* Page headers — editorial typography */
@@ -136,17 +136,17 @@
     @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6;
   }
   .page-title {
-    @apply text-3xl font-extrabold text-primary font-headline tracking-tight;
+    @apply text-3xl font-extrabold text-slate-950 font-headline tracking-tight;
   }
 
   /* Section label — editorial category header */
   .section-label {
-    @apply text-[10px] font-bold text-outline uppercase tracking-widest font-label;
+    @apply text-[10px] font-bold text-slate-500 uppercase tracking-widest font-label;
   }
 
   /* Operations card — summary list item style */
   .ops-card {
-    @apply bg-surface-container-low rounded-3xl p-5 sm:p-6 flex items-center justify-between transition-all;
+    @apply bg-white border border-slate-100 rounded-3xl p-5 sm:p-6 flex items-center justify-between transition-all;
   }
 
   /* Bottom nav — mobile only, hide scrollbar */
@@ -165,9 +165,9 @@
 
   /* Gradient primary button */
   .btn-gradient {
-    @apply btn text-on-primary font-bold shadow-lg;
-    background: linear-gradient(135deg, #05213a 0%, #1e3750 100%);
-    box-shadow: 0 8px 24px -4px rgba(5, 33, 58, 0.2);
+    @apply btn text-white font-bold shadow-lg;
+    background: linear-gradient(135deg, #003D33 0%, #0A5C50 100%);
+    box-shadow: 0 8px 24px -4px rgba(0, 61, 51, 0.2);
   }
 }
 

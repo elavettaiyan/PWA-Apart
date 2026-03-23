@@ -125,7 +125,7 @@ export default function ExpensesPage() {
                   </td>
                   <td className="text-sm max-w-[200px] truncate">{expense.description}</td>
                   <td className="text-sm text-on-surface-variant">{expense.vendor || '-'}</td>
-                  <td className="font-semibold text-error">{formatCurrency(expense.amount)}</td>
+                  <td className="font-semibold text-rose-900">{formatCurrency(expense.amount)}</td>
                   <td>
                     <div className="flex items-center gap-2">
                       {expense.receiptUrl && (
@@ -133,7 +133,7 @@ export default function ExpensesPage() {
                           href={expense.receiptUrl.startsWith('data:') ? expense.receiptUrl : `${getApiBaseUrl().replace('/api', '')}${expense.receiptUrl}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                          className="p-1.5 text-primary hover:text-primary/80 hover:bg-primary/5 rounded-lg"
                           title="View receipt"
                         >
                           <FileText className="w-4 h-4" />

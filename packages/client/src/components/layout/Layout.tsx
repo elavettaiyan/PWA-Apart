@@ -104,7 +104,7 @@ export default function Layout({ children }: LayoutProps) {
       {/* Sidebar — Editorial Design (desktop & mobile drawer) */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 bg-surface-container-low flex flex-col transform transition-transform lg:static lg:z-0 lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 w-64 bg-primary flex flex-col transform transition-transform lg:static lg:z-0 lg:translate-x-0',
           sidebarOpen ? 'block translate-x-0' : 'hidden -translate-x-full lg:block',
         )}
       >
@@ -112,11 +112,11 @@ export default function Layout({ children }: LayoutProps) {
           {/* Logo */}
           <div className="mb-10 px-2 flex items-center justify-between">
             <div>
-              <h1 className="font-headline font-extrabold text-primary text-2xl tracking-tight">Dwell Hub</h1>
-              <p className="text-[10px] text-outline font-bold uppercase tracking-widest mt-1">Management Portal</p>
+              <h1 className="font-headline font-extrabold text-white text-2xl tracking-tight">Dwell Hub</h1>
+              <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest mt-1">Management Portal</p>
             </div>
             <button className="lg:hidden" onClick={() => setSidebarOpen(false)}>
-              <X className="w-5 h-5 text-outline" />
+              <X className="w-5 h-5 text-white/60" />
             </button>
           </div>
 
@@ -138,11 +138,11 @@ export default function Layout({ children }: LayoutProps) {
                   className={cn(
                     'w-full text-left flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 touch-manipulation',
                     isActive
-                      ? 'bg-surface-container-lowest text-primary font-semibold editorial-shadow'
-                      : 'text-on-surface-variant hover:bg-surface-container hover:translate-x-1',
+                      ? 'bg-white/15 text-white font-semibold'
+                      : 'text-white/60 hover:bg-white/10 hover:translate-x-1',
                   )}
                 >
-                  <item.icon className={cn('w-5 h-5 pointer-events-none', isActive ? 'text-primary' : 'text-outline')} />
+                  <item.icon className={cn('w-5 h-5 pointer-events-none', isActive ? 'text-white' : 'text-white/40')} />
                   <span className="pointer-events-none">{item.name}</span>
                 </button>
               );
@@ -150,24 +150,24 @@ export default function Layout({ children }: LayoutProps) {
           </nav>
 
           {/* Bottom Actions */}
-          <div className="pt-6 border-t border-outline-variant/20 space-y-1">
+          <div className="pt-6 border-t border-white/10 space-y-1">
             <button
               onClick={() => navigate('/complaints')}
-              className="w-full btn-gradient py-3 rounded-xl mb-4 flex items-center justify-center gap-2"
+              className="w-full bg-white text-primary font-bold py-3 rounded-xl mb-4 flex items-center justify-center gap-2 hover:bg-white/90 transition-colors"
             >
               <Plus className="w-4 h-4" />
               <span>New Request</span>
             </button>
             <button
               onClick={() => navigate('/settings')}
-              className="w-full flex items-center gap-3 px-4 py-2 text-outline hover:text-primary transition-colors text-sm"
+              className="w-full flex items-center gap-3 px-4 py-2 text-white/40 hover:text-white transition-colors text-sm"
             >
               <HelpCircle className="w-5 h-5" />
               <span>Help Center</span>
             </button>
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-2 text-outline hover:text-error transition-colors text-sm"
+              className="w-full flex items-center gap-3 px-4 py-2 text-white/40 hover:text-rose-300 transition-colors text-sm"
             >
               <LogOut className="w-5 h-5" />
               <span>Logout</span>

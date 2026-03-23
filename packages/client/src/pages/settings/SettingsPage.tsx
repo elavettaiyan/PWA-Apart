@@ -180,8 +180,8 @@ export default function SettingsPage() {
               >
                 {cfg?.isActive ? (
                   <>
-                    <ToggleRight className="w-8 h-8 text-tertiary" />
-                    <span className="text-tertiary">Active</span>
+                    <ToggleRight className="w-8 h-8 text-emerald-700" />
+                    <span className="text-emerald-700">Active</span>
                   </>
                 ) : (
                   <>
@@ -205,8 +205,8 @@ export default function SettingsPage() {
             className={cn(
               'flex items-center gap-2 p-3 rounded-lg mb-6 text-sm',
               cfg.lastTestOk
-                ? 'bg-tertiary-container text-tertiary'
-                : 'bg-error-container text-error',
+                ? 'bg-emerald-50 text-emerald-900'
+                : 'bg-rose-50 text-rose-900',
             )}
           >
             {cfg.lastTestOk ? (
@@ -391,7 +391,7 @@ export default function SettingsPage() {
         >
           <div className="flex items-start gap-3">
             {testResult.success ? (
-              <CheckCircle2 className="w-6 h-6 text-tertiary shrink-0 mt-0.5" />
+              <CheckCircle2 className="w-6 h-6 text-emerald-700 shrink-0 mt-0.5" />
             ) : (
               <XCircle className="w-6 h-6 text-error shrink-0 mt-0.5" />
             )}
@@ -399,7 +399,7 @@ export default function SettingsPage() {
               <h3
                 className={cn(
                   'font-semibold',
-                  testResult.success ? 'text-tertiary' : 'text-error',
+                  testResult.success ? 'text-emerald-700' : 'text-rose-700',
                 )}
               >
                 {testResult.success ? 'Test Passed ✓' : 'Test Failed ✗'}
@@ -454,16 +454,16 @@ export default function SettingsPage() {
       )}
 
       {/* Info Card */}
-      <div className="card p-5 mt-6 bg-blue-50/50 border-blue-100">
-        <h3 className="text-sm font-semibold text-blue-900 mb-2">📘 How to get PhonePe credentials</h3>
-        <ol className="text-sm text-blue-800 space-y-1.5 list-decimal list-inside">
+      <div className="card p-5 mt-6 bg-slate-50 border-slate-200">
+        <h3 className="text-sm font-semibold text-slate-900 mb-2">📘 How to get PhonePe credentials</h3>
+        <ol className="text-sm text-slate-700 space-y-1.5 list-decimal list-inside">
           <li>Sign up on <a href="https://www.phonepe.com/business" target="_blank" rel="noopener noreferrer" className="underline font-medium">PhonePe Business</a></li>
           <li>Complete KYC and business verification</li>
           <li>Navigate to <strong>Developer Settings → API Keys</strong></li>
           <li>Copy your <strong>Merchant ID</strong> and <strong>Salt Key</strong></li>
           <li>For testing, use the UAT sandbox credentials provided by PhonePe</li>
         </ol>
-        <div className="mt-3 p-3 bg-white/60 rounded-lg text-xs font-mono text-blue-700">
+        <div className="mt-3 p-3 bg-white/60 rounded-lg text-xs font-mono text-slate-600">
             <p><strong>Sandbox note:</strong></p>
             <p>Use the UAT Merchant ID, Salt Key, and Salt Index issued to your own PhonePe merchant account.</p>
             <p>Do not rely on shared sample credentials because they may be expired, disabled, or rate-limited.</p>
@@ -495,10 +495,10 @@ const ROLE_OPTIONS = [
 
 const ROLE_BADGE: Record<string, string> = {
   ADMIN: 'bg-purple-50 text-purple-700',
-  SECRETARY: 'bg-blue-50 text-blue-700',
-  JOINT_SECRETARY: 'bg-cyan-50 text-cyan-700',
+  SECRETARY: 'bg-slate-100 text-slate-700',
+  JOINT_SECRETARY: 'bg-slate-100 text-slate-700',
   TREASURER: 'bg-warning-container text-warning',
-  OWNER: 'bg-green-50 text-green-700',
+  OWNER: 'bg-emerald-50 text-emerald-900',
   TENANT: 'bg-surface-container text-on-surface-variant',
   SERVICE_STAFF: 'bg-orange-50 text-orange-700',
 };
