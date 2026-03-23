@@ -80,8 +80,11 @@ const allowedOrigins = [config.clientUrl];
 if (config.clientUrl !== 'https://pwa-apart-client.vercel.app') {
   allowedOrigins.push('https://pwa-apart-client.vercel.app');
 }
-// Allow custom domain (both www and apex)
-for (const domain of ['https://www.resilynk.com', 'https://resilynk.com']) {
+// Allow custom domains (both www and apex)
+for (const domain of [
+  'https://www.dwellhub.in', 'https://dwellhub.in', 'https://app.dwellhub.in',
+  'https://www.resilynk.com', 'https://resilynk.com',
+]) {
   if (!allowedOrigins.includes(domain)) {
     allowedOrigins.push(domain);
   }
