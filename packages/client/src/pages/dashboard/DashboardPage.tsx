@@ -218,7 +218,7 @@ function ResidentDashboard() {
       {/* Editorial Header — Mobile-first */}
       <header>
         <p className="section-label mb-2">Your Space</p>
-        <h1 className="editorial-title text-4xl font-extrabold text-slate-950 leading-tight">
+        <h1 className="editorial-title text-4xl font-extrabold text-primary leading-tight">
           Everything<br />Made Clearer.
         </h1>
       </header>

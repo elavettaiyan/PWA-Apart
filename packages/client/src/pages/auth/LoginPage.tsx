@@ -110,12 +110,12 @@ export default function LoginPage() {
          
 
           <div className="mt-4 text-center">
-            <Link
+            {/* <Link
               to="/admin/login"
               className="block text-sm text-on-surface-variant hover:text-on-surface-variant font-medium mb-3"
             >
               Admin portal login
-            </Link>
+            </Link> */}
             <Link
               to="/register"
               className="text-sm text-primary hover:text-primary font-medium"
