@@ -31,7 +31,7 @@ router.post(
     body('state').trim().notEmpty().withMessage('State is required'),
     body('pincode').trim().isLength({ min: 6, max: 6 }).withMessage('Valid 6-digit pincode is required'),
     body('adminName').trim().notEmpty().withMessage('Admin name is required'),
-    body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+    body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }).withMessage('Valid email is required'),
     body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
       .matches(/[A-Z]/).withMessage('Password must contain an uppercase letter')
       .matches(/[a-z]/).withMessage('Password must contain a lowercase letter')
@@ -122,7 +122,7 @@ router.post(
 router.post(
   '/register',
   [
-    body('email').isEmail().withMessage('Valid email is required').normalizeEmail(),
+    body('email').isEmail().withMessage('Valid email is required').normalizeEmail({ gmail_remove_dots: false }),
     body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
     body('name').trim().notEmpty().withMessage('Name is required'),
     body('phone')
@@ -174,7 +174,7 @@ router.post(
 router.post(
   '/login',
   [
-    body('email').isEmail().normalizeEmail(),
+    body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }),
     body('password').notEmpty(),
   ],
   validate,
@@ -467,7 +467,7 @@ router.post(
 router.post(
   '/forgot-password',
   [
-    body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+    body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }).withMessage('Valid email is required'),
   ],
   validate,
   async (req: Request, res: Response) => {
