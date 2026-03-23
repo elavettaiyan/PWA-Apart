@@ -52,31 +52,31 @@ export default function ChangePasswordPage() {
 
   return (
     <div className="min-h-screen flex">
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
         <div className="w-full max-w-md">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 bg-primary-600 rounded-2xl flex items-center justify-center">
+          <div className="flex items-center gap-3 mb-10">
+            <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center">
               <Building2 className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Resilynk</h1>
-              <p className="text-sm text-gray-500">Your Apartment, Connected</p>
+              <h1 className="text-2xl font-extrabold text-primary font-headline tracking-tight">Dwell Hub</h1>
+              <p className="text-[10px] text-outline font-bold uppercase tracking-widest">Management Portal</p>
             </div>
           </div>
 
-          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
-            <ShieldAlert className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+          <div className="mb-6 p-4 bg-warning-container border border-warning/20 rounded-xl flex items-start gap-3">
+            <ShieldAlert className="w-5 h-5 text-warning mt-0.5 flex-shrink-0" />
             <div>
-              <p className="text-sm font-semibold text-amber-800">Password Change Required</p>
-              <p className="text-xs text-amber-700 mt-1">
+              <p className="text-sm font-semibold text-on-warning-container">Password Change Required</p>
+              <p className="text-xs text-warning mt-1">
                 Your account was created by your society admin. Please set a new secure password to continue.
                 Your current password is your registered phone number.
               </p>
             </div>
           </div>
 
-          <h2 className="text-xl font-semibold text-gray-900 mb-1">Change Password</h2>
-          <p className="text-sm text-gray-500 mb-6">
+          <h2 className="text-xl font-semibold text-on-surface mb-1">Change Password</h2>
+          <p className="text-sm text-on-surface-variant mb-6">
             Welcome, {user?.name}! Please choose a secure password.
           </p>
 
@@ -95,7 +95,7 @@ export default function ChangePasswordPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface-variant"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -127,8 +127,8 @@ export default function ChangePasswordPage() {
             </div>
 
             {/* Password requirements */}
-            <div className="p-3 bg-gray-50 rounded-xl space-y-1.5">
-              <p className="text-xs font-semibold text-gray-600 mb-2">Password Requirements:</p>
+            <div className="p-3 bg-surface-container-low rounded-xl space-y-1.5">
+              <p className="text-xs font-semibold text-on-surface-variant mb-2">Password Requirements:</p>
               {[
                 { check: passwordChecks.length, label: 'At least 8 characters' },
                 { check: passwordChecks.uppercase, label: 'One uppercase letter' },
@@ -137,7 +137,7 @@ export default function ChangePasswordPage() {
                 { check: passwordChecks.match, label: 'Passwords match' },
                 { check: passwordChecks.notSame, label: 'New password differs from current' },
               ].map(({ check, label }) => (
-                <div key={label} className={`flex items-center gap-2 text-xs ${check ? 'text-emerald-600' : 'text-gray-400'}`}>
+                <div key={label} className={`flex items-center gap-2 text-xs ${check ? 'text-tertiary' : 'text-outline'}`}>
                   <CheckCircle className="w-3.5 h-3.5" />
                   <span>{label}</span>
                 </div>
@@ -147,7 +147,7 @@ export default function ChangePasswordPage() {
             <button
               type="submit"
               disabled={loading || !allValid}
-              className="btn-primary w-full disabled:opacity-50"
+              className="btn-gradient w-full py-3 disabled:opacity-50"
             >
               {loading ? 'Changing...' : 'Set New Password & Continue'}
             </button>
@@ -155,13 +155,16 @@ export default function ChangePasswordPage() {
         </div>
       </div>
 
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-primary-600 to-primary-800 items-center justify-center p-12">
-        <div className="text-center text-white max-w-md">
-          <ShieldAlert className="w-20 h-20 mx-auto mb-6 opacity-90" />
-          <h2 className="text-3xl font-bold mb-4">Secure Your Account</h2>
-          <p className="text-primary-100 leading-relaxed">
-            Choose a strong password that only you know. This keeps your apartment
-            account and personal information safe.
+      <div className="hidden lg:flex flex-1 bg-primary relative overflow-hidden items-center justify-center p-12">
+        <div className="absolute top-20 -left-20 w-72 h-72 bg-primary-container/20 rounded-full blur-3xl" />
+        <div className="absolute bottom-10 right-10 w-56 h-56 bg-tertiary/10 rounded-full blur-2xl" />
+        <div className="relative text-center text-white max-w-md">
+          <div className="w-20 h-20 mx-auto mb-8 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center">
+            <ShieldAlert className="w-10 h-10 text-white/90" />
+          </div>
+          <h2 className="font-manrope text-4xl font-extrabold tracking-tight mb-3">Stay <span className="italic text-primary-fixed">Secure</span></h2>
+          <p className="text-on-primary/50 text-sm leading-relaxed">
+            Choose a strong password that only you know. This keeps your apartment account safe.
           </p>
         </div>
       </div>

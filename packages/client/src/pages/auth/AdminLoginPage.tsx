@@ -42,33 +42,35 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-slate-950">
-      <div className="hidden lg:flex flex-1 items-center justify-center p-12 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.22),_transparent_32%),linear-gradient(180deg,#020617_0%,#0f172a_100%)]">
-        <div className="max-w-md text-white">
-          <div className="w-16 h-16 rounded-2xl bg-cyan-400/15 border border-cyan-300/20 flex items-center justify-center mb-6">
-            <Shield className="w-8 h-8 text-cyan-300" />
+    <div className="min-h-screen flex bg-primary">
+      <div className="hidden lg:flex flex-1 items-center justify-center p-12 relative overflow-hidden">
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-64 h-64 bg-tertiary-fixed/5 rounded-full blur-2xl"></div>
+        <div className="relative z-10 max-w-md text-white">
+          <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur border border-white/10 flex items-center justify-center mb-6">
+            <Shield className="w-8 h-8 text-primary-fixed" />
           </div>
-          <h1 className="text-4xl font-bold tracking-tight">Admin Portal</h1>
-          <p className="mt-4 text-sm leading-6 text-slate-300">
-            Sign in with an admin account that already exists in the database. This portal only accepts ADMIN and SUPER_ADMIN roles.
+          <h1 className="editorial-title text-4xl font-extrabold tracking-tight">Admin Portal</h1>
+          <p className="mt-4 text-sm leading-6 text-primary-fixed/60">
+            Sign in with an admin account. This portal only accepts ADMIN and SUPER_ADMIN roles.
           </p>
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center p-8 bg-white">
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 bg-surface">
         <div className="w-full max-w-md">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center">
-              <Shield className="w-6 h-6 text-cyan-300" />
+          <div className="flex items-center gap-3 mb-10">
+            <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center">
+              <Shield className="w-6 h-6 text-primary-fixed" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Resilynk Admin</h1>
-              <p className="text-sm text-gray-500">Dedicated access for society admins</p>
+              <h1 className="text-2xl font-extrabold text-primary font-headline tracking-tight">Dwell Hub</h1>
+              <p className="text-[10px] text-outline font-bold uppercase tracking-widest">Admin Access</p>
             </div>
           </div>
 
-          <h2 className="text-xl font-semibold text-gray-900 mb-1">Admin Sign In</h2>
-          <p className="text-sm text-gray-500 mb-6">Use the admin email ID and password that were inserted into the database.</p>
+          <h2 className="editorial-title text-3xl font-extrabold text-primary mb-1">Admin Sign In</h2>
+          <p className="text-sm text-on-surface-variant mb-8">Use the admin email ID and password for your society.</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -97,27 +99,27 @@ export default function AdminLoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface-variant"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            <button type="submit" disabled={loading} className="btn-primary w-full bg-slate-900 hover:bg-slate-800 focus:ring-slate-500">
+            <button type="submit" disabled={loading} className="btn-gradient w-full py-3">
               {loading ? 'Signing in...' : 'Open Admin Portal'}
             </button>
           </form>
 
-          <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Credential source</p>
-            <p className="mt-1 text-sm text-slate-700">
-              Admin email IDs are expected to be created directly in the database, not from seeded demo values.
+          <div className="mt-6 rounded-2xl bg-surface-container-low px-4 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-outline">Credential source</p>
+            <p className="mt-1 text-sm text-on-surface-variant">
+              Admin accounts are created during society registration or by existing admins.
             </p>
           </div>
 
           <div className="mt-5 text-center">
-            <Link to="/login" className="text-sm font-medium text-primary-600 hover:text-primary-700">
+            <Link to="/login" className="text-sm font-medium text-primary hover:text-primary">
               Resident login
             </Link>
           </div>

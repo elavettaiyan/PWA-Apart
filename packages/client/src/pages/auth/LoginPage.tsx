@@ -39,20 +39,20 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* Left: Form */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
         <div className="w-full max-w-md">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 bg-primary-600 rounded-2xl flex items-center justify-center">
+          <div className="flex items-center gap-3 mb-10">
+            <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center">
               <Building2 className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Resilynk</h1>
-              <p className="text-sm text-gray-500">Your Apartment, Connected</p>
+              <h1 className="text-2xl font-extrabold text-primary font-headline tracking-tight">Dwell Hub</h1>
+              <p className="text-[10px] text-outline font-bold uppercase tracking-widest">Management Portal</p>
             </div>
           </div>
 
-          <h2 className="text-xl font-semibold text-gray-900 mb-1">Welcome back</h2>
-          <p className="text-sm text-gray-500 mb-6">Sign in to manage your apartment complex</p>
+          <h2 className="editorial-title text-3xl font-extrabold text-primary mb-1">Welcome back</h2>
+          <p className="text-sm text-on-surface-variant mb-8">Sign in to manage your apartment complex</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -81,7 +81,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface-variant"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -91,7 +91,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full"
+              className="btn-gradient w-full py-3"
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
@@ -99,7 +99,7 @@ export default function LoginPage() {
             <div className="text-right">
               <Link
                 to="/forgot-password"
-                className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                className="text-sm text-primary hover:text-primary font-medium"
               >
                 Forgot Password?
               </Link>
@@ -112,13 +112,13 @@ export default function LoginPage() {
           <div className="mt-4 text-center">
             <Link
               to="/admin/login"
-              className="block text-sm text-gray-500 hover:text-gray-700 font-medium mb-3"
+              className="block text-sm text-on-surface-variant hover:text-on-surface-variant font-medium mb-3"
             >
               Admin portal login
             </Link>
             <Link
               to="/register"
-              className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+              className="text-sm text-primary hover:text-primary font-medium"
             >
               Register a new apartment complex →
             </Link>
@@ -126,14 +126,18 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right: Decorative */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-primary-600 to-primary-800 items-center justify-center p-12">
-        <div className="text-center text-white max-w-md">
-          <Building2 className="w-20 h-20 mx-auto mb-6 opacity-90" />
-          <h2 className="text-3xl font-bold mb-4">Manage Your Society Effortlessly</h2>
-          <p className="text-primary-100 leading-relaxed">
-            Complete solution for apartment management — handle maintenance billing,
-            track complaints, manage expenses, and generate financial reports all in one place.
+      {/* Right: Editorial Decorative Panel */}
+      <div className="hidden lg:flex flex-1 bg-primary items-center justify-center p-12 relative overflow-hidden">
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-64 h-64 bg-tertiary-fixed/5 rounded-full blur-2xl"></div>
+        <div className="relative z-10 text-center text-white max-w-md">
+          <div className="w-20 h-20 bg-white/10 backdrop-blur rounded-3xl flex items-center justify-center mx-auto mb-8">
+            <Building2 className="w-10 h-10 text-primary-fixed" />
+          </div>
+          <h2 className="editorial-title text-4xl font-extrabold mb-4 leading-tight">Apartment<br/>Management,<br/><em className="text-primary-fixed">Made Clearer.</em></h2>
+          <p className="text-primary-fixed/60 leading-relaxed mt-6">
+            Complete solution for apartment management — billing,
+            complaints, expenses, and reports all in one place.
           </p>
         </div>
       </div>

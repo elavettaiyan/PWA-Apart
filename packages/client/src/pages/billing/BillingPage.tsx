@@ -211,8 +211,9 @@ export default function BillingPage() {
     <div>
       <div className="page-header">
         <div>
+          <p className="section-label mb-2">Financials</p>
           <h1 className="page-title">Maintenance Billing</h1>
-          <p className="text-sm text-gray-500 mt-1">Generate and manage monthly maintenance bills</p>
+          <p className="text-sm text-on-surface-variant mt-1">Generate and manage monthly maintenance bills</p>
         </div>
         {isAdmin && (
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
@@ -228,11 +229,11 @@ export default function BillingPage() {
 
       {isAdmin && (
         <div className="grid gap-4 mb-6 md:grid-cols-[1.25fr_0.75fr]">
-          <div className="rounded-2xl border border-gray-200 bg-white p-5">
+          <div className="rounded-2xl bg-surface-container-lowest p-5 editorial-shadow">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-gray-900">Monthly Maintenance Amount</p>
-                <p className="mt-1 text-sm text-gray-500">
+                <p className="text-sm font-semibold text-on-surface">Monthly Maintenance Amount</p>
+                <p className="mt-1 text-sm text-on-surface-variant">
                   Apply one shared monthly amount across all flat types in this society.
                 </p>
               </div>
@@ -241,56 +242,56 @@ export default function BillingPage() {
 
             {configSummary?.isConfigured ? (
               <div className="mt-4 grid gap-3 grid-cols-1 sm:grid-cols-3">
-                <div className="rounded-xl bg-gray-50 p-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Monthly Total</p>
-                  <p className="mt-2 text-2xl font-semibold text-gray-900">{formatCurrency(configSummary.totalMonthlyAmount)}</p>
+                <div className="rounded-xl bg-surface-container-low p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-on-surface-variant">Monthly Total</p>
+                  <p className="mt-2 text-2xl font-semibold text-on-surface">{formatCurrency(configSummary.totalMonthlyAmount)}</p>
                 </div>
-                <div className="rounded-xl bg-gray-50 p-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Base Amount</p>
-                  <p className="mt-2 text-xl font-semibold text-gray-900">{formatCurrency(configSummary.baseAmount)}</p>
+                <div className="rounded-xl bg-surface-container-low p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-on-surface-variant">Base Amount</p>
+                  <p className="mt-2 text-xl font-semibold text-on-surface">{formatCurrency(configSummary.baseAmount)}</p>
                 </div>
-                <div className="rounded-xl bg-gray-50 p-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Due Day</p>
-                  <p className="mt-2 text-xl font-semibold text-gray-900">{configSummary.dueDay}th of every month</p>
+                <div className="rounded-xl bg-surface-container-low p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-on-surface-variant">Due Day</p>
+                  <p className="mt-2 text-xl font-semibold text-on-surface">{configSummary.dueDay}th of every month</p>
                 </div>
               </div>
             ) : (
-              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <div className="mt-4 rounded-xl border border-warning/20 bg-warning-container p-4 text-sm text-on-warning-container">
                 Bills cannot be generated until you set the monthly maintenance amount.
               </div>
             )}
           </div>
 
-          <div className="rounded-2xl border border-gray-200 bg-white p-5">
-            <p className="text-sm font-semibold text-gray-900">Generation Status</p>
-            <p className="mt-1 text-sm text-gray-500">The latest generation attempt is shown here.</p>
+          <div className="rounded-2xl bg-surface-container-lowest p-5 editorial-shadow">
+            <p className="text-sm font-semibold text-on-surface">Generation Status</p>
+            <p className="mt-1 text-sm text-on-surface-variant">The latest generation attempt is shown here.</p>
 
             {generationResult ? (
               <div className="mt-4 space-y-3 text-sm">
-                <div className="rounded-xl bg-gray-50 p-4">
-                  <p className="font-medium text-gray-900">
+                <div className="rounded-xl bg-surface-container-low p-4">
+                  <p className="font-medium text-on-surface">
                     {generationResult.error || generationResult.message || 'Generation result'}
                   </p>
-                  <p className="mt-1 text-gray-600">
+                  <p className="mt-1 text-on-surface-variant">
                     Generated {generationResult.generatedCount} of {generationResult.totalFlats} eligible bills.
                   </p>
                 </div>
                 {generationResult.errors?.length ? (
-                  <div className="rounded-xl border border-gray-200 p-4">
-                    <p className="font-medium text-gray-900">Issues</p>
-                    <ul className="mt-2 space-y-2 text-gray-600">
+                  <div className="rounded-xl border border-outline-variant/15 p-4">
+                    <p className="font-medium text-on-surface">Issues</p>
+                    <ul className="mt-2 space-y-2 text-on-surface-variant">
                       {generationResult.errors.slice(0, 5).map((error) => (
                         <li key={error}>{error}</li>
                       ))}
                     </ul>
                     {generationResult.errors.length > 5 ? (
-                      <p className="mt-2 text-xs text-gray-500">+ {generationResult.errors.length - 5} more</p>
+                      <p className="mt-2 text-xs text-on-surface-variant">+ {generationResult.errors.length - 5} more</p>
                     ) : null}
                   </div>
                 ) : null}
               </div>
             ) : (
-              <div className="mt-4 rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
+              <div className="mt-4 rounded-xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
                 No generation attempt yet for this session.
               </div>
             )}
@@ -301,7 +302,7 @@ export default function BillingPage() {
       {/* Month/Year Filter */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         {!isAdmin && (
-          <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+          <label className="inline-flex items-center gap-2 text-sm text-on-surface-variant">
             <input
               type="checkbox"
               checked={applyMonthYearFilter}
@@ -344,15 +345,15 @@ export default function BillingPage() {
         </div>
         <div className="stat-card">
           <p className="stat-label">Collected</p>
-          <p className="text-base sm:text-lg font-bold text-emerald-600">{formatCurrency(totalCollected)}</p>
+          <p className="text-base sm:text-lg font-bold text-tertiary">{formatCurrency(totalCollected)}</p>
         </div>
         <div className="stat-card">
           <p className="stat-label">Paid</p>
-          <p className="text-base sm:text-lg font-bold text-emerald-600">{paidCount} flats</p>
+          <p className="text-base sm:text-lg font-bold text-tertiary">{paidCount} flats</p>
         </div>
         <div className="stat-card">
           <p className="stat-label">Pending</p>
-          <p className="text-base sm:text-lg font-bold text-amber-600">{pendingCount} flats</p>
+          <p className="text-base sm:text-lg font-bold text-warning">{pendingCount} flats</p>
         </div>
       </div>
 
@@ -390,12 +391,12 @@ export default function BillingPage() {
                         onChange={(e) => toggleBillSelection(bill.id, e.target.checked)}
                       />
                     )}
-                    <p className="font-semibold text-gray-900 truncate">
+                    <p className="font-semibold text-on-surface truncate">
                       {bill.flat?.flatNumber}
-                      <span className="ml-1 text-xs font-normal text-gray-500">{bill.flat?.block?.name}</span>
+                      <span className="ml-1 text-xs font-normal text-on-surface-variant">{bill.flat?.block?.name}</span>
                     </p>
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-xs text-on-surface-variant mt-0.5">
                     {bill.flat?.owner?.name || '—'} &middot; {getMonthName(bill.month)} {bill.year}
                   </p>
                 </div>
@@ -403,19 +404,19 @@ export default function BillingPage() {
               </div>
 
               {/* Row 2 – Amounts & actions */}
-              <div className="border-t border-gray-100 bg-gray-50/60 px-4 py-3 flex items-center justify-between gap-2">
+              <div className="border-t border-outline-variant/10 bg-surface-container-low/60 px-4 py-3 flex items-center justify-between gap-2">
                 <div className="flex gap-4 text-xs">
                   <div>
-                    <span className="text-gray-400 block">Total</span>
-                    <span className="font-semibold text-gray-900">{formatCurrency(bill.totalAmount)}</span>
+                    <span className="text-outline block">Total</span>
+                    <span className="font-semibold text-on-surface">{formatCurrency(bill.totalAmount)}</span>
                   </div>
                   <div>
-                    <span className="text-gray-400 block">Paid</span>
-                    <span className="font-semibold text-emerald-600">{formatCurrency(bill.paidAmount)}</span>
+                    <span className="text-outline block">Paid</span>
+                    <span className="font-semibold text-tertiary">{formatCurrency(bill.paidAmount)}</span>
                   </div>
                   <div>
-                    <span className="text-gray-400 block">Due</span>
-                    <span className="font-semibold text-red-600">{formatCurrency(bill.totalAmount - bill.paidAmount)}</span>
+                    <span className="text-outline block">Due</span>
+                    <span className="font-semibold text-error">{formatCurrency(bill.totalAmount - bill.paidAmount)}</span>
                   </div>
                 </div>
                 {bill.status !== 'PAID' && (
@@ -484,17 +485,17 @@ export default function BillingPage() {
                   </td>
                   <td>
                     <div>
-                      <p className="font-medium text-gray-900">{bill.flat?.flatNumber}</p>
-                      <p className="text-xs text-gray-500">{bill.flat?.block?.name}</p>
+                      <p className="font-medium text-on-surface">{bill.flat?.flatNumber}</p>
+                      <p className="text-xs text-on-surface-variant">{bill.flat?.block?.name}</p>
                     </div>
                   </td>
                   <td>
                     <p className="text-sm">{bill.flat?.owner?.name || '-'}</p>
-                    <p className="text-xs text-gray-500">{bill.flat?.owner?.phone}</p>
+                    <p className="text-xs text-on-surface-variant">{bill.flat?.owner?.phone}</p>
                   </td>
                   <td className="font-medium whitespace-nowrap">{formatCurrency(bill.totalAmount)}</td>
-                  <td className="text-emerald-600 font-medium whitespace-nowrap">{formatCurrency(bill.paidAmount)}</td>
-                  <td className="text-red-600 font-medium whitespace-nowrap">{formatCurrency(bill.totalAmount - bill.paidAmount)}</td>
+                  <td className="text-tertiary font-medium whitespace-nowrap">{formatCurrency(bill.paidAmount)}</td>
+                  <td className="text-error font-medium whitespace-nowrap">{formatCurrency(bill.totalAmount - bill.paidAmount)}</td>
                   <td><span className={cn('badge', getStatusColor(bill.status))}>{bill.status}</span></td>
                   <td>
                     {bill.status !== 'PAID' && (
@@ -527,11 +528,11 @@ export default function BillingPage() {
       {/* Generate Bills Modal */}
       <Modal isOpen={showGenerate} onClose={() => setShowGenerate(false)} title="Generate Monthly Bills">
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-on-surface-variant">
             This will generate maintenance bills for all occupied flats based on the configured rates.
           </p>
           {!canGenerateBills ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <div className="rounded-xl border border-warning/20 bg-warning-container p-4 text-sm text-on-warning-container">
               Set the monthly maintenance amount before generating bills.
             </div>
           ) : null}
@@ -627,9 +628,9 @@ function ConfigureBillingForm({
       }}
       className="space-y-4"
     >
-      <div className="rounded-xl bg-gray-50 p-4">
-        <p className="text-sm font-medium text-gray-900">Total monthly bill per flat</p>
-        <p className="mt-2 text-2xl font-semibold text-gray-900">{formatCurrency(totalMonthlyAmount)}</p>
+      <div className="rounded-xl bg-surface-container-low p-4">
+        <p className="text-sm font-medium text-on-surface">Total monthly bill per flat</p>
+        <p className="mt-2 text-2xl font-semibold text-on-surface">{formatCurrency(totalMonthlyAmount)}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -692,7 +693,7 @@ function RecordPaymentForm({ bill, onSuccess }: { bill: MaintenanceBill; onSucce
       onSubmit={(e) => { e.preventDefault(); mutation.mutate({ amount, method, receiptNo }); }}
       className="space-y-4"
     >
-      <div className="p-3 bg-gray-50 rounded-lg text-sm">
+      <div className="p-3 bg-surface-container-low rounded-lg text-sm">
         <p><strong>Flat:</strong> {bill.flat?.flatNumber}</p>
         <p><strong>Total:</strong> {formatCurrency(bill.totalAmount)} | <strong>Paid:</strong> {formatCurrency(bill.paidAmount)} | <strong>Due:</strong> {formatCurrency(bill.totalAmount - bill.paidAmount)}</p>
       </div>

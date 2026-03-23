@@ -35,8 +35,9 @@ export default function ReportsPage() {
     <div>
       <div className="page-header">
         <div>
+          <p className="section-label mb-2">Analytics</p>
           <h1 className="page-title">Reports</h1>
-          <p className="text-sm text-gray-500 mt-1">Financial reports and analytics</p>
+          <p className="text-sm text-on-surface-variant mt-1">Financial reports and analytics</p>
         </div>
       </div>
 
@@ -49,8 +50,8 @@ export default function ReportsPage() {
             className={cn(
               'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition',
               activeTab === tab.id
-                ? 'bg-primary-600 text-white shadow-sm'
-                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50',
+                ? 'bg-primary text-white shadow-sm'
+                : 'bg-white text-on-surface-variant border border-outline-variant/15 hover:bg-surface-container-low',
             )}
           >
             <tab.icon className="w-4 h-4" />
@@ -99,21 +100,21 @@ function CollectionReportTab({ month, year, setMonth, setYear }: any) {
             </div>
             <div className="stat-card">
               <p className="stat-label">Collected</p>
-              <p className="text-lg font-bold text-emerald-600">{formatCurrency(summary.totalCollected)}</p>
+              <p className="text-lg font-bold text-tertiary">{formatCurrency(summary.totalCollected)}</p>
             </div>
             <div className="stat-card">
               <p className="stat-label">Pending</p>
-              <p className="text-lg font-bold text-amber-600">{formatCurrency(summary.totalPending)}</p>
+              <p className="text-lg font-bold text-warning">{formatCurrency(summary.totalPending)}</p>
             </div>
             <div className="stat-card">
               <p className="stat-label">Collection Rate</p>
-              <p className="text-lg font-bold text-primary-600">{summary.collectionRate}%</p>
+              <p className="text-lg font-bold text-primary">{summary.collectionRate}%</p>
             </div>
           </div>
 
           {/* Collection bar chart */}
           <div className="card p-6 mb-6">
-            <h3 className="font-semibold text-gray-900 mb-4">Payment Status Distribution</h3>
+            <h3 className="font-semibold text-on-surface mb-4">Payment Status Distribution</h3>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={[
                 { name: 'Paid', count: summary.paidCount, fill: '#10b981' },
@@ -156,11 +157,11 @@ function DefaultersTab() {
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="stat-card">
           <p className="stat-label">Total Defaulters</p>
-          <p className="text-2xl font-bold text-red-600">{data?.totalDefaulters || 0}</p>
+          <p className="text-2xl font-bold text-error">{data?.totalDefaulters || 0}</p>
         </div>
         <div className="stat-card">
           <p className="stat-label">Total Outstanding</p>
-          <p className="text-2xl font-bold text-red-600">{formatCurrency(data?.totalOutstanding || 0)}</p>
+          <p className="text-2xl font-bold text-error">{formatCurrency(data?.totalOutstanding || 0)}</p>
         </div>
       </div>
 
@@ -180,12 +181,12 @@ function DefaultersTab() {
               <tr key={i}>
                 <td>
                   <p className="font-medium">{d.flat.flatNumber}</p>
-                  <p className="text-xs text-gray-500">{d.flat.block?.name}</p>
+                  <p className="text-xs text-on-surface-variant">{d.flat.block?.name}</p>
                 </td>
                 <td>{d.flat.owner?.name || '-'}</td>
-                <td className="text-sm text-gray-500">{d.flat.owner?.phone}</td>
+                <td className="text-sm text-on-surface-variant">{d.flat.owner?.phone}</td>
                 <td><span className="badge badge-danger">{d.bills.length} months</span></td>
-                <td className="font-bold text-red-600">{formatCurrency(d.totalOutstanding)}</td>
+                <td className="font-bold text-error">{formatCurrency(d.totalOutstanding)}</td>
               </tr>
             ))}
           </tbody>
@@ -222,13 +223,13 @@ function ExpenseSummaryTab() {
     <div>
       <div className="stat-card mb-6">
         <p className="stat-label">Total Expenses</p>
-        <p className="text-2xl font-bold text-red-600">{formatCurrency(data?.total || 0)}</p>
+        <p className="text-2xl font-bold text-error">{formatCurrency(data?.total || 0)}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Pie Chart */}
         <div className="card p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Expenses by Category</h3>
+          <h3 className="font-semibold text-on-surface mb-4">Expenses by Category</h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie data={pieData} cx="50%" cy="50%" outerRadius={100} dataKey="value" label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}>
@@ -241,7 +242,7 @@ function ExpenseSummaryTab() {
 
         {/* Monthly Trend */}
         <div className="card p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Monthly Expense Trend</h3>
+          <h3 className="font-semibold text-on-surface mb-4">Monthly Expense Trend</h3>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -298,30 +299,30 @@ function PnLTab({ from, to, setFrom, setTo }: { from: string; to: string; setFro
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="stat-card">
           <div className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-emerald-500" />
+            <TrendingUp className="w-5 h-5 text-tertiary" />
             <p className="stat-label">Total Income</p>
           </div>
-          <p className="text-2xl font-bold text-emerald-600">{formatCurrency(data?.income?.total || 0)}</p>
+          <p className="text-2xl font-bold text-tertiary">{formatCurrency(data?.income?.total || 0)}</p>
         </div>
         <div className="stat-card">
           <div className="flex items-center gap-2">
-            <TrendingDown className="w-5 h-5 text-red-500" />
+            <TrendingDown className="w-5 h-5 text-error" />
             <p className="stat-label">Total Expenses</p>
           </div>
-          <p className="text-2xl font-bold text-red-600">{formatCurrency(data?.expenses?.total || 0)}</p>
+          <p className="text-2xl font-bold text-error">{formatCurrency(data?.expenses?.total || 0)}</p>
         </div>
         <div className="stat-card">
           <div className="flex items-center gap-2">
-            {isProfit ? <TrendingUp className="w-5 h-5 text-emerald-500" /> : <TrendingDown className="w-5 h-5 text-red-500" />}
+            {isProfit ? <TrendingUp className="w-5 h-5 text-tertiary" /> : <TrendingDown className="w-5 h-5 text-error" />}
             <p className="stat-label">Net {isProfit ? 'Profit' : 'Loss'}</p>
           </div>
-          <p className={cn('text-2xl font-bold', isProfit ? 'text-emerald-600' : 'text-red-600')}>
+          <p className={cn('text-2xl font-bold', isProfit ? 'text-tertiary' : 'text-error')}>
             {formatCurrency(Math.abs(data?.netProfitLoss || 0))}
           </p>
         </div>
         <div className="stat-card">
           <p className="stat-label">Profit Margin</p>
-          <p className={cn('text-2xl font-bold', isProfit ? 'text-emerald-600' : 'text-red-600')}>
+          <p className={cn('text-2xl font-bold', isProfit ? 'text-tertiary' : 'text-error')}>
             {data?.profitMargin || '0'}%
           </p>
         </div>
@@ -329,7 +330,7 @@ function PnLTab({ from, to, setFrom, setTo }: { from: string; to: string; setFro
 
       {/* Income vs Expense Chart */}
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-gray-900 mb-4">Income vs Expenses (Monthly)</h3>
+        <h3 className="font-semibold text-on-surface mb-4">Income vs Expenses (Monthly)</h3>
         <ResponsiveContainer width="100%" height={350}>
           <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -345,15 +346,15 @@ function PnLTab({ from, to, setFrom, setTo }: { from: string; to: string; setFro
 
       {/* Expense Breakdown Table */}
       <div className="card p-6">
-        <h3 className="font-semibold text-gray-900 mb-4">Expense Breakdown by Category</h3>
+        <h3 className="font-semibold text-on-surface mb-4">Expense Breakdown by Category</h3>
         <div className="space-y-3">
           {data?.expenses?.byCategory?.map((cat: any, i: number) => {
             const pct = data.expenses.total > 0 ? ((cat._sum.amount / data.expenses.total) * 100).toFixed(1) : '0';
             return (
               <div key={i} className="flex items-center gap-4">
-                <div className="w-32 text-sm font-medium text-gray-700">{cat.category.replace('_', ' ')}</div>
+                <div className="w-32 text-sm font-medium text-on-surface-variant">{cat.category.replace('_', ' ')}</div>
                 <div className="flex-1">
-                  <div className="h-6 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-6 bg-surface-container rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all"
                       style={{
@@ -363,10 +364,10 @@ function PnLTab({ from, to, setFrom, setTo }: { from: string; to: string; setFro
                     />
                   </div>
                 </div>
-                <div className="w-24 text-right text-sm font-semibold text-gray-700">
+                <div className="w-24 text-right text-sm font-semibold text-on-surface-variant">
                   {formatCurrency(cat._sum.amount)}
                 </div>
-                <div className="w-12 text-right text-xs text-gray-500">{pct}%</div>
+                <div className="w-12 text-right text-xs text-on-surface-variant">{pct}%</div>
               </div>
             );
           })}

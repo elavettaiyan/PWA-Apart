@@ -146,8 +146,9 @@ export default function SettingsPage() {
     <div>
       <div className="page-header">
         <div>
+          <p className="section-label mb-2">Configuration</p>
           <h1 className="page-title">Settings</h1>
-          <p className="text-sm text-gray-500 mt-1">Configure payment gateway and application settings</p>
+          <p className="text-sm text-on-surface-variant mt-1">Configure payment gateway and application settings</p>
         </div>
       </div>
 
@@ -162,8 +163,8 @@ export default function SettingsPage() {
               <CreditCard className="w-6 h-6 text-purple-600" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">PhonePe Payment Gateway</h2>
-              <p className="text-xs text-gray-500">
+              <h2 className="text-lg font-semibold text-on-surface">PhonePe Payment Gateway</h2>
+              <p className="text-xs text-on-surface-variant">
                 Configure your PhonePe merchant credentials to enable online payments
               </p>
             </div>
@@ -179,19 +180,19 @@ export default function SettingsPage() {
               >
                 {cfg?.isActive ? (
                   <>
-                    <ToggleRight className="w-8 h-8 text-emerald-500" />
-                    <span className="text-emerald-600">Active</span>
+                    <ToggleRight className="w-8 h-8 text-tertiary" />
+                    <span className="text-tertiary">Active</span>
                   </>
                 ) : (
                   <>
-                    <ToggleLeft className="w-8 h-8 text-gray-400" />
-                    <span className="text-gray-500">Disabled</span>
+                    <ToggleLeft className="w-8 h-8 text-outline" />
+                    <span className="text-on-surface-variant">Disabled</span>
                   </>
                 )}
               </button>
             )}
             {!isConfigured && (
-              <span className="badge bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20">
+              <span className="badge bg-warning-container text-warning ring-1 ring-inset ring-warning/20">
                 Not Configured
               </span>
             )}
@@ -204,8 +205,8 @@ export default function SettingsPage() {
             className={cn(
               'flex items-center gap-2 p-3 rounded-lg mb-6 text-sm',
               cfg.lastTestOk
-                ? 'bg-emerald-50 text-emerald-700'
-                : 'bg-red-50 text-red-700',
+                ? 'bg-tertiary-container text-tertiary'
+                : 'bg-error-container text-error',
             )}
           >
             {cfg.lastTestOk ? (
@@ -235,9 +236,9 @@ export default function SettingsPage() {
                     'flex-1 px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all',
                     form.environment === env
                       ? env === 'PRODUCTION'
-                        ? 'border-red-500 bg-red-50 text-red-700'
-                        : 'border-primary-500 bg-primary-50 text-primary-700'
-                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300',
+                        ? 'border-error bg-error-container text-error'
+                        : 'border-primary-500 bg-primary-container text-primary'
+                      : 'border-outline-variant/15 bg-white text-on-surface-variant hover:border-outline-variant',
                   )}
                 >
                   <div className="flex items-center justify-center gap-2">
@@ -253,7 +254,7 @@ export default function SettingsPage() {
           </div>
 
           {form.environment === 'PRODUCTION' && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 text-red-700 text-sm">
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-error-container text-error text-sm">
               <ShieldCheck className="w-4 h-4 shrink-0" />
               <span>
                 <strong>Production mode:</strong> Real money will be charged. Make sure your PhonePe merchant account is fully activated.
@@ -264,17 +265,17 @@ export default function SettingsPage() {
           {/* Merchant ID & Salt Key */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="label">Merchant ID <span className="text-red-500">*</span></label>
+              <label className="label">Merchant ID <span className="text-error">*</span></label>
               <input
                 className="input"
                 value={form.merchantId}
                 onChange={(e) => handleChange('merchantId', e.target.value)}
                 placeholder="e.g., MERCHANTUAT"
               />
-              <p className="text-xs text-gray-400 mt-1">From your PhonePe merchant dashboard</p>
+              <p className="text-xs text-outline mt-1">From your PhonePe merchant dashboard</p>
             </div>
             <div>
-              <label className="label">Salt Key <span className="text-red-500">*</span></label>
+              <label className="label">Salt Key <span className="text-error">*</span></label>
               <div className="relative">
                 <input
                   className="input pr-10"
@@ -285,14 +286,14 @@ export default function SettingsPage() {
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface-variant"
                   onClick={() => setShowSaltKey(!showSaltKey)}
                 >
                   {showSaltKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
               {isConfigured && cfg?.saltKeySet && (
-                <p className="text-xs text-amber-600 mt-1">
+                <p className="text-xs text-warning mt-1">
                   Current key is already saved. Leave this blank to keep it, or enter a new value to rotate it.
                 </p>
               )}
@@ -308,16 +309,16 @@ export default function SettingsPage() {
               onChange={(e) => handleChange('saltIndex', parseInt(e.target.value) || 1)}
               min={1}
             />
-            <p className="text-xs text-gray-400 mt-1">Usually 1 (check your PhonePe dashboard)</p>
+            <p className="text-xs text-outline mt-1">Usually 1 (check your PhonePe dashboard)</p>
           </div>
 
           {/* URLs (collapsible advanced) */}
           <details className="group">
-            <summary className="cursor-pointer text-sm font-medium text-gray-600 hover:text-gray-900 flex items-center gap-1">
+            <summary className="cursor-pointer text-sm font-medium text-on-surface-variant hover:text-on-surface flex items-center gap-1">
               <Settings className="w-4 h-4" />
               Advanced URL Settings
             </summary>
-            <div className="mt-4 space-y-4 pl-5 border-l-2 border-gray-100">
+            <div className="mt-4 space-y-4 pl-5 border-l-2 border-outline-variant/10">
               <div>
                 <label className="label">Redirect URL</label>
                 <input
@@ -326,7 +327,7 @@ export default function SettingsPage() {
                   onChange={(e) => handleChange('redirectUrl', e.target.value)}
                   placeholder="Where users return after payment"
                 />
-                <p className="text-xs text-gray-400 mt-1">User gets redirected here after payment on PhonePe</p>
+                <p className="text-xs text-outline mt-1">User gets redirected here after payment on PhonePe</p>
               </div>
               <div>
                 <label className="label">Callback URL (Server-to-Server)</label>
@@ -336,14 +337,14 @@ export default function SettingsPage() {
                   onChange={(e) => handleChange('callbackUrl', e.target.value)}
                   placeholder="Server callback endpoint"
                 />
-                <p className="text-xs text-gray-400 mt-1">PhonePe sends payment status to this URL (must be publicly accessible). Recommended path: /api/payments/phonepe/callback</p>
+                <p className="text-xs text-outline mt-1">PhonePe sends payment status to this URL (must be publicly accessible). Recommended path: /api/payments/phonepe/callback</p>
               </div>
             </div>
           </details>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100">
+        <div className="flex items-center justify-between mt-8 pt-6 border-t border-outline-variant/10">
           <div className="flex gap-3">
             <button
               onClick={handleSave}
@@ -373,7 +374,7 @@ export default function SettingsPage() {
           </div>
 
           {hasChanges && (
-            <span className="text-xs text-amber-600 flex items-center gap-1">
+            <span className="text-xs text-warning flex items-center gap-1">
               <Clock className="w-3 h-3" /> Unsaved changes
             </span>
           )}
@@ -385,63 +386,63 @@ export default function SettingsPage() {
         <div
           className={cn(
             'card p-5',
-            testResult.success ? 'ring-2 ring-emerald-200' : 'ring-2 ring-red-200',
+            testResult.success ? 'ring-2 ring-tertiary/20' : 'ring-2 ring-error/20',
           )}
         >
           <div className="flex items-start gap-3">
             {testResult.success ? (
-              <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0 mt-0.5" />
+              <CheckCircle2 className="w-6 h-6 text-tertiary shrink-0 mt-0.5" />
             ) : (
-              <XCircle className="w-6 h-6 text-red-500 shrink-0 mt-0.5" />
+              <XCircle className="w-6 h-6 text-error shrink-0 mt-0.5" />
             )}
             <div className="flex-1">
               <h3
                 className={cn(
                   'font-semibold',
-                  testResult.success ? 'text-emerald-700' : 'text-red-700',
+                  testResult.success ? 'text-tertiary' : 'text-error',
                 )}
               >
                 {testResult.success ? 'Test Passed ✓' : 'Test Failed ✗'}
               </h3>
-              <p className="text-sm text-gray-600 mt-1">{testResult.message}</p>
+              <p className="text-sm text-on-surface-variant mt-1">{testResult.message}</p>
 
               {testResult.details && (
-                <div className="mt-3 bg-gray-50 rounded-lg p-3">
+                <div className="mt-3 bg-surface-container-low rounded-lg p-3">
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     {testResult.details.httpStatus && (
                       <div>
-                        <span className="text-gray-500">HTTP Status:</span>{' '}
+                        <span className="text-on-surface-variant">HTTP Status:</span>{' '}
                         <span className="font-mono font-medium">{testResult.details.httpStatus}</span>
                       </div>
                     )}
                     {testResult.details.code && (
                       <div>
-                        <span className="text-gray-500">Response Code:</span>{' '}
+                        <span className="text-on-surface-variant">Response Code:</span>{' '}
                         <span className="font-mono font-medium">{testResult.details.code}</span>
                       </div>
                     )}
                     {testResult.details.responseTime && (
                       <div>
-                        <span className="text-gray-500">Response Time:</span>{' '}
+                        <span className="text-on-surface-variant">Response Time:</span>{' '}
                         <span className="font-mono font-medium">{testResult.details.responseTime}</span>
                       </div>
                     )}
                     {testResult.details.environment && (
                       <div>
-                        <span className="text-gray-500">Environment:</span>{' '}
+                        <span className="text-on-surface-variant">Environment:</span>{' '}
                         <span className="font-mono font-medium">{testResult.details.environment}</span>
                       </div>
                     )}
                     {testResult.details.phonePeMessage && (
                       <div className="col-span-2">
-                        <span className="text-gray-500">PhonePe Message:</span>{' '}
+                        <span className="text-on-surface-variant">PhonePe Message:</span>{' '}
                         <span className="font-mono text-xs">{testResult.details.phonePeMessage}</span>
                       </div>
                     )}
                     {testResult.details.error && (
                       <div className="col-span-2">
-                        <span className="text-gray-500">Error:</span>{' '}
-                        <span className="font-mono text-xs text-red-600">{testResult.details.error}</span>
+                        <span className="text-on-surface-variant">Error:</span>{' '}
+                        <span className="font-mono text-xs text-error">{testResult.details.error}</span>
                       </div>
                     )}
                   </div>
@@ -496,9 +497,9 @@ const ROLE_BADGE: Record<string, string> = {
   ADMIN: 'bg-purple-50 text-purple-700',
   SECRETARY: 'bg-blue-50 text-blue-700',
   JOINT_SECRETARY: 'bg-cyan-50 text-cyan-700',
-  TREASURER: 'bg-amber-50 text-amber-700',
+  TREASURER: 'bg-warning-container text-warning',
   OWNER: 'bg-green-50 text-green-700',
-  TENANT: 'bg-gray-100 text-gray-700',
+  TENANT: 'bg-surface-container text-on-surface-variant',
   SERVICE_STAFF: 'bg-orange-50 text-orange-700',
 };
 
@@ -534,20 +535,20 @@ function MembersRoles() {
           <Users className="w-6 h-6 text-blue-600" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Members & Roles</h2>
-          <p className="text-xs text-gray-500">Assign committee roles — President, Secretary, Treasurer, etc.</p>
+          <h2 className="text-lg font-semibold text-on-surface">Members & Roles</h2>
+          <p className="text-xs text-on-surface-variant">Assign committee roles — President, Secretary, Treasurer, etc.</p>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+        <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-outline" /></div>
       ) : members.length === 0 ? (
-        <p className="text-sm text-gray-400 text-center py-6">No members found</p>
+        <p className="text-sm text-outline text-center py-6">No members found</p>
       ) : (
         <div className="overflow-x-auto -mx-6">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b text-left text-xs text-gray-500 uppercase tracking-wider">
+              <tr className="border-b text-left text-xs text-on-surface-variant uppercase tracking-wider">
                 <th className="px-6 py-2.5">Name</th>
                 <th className="px-6 py-2.5">Email</th>
                 <th className="px-6 py-2.5">Current Role</th>
@@ -556,9 +557,9 @@ function MembersRoles() {
             </thead>
             <tbody>
               {members.map((m) => (
-                <tr key={m.id} className="border-b last:border-0 hover:bg-gray-50/50">
-                  <td className="px-6 py-3 font-medium text-gray-900">{m.name}</td>
-                  <td className="px-6 py-3 text-gray-500">{m.email}</td>
+                <tr key={m.id} className="border-b last:border-0 hover:bg-surface-container-low/50">
+                  <td className="px-6 py-3 font-medium text-on-surface">{m.name}</td>
+                  <td className="px-6 py-3 text-on-surface-variant">{m.email}</td>
                   <td className="px-6 py-3">
                     {editingId === m.id ? (
                       <div className="flex items-center gap-2">
@@ -583,7 +584,7 @@ function MembersRoles() {
                         </button>
                       </div>
                     ) : (
-                      <span className={cn('inline-block px-2.5 py-0.5 rounded-full text-xs font-medium', ROLE_BADGE[m.role] || 'bg-gray-100 text-gray-600')}>
+                      <span className={cn('inline-block px-2.5 py-0.5 rounded-full text-xs font-medium', ROLE_BADGE[m.role] || 'bg-surface-container text-on-surface-variant')}>
                         {formatRole(m.role)}
                       </span>
                     )}
@@ -591,14 +592,14 @@ function MembersRoles() {
                   <td className="px-6 py-3 text-right">
                     {editingId !== m.id && m.id !== user?.id && (
                       <button
-                        className="text-xs text-primary-600 hover:text-primary-800 font-medium"
+                        className="text-xs text-primary hover:text-primary font-medium"
                         onClick={() => { setEditingId(m.id); setSelectedRole(m.role); }}
                       >
                         Change Role
                       </button>
                     )}
                     {m.id === user?.id && (
-                      <span className="text-xs text-gray-400">You</span>
+                      <span className="text-xs text-outline">You</span>
                     )}
                   </td>
                 </tr>

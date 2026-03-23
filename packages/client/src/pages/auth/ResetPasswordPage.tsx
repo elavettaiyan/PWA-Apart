@@ -48,22 +48,22 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="min-h-screen flex">
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
         <div className="w-full max-w-md">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 bg-primary-600 rounded-2xl flex items-center justify-center">
+          <div className="flex items-center gap-3 mb-10">
+            <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center">
               <Building2 className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Resilynk</h1>
-              <p className="text-sm text-gray-500">Your Apartment, Connected</p>
+              <h1 className="text-2xl font-extrabold text-primary font-headline tracking-tight">Dwell Hub</h1>
+              <p className="text-[10px] text-outline font-bold uppercase tracking-widest">Management Portal</p>
             </div>
           </div>
 
           {!success ? (
             <>
-              <h2 className="text-xl font-semibold text-gray-900 mb-1">Reset Password</h2>
-              <p className="text-sm text-gray-500 mb-6">
+              <h2 className="editorial-title text-3xl font-extrabold text-primary mb-1">Reset Password</h2>
+              <p className="text-sm text-on-surface-variant mb-8">
                 Enter your reset token and choose a new password.
               </p>
 
@@ -94,7 +94,7 @@ export default function ResetPasswordPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface-variant"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -114,8 +114,8 @@ export default function ResetPasswordPage() {
                 </div>
 
                 {/* Password requirements */}
-                <div className="p-3 bg-gray-50 rounded-xl space-y-1.5">
-                  <p className="text-xs font-semibold text-gray-600 mb-2">Password Requirements:</p>
+                <div className="p-3 bg-surface-container-low rounded-xl space-y-1.5">
+                  <p className="text-xs font-semibold text-on-surface-variant mb-2">Password Requirements:</p>
                   {[
                     { check: passwordChecks.length, label: 'At least 8 characters' },
                     { check: passwordChecks.uppercase, label: 'One uppercase letter' },
@@ -123,7 +123,7 @@ export default function ResetPasswordPage() {
                     { check: passwordChecks.number, label: 'One number' },
                     { check: passwordChecks.match, label: 'Passwords match' },
                   ].map(({ check, label }) => (
-                    <div key={label} className={`flex items-center gap-2 text-xs ${check ? 'text-emerald-600' : 'text-gray-400'}`}>
+                    <div key={label} className={`flex items-center gap-2 text-xs ${check ? 'text-tertiary' : 'text-outline'}`}>
                       <CheckCircle className="w-3.5 h-3.5" />
                       <span>{label}</span>
                     </div>
@@ -133,7 +133,7 @@ export default function ResetPasswordPage() {
                 <button
                   type="submit"
                   disabled={loading || !allValid}
-                  className="btn-primary w-full disabled:opacity-50"
+                  className="btn-gradient w-full py-3 disabled:opacity-50"
                 >
                   {loading ? 'Resetting...' : 'Reset Password'}
                 </button>
@@ -141,11 +141,11 @@ export default function ResetPasswordPage() {
             </>
           ) : (
             <div className="text-center">
-              <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-8 h-8 text-emerald-600" />
+              <div className="w-16 h-16 bg-tertiary-container rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-8 h-8 text-tertiary" />
               </div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Password Reset!</h2>
-              <p className="text-sm text-gray-500 mb-4">
+              <h2 className="text-xl font-semibold text-on-surface mb-2">Password Reset!</h2>
+              <p className="text-sm text-on-surface-variant mb-4">
                 Your password has been reset successfully. Redirecting to login...
               </p>
               <Link to="/login" className="btn-primary inline-flex">
@@ -157,7 +157,7 @@ export default function ResetPasswordPage() {
           <div className="mt-6 text-center">
             <Link
               to="/login"
-              className="text-sm text-gray-500 hover:text-gray-700 font-medium inline-flex items-center gap-1"
+              className="text-sm text-on-surface-variant hover:text-on-surface-variant font-medium inline-flex items-center gap-1"
             >
               <ArrowLeft className="w-4 h-4" /> Back to Login
             </Link>
@@ -165,12 +165,16 @@ export default function ResetPasswordPage() {
         </div>
       </div>
 
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-primary-600 to-primary-800 items-center justify-center p-12">
-        <div className="text-center text-white max-w-md">
-          <Building2 className="w-20 h-20 mx-auto mb-6 opacity-90" />
-          <h2 className="text-3xl font-bold mb-4">Almost There!</h2>
-          <p className="text-primary-100 leading-relaxed">
-            Set your new password and get back to managing your apartment complex.
+      <div className="hidden lg:flex flex-1 bg-primary relative overflow-hidden items-center justify-center p-12">
+        <div className="absolute top-20 -left-20 w-72 h-72 bg-primary-container/20 rounded-full blur-3xl" />
+        <div className="absolute bottom-10 right-10 w-56 h-56 bg-tertiary/10 rounded-full blur-2xl" />
+        <div className="relative text-center text-white max-w-md">
+          <div className="w-20 h-20 mx-auto mb-8 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center">
+            <Building2 className="w-10 h-10 text-white/90" />
+          </div>
+          <h2 className="font-manrope text-4xl font-extrabold tracking-tight mb-3">Almost <span className="italic text-primary-fixed">There</span></h2>
+          <p className="text-on-primary/50 text-sm leading-relaxed">
+            Set your new password and get back to managing your apartment community.
           </p>
         </div>
       </div>

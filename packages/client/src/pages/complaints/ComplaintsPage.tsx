@@ -39,8 +39,9 @@ export default function ComplaintsPage() {
     <div>
       <div className="page-header">
         <div>
+          <p className="section-label mb-2">Service Desk</p>
           <h1 className="page-title">Complaints</h1>
-          <p className="text-sm text-gray-500 mt-1">Track and manage resident complaints</p>
+          <p className="text-sm text-on-surface-variant mt-1">Track and manage resident complaints</p>
         </div>
         <button className="btn-primary" onClick={() => setShowCreate(true)}>
           <Plus className="w-4 h-4" /> New Complaint
@@ -62,8 +63,8 @@ export default function ComplaintsPage() {
             className={cn(
               'px-4 py-2 rounded-full text-sm font-medium transition',
               statusFilter === tab.value
-                ? 'bg-primary-600 text-white'
-                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50',
+                ? 'bg-primary text-on-primary'
+                : 'bg-surface-container-lowest text-on-surface-variant ghost-border hover:bg-surface-container-low',
             )}
           >
             {tab.label} ({tab.count})
@@ -83,17 +84,17 @@ export default function ComplaintsPage() {
           {complaints.map((complaint) => (
             <div
               key={complaint.id}
-              className="card p-4 hover:shadow-md transition-shadow cursor-pointer"
+              className="bg-surface-container-low rounded-2xl p-4 sm:p-5 hover:bg-surface-container transition-colors cursor-pointer"
               onClick={() => setSelectedComplaint(complaint)}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-sm font-semibold text-gray-900 truncate">{complaint.title}</h3>
+                    <h3 className="text-sm font-semibold text-on-surface truncate">{complaint.title}</h3>
                     <span className={cn('badge', getStatusColor(complaint.priority))}>{complaint.priority}</span>
                   </div>
-                  <p className="text-xs text-gray-500 line-clamp-2 mb-2">{complaint.description}</p>
-                  <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+                  <p className="text-xs text-on-surface-variant line-clamp-2 mb-2">{complaint.description}</p>
+                  <div className="flex flex-wrap gap-3 text-xs text-on-surface-variant">
                     <span>📋 {complaint.category}</span>
                     {complaint.flat && <span>🏠 {complaint.flat.block?.name} - {complaint.flat.flatNumber}</span>}
                     <span>👤 {complaint.createdBy?.name}</span>
@@ -215,9 +216,9 @@ function CreateComplaintForm({ onSuccess }: { onSuccess: () => void }) {
       <div>
         <label className="label">Images (max {MAX_IMAGES}, under 2 MB each)</label>
         {images.length < MAX_IMAGES && (
-          <label className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-primary-400 transition w-fit">
-            <ImageIcon className="w-4 h-4 text-gray-400" />
-            <span className="text-sm text-gray-500">Choose images</span>
+          <label className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-outline-variant rounded-lg cursor-pointer hover:border-primary transition w-fit">
+            <ImageIcon className="w-4 h-4 text-outline" />
+            <span className="text-sm text-on-surface-variant">Choose images</span>
             <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={handleImageChange} />
           </label>
         )}
@@ -267,20 +268,20 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4 text-sm">
-        <div><span className="text-gray-500">Category:</span> <span className="font-medium">{complaint.category}</span></div>
-        <div><span className="text-gray-500">Priority:</span> <span className={cn('badge ml-2', getStatusColor(complaint.priority))}>{complaint.priority}</span></div>
-        <div><span className="text-gray-500">Created by:</span> <span className="font-medium">{complaint.createdBy?.name}</span></div>
-        <div><span className="text-gray-500">Date:</span> <span className="font-medium">{formatDate(complaint.createdAt)}</span></div>
+        <div><span className="text-on-surface-variant">Category:</span> <span className="font-medium">{complaint.category}</span></div>
+        <div><span className="text-on-surface-variant">Priority:</span> <span className={cn('badge ml-2', getStatusColor(complaint.priority))}>{complaint.priority}</span></div>
+        <div><span className="text-on-surface-variant">Created by:</span> <span className="font-medium">{complaint.createdBy?.name}</span></div>
+        <div><span className="text-on-surface-variant">Date:</span> <span className="font-medium">{formatDate(complaint.createdAt)}</span></div>
       </div>
 
-      <div className="p-3 bg-gray-50 rounded-lg">
-        <p className="text-sm text-gray-700">{complaint.description}</p>
+      <div className="p-3 bg-surface-container-low rounded-lg">
+        <p className="text-sm text-on-surface-variant">{complaint.description}</p>
       </div>
 
       {/* Complaint Images */}
       {complaint.images && complaint.images.length > 0 && (
         <div>
-          <h4 className="font-semibold text-gray-900 mb-2 text-sm">Attachments</h4>
+          <h4 className="font-semibold text-on-surface mb-2 text-sm">Attachments</h4>
           <div className="flex gap-3 flex-wrap">
             {complaint.images.map((img, i) => {
               const src = img.startsWith('data:') ? img : `${getApiBaseUrl().replace('/api', '')}${img}`;
@@ -316,14 +317,14 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
 
       {/* Comments */}
       <div className="border-t pt-4">
-        <h4 className="font-semibold text-gray-900 mb-3">Comments</h4>
+        <h4 className="font-semibold text-on-surface mb-3">Comments</h4>
         {complaint.comments?.map((c) => (
-          <div key={c.id} className="mb-3 p-3 bg-gray-50 rounded-lg">
-            <div className="flex justify-between text-xs text-gray-500 mb-1">
+          <div key={c.id} className="mb-3 p-3 bg-surface-container-low rounded-lg">
+            <div className="flex justify-between text-xs text-on-surface-variant mb-1">
               <span className="font-medium">{c.authorName}</span>
               <span>{formatDate(c.createdAt)}</span>
             </div>
-            <p className="text-sm text-gray-700">{c.content}</p>
+            <p className="text-sm text-on-surface-variant">{c.content}</p>
           </div>
         ))}
         <div className="flex gap-2 mt-3">

@@ -54,7 +54,7 @@ export default function ChangePasswordSettingsPage() {
           <h1 className="page-title flex items-center gap-2">
             <KeyRound className="w-6 h-6" /> Change Password
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Update your account password</p>
+          <p className="text-sm text-on-surface-variant mt-1">Update your account password</p>
         </div>
       </div>
 
@@ -75,7 +75,7 @@ export default function ChangePasswordSettingsPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface-variant"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -107,8 +107,8 @@ export default function ChangePasswordSettingsPage() {
             </div>
 
             {/* Password requirements */}
-            <div className="p-3 bg-gray-50 rounded-xl space-y-1.5">
-              <p className="text-xs font-semibold text-gray-600 mb-2">Password Requirements:</p>
+            <div className="p-3 bg-surface-container-low rounded-xl space-y-1.5">
+              <p className="text-xs font-semibold text-on-surface-variant mb-2">Password Requirements:</p>
               {[
                 { check: passwordChecks.length, label: 'At least 8 characters' },
                 { check: passwordChecks.uppercase, label: 'One uppercase letter' },
@@ -117,7 +117,7 @@ export default function ChangePasswordSettingsPage() {
                 { check: passwordChecks.match, label: 'Passwords match' },
                 { check: passwordChecks.notSame, label: 'New password differs from current' },
               ].map(({ check, label }) => (
-                <div key={label} className={`flex items-center gap-2 text-xs ${check ? 'text-emerald-600' : 'text-gray-400'}`}>
+                <div key={label} className={`flex items-center gap-2 text-xs ${check ? 'text-tertiary' : 'text-outline'}`}>
                   <CheckCircle className="w-3.5 h-3.5" />
                   <span>{label}</span>
                 </div>

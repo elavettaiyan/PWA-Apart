@@ -28,9 +28,9 @@ export default function MyFlatPage() {
 
   if (error || !flat) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-        <Building2 className="w-12 h-12 mb-4 text-gray-300" />
-        <h2 className="text-lg font-semibold text-gray-700">No Flat Found</h2>
+      <div className="flex flex-col items-center justify-center py-20 text-on-surface-variant">
+        <Building2 className="w-12 h-12 mb-4 text-outline/40" />
+        <h2 className="text-lg font-semibold text-on-surface-variant">No Flat Found</h2>
         <p className="text-sm mt-1">Your account is not linked to any flat. Contact your admin.</p>
       </div>
     );
@@ -40,8 +40,9 @@ export default function MyFlatPage() {
     <div>
       <div className="page-header">
         <div>
+          <p className="section-label mb-2">Your Space</p>
           <h1 className="page-title">My Flat</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-on-surface-variant mt-1">
             {flat.block?.name} - {flat.flatNumber}
           </p>
         </div>
@@ -49,9 +50,12 @@ export default function MyFlatPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Flat Details */}
-        <div className="card p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Home className="w-5 h-5 text-primary-500" /> Flat Details
+        <div className="card-elevated p-6">
+          <h2 className="text-lg font-bold text-primary mb-4 flex items-center gap-2 editorial-title">
+            <div className="w-8 h-8 rounded-xl bg-primary-container flex items-center justify-center">
+              <Home className="w-4 h-4 text-on-primary-container" />
+            </div>
+            Flat Details
           </h2>
           <div className="space-y-3 text-sm">
             <Row label="Flat Number" value={flat.flatNumber} />
@@ -67,9 +71,12 @@ export default function MyFlatPage() {
         {/* Owner / Tenant Info */}
         <div className="space-y-6">
           {flat.owner && (
-            <div className="card p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <User className="w-5 h-5 text-blue-500" /> Owner
+            <div className="card-elevated p-6">
+              <h2 className="text-lg font-bold text-primary mb-4 flex items-center gap-2 editorial-title">
+                <div className="w-8 h-8 rounded-xl bg-secondary-container flex items-center justify-center">
+                  <User className="w-4 h-4 text-on-secondary-container" />
+                </div>
+                Owner
               </h2>
               <div className="space-y-3 text-sm">
                 <Row label="Name" value={flat.owner.name} />
@@ -91,7 +98,7 @@ export default function MyFlatPage() {
       {flat.bills && flat.bills.length > 0 && (
         <div className="mt-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-gray-900">Bill Summary</h2>
+            <h2 className="text-lg font-semibold text-on-surface">Bill Summary</h2>
             <select className="select w-32" value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}>
               {yearOptions.map((year) => (
                 <option key={year} value={year}>{year}</option>
@@ -121,8 +128,8 @@ export default function MyFlatPage() {
                     <td className="font-medium">{getMonthName(bill.month)} {bill.year}</td>
                     <td>{formatDate(bill.dueDate)}</td>
                     <td>{formatCurrency(bill.totalAmount)}</td>
-                    <td className="text-emerald-600">{formatCurrency(bill.paidAmount)}</td>
-                    <td className="text-red-600">{formatCurrency(bill.totalAmount - bill.paidAmount)}</td>
+                    <td className="text-tertiary">{formatCurrency(bill.paidAmount)}</td>
+                    <td className="text-error">{formatCurrency(bill.totalAmount - bill.paidAmount)}</td>
                     <td>{latestPayment?.paidAt ? formatDate(latestPayment.paidAt) : '—'}</td>
                     <td>{latestPayment ? getPaymentMethodLabel(latestPayment.method) : '—'}</td>
                     <td>
@@ -139,7 +146,7 @@ export default function MyFlatPage() {
       )}
 
       {flat.bills && flat.bills.length === 0 && (
-        <div className="mt-6 card p-6 text-sm text-gray-500">
+        <div className="mt-6 card p-6 text-sm text-on-surface-variant">
           No bill transactions found for {selectedYear}.
         </div>
       )}
@@ -161,9 +168,9 @@ function getPaymentMethodLabel(method: PaymentMethod) {
 
 function Row({ label, value, icon }: { label: string; value: string | number | null | undefined; icon?: React.ReactNode }) {
   return (
-    <div className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
-      <span className="text-gray-500">{label}</span>
-      <span className="font-medium text-gray-900 flex items-center gap-1.5">
+    <div className="flex justify-between items-center py-1.5 border-b border-outline-variant/5 last:border-0">
+      <span className="text-on-surface-variant">{label}</span>
+      <span className="font-medium text-on-surface flex items-center gap-1.5">
         {icon} {value || '—'}
       </span>
     </div>
@@ -278,8 +285,8 @@ function AddTenantCard() {
     return (
       <div className="card p-6">
         <div className="text-center py-4">
-          <User className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-          <p className="text-sm text-gray-500 mb-4">No tenant in this flat</p>
+          <User className="w-10 h-10 text-outline/40 mx-auto mb-2" />
+          <p className="text-sm text-on-surface-variant mb-4">No tenant in this flat</p>
           <button className="btn-primary" onClick={() => setShowForm(true)}>
             <UserPlus className="w-4 h-4" /> Add Tenant
           </button>
@@ -290,7 +297,7 @@ function AddTenantCard() {
 
   return (
     <div className="card p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+      <h2 className="text-lg font-semibold text-on-surface mb-4 flex items-center gap-2">
         <UserPlus className="w-5 h-5 text-teal-500" /> Add Tenant
       </h2>
       <TenantForm
@@ -344,7 +351,7 @@ function TenantCard({ tenant, isOwner }: { tenant: any; isOwner: boolean }) {
   if (editing) {
     return (
       <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-on-surface mb-4 flex items-center gap-2">
           <Pencil className="w-5 h-5 text-teal-500" /> Edit Tenant
         </h2>
         <TenantForm
@@ -369,15 +376,15 @@ function TenantCard({ tenant, isOwner }: { tenant: any; isOwner: boolean }) {
   return (
     <div className="card p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-on-surface flex items-center gap-2">
           <User className="w-5 h-5 text-teal-500" /> Tenant
         </h2>
         {isOwner && (
           <div className="flex items-center gap-2">
-            <button className="text-xs text-primary-600 hover:text-primary-800 font-medium flex items-center gap-1" onClick={() => setEditing(true)}>
+            <button className="text-xs text-primary hover:text-primary font-medium flex items-center gap-1" onClick={() => setEditing(true)}>
               <Pencil className="w-3.5 h-3.5" /> Edit
             </button>
-            <button className="text-xs text-red-600 hover:text-red-800 font-medium flex items-center gap-1" onClick={() => setShowRemoveConfirm(true)}>
+            <button className="text-xs text-error hover:text-on-error-container font-medium flex items-center gap-1" onClick={() => setShowRemoveConfirm(true)}>
               <Trash2 className="w-3.5 h-3.5" /> Remove
             </button>
           </div>
@@ -397,11 +404,11 @@ function TenantCard({ tenant, isOwner }: { tenant: any; isOwner: boolean }) {
 
       {/* Remove confirmation */}
       {showRemoveConfirm && (
-        <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-200">
-          <p className="text-sm text-red-700 mb-3">Are you sure you want to remove this tenant?</p>
+        <div className="mt-4 p-3 bg-error-container rounded-lg border border-error/20">
+          <p className="text-sm text-error mb-3">Are you sure you want to remove this tenant?</p>
           <div className="flex items-center gap-2">
             <button
-              className="btn-sm bg-red-600 text-white hover:bg-red-700 rounded-lg px-3 py-1.5 text-xs font-medium"
+              className="btn-sm bg-error text-white hover:bg-error/90 rounded-lg px-3 py-1.5 text-xs font-medium"
               disabled={removeMutation.isPending}
               onClick={() => removeMutation.mutate()}
             >

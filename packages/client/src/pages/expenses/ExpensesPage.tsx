@@ -61,8 +61,9 @@ export default function ExpensesPage() {
     <div>
       <div className="page-header">
         <div>
+          <p className="section-label mb-2">Financial Ledger</p>
           <h1 className="page-title">Expenses</h1>
-          <p className="text-sm text-gray-500 mt-1">Track and manage society expenses</p>
+          <p className="text-sm text-on-surface-variant mt-1">Track and manage society expenses</p>
         </div>
         <button className="btn-primary" onClick={() => setShowCreate(true)}>
           <Plus className="w-4 h-4" /> Add Expense
@@ -71,9 +72,9 @@ export default function ExpensesPage() {
 
       {/* Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="stat-card">
-          <p className="stat-label">Total Expenses</p>
-          <p className="text-xl font-bold text-red-600">{formatCurrency(total)}</p>
+        <div className="bg-primary-container rounded-2xl p-5 text-white">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-primary-container/70">Total Expenses</p>
+          <p className="text-2xl font-extrabold editorial-title mt-1">{formatCurrency(total)}</p>
         </div>
         <div className="stat-card">
           <p className="stat-label">Entries</p>
@@ -82,7 +83,7 @@ export default function ExpensesPage() {
         {data?.summary?.slice(0, 2).map((s: any) => (
           <div key={s.category} className="stat-card">
             <p className="stat-label">{s.category.replace('_', ' ')}</p>
-            <p className="text-lg font-bold text-gray-700">{formatCurrency(s._sum?.amount || 0)}</p>
+            <p className="text-lg font-bold text-on-surface-variant">{formatCurrency(s._sum?.amount || 0)}</p>
           </div>
         ))}
       </div>
@@ -123,8 +124,8 @@ export default function ExpensesPage() {
                     <span className="badge badge-info">{expense.category.replace('_', ' ')}</span>
                   </td>
                   <td className="text-sm max-w-[200px] truncate">{expense.description}</td>
-                  <td className="text-sm text-gray-500">{expense.vendor || '-'}</td>
-                  <td className="font-semibold text-red-600">{formatCurrency(expense.amount)}</td>
+                  <td className="text-sm text-on-surface-variant">{expense.vendor || '-'}</td>
+                  <td className="font-semibold text-error">{formatCurrency(expense.amount)}</td>
                   <td>
                     <div className="flex items-center gap-2">
                       {expense.receiptUrl && (
@@ -139,7 +140,7 @@ export default function ExpensesPage() {
                         </a>
                       )}
                       <button
-                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                        className="p-1.5 text-error/60 hover:text-error hover:bg-error-container rounded-lg"
                         onClick={() => {
                           if (confirm('Delete this expense?')) deleteMutation.mutate(expense.id);
                         }}
@@ -237,13 +238,13 @@ function AddExpenseForm({ onSuccess }: { onSuccess: () => void }) {
         </div>
         <div className="col-span-2">
           <label className="label">Receipt (optional)</label>
-          <label className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-primary-400 transition w-fit">
-            <FileText className="w-4 h-4 text-gray-400" />
-            <span className="text-sm text-gray-500">{receipt ? receipt.name : 'Choose file (image or PDF, max 5 MB)'}</span>
+          <label className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-outline-variant rounded-lg cursor-pointer hover:border-primary transition w-fit">
+            <FileText className="w-4 h-4 text-outline" />
+            <span className="text-sm text-on-surface-variant">{receipt ? receipt.name : 'Choose file (image or PDF, max 5 MB)'}</span>
             <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" onChange={handleReceiptChange} />
           </label>
           {receipt && (
-            <button type="button" onClick={() => setReceipt(null)} className="text-xs text-red-500 mt-1 hover:underline">Remove</button>
+            <button type="button" onClick={() => setReceipt(null)} className="text-xs text-error mt-1 hover:underline">Remove</button>
           )}
         </div>
       </div>

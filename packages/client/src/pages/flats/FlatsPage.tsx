@@ -65,8 +65,9 @@ export default function FlatsPage() {
     <div>
       <div className="page-header">
         <div>
+          <p className="section-label mb-2">Residents</p>
           <h1 className="page-title">Flats & Residents</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage all flats, owners, and tenants</p>
+          <p className="text-sm text-on-surface-variant mt-1">Manage all flats, owners, and tenants</p>
         </div>
         {isAdmin && (
           <div className="flex gap-2">
@@ -99,8 +100,8 @@ export default function FlatsPage() {
                 <Layers className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">{block.name}</p>
-                <p className="text-xs text-gray-500">{block.floors} floors · {block._count?.flats ?? 0} flats</p>
+                <p className="text-sm font-semibold text-on-surface truncate">{block.name}</p>
+                <p className="text-xs text-on-surface-variant">{block.floors} floors · {block._count?.flats ?? 0} flats</p>
               </div>
             </div>
           ))}
@@ -109,7 +110,7 @@ export default function FlatsPage() {
 
       {/* Search */}
       <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
         <input
           type="text"
           className="input pl-10"
@@ -119,22 +120,22 @@ export default function FlatsPage() {
         />
       </div>
 
-      <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+      <div className="mb-6 rounded-2xl border border-warning/20 bg-warning-container px-4 py-3">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm font-semibold text-amber-900">Admin delete control</p>
-            <p className="text-xs text-amber-800 mt-1">
+            <p className="text-sm font-semibold text-on-warning-container">Admin delete control</p>
+            <p className="text-xs text-on-warning-container mt-1">
               Select one apartment, then confirm its flat number to delete it. Deletion is blocked if the flat still has an owner, tenant, bills, or complaints.
             </p>
           </div>
-          <div className="rounded-xl bg-white/80 px-3 py-2 text-sm text-gray-700 border border-amber-100 min-w-[220px]">
+          <div className="rounded-xl bg-white/80 px-3 py-2 text-sm text-on-surface-variant border border-warning/10 min-w-[220px]">
             {selectedFlat ? (
               <>
-                <p className="font-semibold text-gray-900">{selectedFlat.flatNumber}</p>
-                <p className="text-xs text-gray-500">{selectedFlat.block?.name} · Floor {selectedFlat.floor}</p>
+                <p className="font-semibold text-on-surface">{selectedFlat.flatNumber}</p>
+                <p className="text-xs text-on-surface-variant">{selectedFlat.block?.name} · Floor {selectedFlat.floor}</p>
               </>
             ) : (
-              <p className="text-xs text-gray-500">No apartment selected</p>
+              <p className="text-xs text-on-surface-variant">No apartment selected</p>
             )}
           </div>
         </div>
@@ -163,13 +164,13 @@ export default function FlatsPage() {
                 <div className="flex items-center gap-2">
                   <div className={cn(
                     'w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold',
-                    flat.isOccupied ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400',
+                    flat.isOccupied ? 'bg-tertiary-container text-tertiary' : 'bg-surface-container text-outline',
                   )}>
                     {flat.flatNumber}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">{flat.flatNumber}</p>
-                    <p className="text-xs text-gray-500">{flat.block?.name} · Floor {flat.floor}</p>
+                    <p className="text-sm font-semibold text-on-surface">{flat.flatNumber}</p>
+                    <p className="text-xs text-on-surface-variant">{flat.block?.name} · Floor {flat.floor}</p>
                   </div>
                 </div>
                 <span className={cn('badge', flat.isOccupied ? 'badge-success' : 'badge-neutral')}>
@@ -177,39 +178,39 @@ export default function FlatsPage() {
                 </span>
               </div>
 
-              <div className="space-y-2 text-xs text-gray-500">
+              <div className="space-y-2 text-xs text-on-surface-variant">
                 <div className="flex justify-between">
                   <span>Type</span>
-                  <span className="font-medium text-gray-700">{getFlatTypeLabel(flat.type)}</span>
+                  <span className="font-medium text-on-surface-variant">{getFlatTypeLabel(flat.type)}</span>
                 </div>
                 {flat.areaSqFt && (
                   <div className="flex justify-between">
                     <span>Area</span>
-                    <span className="font-medium text-gray-700">{flat.areaSqFt} sq.ft</span>
+                    <span className="font-medium text-on-surface-variant">{flat.areaSqFt} sq.ft</span>
                   </div>
                 )}
                 <div className="flex justify-between">
                   <span>Status</span>
-                  <span className="font-medium text-gray-700">{flat.isOccupied ? 'Occupied' : 'Vacant'}</span>
+                  <span className="font-medium text-on-surface-variant">{flat.isOccupied ? 'Occupied' : 'Vacant'}</span>
                 </div>
               </div>
 
               {flat.owner && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
+                <div className="mt-3 pt-3 border-t border-outline-variant/10">
                   <div className="flex items-center gap-2">
-                    <User className="w-3.5 h-3.5 text-gray-400" />
-                    <span className="text-xs font-medium text-gray-700">{flat.owner.name}</span>
+                    <User className="w-3.5 h-3.5 text-outline" />
+                    <span className="text-xs font-medium text-on-surface-variant">{flat.owner.name}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
-                    <Phone className="w-3 h-3 text-gray-400" />
-                    <span className="text-xs text-gray-500">{flat.owner.phone}</span>
+                    <Phone className="w-3 h-3 text-outline" />
+                    <span className="text-xs text-on-surface-variant">{flat.owner.phone}</span>
                   </div>
                 </div>
               )}
 
               {flat.tenant && flat.tenant.isActive && (
-                <div className="mt-2 pt-2 border-t border-dashed border-gray-100">
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Tenant</p>
+                <div className="mt-2 pt-2 border-t border-dashed border-outline-variant/10">
+                  <p className="text-[10px] text-outline uppercase tracking-wider mb-1">Tenant</p>
                   <div className="flex items-center gap-2">
                     <User className="w-3.5 h-3.5 text-blue-400" />
                     <span className="text-xs font-medium text-blue-700">{flat.tenant.name}</span>
@@ -272,7 +273,7 @@ export default function FlatsPage() {
           />
         ) : (
           <div className="py-4">
-            <p className="text-sm text-gray-600">Select an apartment first.</p>
+            <p className="text-sm text-on-surface-variant">Select an apartment first.</p>
           </div>
         )}
       </Modal>
@@ -303,15 +304,15 @@ function DeleteFlatForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3">
-        <p className="text-sm font-semibold text-red-900">Delete {flat.flatNumber}</p>
-        <p className="mt-1 text-xs text-red-700">
+      <div className="rounded-xl border border-error/10 bg-error-container px-4 py-3">
+        <p className="text-sm font-semibold text-on-error-container">Delete {flat.flatNumber}</p>
+        <p className="mt-1 text-xs text-error">
           This action is restricted to vacant flats with no linked owner, tenant, billing, or complaint history.
         </p>
       </div>
 
-      <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
-        <p className="font-medium text-gray-900">{flat.block?.name} · Floor {flat.floor}</p>
+      <div className="rounded-xl bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant">
+        <p className="font-medium text-on-surface">{flat.block?.name} · Floor {flat.floor}</p>
         <p className="mt-1">Type the flat number exactly to confirm deletion.</p>
       </div>
 
@@ -329,7 +330,7 @@ function DeleteFlatForm({
       <div className="flex justify-end gap-3 pt-2">
         <button
           type="submit"
-          className="btn-primary bg-red-600 hover:bg-red-700 focus:ring-red-500 disabled:opacity-50"
+          className="btn-primary bg-error hover:bg-error/90 focus:ring-error disabled:opacity-50"
           disabled={isPending || confirmation.trim() !== flat.flatNumber}
         >
           {isPending ? 'Deleting...' : 'Delete Apartment'}
@@ -449,7 +450,7 @@ function AddFlatForm({ blocks, onSuccess }: { blocks: Block[]; onSuccess: () => 
           <select className="select" value={form.blockId} onChange={(e) => setForm({ ...form, blockId: e.target.value })} required disabled={blocks.length === 0}>
             {blocks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
-          {blocks.length === 0 && <p className="text-xs text-red-600 mt-1">No blocks found. Add a block first.</p>}
+          {blocks.length === 0 && <p className="text-xs text-error mt-1">No blocks found. Add a block first.</p>}
         </div>
         <div>
           <label className="label">Flat Number</label>
@@ -514,13 +515,13 @@ function AddOwnerForm({ flat, onSuccess }: { flat: Flat; onSuccess: () => void }
 
   return (
     <div>
-      <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-        <p className="text-sm text-gray-600">
+      <div className="mb-4 p-3 bg-surface-container-low rounded-lg">
+        <p className="text-sm text-on-surface-variant">
           <strong>Flat:</strong> {flat.flatNumber} · {flat.block?.name} · Floor {flat.floor} · {getFlatTypeLabel(flat.type)}
         </p>
       </div>
 
-      <h3 className="font-semibold text-gray-900 mb-3">Owner Details</h3>
+      <h3 className="font-semibold text-on-surface mb-3">Owner Details</h3>
 
       {!flat.owner && (
         <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
@@ -665,8 +666,8 @@ function BulkUploadForm({ onSuccess }: { onSuccess: () => void }) {
       </div>
 
       {/* Step 2: Upload File */}
-      <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
-        <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+      <div className="p-4 bg-surface-container-low border border-outline-variant/15 rounded-xl">
+        <h3 className="text-sm font-semibold text-on-surface mb-2 flex items-center gap-2">
           <Upload className="w-4 h-4" />
           Step 2: Upload Filled Excel
         </h3>
@@ -681,20 +682,20 @@ function BulkUploadForm({ onSuccess }: { onSuccess: () => void }) {
 
         <div
           onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-primary-400 hover:bg-primary-50/50 transition"
+          className="border-2 border-dashed border-outline-variant rounded-lg p-6 text-center cursor-pointer hover:border-primary hover:bg-primary-container/50 transition"
         >
           {file ? (
             <div>
-              <FileSpreadsheet className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
-              <p className="text-sm font-medium text-gray-900">{file.name}</p>
-              <p className="text-xs text-gray-500 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
-              <p className="text-xs text-primary-600 mt-2">Click to change file</p>
+              <FileSpreadsheet className="w-8 h-8 text-tertiary mx-auto mb-2" />
+              <p className="text-sm font-medium text-on-surface">{file.name}</p>
+              <p className="text-xs text-on-surface-variant mt-1">{(file.size / 1024).toFixed(1)} KB</p>
+              <p className="text-xs text-primary mt-2">Click to change file</p>
             </div>
           ) : (
             <div>
-              <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-600">Click to select Excel file</p>
-              <p className="text-xs text-gray-400 mt-1">Supports .xlsx and .xls files</p>
+              <Upload className="w-8 h-8 text-outline mx-auto mb-2" />
+              <p className="text-sm text-on-surface-variant">Click to select Excel file</p>
+              <p className="text-xs text-outline mt-1">Supports .xlsx and .xls files</p>
             </div>
           )}
         </div>
@@ -714,21 +715,21 @@ function BulkUploadForm({ onSuccess }: { onSuccess: () => void }) {
 
       {/* Step 3: Results */}
       {results && (
-        <div className="p-4 bg-white border border-gray-200 rounded-xl">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Upload Results</h3>
+        <div className="p-4 bg-white border border-outline-variant/15 rounded-xl">
+          <h3 className="text-sm font-semibold text-on-surface mb-3">Upload Results</h3>
 
           <div className="grid grid-cols-3 gap-3 mb-4">
-            <div className="p-3 bg-gray-50 rounded-lg text-center">
-              <p className="text-lg font-bold text-gray-900">{results.total}</p>
-              <p className="text-xs text-gray-500">Total Rows</p>
+            <div className="p-3 bg-surface-container-low rounded-lg text-center">
+              <p className="text-lg font-bold text-on-surface">{results.total}</p>
+              <p className="text-xs text-on-surface-variant">Total Rows</p>
             </div>
-            <div className="p-3 bg-emerald-50 rounded-lg text-center">
-              <p className="text-lg font-bold text-emerald-700">{results.created}</p>
-              <p className="text-xs text-emerald-600">Created</p>
+            <div className="p-3 bg-tertiary-container rounded-lg text-center">
+              <p className="text-lg font-bold text-tertiary">{results.created}</p>
+              <p className="text-xs text-tertiary">Created</p>
             </div>
-            <div className="p-3 bg-red-50 rounded-lg text-center">
-              <p className="text-lg font-bold text-red-700">{results.errors}</p>
-              <p className="text-xs text-red-600">Errors</p>
+            <div className="p-3 bg-error-container rounded-lg text-center">
+              <p className="text-lg font-bold text-error">{results.errors}</p>
+              <p className="text-xs text-error">Errors</p>
             </div>
           </div>
 
@@ -739,7 +740,7 @@ function BulkUploadForm({ onSuccess }: { onSuccess: () => void }) {
                 key={i}
                 className={cn(
                   'flex items-center justify-between text-xs px-3 py-2 rounded',
-                  r.status === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700',
+                  r.status === 'success' ? 'bg-tertiary-container text-tertiary' : 'bg-error-container text-error',
                 )}
               >
                 <span>Row {r.row}: {r.flatNumber}</span>

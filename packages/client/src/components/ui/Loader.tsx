@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react';
 export function LoadingSpinner({ className = '' }: { className?: string }) {
   return (
     <div className={`flex items-center justify-center py-12 ${className}`}>
-      <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+      <Loader2 className="w-8 h-8 animate-spin text-primary" />
     </div>
   );
 }
@@ -12,8 +12,10 @@ export function PageLoader() {
   return (
     <div className="flex items-center justify-center min-h-[60vh]">
       <div className="text-center">
-        <Loader2 className="w-10 h-10 animate-spin text-primary-500 mx-auto" />
-        <p className="mt-3 text-sm text-gray-500">Loading...</p>
+        <div className="w-12 h-12 rounded-2xl bg-primary-container/30 flex items-center justify-center mx-auto">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        </div>
+        <p className="mt-3 text-xs text-outline font-bold uppercase tracking-widest">Loading...</p>
       </div>
     </div>
   );
@@ -31,11 +33,13 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="text-center py-12">
-      <Icon className="w-12 h-12 text-gray-300 mx-auto" />
-      <h3 className="mt-3 text-lg font-semibold text-gray-900">{title}</h3>
-      <p className="mt-1 text-sm text-gray-500">{description}</p>
-      {action && <div className="mt-5">{action}</div>}
+    <div className="text-center py-16">
+      <div className="w-16 h-16 rounded-3xl bg-surface-container flex items-center justify-center mx-auto">
+        <Icon className="w-8 h-8 text-outline/40" />
+      </div>
+      <h3 className="mt-4 text-lg font-headline font-bold text-on-surface">{title}</h3>
+      <p className="mt-1 text-sm text-on-surface-variant max-w-sm mx-auto">{description}</p>
+      {action && <div className="mt-6">{action}</div>}
     </div>
   );
 }

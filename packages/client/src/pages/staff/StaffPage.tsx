@@ -32,8 +32,9 @@ export default function StaffPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
+          <p className="section-label mb-2">People</p>
           <h1 className="page-title">Manage Staff</h1>
-          <p className="text-sm text-gray-500">Create and manage service staff accounts</p>
+          <p className="text-sm text-on-surface-variant">Create and manage service staff accounts</p>
         </div>
         <button className="btn-primary" onClick={() => setShowCreate(true)}>
           <Plus className="w-4 h-4 mr-1" /> Add Staff
@@ -49,9 +50,9 @@ export default function StaffPage() {
 
       {staff.length === 0 ? (
         <div className="card p-6 text-center">
-          <UserCog className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">No staff members yet</p>
-          <p className="text-sm text-gray-400">Add service staff like electricians, plumbers, cleaners, etc.</p>
+          <UserCog className="w-12 h-12 text-outline/40 mx-auto mb-3" />
+          <p className="text-on-surface-variant">No staff members yet</p>
+          <p className="text-sm text-outline">Add service staff like electricians, plumbers, cleaners, etc.</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -75,7 +76,7 @@ function CreateStaffForm({ onClose, onSuccess }: { onClose: () => void; onSucces
 
   return (
     <div className="card p-6">
-      <h3 className="font-semibold text-gray-900 mb-4">Add New Staff Member</h3>
+      <h3 className="font-semibold text-on-surface mb-4">Add New Staff Member</h3>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label">Name *</label>
@@ -128,7 +129,7 @@ function StaffCard({ member }: { member: StaffMember }) {
     <div className={`card p-5 ${!member.isActive ? 'opacity-60' : ''}`}>
       <div className="flex items-start justify-between mb-3">
         <div>
-          <h3 className="font-semibold text-gray-900">{member.name}</h3>
+          <h3 className="font-semibold text-on-surface">{member.name}</h3>
           {member.specialization && (
             <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full mt-1">
               <Wrench className="w-3 h-3" /> {member.specialization}
@@ -136,16 +137,16 @@ function StaffCard({ member }: { member: StaffMember }) {
           )}
         </div>
         <button
-          className={`text-xs px-2.5 py-1 rounded-full font-medium ${member.isActive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}
+          className={`text-xs px-2.5 py-1 rounded-full font-medium ${member.isActive ? 'bg-green-50 text-green-700' : 'bg-error-container text-error'}`}
           onClick={() => toggleActive.mutate()}
           disabled={toggleActive.isPending}
         >
           {member.isActive ? 'Active' : 'Inactive'}
         </button>
       </div>
-      <div className="space-y-1.5 text-sm text-gray-600">
-        <p className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-gray-400" /> {member.email}</p>
-        {member.phone && <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-gray-400" /> {member.phone}</p>}
+      <div className="space-y-1.5 text-sm text-on-surface-variant">
+        <p className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-outline" /> {member.email}</p>
+        {member.phone && <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-outline" /> {member.phone}</p>}
       </div>
     </div>
   );

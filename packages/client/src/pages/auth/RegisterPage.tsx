@@ -76,27 +76,27 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex">
       {/* Left: Form */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
         <div className="w-full max-w-lg">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-primary-600 rounded-2xl flex items-center justify-center">
+          <div className="flex items-center gap-3 mb-10">
+            <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center">
               <Building2 className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Resilynk</h1>
-              <p className="text-sm text-gray-500">Register Your Apartment</p>
+              <h1 className="text-2xl font-extrabold text-primary font-headline tracking-tight">Dwell Hub</h1>
+              <p className="text-[10px] text-outline font-bold uppercase tracking-widest">Register Apartment</p>
             </div>
           </div>
 
-          <h2 className="text-xl font-semibold text-gray-900 mb-1">Create a New Apartment</h2>
-          <p className="text-sm text-gray-500 mb-6">
+          <h2 className="editorial-title text-3xl font-extrabold text-primary mb-1">Create New Apartment</h2>
+          <p className="text-sm text-on-surface-variant mb-8">
             Set up your apartment complex and get started with management
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Society Details */}
-            <div className="p-4 bg-gray-50 rounded-xl space-y-3">
-              <p className="text-sm font-semibold text-gray-700">Apartment / Society Details</p>
+            <div className="p-4 bg-surface-container-low rounded-xl space-y-3">
+              <p className="text-sm font-semibold text-on-surface-variant">Apartment / Society Details</p>
               <div>
                 <label className="label">Apartment / Society Name *</label>
                 <input
@@ -221,7 +221,7 @@ export default function RegisterPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface-variant"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -229,7 +229,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <button type="submit" disabled={loading} className="btn-primary w-full">
+            <button type="submit" disabled={loading} className="btn-gradient w-full py-3">
               {loading ? 'Creating your apartment...' : 'Register Apartment'}
             </button>
           </form>
@@ -237,7 +237,7 @@ export default function RegisterPage() {
           <div className="mt-4 text-center">
             <Link
               to="/login"
-              className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium"
+              className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary font-medium"
             >
               <ArrowLeft className="w-4 h-4" />
               Already have an account? Sign in
@@ -246,18 +246,22 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      {/* Right: Decorative */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-primary-600 to-primary-800 items-center justify-center p-12">
-        <div className="text-center text-white max-w-md">
-          <Building2 className="w-20 h-20 mx-auto mb-6 opacity-90" />
-          <h2 className="text-3xl font-bold mb-4">Your Apartment, Your Way</h2>
-          <p className="text-primary-100 leading-relaxed mb-6">
-            Each apartment complex gets its own dedicated space. Register your society
-            to start managing maintenance, billing, complaints, and more.
+      {/* Right: Editorial Decorative Panel */}
+      <div className="hidden lg:flex flex-1 bg-primary items-center justify-center p-12 relative overflow-hidden">
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-64 h-64 bg-tertiary-fixed/5 rounded-full blur-2xl"></div>
+        <div className="relative z-10 text-center text-white max-w-md">
+          <div className="w-20 h-20 bg-white/10 backdrop-blur rounded-3xl flex items-center justify-center mx-auto mb-8">
+            <Building2 className="w-10 h-10 text-primary-fixed" />
+          </div>
+          <h2 className="editorial-title text-4xl font-extrabold mb-4 leading-tight">Your Apartment,<br/><em className="text-primary-fixed">Your Way.</em></h2>
+          <p className="text-primary-fixed/60 leading-relaxed mb-8">
+            Each apartment gets its own dedicated space. Register your society
+            to start managing everything.
           </p>
-          <div className="text-left bg-white/10 rounded-xl p-5 space-y-3">
-            <p className="text-sm font-semibold">What you get:</p>
-            <ul className="text-sm text-primary-100 space-y-2">
+          <div className="text-left bg-white/10 backdrop-blur rounded-2xl p-6 space-y-3">
+            <p className="text-sm font-bold text-primary-fixed">What you get:</p>
+            <ul className="text-sm text-primary-fixed/60 space-y-2">
               <li>✓ Separate dashboard for your apartment</li>
               <li>✓ Manage blocks, flats, owners & tenants</li>
               <li>✓ Monthly maintenance billing</li>

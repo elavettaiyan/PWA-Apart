@@ -39,8 +39,9 @@ export default function BylawsPage() {
     <div>
       <div className="page-header">
         <div>
+          <p className="section-label mb-2">Documents</p>
           <h1 className="page-title">Association Bylaws</h1>
-          <p className="text-sm text-gray-500 mt-1">Define and manage society rules, regulations, and penalties</p>
+          <p className="text-sm text-on-surface-variant mt-1">Define and manage society rules, regulations, and penalties</p>
         </div>
         {isAdmin && (
           <button className="btn-primary" onClick={() => setShowCreate(true)}>
@@ -61,8 +62,8 @@ export default function BylawsPage() {
           {Object.entries(grouped).map(([category, bylaws]) => (
             <div key={category}>
               <div className="flex items-center gap-2 mb-3">
-                <Shield className="w-4 h-4 text-primary-500" />
-                <h2 className="text-lg font-semibold text-gray-900">{category}</h2>
+                <Shield className="w-4 h-4 text-primary" />
+                <h2 className="text-lg font-semibold text-on-surface">{category}</h2>
                 <span className="badge badge-neutral">{bylaws.length}</span>
               </div>
               <div className="space-y-3">
@@ -70,12 +71,12 @@ export default function BylawsPage() {
                   <div key={bylaw.id} className="card p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-1">{bylaw.title}</h3>
-                        <p className="text-sm text-gray-600 whitespace-pre-wrap">{bylaw.content}</p>
-                        <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
+                        <h3 className="text-sm font-semibold text-on-surface mb-1">{bylaw.title}</h3>
+                        <p className="text-sm text-on-surface-variant whitespace-pre-wrap">{bylaw.content}</p>
+                        <div className="flex items-center gap-4 mt-3 text-xs text-outline">
                           <span>Effective: {formatDate(bylaw.effectiveDate)}</span>
                           {bylaw.penaltyAmount && (
-                            <span className="text-red-500 font-medium">
+                            <span className="text-error font-medium">
                               Penalty: {formatCurrency(bylaw.penaltyAmount)}
                             </span>
                           )}
@@ -84,13 +85,13 @@ export default function BylawsPage() {
                       {isAdmin && (
                         <div className="flex gap-1">
                           <button
-                            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg"
+                            className="p-1.5 text-outline hover:text-primary hover:bg-primary-container rounded-lg"
                             onClick={() => setEditBylaw(bylaw)}
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
                           <button
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                            className="p-1.5 text-outline hover:text-error hover:bg-error-container rounded-lg"
                             onClick={() => {
                               if (confirm('Remove this bylaw?')) deleteMutation.mutate(bylaw.id);
                             }}
