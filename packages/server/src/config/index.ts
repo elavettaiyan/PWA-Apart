@@ -43,10 +43,10 @@ export const config = {
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
 
   smtp: {
-    host: process.env.SMTP_HOST || 'smtppro.zoho.in',
+    host: process.env.SMTP_HOST || 'smtp.titan.email',
     port: parseInt(process.env.SMTP_PORT || '465', 10),
     user: process.env.SMTP_USER || '',
     pass: process.env.SMTP_PASS || '',
-    fromEmail: process.env.FROM_EMAIL || 'Resilynk <noreply@resilynk.com>',
+    fromEmail: process.env.FROM_EMAIL || 'Dwell Hub <noreply@dwellhub.in>',
   },
 };
