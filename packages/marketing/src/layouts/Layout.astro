@@ -7,13 +7,13 @@ export interface Props {
 }
 
 const {
-  title = 'Resilynk — Apartment Society Management Software',
-  description = 'Apartment management software for Indian housing societies. Manage billing, maintenance payments, complaints, expenses, documents, and reports in one place.',
+  title = 'Dwell Hub | Apartment Society Management, Made Clearer',
+  description = 'Transforming complex community logistics into a serene digital environment. Manage billing, payments, complaints, expenses, bylaws, and reports with editorial clarity.',
   canonical = Astro.url.href,
   ogImage = '/og-image.png',
 } = Astro.props;
 
-const siteUrl = 'https://resilynk.com';
+const siteUrl = 'https://dwellhub.in';
 const ogImageUrl = `${siteUrl}${ogImage}`;
 ---
 
@@ -32,7 +32,7 @@ const ogImageUrl = `${siteUrl}${ogImage}`;
     <!-- Keywords (supplementary signal) -->
     <meta
       name="keywords"
-      content="apartment management software, society management app, RWA management system, housing society management, apartment billing software India, flat management system, maintenance bill generation, society expense tracking, apartment complaint management, online maintenance payment, housing society accounting, gated community management app"
+      content="apartment management software, society management app, RWA management system, housing society management, apartment billing software India, flat management system, maintenance bill generation, society expense tracking, apartment complaint management, online maintenance payment, housing society accounting, gated community management app, dwell hub"
     />
 
     <!-- Open Graph / Facebook -->
@@ -41,8 +41,8 @@ const ogImageUrl = `${siteUrl}${ogImage}`;
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={ogImageUrl} />
-    <meta property="og:image:alt" content="Resilynk apartment society management software" />
-    <meta property="og:site_name" content="Resilynk" />
+    <meta property="og:image:alt" content="Dwell Hub — apartment society management, made clearer" />
+    <meta property="og:site_name" content="Dwell Hub" />
     <meta property="og:locale" content="en_IN" />
 
     <!-- Twitter  -->
@@ -50,18 +50,22 @@ const ogImageUrl = `${siteUrl}${ogImage}`;
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImageUrl} />
-    <meta name="twitter:image:alt" content="Resilynk apartment society management software" />
+    <meta name="twitter:image:alt" content="Dwell Hub — apartment society management, made clearer" />
 
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="theme-color" content="#6366f1" />
+    <meta name="theme-color" content="#05213a" />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
       rel="stylesheet"
     />
 
@@ -70,14 +74,14 @@ const ogImageUrl = `${siteUrl}${ogImage}`;
       {
         "@context": "https://schema.org",
         "@type": "WebSite",
-        "name": "Resilynk",
+        "name": "Dwell Hub",
         "url": siteUrl,
         "description": description
       },
       {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
-        "name": "Resilynk",
+        "name": "Dwell Hub",
         "applicationCategory": "BusinessApplication",
         "operatingSystem": "Web, Android",
         "description": description,
@@ -85,8 +89,19 @@ const ogImageUrl = `${siteUrl}${ogImage}`;
         "image": ogImageUrl
       }
     ])} />
+
+    <style is:global>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .editorial-shadow {
+        box-shadow: 0 32px 64px -12px rgba(25, 28, 27, 0.06);
+      }
+      body { font-family: 'Inter', sans-serif; }
+      h1, h2, h3, .font-manrope { font-family: 'Manrope', sans-serif; }
+    </style>
   </head>
-  <body class="bg-white text-gray-900 font-sans antialiased">
+  <body class="bg-surface text-on-surface selection:bg-secondary-container selection:text-on-secondary-container antialiased">
     <slot />
   </body>
 </html>

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Dwell Hub - Resident Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "secondary-container": "#c7dffd",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed-variant": "#314863",
+                        "on-tertiary-fixed-variant": "#005046",
+                        "surface": "#f9faf7",
+                        "on-secondary-fixed": "#021d33",
+                        "tertiary-container": "#003d35",
+                        "surface-variant": "#e1e3e1",
+                        "on-primary-fixed": "#011d35",
+                        "secondary": "#4a607a",
+                        "primary-fixed": "#d1e4ff",
+                        "on-error-container": "#93000a",
+                        "inverse-primary": "#b0c9e8",
+                        "secondary-fixed": "#d0e4ff",
+                        "background": "#f9faf7",
+                        "on-surface": "#191c1b",
+                        "error": "#ba1a1a",
+                        "secondary-fixed-dim": "#b1c9e6",
+                        "primary-container": "#1e3750",
+                        "inverse-on-surface": "#f0f1ef",
+                        "error-container": "#ffdad6",
+                        "on-error": "#ffffff",
+                        "tertiary": "#002520",
+                        "outline": "#707976",
+                        "on-primary-container": "#88a0be",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-bright": "#f9faf7",
+                        "on-surface-variant": "#404946",
+                        "surface-tint": "#49607c",
+                        "primary": "#05213a",
+                        "on-primary": "#ffffff",
+                        "on-background": "#191c1b",
+                        "surface-container": "#edeeec",
+                        "on-tertiary-container": "#5bac9d",
+                        "surface-dim": "#d9dad8",
+                        "outline-variant": "#c0c8c4",
+                        "on-secondary-fixed-variant": "#324861",
+                        "surface-container-highest": "#e1e3e1",
+                        "surface-container-low": "#f3f4f2",
+                        "primary-fixed-dim": "#b0c9e8",
+                        "on-tertiary-fixed": "#00201b",
+                        "tertiary-fixed-dim": "#84d5c5",
+                        "tertiary-fixed": "#a0f2e1",
+                        "inverse-surface": "#2e3130",
+                        "surface-container-high": "#e7e8e6",
+                        "on-secondary-container": "#4c637d",
+                        "on-tertiary": "#ffffff"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9faf7;
+        }
+        h1, h2, h3 {
+            font-family: 'Manrope', sans-serif;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface antialiased">
+<!-- TopAppBar Shell -->
+<nav class="fixed top-0 z-50 w-full flex justify-between items-center px-6 py-4 bg-[#f9faf7] dark:bg-slate-950">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center overflow-hidden border-2 border-surface-container-highest">
+<img class="w-full h-full object-cover" data-alt="Resident profile picture with friendly smile" src="https://lh3.googleusercontent.com/aida-public/AB6AXuALTz6cM7xGEyo58X1PBqXDw4fuMmSld08kl25r4Oq5tmoJGcbRcp9xE3sxHGZdxMHKsQOU3tMPhQ_w58avoymhoQlx5l9C8cjSbW_Mk09RIKmehN14L1go7SHxdypR43vlXZFb1r5LoQLRodnO4XgsqJ5WilU3H3XhYuwwiEDANPwT9a4jc2mM_ppLoDKOePeE568P6fXi7rLkZK0szl8jYwqa9Q2iNgTrnCH7ND7mMxs7tT7--KeB3LOMxp4etOWeiyQjSufOICc"/>
+</div>
+<span class="font-manrope text-2xl font-bold tracking-tight text-[#05213a] dark:text-blue-400">Dwell Hub</span>
+</div>
+<button class="w-10 h-10 flex items-center justify-center text-slate-500 hover:opacity-80 transition-opacity active:scale-95">
+<span class="material-symbols-outlined text-2xl" data-icon="notifications">notifications</span>
+</button>
+</nav>
+<main class="pt-24 pb-32 px-6">
+<!-- Editorial Header Section -->
+<header class="mb-10">
+<p class="font-label text-xs font-bold uppercase tracking-wider text-on-tertiary-container mb-2">Society Overview</p>
+<h1 class="text-4xl font-extrabold text-primary leading-tight tracking-tighter">Everything <br/>Made Clearer.</h1>
+</header>
+<!-- Metrics Bento Grid -->
+<div class="grid grid-cols-2 gap-4 mb-8">
+<!-- Large Focus Card -->
+<div class="col-span-2 bg-primary-container rounded-3xl p-6 text-white relative overflow-hidden">
+<div class="relative z-10">
+<p class="font-label text-[10px] uppercase tracking-widest text-on-primary-container mb-1">Financial Health</p>
+<h2 class="text-3xl font-bold mb-4">₹400</h2>
+<p class="text-sm text-on-primary-container leading-relaxed max-w-[200px]">Net balance after current cycle expenses.</p>
+</div>
+<div class="absolute -right-8 -bottom-8 w-32 h-32 bg-primary opacity-20 rounded-full blur-3xl"></div>
+<div class="absolute right-6 top-6">
+<span class="material-symbols-outlined text-4xl text-on-primary-container/30" data-icon="account_balance">account_balance</span>
+</div>
+</div>
+<!-- Occupancy Mini Cards -->
+<div class="bg-surface-container-lowest rounded-2xl p-5 flex flex-col justify-between aspect-square">
+<span class="material-symbols-outlined text-primary text-2xl" data-icon="home_work">home_work</span>
+<div>
+<p class="text-3xl font-bold text-primary">148</p>
+<p class="font-label text-[10px] uppercase tracking-tight text-outline">Total Flats</p>
+</div>
+</div>
+<div class="bg-tertiary-container rounded-2xl p-5 flex flex-col justify-between aspect-square">
+<span class="material-symbols-outlined text-tertiary-fixed text-2xl" data-icon="person_check" style="font-variation-settings: 'FILL' 1;">person_check</span>
+<div>
+<p class="text-3xl font-bold text-tertiary-fixed">148</p>
+<p class="font-label text-[10px] uppercase tracking-tight text-on-tertiary-container">Occupied</p>
+</div>
+</div>
+</div>
+<!-- Scrollable Summary Cards Section -->
+<section class="space-y-4">
+<h3 class="text-xl font-bold text-primary mb-6">Operations Summary</h3>
+<!-- Complaints Card -->
+<div class="bg-surface-container-low rounded-3xl p-6 flex items-center justify-between group transition-all">
+<div class="flex items-center gap-5">
+<div class="w-14 h-14 bg-error-container rounded-2xl flex items-center justify-center">
+<span class="material-symbols-outlined text-error text-2xl" data-icon="report">report</span>
+</div>
+<div>
+<h4 class="font-bold text-lg text-primary">Open Complaints</h4>
+<p class="text-sm text-on-surface-variant">5 items requiring action</p>
+</div>
+</div>
+<div class="text-2xl font-black text-error">05</div>
+</div>
+<!-- Pending Bills Card -->
+<div class="bg-surface-container-low rounded-3xl p-6 flex items-center justify-between group">
+<div class="flex items-center gap-5">
+<div class="w-14 h-14 bg-secondary-container rounded-2xl flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-2xl" data-icon="payments">payments</span>
+</div>
+<div>
+<h4 class="font-bold text-lg text-primary">Pending Bills</h4>
+<p class="text-sm text-on-surface-variant">144 unpaid invoices</p>
+</div>
+</div>
+<div class="text-2xl font-black text-primary">144</div>
+</div>
+<!-- Financial Split (Asymmetric Layout) -->
+<div class="flex gap-4 pt-2">
+<div class="flex-1 bg-surface-container-highest rounded-3xl p-6">
+<p class="font-label text-[10px] uppercase tracking-widest text-outline mb-4">Collected</p>
+<p class="text-xl font-bold text-primary">₹10,400</p>
+</div>
+<div class="flex-1 bg-surface-container-highest rounded-3xl p-6 border-l-4 border-error/20">
+<p class="font-label text-[10px] uppercase tracking-widest text-outline mb-4">Expenses</p>
+<p class="text-xl font-bold text-error">₹10,000</p>
+</div>
+</div>
+<!-- Vacancy & Residents (Minimalist List) -->
+<div class="mt-8 bg-surface-container-low rounded-3xl p-2">
+<div class="flex items-center justify-between p-4 border-b border-surface-variant/30">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-outline" data-icon="event_busy">event_busy</span>
+<span class="text-sm font-medium">Vacant Units</span>
+</div>
+<span class="text-sm font-bold bg-surface-container-highest px-3 py-1 rounded-full">0</span>
+</div>
+<div class="flex items-center justify-between p-4 border-b border-surface-variant/30">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-outline" data-icon="groups">groups</span>
+<span class="text-sm font-medium">Total Owners</span>
+</div>
+<span class="text-sm font-bold">148</span>
+</div>
+<div class="flex items-center justify-between p-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-outline" data-icon="badge">badge</span>
+<span class="text-sm font-medium">Tenants</span>
+</div>
+<span class="text-sm font-bold">1</span>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar Shell -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-3 bg-[#f9faf7]/80 dark:bg-slate-950/80 backdrop-blur-xl z-50 rounded-t-3xl shadow-[0_-4px_20px_0_rgba(0,0,0,0.04)] border-t border-[#191c1b]/5">
+<!-- Hub (Active) -->
+<a class="flex flex-col items-center justify-center bg-[#05213a] dark:bg-blue-600 text-white rounded-2xl px-5 py-2 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined text-xl mb-1" data-icon="grid_view" style="font-variation-settings: 'FILL' 1;">grid_view</span>
+<span class="font-inter text-[10px] uppercase tracking-wider font-bold">Hub</span>
+</a>
+<!-- Payments -->
+<a class="flex flex-col items-center justify-center text-[#191c1b] dark:text-slate-400 px-5 py-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined text-xl mb-1" data-icon="account_balance_wallet">account_balance_wallet</span>
+<span class="font-inter text-[10px] uppercase tracking-wider font-bold">Payments</span>
+</a>
+<!-- Service -->
+<a class="flex flex-col items-center justify-center text-[#191c1b] dark:text-slate-400 px-5 py-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined text-xl mb-1" data-icon="construction">construction</span>
+<span class="font-inter text-[10px] uppercase tracking-wider font-bold">Service</span>
+</a>
+<!-- Profile -->
+<a class="flex flex-col items-center justify-center text-[#191c1b] dark:text-slate-400 px-5 py-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined text-xl mb-1" data-icon="person">person</span>
+<span class="font-inter text-[10px] uppercase tracking-wider font-bold">Profile</span>
+</a>
+</nav>
+<!-- Floating Action Button Contextual Suppression Logic applied (not rendered on dashboard for clarity) -->
+</body></html>

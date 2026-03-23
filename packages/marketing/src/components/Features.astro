@@ -1,68 +1,29 @@
 ---
 const features = [
-  {
-    icon: `<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" /></svg>`,
-    title: 'Billing & Invoicing',
-    description: 'Auto-generate monthly maintenance bills for all flats. Set a single amount across flat types or customize per category.',
-    color: 'bg-blue-50 text-blue-600',
-  },
-  {
-    icon: `<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" /></svg>`,
-    title: 'Online Payments',
-    description: 'Collect maintenance payments via PhonePe UPI. Residents pay instantly from their phone with automatic receipt generation.',
-    color: 'bg-green-50 text-green-600',
-  },
-  {
-    icon: `<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>`,
-    title: 'Complaint Tracking',
-    description: 'Residents raise complaints with photos. Committee members track, assign, and resolve issues transparently with status updates.',
-    color: 'bg-amber-50 text-amber-600',
-  },
-  {
-    icon: `<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>`,
-    title: 'Expense Management',
-    description: 'Log and categorize all society expenses with receipt uploads. Keep complete financial records accessible to the committee.',
-    color: 'bg-purple-50 text-purple-600',
-  },
-  {
-    icon: `<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>`,
-    title: 'Bylaws & Documents',
-    description: 'Share society rules, meeting minutes, and notices with all members. Everyone stays informed with a central document hub.',
-    color: 'bg-rose-50 text-rose-600',
-  },
-  {
-    icon: `<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" /></svg>`,
-    title: 'Reports & Analytics',
-    description: 'Get financial summaries, collection reports, and occupancy analytics. Make data-driven decisions for your society.',
-    color: 'bg-cyan-50 text-cyan-600',
-  },
+  { icon: 'receipt_long', title: 'Billing & Invoicing', description: 'Automated maintenance cycles with clear, editorial-style PDF statements for every unit.' },
+  { icon: 'payments', title: 'Online Payments', description: 'Integrated gateway for UPI, cards, and net banking with instant reconciliation.' },
+  { icon: 'assignment_late', title: 'Complaint Tracking', description: 'Ticket-based resolution system with real-time status updates for residents and staff.' },
+  { icon: 'account_balance_wallet', title: 'Expense Management', description: 'Full ledger transparency for society spending, including vendor payouts and petty cash.' },
+  { icon: 'gavel', title: 'Bylaws & Documents', description: 'A digital archive for rules, meeting minutes, and legal certificates accessible 24/7.' },
+  { icon: 'analytics', title: 'Reports & Analytics', description: 'Visual data representations of society health, from occupancy rates to collection trends.' },
 ];
 ---
 
-<section id="features" class="py-16 md:py-24 bg-gray-50">
-  <div class="max-w-7xl mx-auto px-6">
-    <!-- Section header -->
-    <div class="text-center max-w-3xl mx-auto mb-12">
-      <div class="inline-flex items-center gap-2 bg-primary-100 text-primary-700 text-sm font-medium px-4 py-1.5 rounded-full mb-4">
-        Everything you need
-      </div>
-      <h2 class="text-3xl md:text-5xl font-extrabold text-gray-900 tracking-tight">
-        All-in-one apartment management
-      </h2>
-      <p class="mt-4 text-lg text-gray-600">
-        Core tools for day-to-day society operations, without switching between separate records and message threads.
-      </p>
+<section id="features" class="bg-surface-container-low py-24 px-8">
+  <div class="max-w-7xl mx-auto">
+    <div class="mb-20 text-center lg:text-left max-w-2xl">
+      <h2 class="text-4xl font-extrabold text-primary tracking-tight mb-4 font-headline uppercase">The Society Toolkit</h2>
+      <p class="text-on-surface-variant font-body">A curated suite of essential tools designed to streamline community operations without visual clutter.</p>
     </div>
 
-    <!-- Feature cards -->
-    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
       {features.map((feature) => (
-        <div class="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 hover:shadow-lg hover:border-primary-100 hover:-translate-y-1 transition-all duration-300">
-          <div class={`w-12 h-12 rounded-xl flex items-center justify-center ${feature.color} mb-5`}>
-            <Fragment set:html={feature.icon} />
+        <div class="bg-surface-container-lowest p-10 rounded-xl transition-all duration-300 hover:translate-y-[-4px]">
+          <div class="w-12 h-12 bg-primary/5 rounded-xl flex items-center justify-center mb-6">
+            <span class="material-symbols-outlined text-primary text-3xl">{feature.icon}</span>
           </div>
-          <h3 class="text-xl font-bold text-gray-900 mb-2">{feature.title}</h3>
-          <p class="text-gray-600 leading-relaxed">{feature.description}</p>
+          <h3 class="text-xl font-bold text-primary mb-3 font-headline">{feature.title}</h3>
+          <p class="text-on-surface-variant text-sm leading-relaxed font-body">{feature.description}</p>
         </div>
       ))}
     </div>

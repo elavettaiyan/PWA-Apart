@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+
+<html class="scroll-smooth" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Dwell Hub | Apartment Society Management, Made Clearer</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "surface-variant": "#e1e3e1",
+                "error": "#ba1a1a",
+                "primary-container": "#1e3750",
+                "on-tertiary-fixed": "#00201b",
+                "on-error": "#ffffff",
+                "inverse-surface": "#2e3130",
+                "background": "#f9faf7",
+                "secondary-fixed": "#d0e4ff",
+                "tertiary-container": "#003d35",
+                "surface-container-high": "#e7e8e6",
+                "tertiary": "#002520",
+                "secondary-fixed-dim": "#b1c9e6",
+                "inverse-primary": "#b0c9e8",
+                "outline-variant": "#c0c8c4",
+                "on-secondary-container": "#4c637d",
+                "on-surface": "#191c1b",
+                "surface": "#f9faf7",
+                "primary-fixed-dim": "#b0c9e8",
+                "outline": "#707976",
+                "on-tertiary-fixed-variant": "#005046",
+                "on-tertiary": "#ffffff",
+                "secondary": "#4a607a",
+                "surface-container-lowest": "#ffffff",
+                "secondary-container": "#c7dffd",
+                "tertiary-fixed-dim": "#84d5c5",
+                "on-tertiary-container": "#5bac9d",
+                "tertiary-fixed": "#a0f2e1",
+                "on-primary-container": "#88a0be",
+                "surface-dim": "#d9dad8",
+                "surface-container-low": "#f3f4f2",
+                "on-secondary-fixed": "#021d33",
+                "surface-container-highest": "#e1e3e1",
+                "surface-bright": "#f9faf7",
+                "on-primary-fixed": "#011d35",
+                "on-surface-variant": "#404946",
+                "surface-container": "#edeeec",
+                "on-primary": "#ffffff",
+                "on-secondary": "#ffffff",
+                "on-primary-fixed-variant": "#314863",
+                "primary": "#05213a",
+                "on-background": "#191c1b",
+                "error-container": "#ffdad6",
+                "surface-tint": "#49607c",
+                "primary-fixed": "#d1e4ff",
+                "on-secondary-fixed-variant": "#324861",
+                "on-error-container": "#93000a",
+                "inverse-on-surface": "#f0f1ef"
+              },
+              fontFamily: {
+                "headline": ["Manrope", "sans-serif"],
+                "body": ["Inter", "sans-serif"],
+                "label": ["Inter", "sans-serif"]
+              },
+              borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .editorial-shadow {
+            box-shadow: 0 32px 64px -12px rgba(25, 28, 27, 0.06);
+        }
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, .font-manrope { font-family: 'Manrope', sans-serif; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface selection:bg-secondary-container selection:text-on-secondary-container">
+<!-- Top Navigation Bar -->
+<nav class="fixed top-0 w-full z-50 bg-[#f9faf7]/80 backdrop-blur-xl transition-all duration-300">
+<div class="flex justify-between items-center px-8 py-4 max-w-7xl mx-auto">
+<div class="text-2xl font-bold tracking-tighter text-[#05213a] font-manrope">
+                Dwell Hub
+            </div>
+<div class="hidden md:flex items-center gap-8">
+<a class="font-manrope text-sm tracking-wide font-medium text-[#05213a] border-b-2 border-[#05213a] pb-1 transition-all duration-300 hover:opacity-70" href="#">Features</a>
+<a class="font-manrope text-sm tracking-wide font-medium text-slate-600 hover:text-[#05213a] transition-all duration-300 hover:opacity-70" href="#">Residents</a>
+<a class="font-manrope text-sm tracking-wide font-medium text-slate-600 hover:text-[#05213a] transition-all duration-300 hover:opacity-70" href="#">Pricing</a>
+<a class="font-manrope text-sm tracking-wide font-medium text-slate-600 hover:text-[#05213a] transition-all duration-300 hover:opacity-70" href="#">Support</a>
+</div>
+<div class="flex items-center gap-4">
+<button class="font-manrope text-sm tracking-wide font-medium text-slate-600 hover:text-[#05213a] scale-95 active:scale-90 transition-transform">Login</button>
+<button class="bg-primary text-on-primary px-6 py-2.5 rounded-lg font-manrope text-sm tracking-wide font-medium scale-95 active:scale-90 transition-transform">Get Started</button>
+</div>
+</div>
+</nav>
+<main class="pt-24">
+<!-- Hero Section -->
+<section class="relative px-8 py-20 lg:py-32 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+<div class="lg:col-span-6 z-10">
+<span class="inline-block text-on-tertiary-container bg-tertiary-container/10 px-3 py-1 rounded-full text-xs font-bold tracking-widest uppercase mb-6 font-label">The Modern Curator</span>
+<h1 class="text-5xl lg:text-7xl font-extrabold text-primary tracking-tight leading-[1.1] mb-8 font-headline">
+                    Apartment society management, <span class="text-on-tertiary-container italic">made clearer.</span>
+</h1>
+<p class="text-lg text-on-surface-variant max-w-xl mb-10 leading-relaxed font-body">
+                    Transforming complex community logistics into a serene digital environment. Built on institutional trust and editorial clarity for the modern resident.
+                </p>
+<div class="flex flex-wrap gap-4">
+<button class="bg-primary text-on-primary px-8 py-4 rounded-lg font-bold tracking-wide scale-95 active:scale-90 transition-transform editorial-shadow">
+                        Schedule a Demo
+                    </button>
+<button class="bg-secondary-container text-on-secondary-container px-8 py-4 rounded-lg font-bold tracking-wide scale-95 active:scale-90 transition-transform">
+                        Explore Platform
+                    </button>
+</div>
+</div>
+<div class="lg:col-span-6 relative">
+<div class="absolute -top-10 -right-10 w-64 h-64 bg-tertiary/5 rounded-full blur-3xl"></div>
+<div class="relative rounded-2xl overflow-hidden aspect-[4/5] lg:aspect-square editorial-shadow">
+<img class="w-full h-full object-cover" data-alt="Modern minimalist architectural building with clean glass lines" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB69Fbrfoi0Oo8Yecu4CBIGPy-zfjPLZOx0Lj5TWzYuxEmTHppuzEJKnnciuTFQYvSfJkEnwAbkiHARS1xaS1ML6egYsGepOYZiEi1xYn-W7XoHzFIXOru5bDuXZS2kQTXFXri8Nj8GNZDjbu8A66ZIYLy5TkYrvuXTkj14uWZ_AV8aAz9HhR2bbeHzKFP-abZKtSzj6zgEQcYya6_moTzOgv28L2xdFsrYm7e_u_UaFhgXyMAqnknaJXhGmqQv5ZdXMeWk0_cNDWw"/>
+<div class="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-primary/80 to-transparent">
+<p class="text-white/80 font-label text-xs tracking-widest uppercase">Signature Project</p>
+<p class="text-white text-xl font-headline font-bold">The Obsidian Heights, 2024</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Feature Grid (The Society Toolkit) -->
+<section class="bg-surface-container-low py-24 px-8">
+<div class="max-w-7xl mx-auto">
+<div class="mb-20 text-center lg:text-left max-w-2xl">
+<h2 class="text-4xl font-extrabold text-primary tracking-tight mb-4 font-headline uppercase">The Society Toolkit</h2>
+<p class="text-on-surface-variant font-body">A curated suite of essential tools designed to streamline community operations without visual clutter.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+<!-- Tool Card 1 -->
+<div class="bg-surface-container-lowest p-10 rounded-xl transition-all duration-300 hover:translate-y-[-4px]">
+<div class="w-12 h-12 bg-primary/5 rounded-lg flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary text-3xl">receipt_long</span>
+</div>
+<h3 class="text-xl font-bold text-primary mb-3 font-headline">Billing &amp; Invoicing</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed font-body">Automated maintenance cycles with clear, editorial-style PDF statements for every unit.</p>
+</div>
+<!-- Tool Card 2 -->
+<div class="bg-surface-container-lowest p-10 rounded-xl transition-all duration-300 hover:translate-y-[-4px]">
+<div class="w-12 h-12 bg-primary/5 rounded-lg flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary text-3xl">payments</span>
+</div>
+<h3 class="text-xl font-bold text-primary mb-3 font-headline">Online Payments</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed font-body">Integrated gateway for UPI, cards, and net banking with instant reconciliation.</p>
+</div>
+<!-- Tool Card 3 -->
+<div class="bg-surface-container-lowest p-10 rounded-xl transition-all duration-300 hover:translate-y-[-4px]">
+<div class="w-12 h-12 bg-primary/5 rounded-lg flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary text-3xl">assignment_late</span>
+</div>
+<h3 class="text-xl font-bold text-primary mb-3 font-headline">Complaint Tracking</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed font-body">Ticket-based resolution system with real-time status updates for residents and staff.</p>
+</div>
+<!-- Tool Card 4 -->
+<div class="bg-surface-container-lowest p-10 rounded-xl transition-all duration-300 hover:translate-y-[-4px]">
+<div class="w-12 h-12 bg-primary/5 rounded-lg flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary text-3xl">account_balance_wallet</span>
+</div>
+<h3 class="text-xl font-bold text-primary mb-3 font-headline">Expense Management</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed font-body">Full ledger transparency for society spending, including vendor payouts and petty cash.</p>
+</div>
+<!-- Tool Card 5 -->
+<div class="bg-surface-container-lowest p-10 rounded-xl transition-all duration-300 hover:translate-y-[-4px]">
+<div class="w-12 h-12 bg-primary/5 rounded-lg flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary text-3xl">gavel</span>
+</div>
+<h3 class="text-xl font-bold text-primary mb-3 font-headline">Bylaws &amp; Documents</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed font-body">A digital archive for rules, meeting minutes, and legal certificates accessible 24/7.</p>
+</div>
+<!-- Tool Card 6 -->
+<div class="bg-surface-container-lowest p-10 rounded-xl transition-all duration-300 hover:translate-y-[-4px]">
+<div class="w-12 h-12 bg-primary/5 rounded-lg flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary text-3xl">analytics</span>
+</div>
+<h3 class="text-xl font-bold text-primary mb-3 font-headline">Reports &amp; Analytics</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed font-body">Visual data representations of society health, from occupancy rates to collection trends.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- FAQ Section (Curated Answers) -->
+<section class="py-24 px-8 max-w-7xl mx-auto">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-16">
+<div class="lg:col-span-4">
+<h2 class="text-4xl font-extrabold text-primary tracking-tight mb-6 font-headline">Curated Answers</h2>
+<p class="text-on-surface-variant font-body mb-8">Quick resolutions for common resident inquiries regarding our platform and services.</p>
+<button class="text-primary font-bold inline-flex items-center gap-2 group">
+                        View full documentation
+                        <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+<div class="lg:col-span-8 space-y-4">
+<details class="group bg-surface-container-low rounded-xl p-6 open:bg-surface-container-high transition-colors">
+<summary class="flex justify-between items-center font-bold text-primary cursor-pointer list-none">
+<span>How secure is our society data?</span>
+<span class="material-symbols-outlined group-open:rotate-180 transition-transform">expand_more</span>
+</summary>
+<div class="mt-4 text-on-surface-variant leading-relaxed text-sm font-body">
+                            We utilize bank-grade 256-bit encryption and ISO-certified data centers. Your community data is siloed and protected by rigorous access control protocols.
+                        </div>
+</details>
+<details class="group bg-surface-container-low rounded-xl p-6 open:bg-surface-container-high transition-colors">
+<summary class="flex justify-between items-center font-bold text-primary cursor-pointer list-none">
+<span>What is the process for migrating our existing records?</span>
+<span class="material-symbols-outlined group-open:rotate-180 transition-transform">expand_more</span>
+</summary>
+<div class="mt-4 text-on-surface-variant leading-relaxed text-sm font-body">
+                            Our onboarding concierge handles the entire migration. Simply provide your legacy spreadsheets, and we'll map the data to Dwell Hub within 48 hours.
+                        </div>
+</details>
+<details class="group bg-surface-container-low rounded-xl p-6 open:bg-surface-container-high transition-colors">
+<summary class="flex justify-between items-center font-bold text-primary cursor-pointer list-none">
+<span>Can residents pay via credit cards?</span>
+<span class="material-symbols-outlined group-open:rotate-180 transition-transform">expand_more</span>
+</summary>
+<div class="mt-4 text-on-surface-variant leading-relaxed text-sm font-body">
+                            Yes, we support all major credit/debit cards, UPI, and net banking. Settlements are typically processed within T+1 working days.
+                        </div>
+</details>
+</div>
+</div>
+</section>
+<!-- Final CTA -->
+<section class="px-8 pb-32">
+<div class="max-w-7xl mx-auto relative overflow-hidden bg-primary rounded-2xl p-12 lg:p-24 text-center">
+<!-- Abstract Background Patterns -->
+<div class="absolute top-0 right-0 w-96 h-96 bg-primary-container opacity-50 rounded-full blur-[100px]"></div>
+<div class="absolute bottom-0 left-0 w-64 h-64 bg-tertiary opacity-30 rounded-full blur-[80px]"></div>
+<div class="relative z-10 max-w-2xl mx-auto">
+<h2 class="text-4xl lg:text-5xl font-extrabold text-on-primary mb-8 font-headline leading-tight">
+                        Ready to elevate your community living?
+                    </h2>
+<p class="text-on-primary-container text-lg mb-10 font-body">
+                        Join 2,500+ premium societies already redefining the resident experience with Dwell Hub's editorial clarity.
+                    </p>
+<button class="bg-surface text-primary px-10 py-5 rounded-lg font-bold text-lg tracking-wide scale-95 active:scale-90 transition-transform editorial-shadow">
+                        Get Started Today
+                    </button>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="w-full border-t border-[#05213a]/5 bg-[#f3f4f2]">
+<div class="flex flex-col md:flex-row justify-between items-center px-12 py-16 w-full max-w-7xl mx-auto">
+<div class="flex flex-col gap-4 mb-10 md:mb-0">
+<div class="text-lg font-black text-[#05213a]">Dwell Hub</div>
+<p class="text-slate-500 font-inter text-xs uppercase tracking-widest font-semibold">© 2024 Dwell Hub. The Modern Curator of Community.</p>
+</div>
+<div class="flex gap-8">
+<a class="font-inter text-xs uppercase tracking-widest font-semibold text-slate-500 hover:text-[#002520] transition-colors" href="#">Privacy Policy</a>
+<a class="font-inter text-xs uppercase tracking-widest font-semibold text-slate-500 hover:text-[#002520] transition-colors" href="#">Terms of Service</a>
+<a class="font-inter text-xs uppercase tracking-widest font-semibold text-slate-500 hover:text-[#002520] transition-colors" href="#">Cookie Settings</a>
+<a class="font-inter text-xs uppercase tracking-widest font-semibold text-slate-500 hover:text-[#002520] transition-colors" href="#">Contact Us</a>
+</div>
+</div>
+</footer>
+</body></html>
