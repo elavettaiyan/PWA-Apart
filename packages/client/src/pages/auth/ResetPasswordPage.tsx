@@ -64,21 +64,17 @@ export default function ResetPasswordPage() {
             <>
               <h2 className="editorial-title text-3xl font-extrabold text-primary mb-1">Reset Password</h2>
               <p className="text-sm text-on-surface-variant mb-8">
-                Enter your reset token and choose a new password.
+                Choose a new password for your account.
               </p>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="label">Reset Token</label>
-                  <input
-                    type="text"
-                    className="input font-mono text-sm"
-                    placeholder="Paste your reset token here"
-                    value={token}
-                    onChange={(e) => setToken(e.target.value)}
-                    required
-                  />
-                </div>
+                <input type="hidden" value={token} />
+
+                {!token && (
+                  <div className="p-3 bg-error-container rounded-xl text-error text-sm">
+                    Invalid or missing reset link. Please use the link from your email.
+                  </div>
+                )}
 
                 <div>
                   <label className="label">New Password</label>
@@ -132,7 +128,7 @@ export default function ResetPasswordPage() {
 
                 <button
                   type="submit"
-                  disabled={loading || !allValid}
+                  disabled={loading || !allValid || !token}
                   className="btn-gradient w-full py-3 disabled:opacity-50"
                 >
                   {loading ? 'Resetting...' : 'Reset Password'}
