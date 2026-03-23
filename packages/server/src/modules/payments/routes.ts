@@ -8,6 +8,7 @@ import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { calculateBillPaymentUpdate, generateChecksum, verifyCallbackChecksum } from './phonepeUtils';
+import { sendPaymentReceiptEmail, PaymentReceiptData } from '../../config/email';
 
 const router = Router();
 const BULK_REF_PREFIX = 'BULK:';
@@ -183,6 +184,67 @@ async function markBulkPaymentsFailed(merchantTransId: string, phonepePayload: u
 }
 
 // ── INITIATE PHONEPE PAYMENT ────────────────────────────
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+/** Fire-and-forget receipt email for a successfully processed payment. */
+async function sendReceiptForPayment(paymentId: string) {
+  try {
+    const payment = await prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        bill: {
+          include: {
+            flat: {
+              include: {
+                owner: true,
+                tenant: true,
+                block: { include: { society: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!payment || payment.status !== 'SUCCESS') return;
+
+    const bill = payment.bill;
+    const flat = bill.flat;
+    const owner = flat.owner;
+    const tenant = flat.tenant;
+
+    // Determine who to email — prefer tenant if active, else owner
+    const recipient = (tenant?.email) ? { name: tenant.name, email: tenant.email }
+                    : (owner?.email)  ? { name: owner.name,  email: owner.email }
+                    : null;
+
+    if (!recipient) {
+      logger.warn('Payment receipt: no email address found for flat', { flatId: flat.id, paymentId });
+      return;
+    }
+
+    const data: PaymentReceiptData = {
+      userName: recipient.name,
+      flatNumber: flat.flatNumber,
+      blockName: flat.block.name,
+      societyName: flat.block.society.name,
+      billMonth: `${MONTH_NAMES[bill.month - 1]} ${bill.year}`,
+      amount: payment.amount,
+      totalAmount: bill.totalAmount,
+      paidAmount: bill.paidAmount,
+      billStatus: bill.status,
+      method: payment.method,
+      transactionId: payment.transactionId || payment.receiptNo || payment.merchantTransId || undefined,
+      paidAt: payment.paidAt || new Date(),
+    };
+
+    await sendPaymentReceiptEmail(recipient.email, data);
+  } catch (err: any) {
+    logger.error('Payment receipt email failed (non-blocking)', { paymentId, error: err.message });
+  }
+}
+
 router.post(
   '/phonepe/initiate',
   authenticate,
@@ -467,9 +529,22 @@ router.post('/phonepe/callback', async (req: Request, res: Response) => {
       if (isBulkPayment(payment.notes)) {
         const result = await markBulkPaymentsSuccess(merchantTransId, decodedResponse.data?.transactionId, decodedResponse);
         logger.info(`Bulk payment successful: ${merchantTransId}`, { processedCount: result.processedCount });
+
+        // Send receipt emails for each bill in the bulk payment
+        const bulkPayments = await prisma.payment.findMany({
+          where: { OR: [{ merchantTransId }, { notes: bulkRef(merchantTransId) }], status: 'SUCCESS' },
+          select: { id: true },
+        });
+        for (const bp of bulkPayments) {
+          sendReceiptForPayment(bp.id).catch(() => {});
+        }
       } else {
         const result = await markPaymentSuccess(payment.id, decodedResponse.data?.transactionId, decodedResponse);
         logger.info(`Payment successful: ${merchantTransId}`, { alreadyProcessed: result.alreadyProcessed });
+
+        if (!result.alreadyProcessed) {
+          sendReceiptForPayment(payment.id).catch(() => {});
+        }
       }
     } else {
       if (isBulkPayment(payment.notes)) {
@@ -555,10 +630,21 @@ router.get(
           if (statusData.code === 'PAYMENT_SUCCESS') {
             if (isBulkPayment(payment.notes)) {
               const result = await markBulkPaymentsSuccess(merchantTransId, statusData.data?.transactionId, statusData);
+
+              const bulkPayments = await prisma.payment.findMany({
+                where: { OR: [{ merchantTransId }, { notes: bulkRef(merchantTransId) }], status: 'SUCCESS' },
+                select: { id: true },
+              });
+              for (const bp of bulkPayments) {
+                sendReceiptForPayment(bp.id).catch(() => {});
+              }
               return res.json({ ...payment, status: 'SUCCESS', bulkProcessedCount: result.processedCount });
             }
 
             const result = await markPaymentSuccess(payment.id, statusData.data?.transactionId, statusData);
+            if (!result.alreadyProcessed) {
+              sendReceiptForPayment(payment.id).catch(() => {});
+            }
             return res.json({ ...payment, status: 'SUCCESS', alreadyProcessed: result.alreadyProcessed });
           }
         } catch (e) {

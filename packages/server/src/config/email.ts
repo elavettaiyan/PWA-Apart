@@ -79,6 +79,123 @@ export async function sendPasswordResetEmail(to: string, resetToken: string, use
   }
 }
 
+export interface PaymentReceiptData {
+  userName: string;
+  flatNumber: string;
+  blockName: string;
+  societyName: string;
+  billMonth: string;       // e.g. "March 2026"
+  amount: number;
+  totalAmount: number;
+  paidAmount: number;      // total paid so far (including this payment)
+  billStatus: string;      // PAID | PARTIAL
+  method: string;          // PHONEPE, CASH, CHEQUE, etc.
+  transactionId?: string;  // PhonePe txn id or receipt number
+  paidAt: Date;
+}
+
+export async function sendPaymentReceiptEmail(to: string, data: PaymentReceiptData) {
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  const methodLabel: Record<string, string> = {
+    PHONEPE: 'PhonePe',
+    CASH: 'Cash',
+    CHEQUE: 'Cheque',
+    BANK_TRANSFER: 'Bank Transfer',
+    UPI_OTHER: 'UPI',
+  };
+
+  const isPaid = data.billStatus === 'PAID';
+  const statusColor = isPaid ? '#065f46' : '#92400e';
+  const statusBg = isPaid ? '#ecfdf5' : '#fffbeb';
+  const statusLabel = isPaid ? 'Fully Paid' : 'Partially Paid';
+  const formattedAmount = `₹${data.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  const formattedTotal = `₹${data.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  const formattedPaid = `₹${data.paidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  const remaining = Math.max(data.totalAmount - data.paidAmount, 0);
+  const formattedRemaining = `₹${remaining.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  const dateStr = data.paidAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const txnRef = data.transactionId || '—';
+
+  try {
+    const info = await transporter.sendMail({
+      from: FROM_EMAIL,
+      to,
+      subject: `Payment Receipt — ${data.billMonth} Maintenance (${data.flatNumber}, ${data.blockName})`,
+      html: `
+        <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #ffffff;">
+          <div style="text-align: center; margin-bottom: 32px;">
+            <h1 style="color: #003D33; font-size: 28px; margin: 0;">Dwell Hub</h1>
+            <p style="color: #6b7280; font-size: 14px; margin: 4px 0 0;">Management Portal</p>
+          </div>
+          <div style="background: #f9fafb; border-radius: 12px; padding: 32px; border: 1px solid #e5e7eb;">
+            <div style="text-align: center; margin-bottom: 24px;">
+              <div style="display: inline-block; background: ${statusBg}; color: ${statusColor}; padding: 6px 16px; border-radius: 999px; font-size: 13px; font-weight: 600;">${statusLabel}</div>
+            </div>
+            <h2 style="color: #111827; font-size: 20px; margin: 0 0 8px; text-align: center;">Payment Received</h2>
+            <p style="color: #4b5563; text-align: center; margin: 0 0 24px;">Hi ${data.userName}, your maintenance payment has been recorded.</p>
+            <div style="background: #ffffff; border-radius: 8px; padding: 20px; border: 1px solid #e5e7eb; margin-bottom: 24px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                <tr>
+                  <td style="color: #6b7280; padding: 8px 0;">Society</td>
+                  <td style="color: #111827; padding: 8px 0; text-align: right; font-weight: 500;">${data.societyName}</td>
+                </tr>
+                <tr>
+                  <td style="color: #6b7280; padding: 8px 0;">Flat</td>
+                  <td style="color: #111827; padding: 8px 0; text-align: right; font-weight: 500;">${data.flatNumber}, ${data.blockName}</td>
+                </tr>
+                <tr>
+                  <td style="color: #6b7280; padding: 8px 0;">Bill Period</td>
+                  <td style="color: #111827; padding: 8px 0; text-align: right; font-weight: 500;">${data.billMonth}</td>
+                </tr>
+                <tr style="border-top: 1px solid #e5e7eb;">
+                  <td style="color: #6b7280; padding: 8px 0;">Amount Paid</td>
+                  <td style="color: #003D33; padding: 8px 0; text-align: right; font-weight: 700; font-size: 16px;">${formattedAmount}</td>
+                </tr>
+                <tr>
+                  <td style="color: #6b7280; padding: 8px 0;">Payment Method</td>
+                  <td style="color: #111827; padding: 8px 0; text-align: right; font-weight: 500;">${methodLabel[data.method] || data.method}</td>
+                </tr>
+                <tr>
+                  <td style="color: #6b7280; padding: 8px 0;">Transaction Ref</td>
+                  <td style="color: #111827; padding: 8px 0; text-align: right; font-weight: 500; font-family: monospace; font-size: 13px;">${txnRef}</td>
+                </tr>
+                <tr>
+                  <td style="color: #6b7280; padding: 8px 0;">Date & Time</td>
+                  <td style="color: #111827; padding: 8px 0; text-align: right; font-weight: 500;">${dateStr}</td>
+                </tr>
+              </table>
+            </div>
+            <div style="background: #f0fdf4; border-radius: 8px; padding: 16px; border: 1px solid #bbf7d0;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                <tr>
+                  <td style="color: #065f46; padding: 4px 0;">Bill Total</td>
+                  <td style="color: #065f46; padding: 4px 0; text-align: right; font-weight: 500;">${formattedTotal}</td>
+                </tr>
+                <tr>
+                  <td style="color: #065f46; padding: 4px 0;">Total Paid</td>
+                  <td style="color: #065f46; padding: 4px 0; text-align: right; font-weight: 600;">${formattedPaid}</td>
+                </tr>
+                ${remaining > 0 ? `<tr>
+                  <td style="color: #92400e; padding: 4px 0;">Remaining</td>
+                  <td style="color: #92400e; padding: 4px 0; text-align: right; font-weight: 600;">${formattedRemaining}</td>
+                </tr>` : ''}
+              </table>
+            </div>
+          </div>
+          <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 32px 0 0;">This is an auto-generated receipt from Dwell Hub.</p>
+          <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 8px 0 0;">&copy; ${new Date().getFullYear()} Dwell Hub. All rights reserved.</p>
+        </div>
+      `,
+    });
+
+    logger.info('Titan Mail: payment receipt email sent', { to, amount: data.amount, messageId: info.messageId });
+  } catch (err: any) {
+    // Don't throw; payment receipt is best-effort — payment already succeeded.
+    logger.error('Titan Mail: failed to send payment receipt email', { to, error: err.message });
+  }
+}
+
 export async function sendRegistrationEmail(to: string, userName: string, societyName: string) {
   const loginUrl = `${CLIENT_URL}/login`;
 

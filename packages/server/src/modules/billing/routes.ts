@@ -5,6 +5,7 @@ import { authenticate, authorize, AuthRequest, FINANCIAL_ROLES, RESIDENT_ROLES }
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 import { buildResidentBillFilter, canResidentAccessBill } from './scope';
+import { sendPaymentReceiptEmail, PaymentReceiptData } from '../../config/email';
 
 const router = Router();
 router.use(authenticate);
@@ -619,6 +620,50 @@ router.post(
         where: { id: bill.id },
         data: { paidAmount: newPaidAmount, status: newStatus },
       });
+
+      // Send receipt email (fire-and-forget)
+      const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      try {
+        const fullBill = await prisma.maintenanceBill.findUnique({
+          where: { id: bill.id },
+          include: {
+            flat: {
+              include: {
+                owner: true,
+                tenant: true,
+                block: { include: { society: true } },
+              },
+            },
+          },
+        });
+
+        if (fullBill) {
+          const flat = fullBill.flat;
+          const recipient = (flat.tenant?.email) ? { name: flat.tenant.name, email: flat.tenant.email }
+                          : (flat.owner?.email)  ? { name: flat.owner.name,  email: flat.owner.email }
+                          : null;
+
+          if (recipient) {
+            const receiptData: PaymentReceiptData = {
+              userName: recipient.name,
+              flatNumber: flat.flatNumber,
+              blockName: flat.block.name,
+              societyName: flat.block.society.name,
+              billMonth: `${MONTH_NAMES[fullBill.month - 1]} ${fullBill.year}`,
+              amount,
+              totalAmount: fullBill.totalAmount,
+              paidAmount: fullBill.paidAmount,
+              billStatus: fullBill.status,
+              method,
+              transactionId: receiptNo || undefined,
+              paidAt: new Date(),
+            };
+            sendPaymentReceiptEmail(recipient.email, receiptData).catch(() => {});
+          }
+        }
+      } catch (emailErr: any) {
+        logger.error('Record payment receipt email failed (non-blocking)', { billId: bill.id, error: emailErr.message });
+      }
 
       return res.json({ payment, newStatus, paidAmount: newPaidAmount });
     } catch (error) {
