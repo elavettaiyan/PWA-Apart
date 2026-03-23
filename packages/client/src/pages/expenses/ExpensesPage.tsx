@@ -72,8 +72,8 @@ export default function ExpensesPage() {
 
       {/* Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-primary-container rounded-2xl p-5 text-white">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-on-primary-container/70">Total Expenses</p>
+        <div className="bg-gradient-to-br from-[#171C3F] to-[#2A3060] rounded-2xl p-5 text-white">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-primary-fixed-dim/70">Total Expenses</p>
           <p className="text-2xl font-extrabold editorial-title mt-1">{formatCurrency(total)}</p>
         </div>
         <div className="stat-card">

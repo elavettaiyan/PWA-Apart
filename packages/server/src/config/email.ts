@@ -52,7 +52,7 @@ export async function sendPasswordResetEmail(to: string, resetToken: string, use
       html: `
         <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #ffffff;">
           <div style="text-align: center; margin-bottom: 32px;">
-            <h1 style="color: #003D33; font-size: 28px; margin: 0;">Dwell Hub</h1>
+            <h1 style="color: #171C3F; font-size: 28px; margin: 0;">Dwell Hub</h1>
             <p style="color: #6b7280; font-size: 14px; margin: 4px 0 0;">Management Portal</p>
           </div>
           <div style="background: #f9fafb; border-radius: 12px; padding: 32px; border: 1px solid #e5e7eb;">
@@ -60,7 +60,7 @@ export async function sendPasswordResetEmail(to: string, resetToken: string, use
             <p style="color: #4b5563; line-height: 1.6; margin: 0 0 8px;">Hi ${userName},</p>
             <p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">We received a request to reset your password. Click the button below to set a new password:</p>
             <div style="text-align: center; margin: 32px 0;">
-              <a href="${resetUrl}" style="background: #003D33; color: #ffffff; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block;">Reset Password</a>
+              <a href="${resetUrl}" style="background: #171C3F; color: #ffffff; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block;">Reset Password</a>
             </div>
             <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 0 0 8px;">This link expires in <strong>1 hour</strong>.</p>
             <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 0;">If you didn't request this, you can safely ignore this email.</p>
@@ -125,7 +125,7 @@ export async function sendPaymentReceiptEmail(to: string, data: PaymentReceiptDa
       html: `
         <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #ffffff;">
           <div style="text-align: center; margin-bottom: 32px;">
-            <h1 style="color: #003D33; font-size: 28px; margin: 0;">Dwell Hub</h1>
+            <h1 style="color: #171C3F; font-size: 28px; margin: 0;">Dwell Hub</h1>
             <p style="color: #6b7280; font-size: 14px; margin: 4px 0 0;">Management Portal</p>
           </div>
           <div style="background: #f9fafb; border-radius: 12px; padding: 32px; border: 1px solid #e5e7eb;">
@@ -150,7 +150,7 @@ export async function sendPaymentReceiptEmail(to: string, data: PaymentReceiptDa
                 </tr>
                 <tr style="border-top: 1px solid #e5e7eb;">
                   <td style="color: #6b7280; padding: 8px 0;">Amount Paid</td>
-                  <td style="color: #003D33; padding: 8px 0; text-align: right; font-weight: 700; font-size: 16px;">${formattedAmount}</td>
+                  <td style="color: #171C3F; padding: 8px 0; text-align: right; font-weight: 700; font-size: 16px;">${formattedAmount}</td>
                 </tr>
                 <tr>
                   <td style="color: #6b7280; padding: 8px 0;">Payment Method</td>
@@ -207,7 +207,7 @@ export async function sendRegistrationEmail(to: string, userName: string, societ
       html: `
         <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #ffffff;">
           <div style="text-align: center; margin-bottom: 32px;">
-            <h1 style="color: #003D33; font-size: 28px; margin: 0;">Dwell Hub</h1>
+            <h1 style="color: #171C3F; font-size: 28px; margin: 0;">Dwell Hub</h1>
             <p style="color: #6b7280; font-size: 14px; margin: 4px 0 0;">Management Portal</p>
           </div>
           <div style="background: #f9fafb; border-radius: 12px; padding: 32px; border: 1px solid #e5e7eb;">
@@ -215,7 +215,7 @@ export async function sendRegistrationEmail(to: string, userName: string, societ
             <p style="color: #4b5563; line-height: 1.6; margin: 0 0 8px;">Hi ${userName},</p>
             <p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">Your society <strong>${societyName}</strong> has been successfully registered on Dwell Hub. You're all set to start managing your apartment community.</p>
             <div style="background: #f0fdf4; border-radius: 8px; padding: 20px; margin: 0 0 24px; border: 1px solid #bbf7d0;">
-              <h3 style="color: #003D33; font-size: 15px; margin: 0 0 12px;">Here's what you can do next:</h3>
+              <h3 style="color: #171C3F; font-size: 15px; margin: 0 0 12px;">Here's what you can do next:</h3>
               <ul style="color: #4b5563; font-size: 14px; line-height: 2; margin: 0; padding-left: 20px;">
                 <li>Add blocks and flats to your society</li>
                 <li>Invite residents to join</li>
@@ -224,7 +224,7 @@ export async function sendRegistrationEmail(to: string, userName: string, societ
               </ul>
             </div>
             <div style="text-align: center; margin: 32px 0;">
-              <a href="${loginUrl}" style="background: #003D33; color: #ffffff; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block;">Go to Dashboard</a>
+              <a href="${loginUrl}" style="background: #171C3F; color: #ffffff; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block;">Go to Dashboard</a>
             </div>
           </div>
           <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 32px 0 0;">Need help? Contact us at support@dwellhub.in</p>

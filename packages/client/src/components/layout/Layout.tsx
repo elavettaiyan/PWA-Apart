@@ -119,7 +119,7 @@ export default function Layout({ children }: LayoutProps) {
       {/* Sidebar — Editorial Design (desktop & mobile drawer) */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 bg-primary flex flex-col transform transition-transform lg:static lg:z-0 lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 flex flex-col transform transition-transform lg:static lg:z-0 lg:translate-x-0',
           sidebarOpen ? 'block translate-x-0' : 'hidden -translate-x-full lg:block',
         )}
       >

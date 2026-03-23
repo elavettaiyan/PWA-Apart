@@ -13,3 +13,6 @@
 ## Notes
 - Frontend proxy forwards `/api` and `/uploads` to backend on port 4000.
 - If any port is busy, run the service with a different port and update env/config accordingly.
+
+
+cd /Users/elaa.2484gmail.com/PWA-Apart/packages/server && npx prisma studio

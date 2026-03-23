@@ -224,7 +224,7 @@ function ResidentDashboard() {
       </header>
 
       {/* Financial Health — Dark Hero Card */}
-      <div className="bg-primary rounded-3xl p-6 text-white relative overflow-hidden">
+      <div className="bg-gradient-to-br from-[#171C3F] to-[#2A3060] rounded-3xl p-6 text-white relative overflow-hidden">
         <div className="relative z-10">
           <p className="text-[10px] uppercase tracking-widest text-white/50 font-bold mb-1">Financial Health</p>
           <h2 className="text-3xl sm:text-4xl font-extrabold editorial-title">{formatCurrency(data?.totalDue ?? 0)}</h2>
@@ -448,7 +448,7 @@ function AdminDashboard() {
       {/* Financial Summary — Editorial Dark Block (matches ref web layout) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
         {/* Main Financial Card */}
-        <div className="lg:col-span-8 bg-primary text-white p-6 sm:p-8 lg:p-10 rounded-2xl relative overflow-hidden">
+        <div className="lg:col-span-8 bg-gradient-to-br from-[#171C3F] to-[#2A3060] text-white p-6 sm:p-8 lg:p-10 rounded-2xl relative overflow-hidden">
           <div className="relative z-10 flex flex-col h-full justify-between min-h-[200px]">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
               <div>

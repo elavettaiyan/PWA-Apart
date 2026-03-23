@@ -46,7 +46,7 @@
     @apply btn bg-error text-on-error hover:opacity-90 focus:ring-error;
   }
   .btn-success {
-    @apply btn bg-tertiary-container text-on-tertiary-container hover:opacity-90 focus:ring-tertiary;
+    @apply btn bg-emerald-600 text-white hover:opacity-90 focus:ring-emerald-500;
   }
   .btn-outline {
     @apply btn bg-transparent text-primary border border-outline-variant hover:bg-surface-container-low;
@@ -166,8 +166,8 @@
   /* Gradient primary button */
   .btn-gradient {
     @apply btn text-white font-bold shadow-lg;
-    background: linear-gradient(135deg, #003D33 0%, #0A5C50 100%);
-    box-shadow: 0 8px 24px -4px rgba(0, 61, 51, 0.2);
+    background: linear-gradient(135deg, #171C3F 0%, #2A3060 100%);
+    box-shadow: 0 8px 24px -4px rgba(23, 28, 63, 0.25);
   }
 }
 

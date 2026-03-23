@@ -127,7 +127,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right: Editorial Decorative Panel */}
-      <div className="hidden lg:flex flex-1 bg-primary items-center justify-center p-12 relative overflow-hidden">
+      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-[#171C3F] to-[#2A3060] items-center justify-center p-12 relative overflow-hidden">
         <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
         <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-64 h-64 bg-tertiary-fixed/5 rounded-full blur-2xl"></div>
         <div className="relative z-10 text-center text-white max-w-md">
