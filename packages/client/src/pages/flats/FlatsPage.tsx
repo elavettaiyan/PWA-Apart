@@ -162,12 +162,12 @@ export default function FlatsPage() {
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <div className={cn(
+                  {/* <div className={cn(
                     'w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold',
                     flat.isOccupied ? 'bg-emerald-50 text-emerald-900' : 'bg-slate-100 text-slate-500',
                   )}>
                     {flat.flatNumber}
-                  </div>
+                  </div> */}
                   <div>
                     <p className="text-sm font-semibold text-on-surface">{flat.flatNumber}</p>
                     <p className="text-xs text-on-surface-variant">{flat.block?.name} · Floor {flat.floor}</p>

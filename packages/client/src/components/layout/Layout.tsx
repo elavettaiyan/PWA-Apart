@@ -151,13 +151,13 @@ export default function Layout({ children }: LayoutProps) {
 
           {/* Bottom Actions */}
           <div className="pt-6 border-t border-white/10 space-y-1">
-            <button
+            {/* <button
               onClick={() => navigate('/complaints')}
               className="w-full bg-white text-primary font-bold py-3 rounded-xl mb-4 flex items-center justify-center gap-2 hover:bg-white/90 transition-colors"
             >
               <Plus className="w-4 h-4" />
               <span>New Request</span>
-            </button>
+            </button> */}
             <button
               onClick={() => navigate('/settings')}
               className="w-full flex items-center gap-3 px-4 py-2 text-white/40 hover:text-white transition-colors text-sm"
