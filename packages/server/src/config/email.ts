@@ -2,7 +2,7 @@ import nodemailer from 'nodemailer';
 import logger from './logger';
 
 const SMTP_HOST = process.env.SMTP_HOST || 'smtp.titan.email';
-const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
 const SMTP_USER = process.env.SMTP_USER || '';
 const SMTP_PASS = process.env.SMTP_PASS || '';
 const FROM_EMAIL = process.env.FROM_EMAIL || 'Dwell Hub <noreply@dwellhub.in>';
