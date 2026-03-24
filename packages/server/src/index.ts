@@ -27,7 +27,9 @@ const serverInstanceId = Math.random().toString(36).slice(2, 10);
 
 // In production (Vercel/Railway/reverse proxy), trust forwarded headers for real client IP.
 // Use numeric value (1 = trust first proxy) to avoid express-rate-limit ERR_ERL_PERMISSIVE_TRUST_PROXY.
-app.set('trust proxy', config.nodeEnv === 'production' ? 1 : false);
+// Also enable when RAILWAY_ENVIRONMENT is set (Railway doesn't always set NODE_ENV).
+const isBehindProxy = config.nodeEnv === 'production' || !!process.env.RAILWAY_ENVIRONMENT;
+app.set('trust proxy', isBehindProxy ? 1 : false);
 
 const normalizeIdentifier = (value: unknown): string => {
   if (typeof value !== 'string') {

@@ -1,61 +1,29 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import logger from './logger';
 
-const SMTP_HOST = process.env.SMTP_HOST || 'smtp.titan.email';
-const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
-const SMTP_USER = process.env.SMTP_USER || '';
-const SMTP_PASS = process.env.SMTP_PASS || '';
-const FROM_EMAIL = process.env.FROM_EMAIL || 'Dwell Hub <noreply@dwellhub.in>';
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const FROM_EMAIL = process.env.FROM_EMAIL || 'DwellHub <noreply@dwellhub.in>';
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
-const transporter = nodemailer.createTransport({
-  host: SMTP_HOST,
-  port: SMTP_PORT,
-  secure: SMTP_PORT === 465,
-  auth: {
-    user: SMTP_USER,
-    pass: SMTP_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false,
-  },
-  connectionTimeout: 10_000,
-  greetingTimeout: 10_000,
-  socketTimeout: 15_000,
-});
+const resend = new Resend(RESEND_API_KEY);
 
-logger.info('SMTP transport configured', {
-  host: SMTP_HOST,
-  port: SMTP_PORT,
-  user: SMTP_USER ? `${SMTP_USER.substring(0, 4)}***` : '(empty)',
-  passSet: !!SMTP_PASS,
+logger.info('Resend email transport configured', {
+  apiKeySet: !!RESEND_API_KEY,
   from: FROM_EMAIL,
 });
-
-// Verify SMTP connection on startup
-if (SMTP_USER && SMTP_PASS) {
-  transporter.verify()
-    .then(() => logger.info('SMTP connection verified successfully'))
-    .catch((err) => logger.error('SMTP connection verification FAILED', { error: err.message, host: SMTP_HOST, port: SMTP_PORT }));
-}
 
 export async function sendPasswordResetEmail(to: string, resetToken: string, userName: string) {
   const resetUrl = `${CLIENT_URL}/reset-password?token=${resetToken}`;
 
-  if (!SMTP_USER || !SMTP_PASS) {
-    const reason = !SMTP_USER ? 'SMTP_USER is missing' : 'SMTP_PASS is missing';
-    logger.error('Titan Mail: password reset email blocked by configuration', { to, reason });
-    throw new Error(`Email configuration error: ${reason}`);
+  if (!RESEND_API_KEY) {
+    logger.error('Resend: password reset email blocked — RESEND_API_KEY is missing', { to });
+    throw new Error('Email configuration error: RESEND_API_KEY is missing');
   }
 
-  logger.info('Titan Mail: attempting password reset email', {
-    to,
-    from: FROM_EMAIL,
-    clientUrl: CLIENT_URL,
-  });
+  logger.info('Resend: attempting password reset email', { to, from: FROM_EMAIL });
 
   try {
-    const info = await transporter.sendMail({
+    const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to,
       subject: 'Reset your Dwell Hub password',
@@ -82,9 +50,15 @@ export async function sendPasswordResetEmail(to: string, resetToken: string, use
       `,
     });
 
-    logger.info('Titan Mail: password reset email sent successfully', { to, messageId: info.messageId });
+    if (error) {
+      logger.error('Resend: failed to send password reset email', { to, error: error.message, from: FROM_EMAIL });
+      throw new Error(`Failed to send email: ${error.message}`);
+    }
+
+    logger.info('Resend: password reset email sent successfully', { to, emailId: data?.id });
   } catch (err: any) {
-    logger.error('Titan Mail: failed to send password reset email', { to, error: err.message, from: FROM_EMAIL });
+    if (err.message?.startsWith('Failed to send email:')) throw err;
+    logger.error('Resend: failed to send password reset email', { to, error: err.message, from: FROM_EMAIL });
     throw new Error(`Failed to send email: ${err.message}`);
   }
 }
@@ -128,7 +102,7 @@ export async function sendPaymentReceiptEmail(to: string, data: PaymentReceiptDa
   const txnRef = data.transactionId || '—';
 
   try {
-    const info = await transporter.sendMail({
+    const { data: emailData, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to,
       subject: `Payment Receipt — ${data.billMonth} Maintenance (${data.flatNumber}, ${data.blockName})`,
@@ -199,10 +173,15 @@ export async function sendPaymentReceiptEmail(to: string, data: PaymentReceiptDa
       `,
     });
 
-    logger.info('Titan Mail: payment receipt email sent', { to, amount: data.amount, messageId: info.messageId });
+    if (error) {
+      logger.error('Resend: failed to send payment receipt email', { to, error: error.message });
+      return;
+    }
+
+    logger.info('Resend: payment receipt email sent', { to, amount: data.amount, emailId: emailData?.id });
   } catch (err: any) {
     // Don't throw; payment receipt is best-effort — payment already succeeded.
-    logger.error('Titan Mail: failed to send payment receipt email', { to, error: err.message });
+    logger.error('Resend: failed to send payment receipt email', { to, error: err.message });
   }
 }
 
@@ -210,7 +189,7 @@ export async function sendRegistrationEmail(to: string, userName: string, societ
   const loginUrl = `${CLIENT_URL}/login`;
 
   try {
-    const info = await transporter.sendMail({
+    const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to,
       subject: 'Welcome to Dwell Hub! Your society is ready',
@@ -243,9 +222,15 @@ export async function sendRegistrationEmail(to: string, userName: string, societ
       `,
     });
 
-    logger.info('Registration welcome email sent', { to, societyName, messageId: info.messageId });
+    if (error) {
+      logger.error('Resend: failed to send registration email', { to, error: error.message });
+      throw new Error(`Failed to send email: ${error.message}`);
+    }
+
+    logger.info('Resend: registration welcome email sent', { to, societyName, emailId: data?.id });
   } catch (err: any) {
-    logger.error('Titan Mail: failed to send registration email', { to, error: err.message });
+    if (err.message?.startsWith('Failed to send email:')) throw err;
+    logger.error('Resend: failed to send registration email', { to, error: err.message });
     throw new Error(`Failed to send email: ${err.message}`);
   }
 }
