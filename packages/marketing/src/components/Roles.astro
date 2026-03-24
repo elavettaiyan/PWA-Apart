@@ -1,0 +1,49 @@
+---
+const roles = [
+  {
+    icon: 'admin_panel_settings',
+    title: 'Secretary / Admin',
+    description: 'Full society overview — manage flats, handle complaints, update bylaws, and oversee staff. Your dashboard shows occupancy, pending issues, and recent activity across the entire complex.',
+    highlights: ['Flat & resident management', 'Complaint resolution', 'Bylaw editing', 'Staff directory'],
+  },
+  {
+    icon: 'account_balance',
+    title: 'Treasurer',
+    description: 'Complete financial command — generate monthly bills, track collections, monitor expenses, and export P&L statements for your AGM. Defaulter reports are ready when you need them.',
+    highlights: ['Bill generation', 'Collection tracking', 'Expense ledger', 'Defaulter reports'],
+  },
+  {
+    icon: 'group',
+    title: 'Owners & Tenants',
+    description: 'Self-service access to flat details, bill history, and online payments. Lodge complaints, check bylaws, and manage tenant information — without calling the office.',
+    highlights: ['Bill payments', 'Complaint filing', 'Flat details', 'Tenant management'],
+  },
+];
+---
+
+<section class="bg-surface-container-low py-24 px-8">
+  <div class="max-w-7xl mx-auto">
+    <div class="mb-20 text-center lg:text-left max-w-2xl">
+      <p class="text-xs font-bold tracking-widest uppercase text-primary mb-4 font-label">Role-Based Access</p>
+      <h2 class="text-4xl font-extrabold text-primary tracking-tight mb-4 font-headline">Built for your committee.</h2>
+      <p class="text-on-surface-variant font-body">Every committee member gets exactly the tools they need. No more, no less.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+      {roles.map((role) => (
+        <div class="bg-surface-container-lowest p-10 rounded-xl transition-all duration-300 hover:translate-y-[-4px]">
+          <div class="w-12 h-12 bg-primary/5 rounded-xl flex items-center justify-center mb-6">
+            <span class="material-symbols-outlined text-primary text-3xl">{role.icon}</span>
+          </div>
+          <h3 class="text-xl font-bold text-primary mb-3 font-headline">{role.title}</h3>
+          <p class="text-on-surface-variant text-sm leading-relaxed font-body mb-6">{role.description}</p>
+          <div class="flex flex-wrap gap-2">
+            {role.highlights.map((tag) => (
+              <span class="text-xs font-medium text-on-tertiary-container bg-tertiary-container/10 px-3 py-1 rounded-full font-label">{tag}</span>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

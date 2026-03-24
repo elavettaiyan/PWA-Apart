@@ -1,11 +1,15 @@
 ---
 const features = [
-  { icon: 'receipt_long', title: 'Billing & Invoicing', description: 'Automated maintenance cycles with clear, editorial-style PDF statements for every unit.' },
-  { icon: 'payments', title: 'Online Payments', description: 'Integrated gateway for UPI, cards, and net banking with instant reconciliation.' },
-  { icon: 'assignment_late', title: 'Complaint Tracking', description: 'Ticket-based resolution system with real-time status updates for residents and staff.' },
-  { icon: 'account_balance_wallet', title: 'Expense Management', description: 'Full ledger transparency for society spending, including vendor payouts and petty cash.' },
-  { icon: 'gavel', title: 'Bylaws & Documents', description: 'A digital archive for rules, meeting minutes, and legal certificates accessible 24/7.' },
-  { icon: 'analytics', title: 'Reports & Analytics', description: 'Visual data representations of society health, from occupancy rates to collection trends.' },
+  { icon: 'receipt_long', title: 'Billing & Invoicing', description: 'Configure per-flat-type charges — base amount, water, parking, sinking fund — and generate bills for the entire society in one click. Late fees calculated automatically.' },
+  { icon: 'payments', title: 'Online Payments', description: 'Collect maintenance dues online via PhonePe — UPI, cards, and net banking. Payments reconcile instantly with automated status updates per flat.' },
+  { icon: 'assignment_late', title: 'Complaint Tracking', description: 'Residents raise tickets with priority levels, categories, and image attachments. Track every complaint from open to resolved with a clear status workflow.' },
+  { icon: 'account_balance_wallet', title: 'Expense Management', description: 'Log society expenses across 14 categories — maintenance, salaries, electricity, security, and more. Attach receipts and track vendor payouts.' },
+  { icon: 'gavel', title: 'Bylaws & Documents', description: 'Publish society rules organized by category with effective dates and penalty amounts. Residents access the latest bylaws anytime from their dashboard.' },
+  { icon: 'bar_chart', title: 'Financial Reports', description: 'Generate P&L statements, collection reports with payment breakdowns, and category-wise expense summaries. Filter by date range for AGM-ready data.' },
+  { icon: 'warning', title: 'Defaulter Tracking', description: 'See outstanding balances per flat, pending months, and owner contact details at a glance — everything your treasurer needs before the next AGM.' },
+  { icon: 'home', title: 'Resident Self-Service', description: 'Owners and tenants view their flat details, bill history, and payment status independently. Manage tenant information without calling the secretary.' },
+  { icon: 'apartment', title: 'Flat & Block Management', description: 'Set up your society in minutes. Import flats via Excel, organize by blocks and floors, and track occupancy status across all units.' },
+  { icon: 'engineering', title: 'Staff Directory', description: 'Maintain a directory of service professionals — electricians, plumbers, security, cleaners — with specialization and contact details for quick access.' },
 ];
 ---
 
@@ -16,7 +20,7 @@ const features = [
       <p class="text-on-surface-variant font-body">A curated suite of essential tools designed to streamline community operations without visual clutter.</p>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 [&>*:last-child:nth-child(3n+1)]:md:col-start-2 [&>*:last-child:nth-child(3n+1)]:lg:col-start-2">
       {features.map((feature) => (
         <div class="bg-surface-container-lowest p-10 rounded-xl transition-all duration-300 hover:translate-y-[-4px]">
           <div class="w-12 h-12 bg-primary/5 rounded-xl flex items-center justify-center mb-6">

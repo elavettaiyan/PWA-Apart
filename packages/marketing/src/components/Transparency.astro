@@ -1,0 +1,50 @@
+---
+const reports = [
+  {
+    icon: 'monitoring',
+    title: 'Collection Report',
+    description: 'Total billed vs. collected amounts with collection rate percentage and payment-status distribution — month by month.',
+  },
+  {
+    icon: 'person_off',
+    title: 'Defaulter Report',
+    description: 'Outstanding amounts per flat with owner details, pending months count, and phone numbers for follow-up.',
+  },
+  {
+    icon: 'pie_chart',
+    title: 'Expense Summary',
+    description: 'Category-wise expense breakdown with date-range filtering. See exactly where society funds are going.',
+  },
+  {
+    icon: 'balance',
+    title: 'P&L Statement',
+    description: 'Revenue vs. expenses with monthly breakdown. Generate clean financial statements for your AGM or audit.',
+  },
+];
+---
+
+<section class="py-24 px-8">
+  <div class="max-w-7xl mx-auto">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-16 items-start">
+      <div class="lg:col-span-5">
+        <p class="text-xs font-bold tracking-widest uppercase text-primary mb-4 font-label">Financial Clarity</p>
+        <h2 class="text-4xl font-extrabold text-primary tracking-tight mb-6 font-headline leading-tight">Every rupee, accounted for.</h2>
+        <p class="text-on-surface-variant font-body leading-relaxed">
+          From collection rates to expense breakdowns, generate the reports your society needs. Ready for your next AGM.
+        </p>
+      </div>
+
+      <div class="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-6">
+        {reports.map((report) => (
+          <div class="bg-surface-container-low p-8 rounded-xl">
+            <div class="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center mb-5">
+              <span class="material-symbols-outlined text-primary text-2xl">{report.icon}</span>
+            </div>
+            <h3 class="text-lg font-bold text-primary mb-2 font-headline">{report.title}</h3>
+            <p class="text-on-surface-variant text-sm leading-relaxed font-body">{report.description}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</section>
