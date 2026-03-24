@@ -552,16 +552,41 @@ router.put(
         return res.status(403).json({ error: 'Access denied' });
       }
 
+      const societyId = existing.flat.block.societyId;
+      const normalizedEmail = req.body.email ? String(req.body.email).trim().toLowerCase() : null;
+
+      // Re-link userId when email changes
+      let userId: string | undefined;
+      if (normalizedEmail && normalizedEmail !== existing.email) {
+        const matchedUser = await prisma.user.findUnique({
+          where: { email: normalizedEmail },
+          select: { id: true },
+        });
+        if (matchedUser) {
+          userId = matchedUser.id;
+          // Ensure society membership exists
+          const membership = await prisma.userSocietyMembership.findUnique({
+            where: { userId_societyId: { userId: matchedUser.id, societyId } },
+          });
+          if (!membership) {
+            await prisma.userSocietyMembership.create({
+              data: { userId: matchedUser.id, societyId, role: 'OWNER' },
+            });
+          }
+        }
+      }
+
       const owner = await prisma.owner.update({
         where: { id: req.params.id },
         data: {
           name: req.body.name,
           phone: req.body.phone,
-          email: req.body.email,
+          email: normalizedEmail,
           altPhone: req.body.altPhone,
           aadharNo: req.body.aadharNo,
           panNo: req.body.panNo,
           moveInDate: req.body.moveInDate ? new Date(req.body.moveInDate) : undefined,
+          ...(userId !== undefined ? { userId } : {}),
         },
       });
       return res.json(owner);

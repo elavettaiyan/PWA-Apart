@@ -62,9 +62,9 @@ export default function MyFlatPage() {
             <Row label="Block" value={flat.block?.name} />
             <Row label="Society" value={flat.block?.society?.name} />
             <Row label="Floor" value={flat.floor} />
-            <Row label="BHK Type" value={flat.bhkType?.replace('_', ' ')} />
-            <Row label="Area" value={`${flat.area} sq.ft.`} />
-            <Row label="Status" value={flat.occupancyStatus} />
+            <Row label="BHK Type" value={flat.type?.replace('_', ' ')} />
+            {flat.areaSqFt && <Row label="Area" value={`${flat.areaSqFt} sq.ft.`} />}
+            <Row label="Status" value={flat.isOccupied ? 'Occupied' : 'Vacant'} />
           </div>
         </div>
 
