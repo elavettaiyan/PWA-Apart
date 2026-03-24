@@ -5,9 +5,18 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const FROM_EMAIL = process.env.FROM_EMAIL || 'DwellHub <noreply@dwellhub.in>';
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
-const resend = new Resend(RESEND_API_KEY);
+// Resend throws if key is empty — defer creation until first use
+let resend: Resend | null = null;
+function getResend(): Resend {
+  if (!resend) {
+    if (!RESEND_API_KEY) throw new Error('RESEND_API_KEY is not configured');
+    resend = new Resend(RESEND_API_KEY);
+  }
+  return resend;
+}
 
-logger.info('Resend email transport configured', {
+logger.info('Email transport configured', {
+  provider: 'resend',
   apiKeySet: !!RESEND_API_KEY,
   from: FROM_EMAIL,
 });
@@ -23,7 +32,7 @@ export async function sendPasswordResetEmail(to: string, resetToken: string, use
   logger.info('Resend: attempting password reset email', { to, from: FROM_EMAIL });
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to,
       subject: 'Reset your Dwell Hub password',
@@ -102,7 +111,7 @@ export async function sendPaymentReceiptEmail(to: string, data: PaymentReceiptDa
   const txnRef = data.transactionId || '—';
 
   try {
-    const { data: emailData, error } = await resend.emails.send({
+    const { data: emailData, error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to,
       subject: `Payment Receipt — ${data.billMonth} Maintenance (${data.flatNumber}, ${data.blockName})`,
@@ -189,7 +198,7 @@ export async function sendRegistrationEmail(to: string, userName: string, societ
   const loginUrl = `${CLIENT_URL}/login`;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to,
       subject: 'Welcome to Dwell Hub! Your society is ready',
