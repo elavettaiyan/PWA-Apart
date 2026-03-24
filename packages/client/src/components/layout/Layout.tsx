@@ -164,6 +164,19 @@ export default function Layout({ children }: LayoutProps) {
             })}
           </nav>
 
+          {/* User Profile in Sidebar */}
+          <div className="pt-6 border-t border-white/10 mb-2 lg:hidden">
+            <div className="flex items-center gap-3 px-4 py-2">
+              <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-sm font-bold text-white">{user?.name?.charAt(0).toUpperCase()}</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
+                <p className="text-[10px] text-white/50 uppercase tracking-widest font-bold">{user?.role?.replace('_', ' ')}</p>
+              </div>
+            </div>
+          </div>
+
           {/* Bottom Actions */}
           <div className="pt-6 border-t border-white/10 space-y-1">
             {/* <button
@@ -224,7 +237,50 @@ export default function Layout({ children }: LayoutProps) {
               <span className="material-symbols-outlined text-2xl">notifications</span>
               <span className="absolute top-0.5 right-0.5 bg-error w-2 h-2 rounded-full border-2 border-surface"></span>
             </button>
+            <button
+              onClick={() => setProfileOpen(!profileOpen)}
+              className="w-8 h-8 bg-secondary-container rounded-full flex items-center justify-center ring-2 ring-primary/10 touch-manipulation"
+            >
+              <span className="text-xs font-bold text-on-secondary-container">
+                {user?.name?.charAt(0).toUpperCase()}
+              </span>
+            </button>
           </div>
+          {/* Mobile profile dropdown */}
+          {profileOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
+              <div className="absolute right-4 top-14 w-64 z-50 bg-surface-container-lowest rounded-2xl editorial-shadow py-2">
+                <div className="px-4 py-3 border-b border-outline-variant/15">
+                  <p className="text-sm font-bold text-primary">{user?.name}</p>
+                  <p className="text-xs text-outline">{user?.email}</p>
+                  <p className="text-[10px] text-outline uppercase tracking-widest font-bold mt-1">{user?.role?.replace('_', ' ')}</p>
+                  {societiesData?.societies?.length ? (
+                    <p className="text-xs text-on-surface-variant mt-1 truncate">
+                      {societiesData.societies.find(s => s.id === user?.societyId)?.name}
+                    </p>
+                  ) : null}
+                </div>
+                <button
+                  onClick={() => {
+                    setProfileOpen(false);
+                    navigate('/settings/change-password');
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container-low transition"
+                >
+                  <KeyRound className="w-4 h-4" />
+                  Change Password
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-error hover:bg-error-container/30 transition"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sign out
+                </button>
+              </div>
+            </>
+          )}
         </header>
 
         {/* Desktop Top App Bar — glassmorphism */}

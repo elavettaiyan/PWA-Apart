@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { PageLoader } from '../../components/ui/Loader';
 import { cn } from '../../lib/utils';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 
 interface PhonePeConfig {
@@ -43,6 +44,8 @@ interface TestResult {
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { user, logout } = useAuthStore();
   const [showSaltKey, setShowSaltKey] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [form, setForm] = useState({
@@ -144,6 +147,36 @@ export default function SettingsPage() {
 
   return (
     <div>
+      {/* User Profile Card — visible on mobile */}
+      <div className="card p-5 mb-6 lg:hidden">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 bg-secondary-container rounded-full flex items-center justify-center ring-2 ring-primary/10 flex-shrink-0">
+            <span className="text-xl font-bold text-on-secondary-container">
+              {user?.name?.charAt(0).toUpperCase()}
+            </span>
+          </div>
+          <div className="min-w-0">
+            <p className="text-lg font-bold text-primary truncate">{user?.name}</p>
+            <p className="text-xs text-outline">{user?.email}</p>
+            <p className="text-[10px] text-outline uppercase tracking-widest font-bold mt-0.5">{user?.role?.replace('_', ' ')}</p>
+          </div>
+        </div>
+        <div className="flex gap-3 mt-4">
+          <button
+            onClick={() => navigate('/settings/change-password')}
+            className="flex-1 btn btn-outline text-sm py-2"
+          >
+            Change Password
+          </button>
+          <button
+            onClick={() => { queryClient.clear(); logout(); navigate('/login'); }}
+            className="flex-1 btn text-sm py-2 bg-error-container/30 text-error hover:bg-error-container/50"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+
       <div className="page-header">
         <div>
           <p className="section-label mb-2">Configuration</p>
