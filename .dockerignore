@@ -1,0 +1,18 @@
+# Only include packages/server for the Docker build
+packages/client
+packages/marketing
+Ref
+src
+node_modules
+.git
+.vscode
+*.log
+.env
+.env.*
+!packages/server/.env.example
+!packages/server/.env.production.example
+!packages/server/.env.railway.example
+packages/server/node_modules
+packages/server/dist
+packages/server/uploads/*
+!packages/server/uploads/.gitkeep
