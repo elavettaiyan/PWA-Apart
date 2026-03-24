@@ -11,7 +11,8 @@ import { calculateBillPaymentUpdate, generateChecksum, verifyCallbackChecksum } 
 import { sendPaymentReceiptEmail, PaymentReceiptData } from '../../config/email';
 
 const router = Router();
-const BULK_REF_PREFIX = 'BULK:';
+const BULK_REF_PREFIX = 'BULK:'; // Prefix in payment.notes to link bulk payments without merchantTransId on each record
+
 
 function bulkRef(merchantTransId: string) {
   return `${BULK_REF_PREFIX}${merchantTransId}`;
