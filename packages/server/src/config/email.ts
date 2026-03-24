@@ -32,6 +32,13 @@ logger.info('SMTP transport configured', {
   from: FROM_EMAIL,
 });
 
+// Verify SMTP connection on startup
+if (SMTP_USER && SMTP_PASS) {
+  transporter.verify()
+    .then(() => logger.info('SMTP connection verified successfully'))
+    .catch((err) => logger.error('SMTP connection verification FAILED', { error: err.message, host: SMTP_HOST, port: SMTP_PORT }));
+}
+
 export async function sendPasswordResetEmail(to: string, resetToken: string, userName: string) {
   const resetUrl = `${CLIENT_URL}/reset-password?token=${resetToken}`;
 
