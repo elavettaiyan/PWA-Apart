@@ -5,8 +5,8 @@ RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists
 
 WORKDIR /app
 
-COPY packages/server/package.json ./
-COPY packages/server/prisma ./prisma/
+COPY package.json ./
+COPY prisma ./prisma/
 
 RUN npm install --omit=dev && npx prisma@5.22.0 generate
 
@@ -15,12 +15,12 @@ FROM node:20-slim AS builder
 
 WORKDIR /app
 
-COPY packages/server/package.json ./
-COPY packages/server/prisma ./prisma/
+COPY package.json ./
+COPY prisma ./prisma/
 RUN npm install
 
-COPY packages/server/tsconfig.json ./
-COPY packages/server/src ./src/
+COPY tsconfig.json ./
+COPY src ./src/
 
 RUN npx prisma@5.22.0 generate && npm run build
 
@@ -34,7 +34,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
-COPY packages/server/package.json ./
+COPY package.json ./
 
 RUN mkdir -p uploads
 
