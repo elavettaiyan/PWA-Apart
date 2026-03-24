@@ -12,12 +12,12 @@ export default defineConfig(() => {
     react(),
     !isMobileBuild && VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'icons/favicon-32x32.png'],
       manifest: {
         name: 'Resilynk - Apartment Management',
         short_name: 'Resilynk',
         description: 'Complete apartment society management solution',
-        theme_color: '#6366f1',
+        theme_color: '#102B2C',
         background_color: '#f8fafc',
         display: 'standalone',
         orientation: 'portrait',
@@ -35,7 +35,7 @@ export default defineConfig(() => {
             type: 'image/png',
           },
           {
-            src: '/icons/icon-512x512.png',
+            src: '/icons/maskable-icon-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
