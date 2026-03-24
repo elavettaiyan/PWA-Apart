@@ -33,7 +33,6 @@ COPY package.json package-lock.json* ./
 COPY packages/server/package.json ./packages/server/package.json
 COPY packages/server/prisma ./packages/server/prisma/
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/server/node_modules ./packages/server/node_modules
 COPY --from=builder /app/packages/server/dist ./packages/server/dist
 
 RUN mkdir -p packages/server/uploads
