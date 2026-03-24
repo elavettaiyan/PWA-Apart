@@ -111,6 +111,7 @@ model Society {
   totalFlats      Int      @default(0)
   logo            String?
   isActive        Boolean  @default(true)
+  isPremium       Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

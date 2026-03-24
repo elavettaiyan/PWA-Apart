@@ -1,0 +1,163 @@
+---
+const appUrl = 'https://app.dwellhub.in';
+
+const rows = [
+  {
+    label: 'Platform fee',
+    icon: 'payments',
+    others: '₹3–15 /flat/month',
+    ours: '₹15 /flat/month',
+    oursNote: 'All features included',
+  },
+  {
+    label: 'Payment gateway',
+    icon: 'account_balance',
+    others: '1.5–2 % per transaction',
+    ours: '0 %',
+    oursNote: 'UPI is free in India',
+  },
+  {
+    label: 'Setup & onboarding',
+    icon: 'handshake',
+    others: '₹5,000 – ₹50,000',
+    ours: 'Free',
+    oursNote: 'Self-serve setup in minutes',
+  },
+  {
+    label: 'Feature modules',
+    icon: 'extension',
+    others: '₹2–5 /flat extra per module',
+    ours: 'Everything included',
+    oursNote: 'Billing, complaints, reports & more',
+  },
+  {
+    label: 'SMS & notifications',
+    icon: 'notifications',
+    others: '₹500 – ₹1,000 /month',
+    ours: 'Free',
+    oursNote: 'Push notifications & email',
+  },
+  {
+    label: 'Contract lock-in',
+    icon: 'lock',
+    others: '12 months minimum',
+    ours: 'None',
+    oursNote: 'Cancel anytime',
+  },
+];
+
+const totals = [
+  { flats: 50, others: '₹8,000 – ₹25,000', ours: '₹750' },
+  { flats: 100, others: '₹15,000 – ₹40,000', ours: '₹1,500' },
+];
+---
+
+<section id="pricing" class="bg-surface-container-low py-24 px-8">
+  <div class="max-w-7xl mx-auto">
+
+    <!-- Header -->
+    <div class="mb-16 max-w-2xl">
+      <p class="text-xs font-bold tracking-widest uppercase text-primary mb-4 font-label">The Real Cost</p>
+      <h2 class="text-4xl font-extrabold text-primary tracking-tight mb-6 font-headline leading-tight">
+        They advertise ₹3/flat.<br class="hidden sm:block" />You end up paying ₹15,000.
+      </h2>
+      <p class="text-on-surface-variant font-body leading-relaxed">
+        Most society apps hide fees behind gateway charges, module upgrades, and setup costs. Here's what you actually pay — no fine print.
+      </p>
+    </div>
+
+    <!-- Comparison Table -->
+    <div class="bg-surface-container-lowest rounded-2xl overflow-hidden editorial-shadow">
+
+      <!-- Column Headers -->
+      <div class="grid grid-cols-[1fr_1fr_1fr] sm:grid-cols-[2fr_1.5fr_1.5fr] border-b border-primary/5">
+        <div class="p-6 lg:p-8">
+          <span class="text-xs font-bold tracking-widest uppercase text-on-surface-variant font-label">Cost Item</span>
+        </div>
+        <div class="p-6 lg:p-8 bg-surface-container-low/50">
+          <span class="text-xs font-bold tracking-widest uppercase text-on-surface-variant font-label">Typical Apps</span>
+        </div>
+        <div class="p-6 lg:p-8 bg-primary/[0.03]">
+          <span class="text-xs font-bold tracking-widest uppercase text-primary font-label">Dwell Hub</span>
+        </div>
+      </div>
+
+      <!-- Rows -->
+      {rows.map((row) => (
+        <div class="grid grid-cols-[1fr_1fr_1fr] sm:grid-cols-[2fr_1.5fr_1.5fr] border-b border-primary/5 last:border-b-0">
+          <div class="p-6 lg:p-8 flex items-start gap-4">
+            <div class="hidden sm:flex w-9 h-9 bg-primary/5 rounded-lg items-center justify-center flex-shrink-0 mt-0.5">
+              <span class="material-symbols-outlined text-primary text-xl">{row.icon}</span>
+            </div>
+            <span class="font-semibold text-sm text-primary font-headline">{row.label}</span>
+          </div>
+          <div class="p-6 lg:p-8 bg-surface-container-low/50 flex items-start">
+            <span class="text-sm text-on-surface-variant font-body">{row.others}</span>
+          </div>
+          <div class="p-6 lg:p-8 bg-primary/[0.03] flex items-start gap-3">
+            <span class="material-symbols-outlined text-emerald-600 text-lg flex-shrink-0 mt-0.5">check_circle</span>
+            <div>
+              <span class="text-sm font-semibold text-primary font-headline block">{row.ours}</span>
+              <span class="text-xs text-on-surface-variant font-body hidden sm:block">{row.oursNote}</span>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      <!-- Total Cost Highlight -->
+      <div class="bg-primary/[0.06] border-t-2 border-primary/10">
+        <div class="p-6 lg:p-8">
+          <p class="text-xs font-bold tracking-widest uppercase text-primary mb-6 font-label">Real monthly cost</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {totals.map((t) => (
+              <div class="flex items-center justify-between sm:block bg-surface-container-lowest rounded-xl p-6">
+                <div>
+                  <p class="text-sm text-on-surface-variant font-body mb-1">{t.flats}-flat society</p>
+                  <p class="text-sm text-on-surface-variant font-body line-through">{t.others}/month</p>
+                </div>
+                <p class="text-3xl font-extrabold text-primary font-headline sm:mt-2">
+                  {t.ours}<span class="text-sm font-medium text-on-surface-variant">/month</span>
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pricing Summary + CTA -->
+    <div class="mt-16 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+      <div class="lg:col-span-7">
+        <div class="flex flex-wrap gap-4">
+          <div class="flex items-center gap-3 bg-surface-container-lowest px-5 py-3 rounded-xl">
+            <span class="material-symbols-outlined text-primary text-xl">home</span>
+            <div>
+              <p class="text-xs text-on-surface-variant font-label uppercase tracking-widest font-bold">Free Tier</p>
+              <p class="text-sm font-semibold text-primary font-headline">Up to 5 flats — ₹0 forever</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 bg-surface-container-lowest px-5 py-3 rounded-xl">
+            <span class="material-symbols-outlined text-primary text-xl">apartment</span>
+            <div>
+              <p class="text-xs text-on-surface-variant font-label uppercase tracking-widest font-bold">Premium</p>
+              <p class="text-sm font-semibold text-primary font-headline">₹15 × all flats/month</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 bg-surface-container-lowest px-5 py-3 rounded-xl">
+            <span class="material-symbols-outlined text-primary text-xl">block</span>
+            <div>
+              <p class="text-xs text-on-surface-variant font-label uppercase tracking-widest font-bold">Hidden Charges</p>
+              <p class="text-sm font-semibold text-primary font-headline">Zero. None. Zilch.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="lg:col-span-5 flex lg:justify-end">
+        <a href={`${appUrl}/register`} class="bg-primary text-on-primary px-8 py-4 rounded-xl font-bold tracking-wide hover:opacity-90 transition-opacity editorial-shadow text-center w-full sm:w-auto">
+          Start free with 5 flats
+        </a>
+      </div>
+    </div>
+
+  </div>
+</section>

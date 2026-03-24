@@ -17,6 +17,7 @@ export default function FlatsPage() {
   const [activeFlat, setActiveFlat] = useState<Flat | null>(null);
   const [selectedFlatId, setSelectedFlatId] = useState<string | null>(null);
   const [showDeleteFlat, setShowDeleteFlat] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [search, setSearch] = useState('');
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
@@ -253,7 +254,11 @@ export default function FlatsPage() {
 
       {/* Add Flat Modal */}
       <Modal isOpen={showAddFlat} onClose={() => setShowAddFlat(false)} title="Add New Flat" size="md">
-        <AddFlatForm blocks={blocks} onSuccess={() => { setShowAddFlat(false); queryClient.invalidateQueries({ queryKey: ['flats'] }); }} />
+        <AddFlatForm 
+          blocks={blocks} 
+          onSuccess={() => { setShowAddFlat(false); queryClient.invalidateQueries({ queryKey: ['flats'] }); }} 
+          onLimitReached={() => { setShowAddFlat(false); setShowUpgradeModal(true); }}
+        />
       </Modal>
 
       {/* Add Owner Modal */}
@@ -280,8 +285,65 @@ export default function FlatsPage() {
 
       {/* Bulk Upload Modal */}
       <Modal isOpen={showBulkUpload} onClose={() => setShowBulkUpload(false)} title="Bulk Upload Flats from Excel" size="lg">
-        <BulkUploadForm onSuccess={() => { setShowBulkUpload(false); queryClient.invalidateQueries({ queryKey: ['flats'] }); queryClient.invalidateQueries({ queryKey: ['blocks'] }); }} />
+        <BulkUploadForm
+          onSuccess={() => { setShowBulkUpload(false); queryClient.invalidateQueries({ queryKey: ['flats'] }); queryClient.invalidateQueries({ queryKey: ['blocks'] }); }}
+          onLimitReached={() => { setShowBulkUpload(false); setShowUpgradeModal(true); }}
+        />
       </Modal>
+
+      {/* Upgrade Modal */}
+      <Modal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} title="Upgrade to Premium" size="md">
+        <UpgradePrompt onClose={() => setShowUpgradeModal(false)} />
+      </Modal>
+    </div>
+  );
+}
+
+function UpgradePrompt({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="space-y-5">
+      <div className="rounded-2xl bg-primary/[0.04] border border-primary/10 p-4">
+        <p className="text-sm font-semibold text-primary">Free tier limit reached</p>
+        <p className="mt-1 text-sm text-on-surface-variant">
+          Your society can use up to 5 flats for free. Upgrade to Premium to add unlimited flats and keep all features enabled.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl bg-surface-container-low p-4">
+          <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Free</p>
+          <p className="mt-1 text-sm font-semibold text-on-surface">Up to 5 flats</p>
+        </div>
+        <div className="rounded-xl bg-surface-container-low p-4">
+          <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Premium</p>
+          <p className="mt-1 text-sm font-semibold text-on-surface">₹15 per flat / month</p>
+        </div>
+        <div className="rounded-xl bg-surface-container-low p-4">
+          <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Included</p>
+          <p className="mt-1 text-sm font-semibold text-on-surface">No setup or hidden fees</p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-3">
+        <p className="text-xs uppercase tracking-widest text-on-surface-variant">What you unlock</p>
+        <ul className="mt-2 space-y-1 text-sm text-on-surface-variant">
+          <li>Unlimited flat creation</li>
+          <li>Bulk imports for large societies</li>
+          <li>All existing billing, complaints, reports, and resident tools</li>
+        </ul>
+      </div>
+
+      <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+        <button type="button" className="btn-secondary" onClick={onClose}>
+          Close
+        </button>
+        <a
+          href="mailto:support@dwellhub.in?subject=Premium%20Upgrade%20Request"
+          className="btn-primary text-center"
+        >
+          Request Premium Upgrade
+        </a>
+      </div>
     </div>
   );
 }
@@ -417,7 +479,7 @@ function AddBlockForm({ onSuccess }: { onSuccess: () => void }) {
 }
 
 // ── Add Flat Form ───────────────────────────────────────
-function AddFlatForm({ blocks, onSuccess }: { blocks: Block[]; onSuccess: () => void }) {
+function AddFlatForm({ blocks, onSuccess, onLimitReached }: { blocks: Block[]; onSuccess: () => void; onLimitReached: () => void }) {
   const [form, setForm] = useState({ flatNumber: '', floor: 1, type: 'TWO_BHK', areaSqFt: '', blockId: blocks[0]?.id || '' });
 
   useEffect(() => {
@@ -430,7 +492,13 @@ function AddFlatForm({ blocks, onSuccess }: { blocks: Block[]; onSuccess: () => 
   const mutation = useMutation({
     mutationFn: (data: any) => api.post('/flats/flats', data),
     onSuccess: () => { toast.success('Flat added!'); onSuccess(); },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
+    onError: (e: any) => {
+      if (e.response?.data?.code === 'FREE_TIER_LIMIT_REACHED') {
+        onLimitReached();
+      } else {
+        toast.error(e.response?.data?.error || 'Failed');
+      }
+    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -576,7 +644,7 @@ function AddOwnerForm({ flat, onSuccess }: { flat: Flat; onSuccess: () => void }
 }
 
 // ── Bulk Upload Form ────────────────────────────────────
-function BulkUploadForm({ onSuccess }: { onSuccess: () => void }) {
+function BulkUploadForm({ onSuccess, onLimitReached }: { onSuccess: () => void; onLimitReached: () => void }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -632,6 +700,9 @@ function BulkUploadForm({ onSuccess }: { onSuccess: () => void }) {
         },
       });
       setResults(response.data);
+      if (response.data.results?.some((r: any) => r.error?.includes('limit reached'))) {
+        onLimitReached();
+      }
       if (response.data.created > 0) {
         toast.success(`${response.data.created} flats created successfully!`);
       }

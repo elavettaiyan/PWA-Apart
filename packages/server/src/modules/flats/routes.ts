@@ -236,10 +236,28 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     try {
       // SECURITY: Verify block belongs to admin's society
-      const block = await prisma.block.findUnique({ where: { id: req.body.blockId } });
+      const block = await prisma.block.findUnique({ 
+        where: { id: req.body.blockId },
+        include: { society: true }
+      });
       if (!block) return res.status(404).json({ error: 'Block not found' });
       if (req.user!.role !== 'SUPER_ADMIN' && block.societyId !== req.user!.societyId) {
         return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // CHECK: Free tier limits (5 flats max)
+      const societyId = block.societyId;
+      if (!block.society.isPremium) {
+        const flatCount = await prisma.flat.count({
+          where: { block: { societyId } }
+        });
+        if (flatCount >= 5) {
+          return res.status(402).json({ 
+            error: 'Free tier limit reached', 
+            code: 'FREE_TIER_LIMIT_REACHED',
+            message: 'You have reached the maximum of 5 flats on the free tier. Please upgrade to Premium to add more.'
+          });
+        }
       }
 
       // SECURITY: Whitelist allowed fields
@@ -1054,10 +1072,25 @@ router.post(
       const validTypes = ['ONE_BHK', 'TWO_BHK', 'THREE_BHK', 'FOUR_BHK', 'STUDIO', 'PENTHOUSE', 'SHOP', 'OTHER'];
       let createdCount = 0;
       let errorCount = 0;
+      
+      const society = await prisma.society.findUnique({ where: { id: societyId }});
+      if (!society) return res.status(404).json({ error: 'Society not found' });
+      
+      let currentFlatCount = 0;
+      if (!society.isPremium) {
+        currentFlatCount = await prisma.flat.count({ where: { block: { societyId } } });
+      }
 
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         const rowNum = i + 2; // Excel row (1-indexed header + data)
+
+        // Free tier check
+        if (!society.isPremium && (currentFlatCount + createdCount) >= 5) {
+          results.push({ row: rowNum, flatNumber: '(skipped)', status: 'error', error: 'Free tier limit reached (max 5 flats). Upgrade to Premium.' });
+          errorCount++;
+          continue;
+        }
 
         // Map column names (flexible matching)
         const blockName = (row['Block Name*'] || row['Block Name'] || row['block name'] || '').toString().trim();
