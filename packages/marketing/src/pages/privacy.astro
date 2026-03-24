@@ -1,0 +1,93 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import LegalDocument from '../components/LegalDocument.astro';
+
+const title = 'Privacy Policy | Dwell Hub';
+const description = 'Read how Dwell Hub collects, uses, stores, and protects apartment society, resident, and payment-related data.';
+const effectiveDate = '24 March 2026';
+
+const sections = [
+  {
+    id: 'scope',
+    title: '1. Scope',
+    paragraphs: [
+      'This Privacy Policy explains how Dwell Hub collects, uses, stores, shares, and protects information when apartment societies, administrators, committee members, owners, tenants, and other authorized users access the Dwell Hub platform.',
+      'Dwell Hub is a software platform used to manage apartment society operations including billing, collections, complaints, resident records, expense tracking, and related communication workflows. When a society uses Dwell Hub, the society provides data to the platform and authorizes designated users to manage that data.'
+    ]
+  },
+  {
+    id: 'data-we-collect',
+    title: '2. Data We Collect',
+    bullets: [
+      'Account and society setup information such as society name, address, city, state, pincode, administrator name, email address, phone number, and login credentials.',
+      'Resident and occupancy information such as flat numbers, owner details, tenant details, phone numbers, email addresses, move-in information, and other society records entered by authorized users.',
+      'Financial and billing information such as maintenance bills, payment status, receipt references, due amounts, expense records, and payment gateway transaction metadata.',
+      'Complaint and service information such as complaint descriptions, uploaded images, comment trails, assignment details, and status history.',
+      'Technical information such as device details, browser type, IP address, access times, logs, and usage activity needed for security, troubleshooting, and service improvement.'
+    ]
+  },
+  {
+    id: 'how-we-use',
+    title: '3. How We Use Information',
+    bullets: [
+      'To create and administer society accounts and user access.',
+      'To provide core platform functions including billing, complaint tracking, resident management, staff directory, reporting, and settings management.',
+      'To process, reconcile, and audit payment-related activity through integrated payment partners.',
+      'To send operational communications such as login alerts, receipts, onboarding messages, payment updates, and service announcements.',
+      'To maintain security, prevent abuse, detect unauthorized access, investigate incidents, and comply with legal obligations.',
+      'To improve product performance, usability, reliability, and support quality.'
+    ]
+  },
+  {
+    id: 'sharing',
+    title: '4. How We Share Information',
+    paragraphs: [
+      'We do not sell personal data. We share data only where necessary to operate the service, comply with law, or protect our rights and users.'
+    ],
+    bullets: [
+      'With infrastructure, hosting, analytics, and email service providers acting on our behalf and under contractual restrictions.',
+      'With payment service providers and banking or reconciliation partners to facilitate authorized transactions.',
+      'With the relevant society administrators and authorized committee members using the platform for legitimate society management purposes.',
+      'With law enforcement, regulators, courts, or other parties when disclosure is required by law or reasonably necessary to protect users, resolve disputes, or enforce our policies.'
+    ]
+  },
+  {
+    id: 'retention-security',
+    title: '5. Data Retention and Security',
+    paragraphs: [
+      'We retain information for as long as needed to provide the service, maintain records, resolve disputes, enforce agreements, and meet legal, accounting, or compliance obligations. Retention periods may vary based on the type of record and the society account status.',
+      'We use reasonable administrative, technical, and organizational safeguards to protect data against unauthorized access, loss, misuse, and alteration. No system can be guaranteed to be completely secure, so users should also protect their credentials and notify us promptly of suspected compromise.'
+    ]
+  },
+  {
+    id: 'rights',
+    title: '6. User Rights and Society Responsibilities',
+    paragraphs: [
+      'Society administrators are responsible for ensuring that information entered into Dwell Hub is accurate, lawfully collected, and used for legitimate society operations. They are also responsible for managing which users can access that data.',
+      'Users may request access, correction, or deletion of account-level information held by Dwell Hub, subject to contractual, operational, and legal limitations. In many cases, society-level records must first be addressed through the relevant society administrator because that society controls day-to-day record management inside the platform.'
+    ]
+  },
+  {
+    id: 'contact-updates',
+    title: '7. Contact and Updates',
+    paragraphs: [
+      'If you have questions about this Privacy Policy or about how information is handled on Dwell Hub, contact support@dwellhub.in.',
+      'We may update this Privacy Policy from time to time. When we make material updates, we will update the effective date and publish the revised version on this page.'
+    ]
+  }
+];
+---
+
+<Layout title={title} description={description}>
+  <Header />
+  <LegalDocument
+    eyebrow="Privacy Policy"
+    title="How Dwell Hub handles society and resident data."
+    intro="This policy explains what information Dwell Hub processes, why it is processed, how it is protected, and what responsibilities apply to society administrators and end users."
+    effectiveDate={effectiveDate}
+    sections={sections}
+  />
+  <Footer />
+</Layout>

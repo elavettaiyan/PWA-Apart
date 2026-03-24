@@ -26,7 +26,7 @@ const faqs = [
   },
   {
     question: 'How do I get started with my society?',
-    answer: 'Click "Get Started" and fill in your society details. After setup, you can add blocks, flats, and residents from the dashboard. Our onboarding team is available to assist at every step.',
+    answer: 'Click "Get Started" and fill in your society details. After setup, you can add blocks, flats, and residents from the dashboard. The platform is designed for fast self-serve onboarding with support available by email when needed.',
   },
 ];
 ---
@@ -36,10 +36,28 @@ const faqs = [
     <div class="lg:col-span-4">
       <h2 class="text-4xl font-extrabold text-primary tracking-tight mb-6 font-headline">Curated Answers</h2>
       <p class="text-on-surface-variant font-body mb-8">Quick resolutions for common resident inquiries regarding our platform and services.</p>
-      <a href="#" class="text-primary font-bold inline-flex items-center gap-2 group">
-        View full documentation
-        <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
-      </a>
+
+      <div class="space-y-4">
+        <div class="bg-surface-container-low rounded-xl p-5">
+          <p class="text-xs font-bold tracking-widest uppercase text-primary mb-3 font-label">Support Desk</p>
+          <a href="mailto:support@dwellhub.in" class="text-primary font-headline font-bold text-base break-all hover:opacity-75 transition-opacity">
+            support@dwellhub.in
+          </a>
+          <p class="text-sm text-on-surface-variant font-body mt-2">
+            Product help, onboarding questions, billing clarifications, and resident support.
+          </p>
+        </div>
+
+        <div class="bg-surface-container-low rounded-xl p-5">
+          <p class="text-xs font-bold tracking-widest uppercase text-primary mb-3 font-label">Marketing Desk</p>
+          <a href="mailto:marketing@dwellhub.in" class="text-primary font-headline font-bold text-base break-all hover:opacity-75 transition-opacity">
+            marketing@dwellhub.in
+          </a>
+          <p class="text-sm text-on-surface-variant font-body mt-2">
+            Partnerships, demos, campaigns, and society outreach requests.
+          </p>
+        </div>
+      </div>
     </div>
 
     <div class="lg:col-span-8 space-y-4">

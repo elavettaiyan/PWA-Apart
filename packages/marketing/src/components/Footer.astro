@@ -25,16 +25,35 @@ const appUrl = 'https://app.dwellhub.in';
 
 <!-- Footer -->
 <footer class="w-full border-t border-[#05213a]/5 bg-[#f3f4f2]">
-  <div class="flex flex-col md:flex-row justify-between items-center px-12 py-16 w-full max-w-7xl mx-auto">
-    <div class="flex flex-col gap-4 mb-10 md:mb-0">
-      <div class="text-lg font-black text-primary font-headline">Dwell Hub</div>
-      <p class="text-slate-500 font-label text-xs uppercase tracking-widest font-semibold">&copy; {new Date().getFullYear()} Dwell Hub. The Modern Curator of Community.</p>
+  <div class="flex flex-col gap-10 px-12 py-16 w-full max-w-7xl mx-auto">
+    <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-10">
+      <div class="flex flex-col gap-4">
+        <div class="text-lg font-black text-primary font-headline">Dwell Hub</div>
+        <p class="text-slate-500 font-label text-xs uppercase tracking-widest font-semibold">&copy; {new Date().getFullYear()} Dwell Hub. The Modern Curator of Community.</p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:min-w-[30rem]">
+        <a href="mailto:support@dwellhub.in" class="bg-surface-container-lowest rounded-xl px-5 py-4 border border-primary/5 hover:border-primary/15 transition-colors">
+          <p class="text-[11px] font-label uppercase tracking-widest font-semibold text-slate-500 mb-2">Support</p>
+          <p class="text-primary font-headline font-bold">support@dwellhub.in</p>
+        </a>
+        <a href="mailto:marketing@dwellhub.in" class="bg-surface-container-lowest rounded-xl px-5 py-4 border border-primary/5 hover:border-primary/15 transition-colors">
+          <p class="text-[11px] font-label uppercase tracking-widest font-semibold text-slate-500 mb-2">Marketing</p>
+          <p class="text-primary font-headline font-bold">marketing@dwellhub.in</p>
+        </a>
+      </div>
     </div>
-    <div class="flex flex-wrap gap-8">
-      <a class="font-label text-xs uppercase tracking-widest font-semibold text-slate-500 hover:text-tertiary transition-colors" href="#">Privacy Policy</a>
-      <a class="font-label text-xs uppercase tracking-widest font-semibold text-slate-500 hover:text-tertiary transition-colors" href="#">Terms of Service</a>
-      <a class="font-label text-xs uppercase tracking-widest font-semibold text-slate-500 hover:text-tertiary transition-colors" href="#">Cookie Settings</a>
-      <a class="font-label text-xs uppercase tracking-widest font-semibold text-slate-500 hover:text-tertiary transition-colors" href="mailto:support@dwellhub.in">Contact Us</a>
+
+    <div class="flex flex-col md:flex-row justify-between items-center gap-6">
+      <div class="flex flex-wrap gap-8">
+        <a class="font-label text-xs uppercase tracking-widest font-semibold text-slate-500 hover:text-tertiary transition-colors" href="/privacy">Privacy Policy</a>
+        <a class="font-label text-xs uppercase tracking-widest font-semibold text-slate-500 hover:text-tertiary transition-colors" href="/terms">Terms of Service</a>
+        <a class="font-label text-xs uppercase tracking-widest font-semibold text-slate-500 hover:text-tertiary transition-colors" href="/refund-policy">Refund Policy</a>
+      </div>
+
+      <p class="text-xs text-slate-500 font-body text-center md:text-right">
+        Reach the right team directly for product support or growth conversations.
+      </p>
     </div>
   </div>
 </footer>

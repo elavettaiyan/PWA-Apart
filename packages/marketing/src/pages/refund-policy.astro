@@ -1,0 +1,76 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import LegalDocument from '../components/LegalDocument.astro';
+
+const title = 'Refund Policy | Dwell Hub';
+const description = 'Review Dwell Hub refund rules for subscriptions, duplicate charges, failed transactions, and support-led payment disputes.';
+const effectiveDate = '24 March 2026';
+
+const sections = [
+  {
+    id: 'general-policy',
+    title: '1. General Policy',
+    paragraphs: [
+      'Dwell Hub subscription and service charges, where applicable, are generally billed in advance for the selected billing period. Except as expressly stated in this Refund Policy or required by law, fees already charged are non-refundable.',
+      'This policy applies to platform subscription charges collected by or on behalf of Dwell Hub. It does not override any refund or reversal rules imposed by payment partners, banks, card issuers, or applicable law.'
+    ]
+  },
+  {
+    id: 'eligible-cases',
+    title: '2. Cases That May Qualify for Review',
+    bullets: [
+      'Duplicate charges for the same subscription period or transaction.',
+      'Incorrect billing due to a verified technical issue caused by Dwell Hub.',
+      'Failed or incomplete payment processing where money was debited but the corresponding service entitlement was not properly recorded.',
+      'Unauthorized charges that are validated after investigation, subject to account security review and payment provider verification.'
+    ]
+  },
+  {
+    id: 'non-refundable',
+    title: '3. Non-Refundable Situations',
+    bullets: [
+      'Partial use or non-use of a paid period after successful activation of the subscription or service term.',
+      'Delays, dissatisfaction, or change-of-mind requests where the service remained available and materially functional.',
+      'Charges arising from customer configuration mistakes, user-entered errors, or failure to cancel before the next billing cycle if cancellation controls were available.',
+      'Fees retained by payment processors, banks, or other third parties unless recovered from those parties.'
+    ]
+  },
+  {
+    id: 'request-process',
+    title: '4. How to Request a Refund Review',
+    paragraphs: [
+      'Refund review requests should be sent to support@dwellhub.in with the registered account email, society name, payment date, amount, transaction reference, and a clear explanation of the issue.',
+      'To help us investigate promptly, requests should ideally be submitted within 7 calendar days of the disputed charge. Later requests may still be reviewed, but delayed reporting can reduce our ability to verify the case with payment partners.'
+    ]
+  },
+  {
+    id: 'review-timeline',
+    title: '5. Review and Processing Timeline',
+    paragraphs: [
+      'Once a request is received, Dwell Hub will review account records, transaction status, and any provider-side evidence that is reasonably available. We may ask for additional details before reaching a decision.',
+      'If a refund is approved, the amount will be processed back through the original payment method or an equivalent lawful mechanism. Actual settlement timing depends on the relevant payment provider or banking network and may take several business days.'
+    ]
+  },
+  {
+    id: 'contact',
+    title: '6. Contact',
+    paragraphs: [
+      'For refund-related questions, write to support@dwellhub.in. For partnership, pricing, or commercial discussions that are not tied to an existing charge, write to marketing@dwellhub.in.'
+    ]
+  }
+];
+---
+
+<Layout title={title} description={description}>
+  <Header />
+  <LegalDocument
+    eyebrow="Refund Policy"
+    title="When Dwell Hub may review and process refunds."
+    intro="This policy explains how prepaid subscription or service charges are handled, what cases may qualify for review, and how refund requests should be submitted."
+    effectiveDate={effectiveDate}
+    sections={sections}
+  />
+  <Footer />
+</Layout>

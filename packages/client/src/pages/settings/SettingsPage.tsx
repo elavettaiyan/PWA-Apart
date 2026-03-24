@@ -44,6 +44,7 @@ interface TestResult {
 }
 
 export default function SettingsPage() {
+  const legalBaseUrl = 'https://dwellhub.in';
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
@@ -506,6 +507,33 @@ export default function SettingsPage() {
             <p><strong>Sandbox note:</strong></p>
             <p>Use the UAT Merchant ID, Salt Key, and Salt Index issued to your own PhonePe merchant account.</p>
             <p>Do not rely on shared sample credentials because they may be expired, disabled, or rate-limited.</p>
+        </div>
+      </div>
+
+      <div className="card p-5 mt-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-11 h-11 bg-surface-container-low rounded-xl flex items-center justify-center">
+            <ShieldCheck className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-on-surface">Legal</h3>
+            <p className="text-xs text-on-surface-variant">Review the policies that govern platform usage, privacy, and refunds.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <a href={`${legalBaseUrl}/privacy`} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-4 hover:border-primary/20 transition-colors">
+            <p className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Privacy</p>
+            <p className="mt-1 text-sm font-semibold text-primary">Privacy Policy</p>
+          </a>
+          <a href={`${legalBaseUrl}/terms`} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-4 hover:border-primary/20 transition-colors">
+            <p className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Use</p>
+            <p className="mt-1 text-sm font-semibold text-primary">Terms of Service</p>
+          </a>
+          <a href={`${legalBaseUrl}/refund-policy`} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-4 hover:border-primary/20 transition-colors">
+            <p className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Payments</p>
+            <p className="mt-1 text-sm font-semibold text-primary">Refund Policy</p>
+          </a>
         </div>
       </div>
       </>

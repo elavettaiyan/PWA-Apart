@@ -1,0 +1,79 @@
+---
+export interface Section {
+  id: string;
+  title: string;
+  paragraphs?: string[];
+  bullets?: string[];
+}
+
+export interface Props {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  effectiveDate: string;
+  sections: Section[];
+}
+
+const { eyebrow, title, intro, effectiveDate, sections } = Astro.props;
+---
+
+<section class="px-8 pt-32 pb-20">
+  <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+    <aside class="lg:col-span-4 lg:sticky lg:top-28 space-y-8">
+      <div>
+        <p class="text-xs font-bold tracking-widest uppercase text-primary mb-4 font-label">{eyebrow}</p>
+        <h1 class="text-4xl lg:text-5xl font-extrabold text-primary tracking-tight mb-5 font-headline leading-tight">{title}</h1>
+        <p class="text-on-surface-variant font-body leading-relaxed">{intro}</p>
+      </div>
+
+      <div class="bg-surface-container-low rounded-2xl p-6 space-y-4">
+        <div>
+          <p class="text-xs font-bold tracking-widest uppercase text-primary mb-2 font-label">Effective Date</p>
+          <p class="text-sm text-on-surface font-body">{effectiveDate}</p>
+        </div>
+
+        <div>
+          <p class="text-xs font-bold tracking-widest uppercase text-primary mb-2 font-label">Quick Navigation</p>
+          <nav class="space-y-2">
+            {sections.map((section) => (
+              <a href={`#${section.id}`} class="block text-sm text-on-surface-variant hover:text-primary transition-colors font-body">
+                {section.title}
+              </a>
+            ))}
+          </nav>
+        </div>
+
+        <div class="border-t border-primary/5 pt-4">
+          <p class="text-xs font-bold tracking-widest uppercase text-primary mb-2 font-label">Contact</p>
+          <div class="space-y-2 text-sm font-body">
+            <a href="mailto:support@dwellhub.in" class="block text-primary hover:opacity-75 transition-opacity">support@dwellhub.in</a>
+            <a href="mailto:marketing@dwellhub.in" class="block text-primary hover:opacity-75 transition-opacity">marketing@dwellhub.in</a>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="lg:col-span-8 bg-surface-container-low rounded-2xl p-8 lg:p-10 space-y-10 editorial-shadow">
+      {sections.map((section) => (
+        <section id={section.id} class="scroll-mt-28">
+          <h2 class="text-2xl font-bold text-primary font-headline mb-4">{section.title}</h2>
+
+          {section.paragraphs?.map((paragraph) => (
+            <p class="text-on-surface-variant font-body leading-8 mb-4 last:mb-0">{paragraph}</p>
+          ))}
+
+          {section.bullets && (
+            <ul class="space-y-3 mt-4">
+              {section.bullets.map((bullet) => (
+                <li class="flex items-start gap-3 text-on-surface-variant font-body leading-7">
+                  <span class="material-symbols-outlined text-primary text-lg mt-1">subdirectory_arrow_right</span>
+                  <span>{bullet}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ))}
+    </div>
+  </div>
+</section>

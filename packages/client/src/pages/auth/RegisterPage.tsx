@@ -6,6 +6,7 @@ import api from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 
 export default function RegisterPage() {
+  const legalBaseUrl = 'https://dwellhub.in';
   const [form, setForm] = useState({
     societyName: '',
     address: '',
@@ -17,6 +18,7 @@ export default function RegisterPage() {
     password: '',
     phone: '',
   });
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -46,6 +48,11 @@ export default function RegisterPage() {
 
     if (trimmedPhone && !/^[6-9]\d{9}$/.test(trimmedPhone)) {
       toast.error('Phone number must be a valid 10-digit Indian mobile number.');
+      return;
+    }
+
+    if (!acceptedLegal) {
+      toast.error('You must accept the Terms of Service and Privacy Policy to continue.');
       return;
     }
 
@@ -228,6 +235,30 @@ export default function RegisterPage() {
                 </div>
               </div>
             </div>
+
+            <label className="flex items-start gap-3 rounded-xl border border-outline-variant/15 bg-surface-container-low p-4">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 rounded border-outline-variant/30 text-primary focus:ring-primary"
+                checked={acceptedLegal}
+                onChange={(e) => setAcceptedLegal(e.target.checked)}
+              />
+              <span className="text-sm text-on-surface-variant leading-6">
+                I agree to the{' '}
+                <a href={`${legalBaseUrl}/terms`} target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:opacity-75 transition-opacity">
+                  Terms of Service
+                </a>{' '}
+                and acknowledge the{' '}
+                <a href={`${legalBaseUrl}/privacy`} target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:opacity-75 transition-opacity">
+                  Privacy Policy
+                </a>
+                . I also understand the{' '}
+                <a href={`${legalBaseUrl}/refund-policy`} target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:opacity-75 transition-opacity">
+                  Refund Policy
+                </a>
+                .
+              </span>
+            </label>
 
             <button type="submit" disabled={loading} className="btn-gradient w-full py-3">
               {loading ? 'Creating your apartment...' : 'Register Apartment'}

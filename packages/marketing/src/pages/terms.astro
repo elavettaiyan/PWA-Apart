@@ -1,0 +1,84 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import LegalDocument from '../components/LegalDocument.astro';
+
+const title = 'Terms of Service | Dwell Hub';
+const description = 'Review the terms governing use of Dwell Hub for apartment society administration, billing, complaints, reports, and payments.';
+const effectiveDate = '24 March 2026';
+
+const sections = [
+  {
+    id: 'acceptance',
+    title: '1. Acceptance of Terms',
+    paragraphs: [
+      'These Terms of Service govern access to and use of Dwell Hub by societies, administrators, committee members, residents, and other authorized users. By registering for, accessing, or using Dwell Hub, you agree to these Terms.',
+      'If you are creating or managing an account on behalf of a society, association, or apartment complex, you represent that you are authorized to bind that entity and its authorized users to these Terms.'
+    ]
+  },
+  {
+    id: 'service-scope',
+    title: '2. Service Scope',
+    paragraphs: [
+      'Dwell Hub provides software tools for apartment and society operations including resident records, flat management, billing configuration, payment tracking, complaints, expenses, reports, and other related administration workflows.',
+      'Dwell Hub is a platform provider. It does not itself act as a housing society, accountant, legal advisor, tax advisor, or property manager, and it does not independently verify the accuracy of information entered by users.'
+    ]
+  },
+  {
+    id: 'accounts-responsibilities',
+    title: '3. Accounts and Responsibilities',
+    bullets: [
+      'Users must provide accurate and complete information during registration and keep it updated.',
+      'Account credentials must be kept confidential, and users are responsible for activity under their accounts unless they promptly report unauthorized use.',
+      'Society administrators are responsible for assigning access only to authorized persons and for reviewing permissions periodically.',
+      'Customers are responsible for the legality, accuracy, and appropriateness of data they upload or manage through the platform.'
+    ]
+  },
+  {
+    id: 'acceptable-use',
+    title: '4. Acceptable Use',
+    bullets: [
+      'You may not use Dwell Hub for unlawful, fraudulent, abusive, defamatory, discriminatory, or privacy-invasive purposes.',
+      'You may not attempt to interfere with the platform, bypass access controls, scrape non-public data, reverse engineer protected systems, or introduce malicious code.',
+      'You may not use the service in a way that harms other users, overloads infrastructure, or violates payment partner, email provider, or hosting provider rules.'
+    ]
+  },
+  {
+    id: 'plans-payments',
+    title: '5. Plans, Pricing, and Payments',
+    paragraphs: [
+      'Use of Dwell Hub may be subject to plan limits, free-tier restrictions, or paid subscription terms published by Dwell Hub from time to time. Current pricing and operational limits may be displayed on the website or communicated during onboarding.',
+      'Where payments are enabled, customers are responsible for all applicable fees, taxes, charge obligations, and authorized payment transactions associated with their selected plan or use of the service.'
+    ]
+  },
+  {
+    id: 'ip-termination',
+    title: '6. Intellectual Property, Suspension, and Termination',
+    paragraphs: [
+      'Dwell Hub and its underlying software, branding, documentation, and service materials remain the property of Dwell Hub and its licensors. Except for the limited right to use the platform under these Terms, no ownership rights are transferred.',
+      'We may suspend or terminate access if we reasonably believe there is a security risk, policy breach, non-payment, unlawful use, or other conduct that threatens the service, other users, or our rights. Users may stop using the service at any time, subject to any outstanding payment or contractual obligations.'
+    ]
+  },
+  {
+    id: 'liability-law',
+    title: '7. Disclaimer, Liability, and Governing Law',
+    paragraphs: [
+      'Dwell Hub is provided on an as-available and as-applicable basis. While we aim for reliability and continuity, we do not guarantee uninterrupted service, error-free operation, or outcomes based on customer-entered data.',
+      'To the maximum extent permitted by law, Dwell Hub shall not be liable for indirect, incidental, special, consequential, or punitive damages, or for loss of revenue, profits, data, or goodwill arising from use of the service. These Terms are governed by the laws of India, and disputes shall be subject to the competent courts in India unless otherwise required by applicable law.'
+    ]
+  }
+];
+---
+
+<Layout title={title} description={description}>
+  <Header />
+  <LegalDocument
+    eyebrow="Terms of Service"
+    title="The rules for using Dwell Hub responsibly."
+    intro="These terms define how societies and authorized users may access Dwell Hub, what responsibilities they carry, and how pricing, access, and service limitations are handled."
+    effectiveDate={effectiveDate}
+    sections={sections}
+  />
+  <Footer />
+</Layout>
