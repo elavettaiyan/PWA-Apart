@@ -202,8 +202,9 @@ app.use(errorHandler);
 
 // ── START SERVER (local & Railway — not on Vercel) ──────
 if (process.env.VERCEL !== '1') {
-  app.listen(config.port, () => {
-    logger.info(`🚀 Server running on port ${config.port}`);
+  const host = '0.0.0.0';
+  app.listen(config.port, host, () => {
+    logger.info(`🚀 Server running on ${host}:${config.port}`);
     logger.info(`📋 Environment: ${config.nodeEnv}`);
     logger.info(`🔗 Client URL: ${config.clientUrl}`);
     logger.info(`🗄️  Database URL: ${process.env.DATABASE_URL ? '***set***' : '⚠️  NOT SET'}`);

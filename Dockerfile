@@ -31,7 +31,8 @@ RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists
 
 WORKDIR /app
 
-ENV NODE_ENV=production
+# NODE_ENV is set via Railway env vars at runtime, not baked into image.
+# Baking it in causes startup crash if JWT_SECRET isn't available during build.
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
