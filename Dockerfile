@@ -32,11 +32,12 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY packages/server/package.json ./packages/server/package.json
 COPY packages/server/prisma ./packages/server/prisma/
+COPY packages/server/start.sh ./packages/server/start.sh
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/packages/server/dist ./packages/server/dist
 
-RUN mkdir -p packages/server/uploads
+RUN mkdir -p packages/server/uploads && chmod +x packages/server/start.sh
 
 EXPOSE ${PORT:-4000}
 
-CMD ["npm", "run", "start", "--workspace=@pwa-apart/server"]
+CMD ["./packages/server/start.sh"]
