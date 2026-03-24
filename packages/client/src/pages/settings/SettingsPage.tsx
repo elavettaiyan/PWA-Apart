@@ -11,6 +11,7 @@ import { PageLoader } from '../../components/ui/Loader';
 import { cn } from '../../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
+import { SOCIETY_ADMINS } from '../../types';
 
 interface PhonePeConfig {
   id?: string;
@@ -58,9 +59,12 @@ export default function SettingsPage() {
   });
   const [hasChanges, setHasChanges] = useState(false);
 
+  const isAdmin = user?.role === 'SUPER_ADMIN' || SOCIETY_ADMINS.includes(user?.role as any);
+
   const { data, isLoading } = useQuery<{ exists: boolean; config: PhonePeConfig }>({
     queryKey: ['payment-gateway-config'],
     queryFn: async () => (await api.get('/settings/payment-gateway')).data,
+    enabled: isAdmin,
   });
 
   // Populate form when data loads
@@ -140,7 +144,7 @@ export default function SettingsPage() {
     saveMutation.mutate(payload);
   };
 
-  if (isLoading) return <PageLoader />;
+  if (isAdmin && isLoading) return <PageLoader />;
 
   const cfg = data?.config;
   const isConfigured = data?.exists;
@@ -177,6 +181,8 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {isAdmin && (
+      <>
       <div className="page-header">
         <div>
           <p className="section-label mb-2">Configuration</p>
@@ -502,6 +508,8 @@ export default function SettingsPage() {
             <p>Do not rely on shared sample credentials because they may be expired, disabled, or rate-limited.</p>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
