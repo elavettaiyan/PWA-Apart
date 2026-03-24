@@ -25,7 +25,7 @@ const app = express();
 const processStartMs = Date.now();
 const serverInstanceId = Math.random().toString(36).slice(2, 10);
 
-// In production (Vercel/reverse proxy), trust forwarded headers for real client IP.
+// In production (Vercel/Railway/reverse proxy), trust forwarded headers for real client IP.
 // Use numeric value (1 = trust first proxy) to avoid express-rate-limit ERR_ERL_PERMISSIVE_TRUST_PROXY.
 app.set('trust proxy', config.nodeEnv === 'production' ? 1 : false);
 
@@ -67,7 +67,7 @@ app.use((req, res, next) => {
       uptimeMs,
       coldStart: uptimeMs < 30000,
       instanceId: serverInstanceId,
-      region: process.env.VERCEL_REGION || 'unknown',
+      region: process.env.VERCEL_REGION || process.env.RAILWAY_REGION || 'unknown',
     });
   });
 
@@ -200,14 +200,17 @@ app.use('/api/staff', staffRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-// ── START SERVER (local only, not on Vercel) ────────────
+// ── START SERVER (local & Railway — not on Vercel) ──────
 if (process.env.VERCEL !== '1') {
   app.listen(config.port, () => {
-    logger.info(`🚀 Server running on http://localhost:${config.port}`);
+    logger.info(`🚀 Server running on port ${config.port}`);
     logger.info(`📋 Environment: ${config.nodeEnv}`);
     logger.info(`🔗 Client URL: ${config.clientUrl}`);
     logger.info(`🗄️  Database URL: ${process.env.DATABASE_URL ? '***set***' : '⚠️  NOT SET'}`);
     logger.info(`🔑 JWT Secret: ${config.jwt.secret === 'fallback-secret' ? '⚠️  USING FALLBACK' : '***set***'}`);
+    if (process.env.RAILWAY_ENVIRONMENT) {
+      logger.info(`🚂 Railway environment: ${process.env.RAILWAY_ENVIRONMENT}`);
+    }
   });
 } else {
   logger.info('Running on Vercel serverless');

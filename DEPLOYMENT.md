@@ -139,21 +139,99 @@ If the project is still using old cached settings, redeploy after saving the upd
 
 ---
 
-## 5. Alternative: Deploy Backend to Railway
+## 5. Deploy Backend to Railway
 
-If Vercel serverless doesn't suit your needs (e.g., WebSocket, long-running tasks):
+Railway runs the server as a persistent process (not serverless), which is better for WebSockets, long-running tasks, and consistent cold-start-free performance.
 
-1. Go to [railway.app](https://railway.app) → "New Project"
-2. Connect your GitHub repo
-3. Set **Root Directory** to `packages/server`
-4. Add a PostgreSQL plugin (Railway provides one)
-5. Set environment variables (same as section 4b)
-6. Railway auto-detects Node.js and runs `npm start`
+### 5a. Create Railway Project
 
-Make sure `packages/server/package.json` has a start script:
-```json
-"start": "node dist/index.js"
+1. Go to [railway.app](https://railway.app) → **"New Project"**
+2. Select **"Deploy from GitHub repo"** → choose this repo
+3. In Service Settings → set **Root Directory** to `packages/server`
+
+### 5b. Add a PostgreSQL Database
+
+1. In the Railway project, click **"+ New"** → **"Database"** → **"PostgreSQL"**
+2. Railway auto-injects `DATABASE_URL` into your service when you link them
+3. Click your server service → **Variables** → verify `DATABASE_URL` is linked (a reference variable like `${{Postgres.DATABASE_URL}}`)
+
+### 5c. Environment Variables
+
+Add these in your Railway service → **Variables** tab:
+
+| Variable | Value |
+|----------|-------|
+| `DATABASE_URL` | (auto-injected if Railway Postgres is linked) |
+| `JWT_SECRET` | (generate a strong 64-char random string) |
+| `JWT_REFRESH_SECRET` | (generate another strong 64-char random string) |
+| `NODE_ENV` | `production` |
+| `CLIENT_URL` | `https://your-frontend.vercel.app` |
+| `PHONEPE_MERCHANT_ID` | Your PhonePe Merchant ID |
+| `PHONEPE_SALT_KEY` | Your PhonePe Salt Key |
+| `PHONEPE_SALT_INDEX` | `1` |
+| `PHONEPE_ENV` | `PRODUCTION` |
+
+Generate secrets with:
+```bash
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
+
+> **Note:** Railway provides `PORT` automatically — do not set it manually. The server reads `process.env.PORT` at startup.
+
+### 5d. Build & Deploy Settings
+
+**Option A — Nixpacks (default, recommended)**
+
+Railway auto-detects Node.js via Nixpacks. Configure in Service Settings:
+
+- **Build Command:** `npm run railway-build`
+- **Start Command:** `node dist/index.js`
+
+The `railway-build` script runs: `prisma generate` → `prisma migrate deploy` → `tsc`
+
+**Option B — Dockerfile**
+
+A `Dockerfile` is included in `packages/server/` for full control. To use it:
+
+1. Service Settings → **Builder** → select **Dockerfile**
+2. Railway will use `packages/server/Dockerfile` automatically (since Root Directory is `packages/server`)
+
+### 5e. Health Check
+
+Configure in Service Settings → **Healthcheck Path**: `/api/health`
+
+### 5f. Custom Domain
+
+1. Service Settings → **Networking** → **"Generate Domain"** (gives you `*.up.railway.app`)
+2. Or add a **Custom Domain** (e.g., `api.dwellhub.in`) and configure DNS with the provided CNAME
+
+### 5g. First Deploy
+
+After setting up variables and linking Postgres:
+
+1. Push to your main branch — Railway auto-deploys
+2. Check deploy logs for:
+   - `prisma migrate deploy` succeeding
+   - `Server running on port <PORT>`
+   - `Database connected successfully`
+
+3. Seed the database (one-time, run from Railway's shell or locally):
+```bash
+# From your local machine, using the Railway DATABASE_URL:
+DATABASE_URL="postgresql://..." npx prisma@5.22.0 db seed
+```
+
+Or use Railway CLI:
+```bash
+railway run npx prisma@5.22.0 db seed
+```
+
+### 5h. Update Frontend API URL
+
+Point the frontend to your Railway backend:
+
+- In Vercel (client project), set `VITE_API_URL` to `https://your-server.up.railway.app/api`
+- Or for custom domain: `https://api.dwellhub.in/api`
 
 ---
 

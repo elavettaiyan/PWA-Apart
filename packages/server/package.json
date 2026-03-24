@@ -5,6 +5,7 @@
   "scripts": {
     "postinstall": "npx prisma generate",
     "vercel-build": "sh scripts/vercel-build.sh",
+    "railway-build": "npx prisma@5.22.0 generate && npx prisma@5.22.0 migrate deploy && tsc",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
