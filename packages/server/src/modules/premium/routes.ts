@@ -1,5 +1,4 @@
 import crypto from 'crypto';
-import axios from 'axios';
 import { Response, Router } from 'express';
 import { body } from 'express-validator';
 import { PaymentStatus, PremiumSubscriptionStatus } from '@prisma/client';
@@ -59,58 +58,78 @@ function buildSubscriptionMessage(lockedFlatCount: number) {
   return `Your Premium subscription amount is locked at ${lockedFlatCount} flats. Flats added later will not change the current subscription amount until a future plan update or renewal rule applies.`;
 }
 
-const razorpayApi = axios.create({
-  baseURL: config.razorpay.baseUrl,
-  auth: {
-    username: config.razorpay.keyId,
-    password: config.razorpay.keySecret,
-  },
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+async function razorpayRequest<T>(path: string, init?: RequestInit) {
+  const credentials = Buffer.from(`${config.razorpay.keyId}:${config.razorpay.keySecret}`).toString('base64');
+
+  const response = await fetch(`${config.razorpay.baseUrl}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Basic ${credentials}`,
+      ...(init?.headers || {}),
+    },
+  });
+
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    const message =
+      data?.error?.description ||
+      data?.error?.reason ||
+      data?.message ||
+      `Razorpay request failed with status ${response.status}`;
+
+    throw new Error(message);
+  }
+
+  return data as T;
+}
 
 async function getCurrentFlatCount(societyId: string) {
   return prisma.flat.count({ where: { block: { societyId } } });
 }
 
 async function createRazorpayPlan(lockedFlatCount: number, amountPaise: number) {
-  const response = await razorpayApi.post('/plans', {
-    period: 'monthly',
-    interval: 1,
-    item: {
-      name: `Dwell Hub Premium (${lockedFlatCount} flats)`,
-      amount: amountPaise,
-      currency: CURRENCY,
-      description: `Premium plan locked at ${lockedFlatCount} flats`,
-    },
-    notes: {
-      lockedFlatCount: String(lockedFlatCount),
-      amountPaise: String(amountPaise),
-    },
+  return razorpayRequest<{ id: string }>('/plans', {
+    method: 'POST',
+    body: JSON.stringify({
+      period: 'monthly',
+      interval: 1,
+      item: {
+        name: `Dwell Hub Premium (${lockedFlatCount} flats)`,
+        amount: amountPaise,
+        currency: CURRENCY,
+        description: `Premium plan locked at ${lockedFlatCount} flats`,
+      },
+      notes: {
+        lockedFlatCount: String(lockedFlatCount),
+        amountPaise: String(amountPaise),
+      },
+    }),
   });
-
-  return response.data;
 }
 
 async function createRazorpaySubscription(planId: string, societyId: string, lockedFlatCount: number) {
-  const response = await razorpayApi.post('/subscriptions', {
-    plan_id: planId,
-    total_count: config.razorpay.subscriptionCycles,
-    quantity: 1,
-    customer_notify: 1,
-    notes: {
-      societyId,
-      lockedFlatCount: String(lockedFlatCount),
-    },
+  return razorpayRequest<RazorpaySubscriptionEntity>('/subscriptions', {
+    method: 'POST',
+    body: JSON.stringify({
+      plan_id: planId,
+      total_count: config.razorpay.subscriptionCycles,
+      quantity: 1,
+      customer_notify: 1,
+      notes: {
+        societyId,
+        lockedFlatCount: String(lockedFlatCount),
+      },
+    }),
   });
-
-  return response.data as RazorpaySubscriptionEntity;
 }
 
 async function fetchRazorpaySubscription(subscriptionId: string) {
-  const response = await razorpayApi.get(`/subscriptions/${subscriptionId}`);
-  return response.data as RazorpaySubscriptionEntity;
+  return razorpayRequest<RazorpaySubscriptionEntity>(`/subscriptions/${subscriptionId}`, {
+    method: 'GET',
+  });
 }
 
 function buildSubscriptionUpdate(entity: RazorpaySubscriptionEntity) {
@@ -347,7 +366,7 @@ router.post('/subscribe', async (req: AuthRequest, res: Response) => {
     });
   } catch (error: any) {
     logger.error('Failed to create premium subscription', {
-      error: error.response?.data || error.message,
+      error: error.message,
     });
     return res.status(500).json({
       error: error.message === 'Razorpay is not configured on the server'
