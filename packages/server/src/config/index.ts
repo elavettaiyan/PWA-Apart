@@ -35,6 +35,14 @@ export const config = {
     callbackUrl: process.env.PHONEPE_CALLBACK_URL || 'http://localhost:4000/api/payments/phonepe/callback',
   },
 
+  razorpay: {
+    keyId: process.env.RAZORPAY_KEY_ID || '',
+    keySecret: process.env.RAZORPAY_KEY_SECRET || '',
+    webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || '',
+    baseUrl: process.env.RAZORPAY_BASE_URL || 'https://api.razorpay.com/v1',
+    subscriptionCycles: parseInt(process.env.RAZORPAY_SUBSCRIPTION_CYCLES || '120', 10),
+  },
+
   upload: {
     dir: process.env.UPLOAD_DIR || './uploads',
     maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '5242880', 10),

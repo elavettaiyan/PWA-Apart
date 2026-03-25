@@ -100,6 +100,11 @@ Add in Vercel dashboard:
 | `PHONEPE_SALT_KEY` | Your PhonePe Salt Key |
 | `PHONEPE_SALT_INDEX` | `1` |
 | `PHONEPE_ENV` | `PRODUCTION` |
+| `RAZORPAY_KEY_ID` | Your Razorpay Key ID for Premium billing |
+| `RAZORPAY_KEY_SECRET` | Your Razorpay Key Secret |
+| `RAZORPAY_WEBHOOK_SECRET` | Webhook secret for `/api/premium/webhook` |
+| `RAZORPAY_BASE_URL` | `https://api.razorpay.com/v1` |
+| `RAZORPAY_SUBSCRIPTION_CYCLES` | `120` |
 | `CLIENT_URL` | `https://your-frontend.vercel.app` |
 | `NODE_ENV` | `production` |
 
@@ -137,6 +142,17 @@ If your Vercel backend project was created before this change, verify these two 
 
 If the project is still using old cached settings, redeploy after saving the updated Build Command once in the dashboard.
 
+### 4d. Razorpay Premium Webhook
+
+Premium society billing now uses Razorpay subscriptions. After deploy:
+
+1. Create a webhook in Razorpay Dashboard.
+2. Point it to `https://your-backend-url/api/premium/webhook`
+3. Set the same webhook secret in `RAZORPAY_WEBHOOK_SECRET`
+4. Enable at least subscription and payment events so subscription state and renewal payments stay synced.
+
+PhonePe remains the resident payment gateway inside the app. Razorpay is only for the platform Premium plan.
+
 ---
 
 ## 5. Deploy Backend to Railway
@@ -170,6 +186,11 @@ Add these in your Railway service → **Variables** tab:
 | `PHONEPE_SALT_KEY` | Your PhonePe Salt Key |
 | `PHONEPE_SALT_INDEX` | `1` |
 | `PHONEPE_ENV` | `PRODUCTION` |
+| `RAZORPAY_KEY_ID` | Your Razorpay Key ID for Premium billing |
+| `RAZORPAY_KEY_SECRET` | Your Razorpay Key Secret |
+| `RAZORPAY_WEBHOOK_SECRET` | Webhook secret for `/api/premium/webhook` |
+| `RAZORPAY_BASE_URL` | `https://api.razorpay.com/v1` |
+| `RAZORPAY_SUBSCRIPTION_CYCLES` | `120` |
 
 Generate secrets with:
 ```bash
@@ -214,6 +235,11 @@ After setting up variables and linking Postgres:
    - `prisma migrate deploy` succeeding
    - `Server running on port <PORT>`
    - `Database connected successfully`
+
+3. In Razorpay Dashboard, configure the Premium webhook URL:
+   - `https://your-backend-url/api/premium/webhook`
+   - use the same value as `RAZORPAY_WEBHOOK_SECRET`
+   - keep PhonePe callback settings unchanged for resident payments
 
 3. Seed the database (one-time, run from Railway's shell or locally):
 ```bash

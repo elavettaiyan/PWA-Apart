@@ -1,5 +1,11 @@
 ---
 const appUrl = 'https://app.dwellhub.in';
+
+const navItems = [
+  { href: '#features', label: 'Features', id: 'features' },
+  { href: '#pricing', label: 'Pricing', id: 'pricing' },
+  { href: '#faq', label: 'Support', id: 'faq' },
+];
 ---
 
 <nav class="fixed top-0 w-full z-50 bg-[#f9faf7]/80 backdrop-blur-xl transition-all duration-300">
@@ -9,9 +15,15 @@ const appUrl = 'https://app.dwellhub.in';
     </a>
 
     <div class="hidden md:flex items-center gap-8">
-      <a class="font-headline text-sm tracking-wide font-medium text-primary border-b-2 border-primary pb-1 transition-all duration-300 hover:opacity-70" href="#features">Features</a>
-      <a class="font-headline text-sm tracking-wide font-medium text-slate-600 hover:text-primary transition-all duration-300" href="#pricing">Pricing</a>
-      <a class="font-headline text-sm tracking-wide font-medium text-slate-600 hover:text-primary transition-all duration-300" href="#faq">Support</a>
+      {navItems.map((item) => (
+        <a
+          class="marketing-nav-link font-headline text-sm tracking-wide font-medium text-slate-600 border-b-2 border-transparent pb-1 hover:text-primary transition-all duration-300"
+          href={item.href}
+          data-section={item.id}
+        >
+          {item.label}
+        </a>
+      ))}
     </div>
 
     <div class="flex items-center gap-4">
@@ -24,3 +36,59 @@ const appUrl = 'https://app.dwellhub.in';
     </div>
   </div>
 </nav>
+
+<script>
+  const activeClasses = ['text-primary', 'border-primary'];
+  const inactiveClasses = ['text-slate-600', 'border-transparent'];
+
+  const links = Array.from(document.querySelectorAll('.marketing-nav-link'));
+  const sections = links
+    .map((link) => document.getElementById(link.dataset.section || ''))
+    .filter(Boolean);
+
+  function setActiveSection(activeId) {
+    links.forEach((link) => {
+      const isActive = link.dataset.section === activeId;
+      link.classList.toggle(activeClasses[0], isActive);
+      link.classList.toggle(activeClasses[1], isActive);
+      link.classList.toggle(inactiveClasses[0], !isActive);
+      link.classList.toggle(inactiveClasses[1], !isActive);
+    });
+  }
+
+  function updateFromHash() {
+    const hash = window.location.hash.replace('#', '');
+    if (hash && sections.some((section) => section.id === hash)) {
+      setActiveSection(hash);
+      return true;
+    }
+
+    return false;
+  }
+
+  if (!updateFromHash()) {
+    setActiveSection('');
+  }
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      const visibleEntries = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+
+      if (visibleEntries.length > 0) {
+        setActiveSection(visibleEntries[0].target.id);
+      } else if (!updateFromHash()) {
+        setActiveSection('');
+      }
+    },
+    {
+      rootMargin: '-30% 0px -55% 0px',
+      threshold: [0.15, 0.35, 0.6],
+    },
+  );
+
+  sections.forEach((section) => observer.observe(section));
+
+  window.addEventListener('hashchange', updateFromHash);
+</script>

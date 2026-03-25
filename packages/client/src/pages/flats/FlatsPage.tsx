@@ -3,11 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Building2, User, Phone, Layers, Trash2, Upload, Download, FileSpreadsheet } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
+import { openRazorpaySubscriptionCheckout } from '../../lib/razorpay';
 import { useAuthStore } from '../../store/authStore';
 import { getFlatTypeLabel, cn } from '../../lib/utils';
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
-import type { Flat, Block } from '../../types';
+import type { Flat, Block, PremiumStatusResponse } from '../../types';
 
 export default function FlatsPage() {
   const [showAddFlat, setShowAddFlat] = useState(false);
@@ -300,12 +301,83 @@ export default function FlatsPage() {
 }
 
 function UpgradePrompt({ onClose }: { onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+
+  const { data: premiumStatus, isLoading } = useQuery<PremiumStatusResponse>({
+    queryKey: ['premium-status'],
+    queryFn: async () => (await api.get('/premium/status')).data,
+  });
+
+  const verifyMutation = useMutation({
+    mutationFn: (payload: { razorpay_payment_id: string; razorpay_subscription_id: string; razorpay_signature: string }) =>
+      api.post('/premium/verify', payload),
+    onSuccess: () => {
+      toast.success('Premium activated successfully');
+      queryClient.invalidateQueries({ queryKey: ['premium-status'] });
+      queryClient.invalidateQueries({ queryKey: ['flats'] });
+      queryClient.invalidateQueries({ queryKey: ['blocks'] });
+      onClose();
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to verify Premium activation');
+    },
+  });
+
+  const subscribeMutation = useMutation({
+    mutationFn: async () => (await api.post('/premium/subscribe')).data,
+    onSuccess: async (payload) => {
+      try {
+        await openRazorpaySubscriptionCheckout({
+          key: payload.keyId,
+          subscriptionId: payload.subscriptionId,
+          name: 'Dwell Hub Premium',
+          description: `Premium plan locked at ${payload.lockedFlatCount} flats`,
+          prefill: {
+            name: user?.name,
+            email: user?.email,
+            contact: user?.phone,
+          },
+          notes: {
+            lockedFlatCount: String(payload.lockedFlatCount),
+          },
+          onSuccess: (response) => verifyMutation.mutate(response),
+          onDismiss: () => {
+            toast('Premium checkout was closed before completion.');
+          },
+        });
+      } catch (error: any) {
+        toast.error(error.message || 'Failed to open Razorpay checkout');
+      }
+    },
+    onError: (error: any) => {
+      if (error.response?.data?.code === 'PREMIUM_ALREADY_ACTIVE') {
+        queryClient.invalidateQueries({ queryKey: ['premium-status'] });
+        toast.success('Premium is already active for this society');
+        onClose();
+        return;
+      }
+
+      toast.error(error.response?.data?.error || 'Failed to start Premium checkout');
+    },
+  });
+
+  if (isLoading || !premiumStatus) {
+    return <div className="py-8 text-sm text-on-surface-variant">Loading Premium plan details...</div>;
+  }
+
+  const activeSubscription = premiumStatus.activeSubscription;
+
   return (
     <div className="space-y-5">
       <div className="rounded-2xl bg-primary/[0.04] border border-primary/10 p-4">
-        <p className="text-sm font-semibold text-primary">Free tier limit reached</p>
+        <p className="text-sm font-semibold text-primary">
+          {premiumStatus.isPremium ? 'Premium is active' : 'Free tier limit reached'}
+        </p>
         <p className="mt-1 text-sm text-on-surface-variant">
-          Your society can use up to 5 flats for free. Upgrade to Premium to add unlimited flats and keep all features enabled.
+          {premiumStatus.isPremium
+            ? 'Your society already has Premium access. You can continue managing flats without the free-tier cap.'
+            : 'Your society can use up to 5 flats for free. Upgrade to Premium to add unlimited flats and keep all features enabled.'}
         </p>
       </div>
 
@@ -325,6 +397,24 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-3">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-on-surface-variant">Locked billing snapshot</p>
+            <p className="mt-1 text-base font-semibold text-on-surface">
+              {premiumStatus.preview.lockedFlatCount} flats x ₹{premiumStatus.pricing.amountPerFlat} = ₹{premiumStatus.preview.amount}/month
+            </p>
+          </div>
+          {activeSubscription?.currentPeriodEnd && (
+            <div className="text-right text-xs text-on-surface-variant">
+              <p>Current cycle ends</p>
+              <p className="font-medium text-on-surface">{new Date(activeSubscription.currentPeriodEnd).toLocaleDateString()}</p>
+            </div>
+          )}
+        </div>
+        <p className="mt-3 text-sm text-on-surface-variant">{premiumStatus.preview.message}</p>
+      </div>
+
+      <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-3">
         <p className="text-xs uppercase tracking-widest text-on-surface-variant">What you unlock</p>
         <ul className="mt-2 space-y-1 text-sm text-on-surface-variant">
           <li>Unlimited flat creation</li>
@@ -337,12 +427,20 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
         <button type="button" className="btn-secondary" onClick={onClose}>
           Close
         </button>
-        <a
-          href="mailto:support@dwellhub.in?subject=Premium%20Upgrade%20Request"
+        <button
+          type="button"
           className="btn-primary text-center"
+          onClick={() => subscribeMutation.mutate()}
+          disabled={subscribeMutation.isPending || verifyMutation.isPending || premiumStatus.isPremium}
         >
-          Request Premium Upgrade
-        </a>
+          {verifyMutation.isPending
+            ? 'Verifying...'
+            : subscribeMutation.isPending
+              ? 'Starting checkout...'
+              : premiumStatus.isPremium
+                ? 'Premium Active'
+                : 'Pay with Razorpay'}
+        </button>
       </div>
     </div>
   );

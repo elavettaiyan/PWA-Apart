@@ -11,6 +11,7 @@ import { PageLoader } from '../../components/ui/Loader';
 import { cn } from '../../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
+import type { PremiumStatusResponse } from '../../types';
 import { SOCIETY_ADMINS } from '../../types';
 
 interface PhonePeConfig {
@@ -65,6 +66,12 @@ export default function SettingsPage() {
   const { data, isLoading } = useQuery<{ exists: boolean; config: PhonePeConfig }>({
     queryKey: ['payment-gateway-config'],
     queryFn: async () => (await api.get('/settings/payment-gateway')).data,
+    enabled: isAdmin,
+  });
+
+  const { data: premiumStatus } = useQuery<PremiumStatusResponse>({
+    queryKey: ['premium-status'],
+    queryFn: async () => (await api.get('/premium/status')).data,
     enabled: isAdmin,
   });
 
@@ -194,6 +201,63 @@ export default function SettingsPage() {
 
       {/* Members & Roles */}
       <MembersRoles />
+
+      <div className="card p-6 mb-6">
+        <div className="flex items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 bg-emerald-50 rounded-xl flex items-center justify-center">
+              <ShieldCheck className="w-5 h-5 text-emerald-700" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-on-surface">Premium Plan</h2>
+              <p className="text-xs text-on-surface-variant">Platform subscription status for your society account</p>
+            </div>
+          </div>
+
+          <span className={cn(
+            'badge',
+            premiumStatus?.isPremium ? 'badge-success' : 'badge-neutral'
+          )}>
+            {premiumStatus?.isPremium ? 'Premium Active' : 'Free Tier'}
+          </span>
+        </div>
+
+        {premiumStatus ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="rounded-xl bg-surface-container-low p-4">
+                <p className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Current flats</p>
+                <p className="mt-1 text-lg font-semibold text-on-surface">{premiumStatus.currentFlatCount}</p>
+              </div>
+              <div className="rounded-xl bg-surface-container-low p-4">
+                <p className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Locked billing count</p>
+                <p className="mt-1 text-lg font-semibold text-on-surface">{premiumStatus.preview.lockedFlatCount}</p>
+              </div>
+              <div className="rounded-xl bg-surface-container-low p-4">
+                <p className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Monthly amount</p>
+                <p className="mt-1 text-lg font-semibold text-on-surface">₹{premiumStatus.preview.amount}</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-3">
+              <p className="text-sm text-on-surface-variant">{premiumStatus.preview.message}</p>
+              {premiumStatus.activeSubscription?.currentPeriodEnd && (
+                <p className="mt-2 text-xs text-on-surface-variant">
+                  Current billing period ends on {new Date(premiumStatus.activeSubscription.currentPeriodEnd).toLocaleDateString()}.
+                </p>
+              )}
+            </div>
+
+            {!premiumStatus.isPremium && (
+              <div className="rounded-xl bg-warning-container px-4 py-3 text-sm text-on-warning-container">
+                Upgrade to Premium from the flat-creation flow when you need more than 5 flats. Razorpay checkout will lock the billable flat count at the moment the subscription starts.
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-on-surface-variant">Premium plan details are unavailable right now.</p>
+        )}
+      </div>
 
       {/* PhonePe Configuration Card */}
       <div className="card p-6 mb-6">

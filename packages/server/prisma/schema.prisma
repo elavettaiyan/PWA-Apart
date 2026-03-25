@@ -63,6 +63,15 @@ enum PaymentGatewayEnv {
   PRODUCTION
 }
 
+enum PremiumSubscriptionStatus {
+  PENDING
+  ACTIVE
+  HALTED
+  CANCELLED
+  COMPLETED
+  FAILED
+}
+
 enum ComplaintStatus {
   OPEN
   IN_PROGRESS
@@ -123,6 +132,7 @@ model Society {
   bylaws             AssociationBylaw[]
   maintenanceConfig  MaintenanceConfig[]
   paymentConfigs     PaymentGatewayConfig[]
+  premiumSubscriptions PremiumSubscription[]
 
   @@map("societies")
 }
@@ -351,6 +361,59 @@ model Payment {
   @@index([status, paidAt])
   @@index([notes])
   @@map("payments")
+}
+
+// ─── PLATFORM PREMIUM SUBSCRIPTIONS ───────────────────
+
+model PremiumSubscription {
+  id                    String                    @id @default(uuid())
+  societyId             String
+  status                PremiumSubscriptionStatus @default(PENDING)
+  providerStatus        String?
+  lockedFlatCount       Int
+  amountPerFlatPaise    Int
+  amountPaise           Int
+  currency              String                    @default("INR")
+  razorpayPlanId        String?
+  razorpaySubscriptionId String?                  @unique
+  startDate             DateTime?
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  nextBillingAt         DateTime?
+  cancelledAt           DateTime?
+  expiresAt             DateTime?
+  notes                 String?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+
+  society               Society                   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  payments              PremiumSubscriptionPayment[]
+
+  @@index([societyId])
+  @@index([societyId, status])
+  @@map("premium_subscriptions")
+}
+
+model PremiumSubscriptionPayment {
+  id                    String               @id @default(uuid())
+  premiumSubscriptionId String
+  status                PaymentStatus        @default(INITIATED)
+  amountPaise           Int
+  currency              String               @default("INR")
+  razorpayPaymentId     String?              @unique
+  razorpayInvoiceId     String?
+  razorpayOrderId       String?
+  failureReason         String?
+  rawPayload            String?
+  paidAt                DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  premiumSubscription   PremiumSubscription  @relation(fields: [premiumSubscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([premiumSubscriptionId])
+  @@index([razorpayInvoiceId])
+  @@map("premium_subscription_payments")
 }
 
 // ─── COMPLAINT ──────────────────────────────────────────

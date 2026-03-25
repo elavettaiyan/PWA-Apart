@@ -20,6 +20,7 @@ import reportRoutes from './modules/reports/routes';
 import settingsRoutes from './modules/settings/routes';
 import adminRoutes from './modules/admin/routes';
 import staffRoutes from './modules/staff/routes';
+import premiumRoutes, { premiumWebhookHandler } from './modules/premium/routes';
 
 const app = express();
 const processStartMs = Date.now();
@@ -143,6 +144,10 @@ const registerLimiter = rateLimit({
   skip: () => config.nodeEnv !== 'production',
 });
 
+// Razorpay webhooks require the raw body for signature verification, so this
+// route must be registered before the global JSON parser.
+app.post('/api/premium/webhook', express.raw({ type: 'application/json', limit: '1mb' }), premiumWebhookHandler);
+
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -197,6 +202,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/staff', staffRoutes);
+app.use('/api/premium', premiumRoutes);
 
 // ── ERROR HANDLING ──────────────────────────────────────
 app.use(notFound);

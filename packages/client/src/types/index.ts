@@ -286,3 +286,53 @@ export interface PnLReport {
   netProfitLoss: number;
   profitMargin: string;
 }
+
+// ─── PREMIUM SUBSCRIPTION ──────────────────────────────
+
+export interface PremiumSubscriptionPayment {
+  id: string;
+  status: PaymentStatus;
+  amountPaise: number;
+  currency: string;
+  razorpayPaymentId?: string;
+  paidAt?: string;
+  failureReason?: string;
+}
+
+export interface PremiumSubscription {
+  id: string;
+  status: 'PENDING' | 'ACTIVE' | 'HALTED' | 'CANCELLED' | 'COMPLETED' | 'FAILED';
+  providerStatus?: string;
+  lockedFlatCount: number;
+  amountPerFlatPaise: number;
+  amountPaise: number;
+  currency: string;
+  razorpaySubscriptionId?: string;
+  startDate?: string;
+  currentPeriodStart?: string;
+  currentPeriodEnd?: string;
+  nextBillingAt?: string;
+  cancelledAt?: string;
+  expiresAt?: string;
+  notes?: string;
+  payments?: PremiumSubscriptionPayment[];
+}
+
+export interface PremiumStatusResponse {
+  isPremium: boolean;
+  currentFlatCount: number;
+  pricing: {
+    amountPerFlatPaise: number;
+    amountPerFlat: number;
+    currency: string;
+  };
+  preview: {
+    lockedFlatCount: number;
+    amountPaise: number;
+    amount: number;
+    currency: string;
+    message: string;
+  };
+  activeSubscription?: PremiumSubscription | null;
+  latestSubscription?: PremiumSubscription | null;
+}
