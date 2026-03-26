@@ -177,6 +177,15 @@
 ::-webkit-scrollbar-thumb { background: #c0c8c4; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #707976; }
 
+/* Force Razorpay checkout into desktop layout */
+.razorpay-checkout-frame {
+  width: 450px !important;
+  min-width: 450px !important;
+  height: 560px !important;
+  max-width: 95vw !important;
+  max-height: 90vh !important;
+}
+
 /* Mobile bottom bar safe area */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .mobile-bottom-safe {

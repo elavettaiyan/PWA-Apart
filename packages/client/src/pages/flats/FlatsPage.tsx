@@ -293,7 +293,7 @@ export default function FlatsPage() {
       </Modal>
 
       {/* Upgrade Modal */}
-      <Modal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} title="Upgrade to Premium" size="md">
+      <Modal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} title="Upgrade to Premium" size="lg">
         <UpgradePrompt onClose={() => setShowUpgradeModal(false)} />
       </Modal>
     </div>
