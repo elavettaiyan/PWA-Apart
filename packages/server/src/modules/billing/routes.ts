@@ -186,6 +186,14 @@ router.post(
       const targetFlatTypes = flatType ? [flatType] : [...ALL_FLAT_TYPES];
 
       const configs = await prisma.$transaction(async (tx) => {
+        await tx.maintenanceConfig.deleteMany({
+          where: {
+            societyId,
+            flatType: { in: targetFlatTypes },
+            isActive: false,
+          },
+        });
+
         await tx.maintenanceConfig.updateMany({
           where: {
             societyId,

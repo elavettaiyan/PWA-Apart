@@ -14,14 +14,14 @@ const currentDate = new Date();
 const yearOptions = Array.from({ length: 5 }, (_, index) => currentDate.getFullYear() - 1 + index);
 
 type BillingConfigFormState = {
-  baseAmount: number;
-  waterCharge: number;
-  parkingCharge: number;
-  sinkingFund: number;
-  repairFund: number;
-  otherCharges: number;
-  lateFeePerDay: number;
-  dueDay: number;
+  baseAmount: number | '';
+  waterCharge: number | '';
+  parkingCharge: number | '';
+  sinkingFund: number | '';
+  repairFund: number | '';
+  otherCharges: number | '';
+  lateFeePerDay: number | '';
+  dueDay: number | '';
 };
 
 function buildConfigForm(summary?: MaintenanceConfigSummary): BillingConfigFormState {
@@ -34,6 +34,19 @@ function buildConfigForm(summary?: MaintenanceConfigSummary): BillingConfigFormS
     otherCharges: summary?.otherCharges ?? 0,
     lateFeePerDay: summary?.lateFeePerDay ?? 0,
     dueDay: summary?.dueDay ?? 10,
+  };
+}
+
+function normalizeBillingConfigForm(value: BillingConfigFormState) {
+  return {
+    baseAmount: Number(value.baseAmount || 0),
+    waterCharge: Number(value.waterCharge || 0),
+    parkingCharge: Number(value.parkingCharge || 0),
+    sinkingFund: Number(value.sinkingFund || 0),
+    repairFund: Number(value.repairFund || 0),
+    otherCharges: Number(value.otherCharges || 0),
+    lateFeePerDay: Number(value.lateFeePerDay || 0),
+    dueDay: Number(value.dueDay || 0),
   };
 }
 
@@ -115,7 +128,7 @@ export default function BillingPage() {
   };
 
   const configMutation = useMutation({
-    mutationFn: (data: BillingConfigFormState) => api.post('/billing/config', { ...data, societyId: user?.societyId }),
+    mutationFn: (data: BillingConfigFormState) => api.post('/billing/config', { ...normalizeBillingConfigForm(data), societyId: user?.societyId }),
     onSuccess: () => {
       toast.success('Monthly maintenance settings saved');
       queryClient.invalidateQueries({ queryKey: configBaseKey });
@@ -609,15 +622,15 @@ function ConfigureBillingForm({
   isPending: boolean;
 }) {
   const totalMonthlyAmount =
-    value.baseAmount +
-    value.waterCharge +
-    value.parkingCharge +
-    value.sinkingFund +
-    value.repairFund +
-    value.otherCharges;
+    Number(value.baseAmount || 0) +
+    Number(value.waterCharge || 0) +
+    Number(value.parkingCharge || 0) +
+    Number(value.sinkingFund || 0) +
+    Number(value.repairFund || 0) +
+    Number(value.otherCharges || 0);
 
   const updateNumberField = (field: keyof BillingConfigFormState, rawValue: string) => {
-    onChange({ ...value, [field]: Number(rawValue) });
+    onChange({ ...value, [field]: rawValue === '' ? '' : Number(rawValue) });
   };
 
   return (
@@ -678,7 +691,7 @@ function ConfigureBillingForm({
 }
 
 function RecordPaymentForm({ bill, onSuccess }: { bill: MaintenanceBill; onSuccess: () => void }) {
-  const [amount, setAmount] = useState(bill.totalAmount - bill.paidAmount);
+  const [amount, setAmount] = useState(String(bill.totalAmount - bill.paidAmount));
   const [method, setMethod] = useState('CASH');
   const [receiptNo, setReceiptNo] = useState('');
 
@@ -690,7 +703,7 @@ function RecordPaymentForm({ bill, onSuccess }: { bill: MaintenanceBill; onSucce
 
   return (
     <form
-      onSubmit={(e) => { e.preventDefault(); mutation.mutate({ amount, method, receiptNo }); }}
+      onSubmit={(e) => { e.preventDefault(); mutation.mutate({ amount: Number(amount), method, receiptNo }); }}
       className="space-y-4"
     >
       <div className="p-3 bg-surface-container-low rounded-lg text-sm">
@@ -700,7 +713,7 @@ function RecordPaymentForm({ bill, onSuccess }: { bill: MaintenanceBill; onSucce
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="label">Amount</label>
-          <input type="number" className="input" value={amount} onChange={(e) => setAmount(Number(e.target.value))} min={1} max={bill.totalAmount - bill.paidAmount} required />
+          <input type="number" className="input" value={amount} onChange={(e) => setAmount(e.target.value)} min={1} max={bill.totalAmount - bill.paidAmount} required />
         </div>
         <div>
           <label className="label">Method</label>

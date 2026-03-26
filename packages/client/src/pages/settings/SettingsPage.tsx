@@ -54,7 +54,7 @@ export default function SettingsPage() {
   const [form, setForm] = useState({
     merchantId: '',
     saltKey: '',
-    saltIndex: 1,
+    saltIndex: '1',
     environment: 'UAT',
     redirectUrl: '',
     callbackUrl: '',
@@ -81,7 +81,7 @@ export default function SettingsPage() {
       setForm({
         merchantId: data.config.merchantId || '',
         saltKey: data.exists ? '' : '', // Don't pre-fill masked key
-        saltIndex: data.config.saltIndex || 1,
+        saltIndex: String(data.config.saltIndex || 1),
         environment: data.config.environment || 'UAT',
         redirectUrl: data.config.redirectUrl || '',
         callbackUrl: data.config.callbackUrl || '',
@@ -135,10 +135,12 @@ export default function SettingsPage() {
   const handleSave = () => {
     if (!form.merchantId.trim()) return toast.error('Merchant ID is required');
     if (!form.saltKey.trim() && !data?.exists) return toast.error('Salt Key is required');
+    const parsedSaltIndex = parseInt(form.saltIndex, 10);
+    if (!Number.isFinite(parsedSaltIndex) || parsedSaltIndex < 1) return toast.error('Salt Index must be 1 or greater');
 
     const payload: any = {
       merchantId: form.merchantId,
-      saltIndex: form.saltIndex,
+      saltIndex: parsedSaltIndex,
       environment: form.environment,
       redirectUrl: form.redirectUrl,
       callbackUrl: form.callbackUrl,
@@ -202,7 +204,7 @@ export default function SettingsPage() {
       {/* Members & Roles */}
       <MembersRoles />
 
-      <div className="card p-6 mb-6">
+      <div className="card p-6 mb-8">
         <div className="flex items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 bg-emerald-50 rounded-xl flex items-center justify-center">
@@ -410,7 +412,7 @@ export default function SettingsPage() {
               className="input w-32"
               type="number"
               value={form.saltIndex}
-              onChange={(e) => handleChange('saltIndex', parseInt(e.target.value) || 1)}
+              onChange={(e) => handleChange('saltIndex', e.target.value)}
               min={1}
             />
             <p className="text-xs text-outline mt-1">Usually 1 (check your PhonePe dashboard)</p>

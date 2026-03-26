@@ -303,7 +303,7 @@ export default function FlatsPage() {
 function UpgradePrompt({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
-  const [requestedFlatCount, setRequestedFlatCount] = useState<number>(6);
+  const [requestedFlatCount, setRequestedFlatCount] = useState('6');
 
   const { data: premiumStatus, isLoading } = useQuery<PremiumStatusResponse>({
     queryKey: ['premium-status'],
@@ -312,7 +312,7 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     if (premiumStatus) {
-      setRequestedFlatCount(premiumStatus.limit.minimumRequiredFlatCount);
+      setRequestedFlatCount(String(premiumStatus.limit.minimumRequiredFlatCount));
     }
   }, [premiumStatus]);
 
@@ -389,7 +389,11 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
 
   const activeSubscription = premiumStatus.activeSubscription;
   const minimumRequiredFlatCount = premiumStatus.limit.minimumRequiredFlatCount;
-  const effectiveRequestedFlatCount = Math.max(requestedFlatCount || minimumRequiredFlatCount, minimumRequiredFlatCount);
+  const parsedRequestedFlatCount = parseInt(requestedFlatCount, 10);
+  const effectiveRequestedFlatCount = Math.max(
+    Number.isFinite(parsedRequestedFlatCount) ? parsedRequestedFlatCount : minimumRequiredFlatCount,
+    minimumRequiredFlatCount,
+  );
   const previewAmount = effectiveRequestedFlatCount * premiumStatus.pricing.amountPerFlat;
   const isCapacityUpgrade = premiumStatus.isPremium;
   const isLimitReached = premiumStatus.limit.reached;
@@ -398,7 +402,7 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
     : previewAmount;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pb-2 sm:pb-4">
       <div className="rounded-2xl bg-primary/[0.04] border border-primary/10 p-4">
         <p className="text-sm font-semibold text-primary">
           {premiumStatus.isPremium
@@ -461,7 +465,7 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
           min={minimumRequiredFlatCount}
           className="input mt-1"
           value={requestedFlatCount}
-          onChange={(event) => setRequestedFlatCount(Number(event.target.value))}
+          onChange={(event) => setRequestedFlatCount(event.target.value)}
         />
         <p className="mt-2 text-xs text-on-surface-variant">
           Minimum required now: {minimumRequiredFlatCount} flats.
@@ -480,7 +484,7 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
         </ul>
       </div>
 
-      <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+      <div className="flex flex-col-reverse gap-3 pt-2 pb-1 sm:flex-row sm:justify-end">
         <button type="button" className="btn-secondary" onClick={onClose}>
           Close
         </button>
@@ -573,7 +577,7 @@ function DeleteFlatForm({
 // ── Add Block Form ──────────────────────────────────────
 function AddBlockForm({ onSuccess }: { onSuccess: () => void }) {
   const user = useAuthStore((s) => s.user);
-  const [form, setForm] = useState({ name: '', floors: 1 });
+  const [form, setForm] = useState({ name: '', floors: '1' });
 
   const { data: societies = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['societies'],
@@ -631,7 +635,7 @@ function AddBlockForm({ onSuccess }: { onSuccess: () => void }) {
             type="number"
             className="input"
             value={form.floors}
-            onChange={(e) => setForm({ ...form, floors: Number(e.target.value) })}
+            onChange={(e) => setForm({ ...form, floors: e.target.value })}
             min={1}
             required
           />
@@ -648,7 +652,7 @@ function AddBlockForm({ onSuccess }: { onSuccess: () => void }) {
 
 // ── Add Flat Form ───────────────────────────────────────
 function AddFlatForm({ blocks, onSuccess, onLimitReached }: { blocks: Block[]; onSuccess: () => void; onLimitReached: () => void }) {
-  const [form, setForm] = useState({ flatNumber: '', floor: 1, type: 'TWO_BHK', areaSqFt: '', blockId: blocks[0]?.id || '' });
+  const [form, setForm] = useState({ flatNumber: '', floor: '1', type: 'TWO_BHK', areaSqFt: '', blockId: blocks[0]?.id || '' });
 
   useEffect(() => {
     // Blocks are loaded asynchronously; ensure blockId is set once data arrives.
@@ -694,7 +698,7 @@ function AddFlatForm({ blocks, onSuccess, onLimitReached }: { blocks: Block[]; o
         </div>
         <div>
           <label className="label">Floor</label>
-          <input type="number" className="input" value={form.floor} onChange={(e) => setForm({ ...form, floor: Number(e.target.value) })} min={0} required />
+          <input type="number" className="input" value={form.floor} onChange={(e) => setForm({ ...form, floor: e.target.value })} min={0} required />
         </div>
         <div>
           <label className="label">Type</label>
