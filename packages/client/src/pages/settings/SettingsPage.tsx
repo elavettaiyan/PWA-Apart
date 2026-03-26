@@ -226,6 +226,24 @@ export default function SettingsPage() {
 
         {premiumStatus ? (
           <div className="space-y-4">
+            {premiumStatus.overdue?.isOverdue && premiumStatus.overdue.message && (
+              <div className={cn(
+                'rounded-xl px-4 py-3 text-sm',
+                premiumStatus.overdue.stage === 'ROLE_LOGIN_BLOCKED' || premiumStatus.overdue.stage === 'ARCHIVED'
+                  ? 'bg-error-container/20 text-error'
+                  : 'bg-warning-container text-on-warning-container',
+              )}>
+                <p className="font-semibold">
+                  {premiumStatus.overdue.stage === 'ROLE_LOGIN_BLOCKED'
+                    ? 'Premium overdue access restrictions are active'
+                    : premiumStatus.overdue.stage === 'ARCHIVED'
+                      ? 'Society access archived'
+                      : 'Premium renewal payment overdue'}
+                </p>
+                <p className="mt-1">{premiumStatus.overdue.message}</p>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="rounded-xl bg-surface-container-low p-4">
                 <p className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Current flats</p>

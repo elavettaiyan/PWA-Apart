@@ -243,3 +243,85 @@ export async function sendRegistrationEmail(to: string, userName: string, societ
     throw new Error(`Failed to send email: ${err.message}`);
   }
 }
+
+interface PremiumLifecycleEmailData {
+  userName: string;
+  societyName: string;
+  role: string;
+  overdueStartedAt: Date;
+  loginBlockedAt?: Date;
+  archiveAt?: Date;
+  archivedAt?: Date;
+}
+
+function formatLifecycleDate(value?: Date) {
+  return value?.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) || 'soon';
+}
+
+async function sendPremiumLifecycleEmail(to: string, subject: string, heading: string, message: string) {
+  try {
+    const { error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject,
+      html: `
+        <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #ffffff;">
+          <div style="text-align: center; margin-bottom: 32px;">
+            <h1 style="color: #171C3F; font-size: 28px; margin: 0;">Dwell Hub</h1>
+            <p style="color: #6b7280; font-size: 14px; margin: 4px 0 0;">Management Portal</p>
+          </div>
+          <div style="background: #f9fafb; border-radius: 12px; padding: 32px; border: 1px solid #e5e7eb;">
+            <h2 style="color: #111827; font-size: 20px; margin: 0 0 16px;">${heading}</h2>
+            <div style="color: #4b5563; line-height: 1.7; font-size: 14px;">${message}</div>
+            <div style="text-align: center; margin: 32px 0 0;">
+              <a href="${CLIENT_URL}/login" style="background: #171C3F; color: #ffffff; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block;">Open Dwell Hub</a>
+            </div>
+          </div>
+        </div>
+      `,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  } catch (err: any) {
+    logger.error('Resend: failed to send premium lifecycle email', { to, error: err.message, subject });
+    throw err;
+  }
+}
+
+export async function sendPremiumOverdueWarningEmail(to: string, data: PremiumLifecycleEmailData) {
+  return sendPremiumLifecycleEmail(
+    to,
+    `Premium renewal overdue for ${data.societyName}`,
+    'Premium renewal payment is overdue',
+    `<p>Hi ${data.userName},</p>
+     <p>The Premium renewal for <strong>${data.societyName}</strong> was due on <strong>${formatLifecycleDate(data.overdueStartedAt)}</strong>.</p>
+     <p>Please make sure Admin completes the payment before <strong>${formatLifecycleDate(data.loginBlockedAt)}</strong>. After that date, Secretary, Joint Secretary, and Treasurer access will be restricted until payment is completed.</p>
+     <p>This is a reminder for your <strong>${data.role.replace(/_/g, ' ')}</strong> role.</p>`,
+  );
+}
+
+export async function sendPremiumLoginBlockedEmail(to: string, data: PremiumLifecycleEmailData) {
+  return sendPremiumLifecycleEmail(
+    to,
+    `Premium access restricted for ${data.societyName}`,
+    'Some management roles are now restricted',
+    `<p>Hi ${data.userName},</p>
+     <p>The Premium renewal for <strong>${data.societyName}</strong> has remained unpaid since <strong>${formatLifecycleDate(data.overdueStartedAt)}</strong>.</p>
+     <p>Secretary, Joint Secretary, and Treasurer access is now blocked. Admin can still sign in and complete the payment to restore normal access.</p>
+     <p>If payment is still not completed, the society will be archived on <strong>${formatLifecycleDate(data.archiveAt)}</strong>.</p>`,
+  );
+}
+
+export async function sendPremiumArchivedEmail(to: string, data: PremiumLifecycleEmailData) {
+  return sendPremiumLifecycleEmail(
+    to,
+    `Society archived in Dwell Hub: ${data.societyName}`,
+    'Society access has been archived',
+    `<p>Hi ${data.userName},</p>
+     <p>The Premium renewal for <strong>${data.societyName}</strong> remained unpaid from <strong>${formatLifecycleDate(data.overdueStartedAt)}</strong> for more than 3 months.</p>
+     <p>The society has now been archived on <strong>${formatLifecycleDate(data.archivedAt)}</strong>. Historical data is preserved, but active access has been disabled.</p>
+     <p>Please contact support if this needs to be reviewed.</p>`,
+  );
+}

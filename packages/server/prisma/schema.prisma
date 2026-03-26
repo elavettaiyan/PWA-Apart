@@ -121,6 +121,9 @@ model Society {
   logo            String?
   isActive        Boolean  @default(true)
   isPremium       Boolean  @default(false)
+  hadPremiumSubscription Boolean @default(false)
+  premiumArchivedAt DateTime?
+  premiumArchiveReason String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -382,6 +385,10 @@ model PremiumSubscription {
   scheduledAmountPaise  Int?
   scheduledChangeAt     DateTime?
   scheduledPlanId       String?
+  overdueStartedAt      DateTime?
+  warningNoticeSentAt   DateTime?
+  loginBlockedNoticeSentAt DateTime?
+  finalNoticeSentAt     DateTime?
   startDate             DateTime?
   currentPeriodStart    DateTime?
   currentPeriodEnd      DateTime?

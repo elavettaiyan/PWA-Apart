@@ -20,9 +20,18 @@ export default function LoginPage() {
 
     try {
       const { data } = await api.post<AuthResponse>('/auth/login', { email, password });
+      const premiumLifecycleMessage = data.premiumLifecycle?.message;
 
       setAuth(data.user, data.accessToken, data.refreshToken);
       toast.success(`Welcome back, ${data.user.name}!`);
+      if (premiumLifecycleMessage) {
+        toast((t) => (
+          <div className="max-w-sm">
+            <p className="font-semibold text-sm">Premium renewal notice</p>
+            <p className="mt-1 text-sm">{premiumLifecycleMessage}</p>
+          </div>
+        ), { duration: 7000 });
+      }
       navigate('/', { replace: true });
     } catch (error: any) {
       const data = error.response?.data;

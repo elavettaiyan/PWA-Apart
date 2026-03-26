@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { Role } from '@prisma/client';
 import { config } from '../config';
 import prisma from '../config/database';
 import logger from '../config/logger';
+import { buildPremiumLifecycleMessage, ensurePremiumLifecycleForSociety, shouldBlockPremiumRole } from '../modules/premium/lifecycle';
 
 // ─── ROLE GROUPS ────────────────────────────────────────
 export const SOCIETY_ADMINS = ['ADMIN', 'SECRETARY'] as const;
@@ -18,6 +20,11 @@ export interface AuthRequest extends Request {
     role: string;
     societyId: string | null;
     activeSocietyId?: string | null;
+    premiumLifecycle?: {
+      stage: string;
+      message: string | null;
+      adminCanRecover: boolean;
+    };
   };
 }
 
@@ -113,6 +120,33 @@ export const authenticate = async (
       societyId: effectiveSocietyId,
       activeSocietyId: user.activeSocietyId,
     };
+
+    if (effectiveSocietyId && effectiveRole !== 'SUPER_ADMIN') {
+      const lifecycle = await ensurePremiumLifecycleForSociety(effectiveSocietyId);
+      const lifecycleMessage = buildPremiumLifecycleMessage(lifecycle);
+
+      if (lifecycle.stage === 'ARCHIVED') {
+        res.status(403).json({
+          error: lifecycleMessage || 'This society account has been archived due to long overdue Premium renewal.',
+          code: 'SOCIETY_ARCHIVED',
+        });
+        return;
+      }
+
+      if (shouldBlockPremiumRole(effectiveRole, lifecycle)) {
+        res.status(403).json({
+          error: lifecycleMessage || 'Your role access is temporarily blocked until Premium renewal payment is completed by Admin.',
+          code: 'PREMIUM_ROLE_LOGIN_BLOCKED',
+        });
+        return;
+      }
+
+      req.user.premiumLifecycle = {
+        stage: lifecycle.stage,
+        message: lifecycleMessage,
+        adminCanRecover: lifecycle.adminCanRecover,
+      };
+    }
 
     // Send current role in response header so client can detect role changes
     res.setHeader('X-User-Role', effectiveRole);

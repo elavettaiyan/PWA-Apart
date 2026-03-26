@@ -9,6 +9,7 @@ import logger from '../../config/logger';
 import { validate } from '../../middleware/errorHandler';
 import { authenticate, AuthRequest } from '../../middleware/auth';
 import { sendPasswordResetEmail, sendRegistrationEmail } from '../../config/email';
+import { buildPremiumLifecycleMessage, ensurePremiumLifecycleForSociety, shouldBlockPremiumRole, shouldWarnPremiumRole } from '../premium/lifecycle';
 
 const router = Router();
 
@@ -272,6 +273,36 @@ router.post(
         societyId: activeSocietyId,
       });
 
+      let premiumLifecycle: any = null;
+      if (activeSocietyId && effectiveRole !== 'SUPER_ADMIN') {
+        const lifecycle = await ensurePremiumLifecycleForSociety(activeSocietyId);
+        const lifecycleMessage = buildPremiumLifecycleMessage(lifecycle);
+
+        if (lifecycle.stage === 'ARCHIVED') {
+          return res.status(403).json({
+            error: lifecycleMessage || 'This society account has been archived due to long overdue Premium renewal.',
+            code: 'SOCIETY_ARCHIVED',
+          });
+        }
+
+        if (shouldBlockPremiumRole(effectiveRole, lifecycle)) {
+          return res.status(403).json({
+            error: lifecycleMessage || 'Your role access is temporarily blocked until Premium renewal payment is completed by Admin.',
+            code: 'PREMIUM_ROLE_LOGIN_BLOCKED',
+          });
+        }
+
+        if (lifecycle.isOverdue && lifecycleMessage && shouldWarnPremiumRole(effectiveRole)) {
+          premiumLifecycle = {
+            stage: lifecycle.stage,
+            message: lifecycleMessage,
+            overdueStartedAt: lifecycle.overdueStartedAt,
+            loginBlockedAt: lifecycle.loginBlockedAt,
+            archiveAt: lifecycle.archiveAt,
+          };
+        }
+      }
+
       return res.json({
         user: {
           id: user.id,
@@ -283,6 +314,7 @@ router.post(
           mustChangePassword: user.mustChangePassword,
           societies: societies.map((membership) => ({ id: membership.society.id, name: membership.society.name })),
         },
+        premiumLifecycle,
         ...tokens,
       });
     } catch (error: any) {

@@ -5,8 +5,13 @@ import { PaymentStatus, PremiumSubscriptionStatus } from '@prisma/client';
 import { config } from '../../config';
 import prisma, { dbReady } from '../../config/database';
 import logger from '../../config/logger';
-import { authenticate, authorize, AuthRequest, SOCIETY_MANAGERS } from '../../middleware/auth';
+import { authenticate, authorize, AuthRequest, FINANCIAL_ROLES, SOCIETY_MANAGERS } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
+import {
+  buildPremiumLifecycleMessage,
+  calculatePremiumLifecycle,
+  ensurePremiumLifecycleForSociety,
+} from './lifecycle';
 
 const router = Router();
 
@@ -358,13 +363,19 @@ async function syncSubscriptionFromProvider(subscriptionId: string) {
 async function syncSocietyPremiumFlag(societyId: string, status: PremiumSubscriptionStatus) {
   await prisma.society.update({
     where: { id: societyId },
-    data: { isPremium: isPremiumEntitlementStatus(status) },
+    data: {
+      isPremium: isPremiumEntitlementStatus(status),
+      ...(isPremiumEntitlementStatus(status) ? { hadPremiumSubscription: true } : {}),
+    },
   });
 }
 
 async function getStatusPayload(societyId: string) {
   const [society, currentFlatCount, activeSubscription, latestSubscription] = await Promise.all([
-    prisma.society.findUnique({ where: { id: societyId }, select: { id: true, isPremium: true, name: true } }),
+    prisma.society.findUnique({
+      where: { id: societyId },
+      select: { id: true, isPremium: true, isActive: true, hadPremiumSubscription: true, name: true },
+    }),
     getCurrentFlatCount(societyId),
     prisma.premiumSubscription.findFirst({
       where: { societyId, status: 'ACTIVE' },
@@ -392,9 +403,14 @@ async function getStatusPayload(societyId: string) {
       : 'NONE';
   const previewLockedFlatCount = activeSubscription?.scheduledFlatCount || activeSubscription?.lockedFlatCount || minimumRequiredFlatCount;
   const previewAmountPaise = previewLockedFlatCount * PRICE_PER_FLAT_PAISE;
+  const lifecycle = !activeSubscription && latestSubscription && society?.hadPremiumSubscription
+    ? calculatePremiumLifecycle(latestSubscription.overdueStartedAt)
+    : calculatePremiumLifecycle(null);
+  const lifecycleMessage = buildPremiumLifecycleMessage(lifecycle);
 
   return {
     isPremium: society?.isPremium ?? false,
+    isArchived: !society?.isActive,
     currentFlatCount,
     includedFlatCount,
     scheduledFlatCount: activeSubscription?.scheduledFlatCount ?? null,
@@ -421,6 +437,17 @@ async function getStatusPayload(societyId: string) {
         activeSubscription?.includedFlatCount || includedFlatCount,
         activeSubscription?.scheduledFlatCount,
       ),
+    },
+    overdue: {
+      isOverdue: lifecycle.isOverdue,
+      stage: lifecycle.stage,
+      overdueStartedAt: lifecycle.overdueStartedAt,
+      warningEndsAt: lifecycle.warningEndsAt,
+      loginBlockedAt: lifecycle.loginBlockedAt,
+      archiveAt: lifecycle.archiveAt,
+      daysOverdue: lifecycle.daysOverdue,
+      adminCanRecover: lifecycle.adminCanRecover,
+      message: lifecycleMessage,
     },
     activeSubscription,
     latestSubscription,
@@ -515,9 +542,8 @@ export async function premiumWebhookHandler(req: AuthRequest, res: Response) {
 }
 
 router.use(authenticate);
-router.use(authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS));
 
-router.get('/status', async (req: AuthRequest, res: Response) => {
+router.get('/status', authorize('SUPER_ADMIN', ...FINANCIAL_ROLES), async (req: AuthRequest, res: Response) => {
   try {
     const societyId = req.user?.societyId;
     if (!societyId) {
@@ -537,6 +563,8 @@ router.get('/status', async (req: AuthRequest, res: Response) => {
       }
     }
 
+    await ensurePremiumLifecycleForSociety(societyId);
+
     return res.json(await getStatusPayload(societyId));
   } catch (error: any) {
     logger.error('Failed to fetch premium status', { error: error.message });
@@ -546,6 +574,7 @@ router.get('/status', async (req: AuthRequest, res: Response) => {
 
 router.post(
   '/subscribe',
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [body('requestedFlatCount').optional().isInt({ min: 1 })],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -686,6 +715,7 @@ router.post(
 
 router.post(
   '/upgrade',
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [body('requestedFlatCount').isInt({ min: 1 })],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -770,6 +800,7 @@ router.post(
 
 router.post(
   '/verify',
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [
     body('razorpay_payment_id').trim().notEmpty(),
     body('razorpay_subscription_id').trim().notEmpty(),
@@ -862,9 +893,14 @@ router.post(
 
         await tx.society.update({
           where: { id: societyId },
-          data: { isPremium: isPremiumEntitlementStatus(update.status) },
+          data: {
+            isPremium: isPremiumEntitlementStatus(update.status),
+            hadPremiumSubscription: true,
+          },
         });
       });
+
+      await ensurePremiumLifecycleForSociety(societyId);
 
       return res.json({
         success: true,

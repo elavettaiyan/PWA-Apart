@@ -9,6 +9,7 @@ import {
   isReusablePendingSubscriptionStatus,
   mapProviderStatus,
 } from './routes';
+import { buildPremiumLifecycleMessage, calculatePremiumLifecycle } from './lifecycle';
 
 describe('premium routes helpers', () => {
   it('grants entitlement only for active subscriptions', () => {
@@ -102,5 +103,25 @@ describe('premium routes helpers', () => {
     assert.equal(update.includedFlatCount, 10);
     assert.equal(update.scheduledFlatCount, 10);
     assert.equal(update.scheduledAmountPaise, 15000);
+  });
+
+  it('calculates lifecycle thresholds from the missed billing date', () => {
+    const overdueStartedAt = new Date('2026-01-01T00:00:00.000Z');
+
+    const warningLifecycle = calculatePremiumLifecycle(overdueStartedAt, new Date('2026-01-05T00:00:00.000Z'));
+    const blockedLifecycle = calculatePremiumLifecycle(overdueStartedAt, new Date('2026-02-05T00:00:00.000Z'));
+    const archivedLifecycle = calculatePremiumLifecycle(overdueStartedAt, new Date('2026-04-05T00:00:00.000Z'));
+
+    assert.equal(warningLifecycle.stage, 'WARNING');
+    assert.equal(blockedLifecycle.stage, 'ROLE_LOGIN_BLOCKED');
+    assert.equal(archivedLifecycle.stage, 'ARCHIVED');
+  });
+
+  it('builds a readable overdue recovery message', () => {
+    const lifecycle = calculatePremiumLifecycle(new Date('2026-01-01T00:00:00.000Z'), new Date('2026-01-15T00:00:00.000Z'));
+    const message = buildPremiumLifecycleMessage(lifecycle);
+
+    assert.equal(typeof message, 'string');
+    assert.match(message || '', /Premium renewal payment is still overdue/i);
   });
 });

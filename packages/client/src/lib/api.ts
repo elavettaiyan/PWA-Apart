@@ -53,6 +53,11 @@ api.interceptors.response.use(
       }
     }
 
+    if (error.response?.status === 403 && ['PREMIUM_ROLE_LOGIN_BLOCKED', 'SOCIETY_ARCHIVED'].includes(error.response?.data?.code)) {
+      useAuthStore.getState().logout();
+      redirectToLogin();
+    }
+
     return Promise.reject(error);
   },
 );

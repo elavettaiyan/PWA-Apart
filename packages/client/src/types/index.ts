@@ -26,6 +26,13 @@ export interface AuthResponse {
   user: User;
   accessToken: string;
   refreshToken: string;
+  premiumLifecycle?: {
+    stage: 'CURRENT' | 'WARNING' | 'OVERDUE_RECOVERY' | 'ROLE_LOGIN_BLOCKED' | 'ARCHIVED';
+    message: string;
+    overdueStartedAt?: string | null;
+    loginBlockedAt?: string | null;
+    archiveAt?: string | null;
+  } | null;
 }
 
 // ─── SOCIETY ────────────────────────────────────────────
@@ -314,6 +321,10 @@ export interface PremiumSubscription {
   scheduledAmountPaise?: number | null;
   scheduledChangeAt?: string | null;
   scheduledPlanId?: string | null;
+  overdueStartedAt?: string | null;
+  warningNoticeSentAt?: string | null;
+  loginBlockedNoticeSentAt?: string | null;
+  finalNoticeSentAt?: string | null;
   startDate?: string;
   currentPeriodStart?: string;
   currentPeriodEnd?: string;
@@ -326,6 +337,7 @@ export interface PremiumSubscription {
 
 export interface PremiumStatusResponse {
   isPremium: boolean;
+  isArchived?: boolean;
   currentFlatCount: number;
   includedFlatCount: number;
   scheduledFlatCount?: number | null;
@@ -348,6 +360,17 @@ export interface PremiumStatusResponse {
     amount: number;
     currency: string;
     message: string;
+  };
+  overdue: {
+    isOverdue: boolean;
+    stage: 'CURRENT' | 'WARNING' | 'OVERDUE_RECOVERY' | 'ROLE_LOGIN_BLOCKED' | 'ARCHIVED';
+    overdueStartedAt?: string | null;
+    warningEndsAt?: string | null;
+    loginBlockedAt?: string | null;
+    archiveAt?: string | null;
+    daysOverdue: number;
+    adminCanRecover: boolean;
+    message?: string | null;
   };
   activeSubscription?: PremiumSubscription | null;
   latestSubscription?: PremiumSubscription | null;
