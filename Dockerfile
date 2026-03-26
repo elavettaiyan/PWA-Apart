@@ -13,6 +13,8 @@ RUN npm install --omit=dev --workspace=@pwa-apart/server && npx prisma@5.22.0 ge
 # ── Stage 2: Build TypeScript ────────────────────────────
 FROM node:20-slim AS builder
 
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY package.json package-lock.json* ./

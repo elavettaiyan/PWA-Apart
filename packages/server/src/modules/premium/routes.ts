@@ -13,6 +13,9 @@ const router = Router();
 const PRICE_PER_FLAT_PAISE = 1500;
 const CURRENCY = 'INR';
 const ACTIVE_STATUSES = new Set<PremiumSubscriptionStatus>(['ACTIVE']);
+const REUSABLE_PENDING_STATUSES = new Set<PremiumSubscriptionStatus>(['PENDING']);
+const SUCCESSFUL_PAYMENT_EVENTS = new Set(['payment.captured']);
+const FAILED_PAYMENT_EVENTS = new Set(['payment.failed']);
 
 type RazorpaySubscriptionEntity = {
   id?: string;
@@ -35,7 +38,7 @@ function toDate(value?: number | null) {
   return value ? new Date(value * 1000) : null;
 }
 
-function mapProviderStatus(status?: string | null): PremiumSubscriptionStatus {
+export function mapProviderStatus(status?: string | null): PremiumSubscriptionStatus {
   switch ((status || '').toLowerCase()) {
     case 'active':
     case 'authenticated':
@@ -56,6 +59,34 @@ function mapProviderStatus(status?: string | null): PremiumSubscriptionStatus {
 
 function buildSubscriptionMessage(lockedFlatCount: number) {
   return `Your Premium subscription amount is locked at ${lockedFlatCount} flats. Flats added later will not change the current subscription amount until a future plan update or renewal rule applies.`;
+}
+
+export function isPremiumEntitlementStatus(status: PremiumSubscriptionStatus) {
+  return ACTIVE_STATUSES.has(status);
+}
+
+export function isReusablePendingSubscriptionStatus(status: PremiumSubscriptionStatus) {
+  return REUSABLE_PENDING_STATUSES.has(status);
+}
+
+export function classifyPaymentEvent(event?: string): PaymentStatus | null {
+  if (event && SUCCESSFUL_PAYMENT_EVENTS.has(event)) {
+    return PaymentStatus.SUCCESS;
+  }
+
+  if (event && FAILED_PAYMENT_EVENTS.has(event)) {
+    return PaymentStatus.FAILED;
+  }
+
+  return null;
+}
+
+function isSuccessfulPaymentEvent(event?: string) {
+  return !!event && SUCCESSFUL_PAYMENT_EVENTS.has(event);
+}
+
+function isFailedPaymentEvent(event?: string) {
+  return !!event && FAILED_PAYMENT_EVENTS.has(event);
 }
 
 async function razorpayRequest<T>(path: string, init?: RequestInit) {
@@ -132,7 +163,7 @@ async function fetchRazorpaySubscription(subscriptionId: string) {
   });
 }
 
-function buildSubscriptionUpdate(entity: RazorpaySubscriptionEntity) {
+export function buildSubscriptionUpdate(entity: RazorpaySubscriptionEntity) {
   const mappedStatus = mapProviderStatus(entity.status);
   return {
     status: mappedStatus,
@@ -146,10 +177,37 @@ function buildSubscriptionUpdate(entity: RazorpaySubscriptionEntity) {
   };
 }
 
+async function syncSubscriptionFromProvider(subscriptionId: string) {
+  const existing = await prisma.premiumSubscription.findUnique({
+    where: { razorpaySubscriptionId: subscriptionId },
+  });
+
+  if (!existing) {
+    return null;
+  }
+
+  const remoteSubscription = await fetchRazorpaySubscription(subscriptionId);
+  const update = buildSubscriptionUpdate(remoteSubscription);
+
+  const updated = await prisma.premiumSubscription.update({
+    where: { id: existing.id },
+    data: update,
+  });
+
+  await syncSocietyPremiumFlag(existing.societyId, update.status);
+
+  return {
+    existing,
+    updated,
+    update,
+    remoteSubscription,
+  };
+}
+
 async function syncSocietyPremiumFlag(societyId: string, status: PremiumSubscriptionStatus) {
   await prisma.society.update({
     where: { id: societyId },
-    data: { isPremium: ACTIVE_STATUSES.has(status) },
+    data: { isPremium: isPremiumEntitlementStatus(status) },
   });
 }
 
@@ -236,29 +294,41 @@ export async function premiumWebhookHandler(req: AuthRequest, res: Response) {
       });
 
       if (existing) {
+        if (isFailedPaymentEvent(event)) {
+          try {
+            await syncSubscriptionFromProvider(paymentEntity.subscription_id);
+          } catch (error: any) {
+            logger.warn('Failed to sync subscription after failed Razorpay payment event', { error: error.message });
+          }
+        }
+
+        if (isSuccessfulPaymentEvent(event) || isFailedPaymentEvent(event)) {
+          const paymentStatus = classifyPaymentEvent(event)!;
+
         await prisma.premiumSubscriptionPayment.upsert({
           where: { razorpayPaymentId: paymentEntity.id },
           update: {
-            status: event === 'payment.failed' ? 'FAILED' : 'SUCCESS',
+            status: paymentStatus,
             amountPaise: paymentEntity.amount || existing.amountPaise,
             currency: paymentEntity.currency || CURRENCY,
             razorpayInvoiceId: paymentEntity.invoice_id || null,
             rawPayload: JSON.stringify(payload),
-            paidAt: event === 'payment.failed' ? null : new Date(),
+            paidAt: isFailedPaymentEvent(event) ? null : new Date(),
             failureReason: paymentEntity.error_description || null,
           },
           create: {
             premiumSubscriptionId: existing.id,
-            status: event === 'payment.failed' ? PaymentStatus.FAILED : PaymentStatus.SUCCESS,
+            status: paymentStatus,
             amountPaise: paymentEntity.amount || existing.amountPaise,
             currency: paymentEntity.currency || CURRENCY,
             razorpayPaymentId: paymentEntity.id,
             razorpayInvoiceId: paymentEntity.invoice_id || null,
             rawPayload: JSON.stringify(payload),
-            paidAt: event === 'payment.failed' ? null : new Date(),
+            paidAt: isFailedPaymentEvent(event) ? null : new Date(),
             failureReason: paymentEntity.error_description || null,
           },
         });
+        }
       }
     }
 
@@ -314,15 +384,40 @@ router.post('/subscribe', async (req: AuthRequest, res: Response) => {
     });
 
     if (pendingSubscription?.razorpaySubscriptionId) {
-      return res.json({
-        keyId: config.razorpay.keyId,
-        subscriptionId: pendingSubscription.razorpaySubscriptionId,
-        amountPaise: pendingSubscription.amountPaise,
-        amountPerFlatPaise: pendingSubscription.amountPerFlatPaise,
-        lockedFlatCount: pendingSubscription.lockedFlatCount,
-        currency: pendingSubscription.currency,
-        message: buildSubscriptionMessage(pendingSubscription.lockedFlatCount),
-      });
+      let shouldReusePendingSubscription = false;
+
+      try {
+        const syncResult = await syncSubscriptionFromProvider(pendingSubscription.razorpaySubscriptionId);
+
+        if (syncResult) {
+          if (ACTIVE_STATUSES.has(syncResult.update.status)) {
+            return res.status(409).json({
+              error: 'Premium subscription is already active',
+              code: 'PREMIUM_ALREADY_ACTIVE',
+              status: await getStatusPayload(societyId),
+            });
+          }
+
+          if (isReusablePendingSubscriptionStatus(syncResult.update.status)) {
+            shouldReusePendingSubscription = true;
+          }
+        }
+      } catch (error: any) {
+        logger.warn('Failed to refresh pending Razorpay subscription before reuse', { error: error.message });
+        shouldReusePendingSubscription = true;
+      }
+
+      if (shouldReusePendingSubscription) {
+        return res.json({
+          keyId: config.razorpay.keyId,
+          subscriptionId: pendingSubscription.razorpaySubscriptionId,
+          amountPaise: pendingSubscription.amountPaise,
+          amountPerFlatPaise: pendingSubscription.amountPerFlatPaise,
+          lockedFlatCount: pendingSubscription.lockedFlatCount,
+          currency: pendingSubscription.currency,
+          message: buildSubscriptionMessage(pendingSubscription.lockedFlatCount),
+        });
+      }
     }
 
     const lockedFlatCount = await getCurrentFlatCount(societyId);
@@ -457,7 +552,7 @@ router.post(
 
         await tx.society.update({
           where: { id: societyId },
-          data: { isPremium: true },
+          data: { isPremium: isPremiumEntitlementStatus(update.status) },
         });
       });
 
