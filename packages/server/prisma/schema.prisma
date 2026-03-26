@@ -371,11 +371,17 @@ model PremiumSubscription {
   status                PremiumSubscriptionStatus @default(PENDING)
   providerStatus        String?
   lockedFlatCount       Int
+  includedFlatCount     Int
   amountPerFlatPaise    Int
   amountPaise           Int
   currency              String                    @default("INR")
   razorpayPlanId        String?
   razorpaySubscriptionId String?                  @unique
+  usesPerFlatQuantity   Boolean                   @default(false)
+  scheduledFlatCount    Int?
+  scheduledAmountPaise  Int?
+  scheduledChangeAt     DateTime?
+  scheduledPlanId       String?
   startDate             DateTime?
   currentPeriodStart    DateTime?
   currentPeriodEnd      DateTime?

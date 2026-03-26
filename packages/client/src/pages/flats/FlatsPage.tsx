@@ -303,11 +303,18 @@ export default function FlatsPage() {
 function UpgradePrompt({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
+  const [requestedFlatCount, setRequestedFlatCount] = useState<number>(6);
 
   const { data: premiumStatus, isLoading } = useQuery<PremiumStatusResponse>({
     queryKey: ['premium-status'],
     queryFn: async () => (await api.get('/premium/status')).data,
   });
+
+  useEffect(() => {
+    if (premiumStatus) {
+      setRequestedFlatCount(premiumStatus.limit.minimumRequiredFlatCount);
+    }
+  }, [premiumStatus]);
 
   const verifyMutation = useMutation({
     mutationFn: (payload: { razorpay_payment_id: string; razorpay_subscription_id: string; razorpay_signature: string }) =>
@@ -325,7 +332,7 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
   });
 
   const subscribeMutation = useMutation({
-    mutationFn: async () => (await api.post('/premium/subscribe')).data,
+    mutationFn: async (flatCount: number) => (await api.post('/premium/subscribe', { requestedFlatCount: flatCount })).data,
     onSuccess: async (payload) => {
       try {
         await openRazorpaySubscriptionCheckout({
@@ -362,46 +369,74 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
     },
   });
 
+  const upgradeMutation = useMutation({
+    mutationFn: async (flatCount: number) => (await api.post('/premium/upgrade', { requestedFlatCount: flatCount })).data,
+    onSuccess: () => {
+      toast.success('Flat capacity updated. The new monthly amount will apply from the next renewal.');
+      queryClient.invalidateQueries({ queryKey: ['premium-status'] });
+      queryClient.invalidateQueries({ queryKey: ['flats'] });
+      queryClient.invalidateQueries({ queryKey: ['blocks'] });
+      onClose();
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to update Premium flat capacity');
+    },
+  });
+
   if (isLoading || !premiumStatus) {
     return <div className="py-8 text-sm text-on-surface-variant">Loading Premium plan details...</div>;
   }
 
   const activeSubscription = premiumStatus.activeSubscription;
+  const minimumRequiredFlatCount = premiumStatus.limit.minimumRequiredFlatCount;
+  const effectiveRequestedFlatCount = Math.max(requestedFlatCount || minimumRequiredFlatCount, minimumRequiredFlatCount);
+  const previewAmount = effectiveRequestedFlatCount * premiumStatus.pricing.amountPerFlat;
+  const isCapacityUpgrade = premiumStatus.isPremium;
+  const isLimitReached = premiumStatus.limit.reached;
+  const nextRenewalAmount = premiumStatus.scheduledAmountPaise
+    ? premiumStatus.scheduledAmountPaise / 100
+    : previewAmount;
 
   return (
     <div className="space-y-5">
       <div className="rounded-2xl bg-primary/[0.04] border border-primary/10 p-4">
         <p className="text-sm font-semibold text-primary">
-          {premiumStatus.isPremium ? 'Premium is active' : 'Free tier limit reached'}
+          {premiumStatus.isPremium
+            ? isLimitReached
+              ? 'Purchased Premium capacity reached'
+              : 'Premium is active'
+            : 'Free tier limit reached'}
         </p>
         <p className="mt-1 text-sm text-on-surface-variant">
           {premiumStatus.isPremium
-            ? 'Your society already has Premium access. You can continue managing flats without the free-tier cap.'
-            : 'Your society can use up to 5 flats for free. Upgrade to Premium to add unlimited flats and keep all features enabled.'}
+            ? isLimitReached
+              ? 'Your society has used all currently purchased flat capacity. Increase the flat count now to unlock more flats immediately and move the higher recurring amount to the next renewal.'
+              : 'Your society already has Premium access. You can increase the purchased flat count any time before you hit the current capacity.'
+            : 'Your society can use up to 5 flats for free. Choose how many flats you want to cover before starting Premium.'}
         </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl bg-surface-container-low p-4">
-          <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Free</p>
-          <p className="mt-1 text-sm font-semibold text-on-surface">Up to 5 flats</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Current flats</p>
+          <p className="mt-1 text-sm font-semibold text-on-surface">{premiumStatus.currentFlatCount}</p>
         </div>
         <div className="rounded-xl bg-surface-container-low p-4">
-          <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Premium</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Included now</p>
+          <p className="mt-1 text-sm font-semibold text-on-surface">{premiumStatus.includedFlatCount} flats</p>
+        </div>
+        <div className="rounded-xl bg-surface-container-low p-4">
+          <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Pricing</p>
           <p className="mt-1 text-sm font-semibold text-on-surface">₹15 per flat / month</p>
-        </div>
-        <div className="rounded-xl bg-surface-container-low p-4">
-          <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Included</p>
-          <p className="mt-1 text-sm font-semibold text-on-surface">No setup or hidden fees</p>
         </div>
       </div>
 
       <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-3">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-widest text-on-surface-variant">Locked billing snapshot</p>
+            <p className="text-xs uppercase tracking-widest text-on-surface-variant">Billing preview</p>
             <p className="mt-1 text-base font-semibold text-on-surface">
-              {premiumStatus.preview.lockedFlatCount} flats x ₹{premiumStatus.pricing.amountPerFlat} = ₹{premiumStatus.preview.amount}/month
+              {effectiveRequestedFlatCount} flats x ₹{premiumStatus.pricing.amountPerFlat} = ₹{previewAmount}/month
             </p>
           </div>
           {activeSubscription?.currentPeriodEnd && (
@@ -412,12 +447,34 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
           )}
         </div>
         <p className="mt-3 text-sm text-on-surface-variant">{premiumStatus.preview.message}</p>
+        {premiumStatus.scheduledFlatCount && premiumStatus.scheduledChangeAt && (
+          <p className="mt-2 text-xs text-primary">
+            Next renewal is already scheduled for {premiumStatus.scheduledFlatCount} flats on {new Date(premiumStatus.scheduledChangeAt).toLocaleDateString()}.
+          </p>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-3">
+        <label className="label">Required flat count</label>
+        <input
+          type="number"
+          min={minimumRequiredFlatCount}
+          className="input mt-1"
+          value={requestedFlatCount}
+          onChange={(event) => setRequestedFlatCount(Number(event.target.value))}
+        />
+        <p className="mt-2 text-xs text-on-surface-variant">
+          Minimum required now: {minimumRequiredFlatCount} flats.
+          {isCapacityUpgrade
+            ? ` Your current cycle stays billed at ${activeSubscription?.lockedFlatCount || premiumStatus.includedFlatCount} flats, and the renewal will move to ₹${nextRenewalAmount}/month.`
+            : ' This becomes your starting Premium capacity and monthly subscription amount.'}
+        </p>
       </div>
 
       <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-3">
         <p className="text-xs uppercase tracking-widest text-on-surface-variant">What you unlock</p>
         <ul className="mt-2 space-y-1 text-sm text-on-surface-variant">
-          <li>Unlimited flat creation</li>
+          <li>Flat creation up to the purchased capacity you choose</li>
           <li>Bulk imports for large societies</li>
           <li>All existing billing, complaints, reports, and resident tools</li>
         </ul>
@@ -430,15 +487,28 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
         <button
           type="button"
           className="btn-primary text-center"
-          onClick={() => subscribeMutation.mutate()}
-          disabled={subscribeMutation.isPending || verifyMutation.isPending || premiumStatus.isPremium}
+          onClick={() => {
+            if (isCapacityUpgrade) {
+              upgradeMutation.mutate(effectiveRequestedFlatCount);
+              return;
+            }
+            subscribeMutation.mutate(effectiveRequestedFlatCount);
+          }}
+          disabled={
+            subscribeMutation.isPending ||
+            upgradeMutation.isPending ||
+            verifyMutation.isPending ||
+            effectiveRequestedFlatCount < minimumRequiredFlatCount
+          }
         >
           {verifyMutation.isPending
             ? 'Verifying...'
+            : upgradeMutation.isPending
+              ? 'Scheduling renewal update...'
             : subscribeMutation.isPending
               ? 'Starting checkout...'
-              : premiumStatus.isPremium
-                ? 'Premium Active'
+              : isCapacityUpgrade
+                ? 'Increase flat capacity'
                 : 'Pay with Razorpay'}
         </button>
       </div>
@@ -591,7 +661,7 @@ function AddFlatForm({ blocks, onSuccess, onLimitReached }: { blocks: Block[]; o
     mutationFn: (data: any) => api.post('/flats/flats', data),
     onSuccess: () => { toast.success('Flat added!'); onSuccess(); },
     onError: (e: any) => {
-      if (e.response?.data?.code === 'FREE_TIER_LIMIT_REACHED') {
+      if (e.response?.data?.code === 'FREE_TIER_LIMIT_REACHED' || e.response?.data?.code === 'PREMIUM_FLAT_CAPACITY_REACHED') {
         onLimitReached();
       } else {
         toast.error(e.response?.data?.error || 'Failed');
@@ -798,7 +868,7 @@ function BulkUploadForm({ onSuccess, onLimitReached }: { onSuccess: () => void; 
         },
       });
       setResults(response.data);
-      if (response.data.results?.some((r: any) => r.error?.includes('limit reached'))) {
+      if (response.data.results?.some((r: any) => /limit|capacity/i.test(r.error || ''))) {
         onLimitReached();
       }
       if (response.data.created > 0) {

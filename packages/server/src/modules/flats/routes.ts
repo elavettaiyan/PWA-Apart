@@ -9,6 +9,7 @@ import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 
 const router = Router();
+const FREE_TIER_FLAT_LIMIT = 5;
 
 // All routes require authentication
 router.use(authenticate);
@@ -28,6 +29,37 @@ function buildMyFlatInclude(year?: number): Prisma.FlatInclude {
       },
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
     },
+  };
+}
+
+async function getFlatLimitStatus(societyId: string) {
+  const [flatCount, activeSubscription] = await Promise.all([
+    prisma.flat.count({ where: { block: { societyId } } }),
+    prisma.premiumSubscription.findFirst({
+      where: { societyId, status: 'ACTIVE' },
+      orderBy: { createdAt: 'desc' },
+      select: { includedFlatCount: true },
+    }),
+  ]);
+
+  if (!activeSubscription) {
+    return {
+      flatCount,
+      reached: flatCount >= FREE_TIER_FLAT_LIMIT,
+      code: 'FREE_TIER_LIMIT_REACHED',
+      message: `You have reached the maximum of ${FREE_TIER_FLAT_LIMIT} flats on the free tier. Please upgrade to Premium to add more.`,
+      minimumRequiredFlatCount: flatCount + 1,
+      includedFlatCount: FREE_TIER_FLAT_LIMIT,
+    };
+  }
+
+  return {
+    flatCount,
+    reached: flatCount >= activeSubscription.includedFlatCount,
+    code: 'PREMIUM_FLAT_CAPACITY_REACHED',
+    message: `You have reached your purchased Premium capacity of ${activeSubscription.includedFlatCount} flats. Increase your Premium flat count to add more.`,
+    minimumRequiredFlatCount: Math.max(flatCount, activeSubscription.includedFlatCount) + 1,
+    includedFlatCount: activeSubscription.includedFlatCount,
   };
 }
 
@@ -245,19 +277,16 @@ router.post(
         return res.status(403).json({ error: 'Access denied' });
       }
 
-      // CHECK: Free tier limits (5 flats max)
       const societyId = block.societyId;
-      if (!block.society.isPremium) {
-        const flatCount = await prisma.flat.count({
-          where: { block: { societyId } }
+      const limitStatus = await getFlatLimitStatus(societyId);
+      if (limitStatus.reached) {
+        return res.status(402).json({
+          error: limitStatus.code === 'FREE_TIER_LIMIT_REACHED' ? 'Free tier limit reached' : 'Premium flat capacity reached',
+          code: limitStatus.code,
+          message: limitStatus.message,
+          minimumRequiredFlatCount: limitStatus.minimumRequiredFlatCount,
+          includedFlatCount: limitStatus.includedFlatCount,
         });
-        if (flatCount >= 5) {
-          return res.status(402).json({ 
-            error: 'Free tier limit reached', 
-            code: 'FREE_TIER_LIMIT_REACHED',
-            message: 'You have reached the maximum of 5 flats on the free tier. Please upgrade to Premium to add more.'
-          });
-        }
       }
 
       // SECURITY: Whitelist allowed fields
@@ -1076,18 +1105,15 @@ router.post(
       const society = await prisma.society.findUnique({ where: { id: societyId }});
       if (!society) return res.status(404).json({ error: 'Society not found' });
       
-      let currentFlatCount = 0;
-      if (!society.isPremium) {
-        currentFlatCount = await prisma.flat.count({ where: { block: { societyId } } });
-      }
+      const limitStatus = await getFlatLimitStatus(societyId);
+      let currentFlatCount = limitStatus.flatCount;
 
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         const rowNum = i + 2; // Excel row (1-indexed header + data)
 
-        // Free tier check
-        if (!society.isPremium && (currentFlatCount + createdCount) >= 5) {
-          results.push({ row: rowNum, flatNumber: '(skipped)', status: 'error', error: 'Free tier limit reached (max 5 flats). Upgrade to Premium.' });
+        if ((currentFlatCount + createdCount) >= limitStatus.includedFlatCount) {
+          results.push({ row: rowNum, flatNumber: '(skipped)', status: 'error', error: limitStatus.message });
           errorCount++;
           continue;
         }

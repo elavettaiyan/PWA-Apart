@@ -304,10 +304,16 @@ export interface PremiumSubscription {
   status: 'PENDING' | 'ACTIVE' | 'HALTED' | 'CANCELLED' | 'COMPLETED' | 'FAILED';
   providerStatus?: string;
   lockedFlatCount: number;
+  includedFlatCount: number;
   amountPerFlatPaise: number;
   amountPaise: number;
   currency: string;
   razorpaySubscriptionId?: string;
+  usesPerFlatQuantity?: boolean;
+  scheduledFlatCount?: number | null;
+  scheduledAmountPaise?: number | null;
+  scheduledChangeAt?: string | null;
+  scheduledPlanId?: string | null;
   startDate?: string;
   currentPeriodStart?: string;
   currentPeriodEnd?: string;
@@ -321,6 +327,16 @@ export interface PremiumSubscription {
 export interface PremiumStatusResponse {
   isPremium: boolean;
   currentFlatCount: number;
+  includedFlatCount: number;
+  scheduledFlatCount?: number | null;
+  scheduledAmountPaise?: number | null;
+  scheduledChangeAt?: string | null;
+  limit: {
+    reached: boolean;
+    reason: 'NONE' | 'FREE_TIER' | 'PREMIUM_CAPACITY';
+    minimumRequiredFlatCount: number;
+    remainingFlatSlots: number;
+  };
   pricing: {
     amountPerFlatPaise: number;
     amountPerFlat: number;
