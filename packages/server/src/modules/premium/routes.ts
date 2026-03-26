@@ -39,6 +39,7 @@ type RazorpaySubscriptionUpdateOptions = {
   quantity: number;
   remainingCount?: number;
   scheduleChangeAt: 'now' | 'cycle_end';
+  notes?: Record<string, string>;
 };
 
 function requireRazorpayConfig() {
@@ -115,6 +116,16 @@ function parseRemainingCount(value?: number | string | null) {
   return undefined;
 }
 
+function parseFlatCountNote(notes?: Record<string, string> | null) {
+  const value = notes?.lockedFlatCount;
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export function isPremiumEntitlementStatus(status: PremiumSubscriptionStatus) {
   return ACTIVE_STATUSES.has(status);
 }
@@ -175,19 +186,21 @@ async function getCurrentFlatCount(societyId: string) {
   return prisma.flat.count({ where: { block: { societyId } } });
 }
 
-async function createRazorpayPlan() {
+async function createRazorpayPlan(lockedFlatCount: number, amountPaise: number) {
   return razorpayRequest<{ id: string }>('/plans', {
     method: 'POST',
     body: JSON.stringify({
       period: 'monthly',
       interval: 1,
       item: {
-        name: 'Dwell Hub Premium (Per Flat)',
-        amount: PRICE_PER_FLAT_PAISE,
+        name: `Dwell Hub Premium (${lockedFlatCount} flats)`,
+        amount: amountPaise,
         currency: CURRENCY,
-        description: 'Premium plan billed at Rs 15 per flat per month',
+        description: `Premium plan locked at ${lockedFlatCount} flats`,
       },
       notes: {
+        lockedFlatCount: String(lockedFlatCount),
+        amountPaise: String(amountPaise),
         amountPerFlatPaise: String(PRICE_PER_FLAT_PAISE),
       },
     }),
@@ -200,7 +213,7 @@ async function createRazorpaySubscription(planId: string, societyId: string, loc
     body: JSON.stringify({
       plan_id: planId,
       total_count: config.razorpay.subscriptionCycles,
-      quantity: lockedFlatCount,
+      quantity: 1,
       customer_notify: 1,
       notes: {
         societyId,
@@ -225,6 +238,7 @@ async function updateRazorpaySubscription(subscriptionId: string, options: Razor
       remaining_count: options.remainingCount,
       schedule_change_at: options.scheduleChangeAt,
       customer_notify: 1,
+      notes: options.notes,
     }),
   });
 }
@@ -242,11 +256,13 @@ export function buildSubscriptionUpdate(
     lockedFlatCount: number;
     includedFlatCount: number;
     usesPerFlatQuantity: boolean;
+    scheduledFlatCount?: number | null;
     scheduledPlanId?: string | null;
   },
   pendingUpdate?: RazorpaySubscriptionEntity | null,
 ) {
   const mappedStatus = mapProviderStatus(entity.status);
+  const noteFlatCount = parseFlatCountNote(entity.notes);
   const providerQuantity = typeof entity.quantity === 'number' && entity.quantity > 0 ? entity.quantity : null;
   const providerUsesPerFlatQuantity = !!existing && !!providerQuantity && (
     existing.usesPerFlatQuantity || (!!existing.scheduledPlanId && existing.scheduledPlanId === entity.plan_id)
@@ -254,12 +270,12 @@ export function buildSubscriptionUpdate(
   const lockedFlatCount = existing
     ? providerUsesPerFlatQuantity
       ? providerQuantity || existing.lockedFlatCount
-      : existing.lockedFlatCount
+      : noteFlatCount || existing.lockedFlatCount
     : undefined;
   const scheduledFlatCount = entity.has_scheduled_changes
-    ? (typeof pendingUpdate?.quantity === 'number' && pendingUpdate.quantity > 0
-      ? pendingUpdate.quantity
-      : undefined)
+    ? (parseFlatCountNote(pendingUpdate?.notes) ||
+      (typeof pendingUpdate?.quantity === 'number' && pendingUpdate.quantity > 1 ? pendingUpdate.quantity : undefined) ||
+      existing?.scheduledFlatCount)
     : null;
   const includedFlatCount = existing
     ? entity.has_scheduled_changes
@@ -619,7 +635,7 @@ router.post(
         }
       }
 
-      const plan = await createRazorpayPlan();
+      const plan = await createRazorpayPlan(effectiveFlatCount, amountPaise);
       const subscription = await createRazorpaySubscription(plan.id, societyId, effectiveFlatCount);
 
       await prisma.premiumSubscription.create({
@@ -634,7 +650,7 @@ router.post(
           currency: CURRENCY,
           razorpayPlanId: plan.id,
           razorpaySubscriptionId: subscription.id || null,
-          usesPerFlatQuantity: true,
+          usesPerFlatQuantity: false,
           startDate: toDate(subscription.start_at),
           currentPeriodStart: toDate(subscription.current_start),
           currentPeriodEnd: toDate(subscription.current_end),
@@ -707,12 +723,16 @@ router.post(
       }
 
       const remoteSubscription = await fetchRazorpaySubscription(latestActive.razorpaySubscriptionId!);
-      const plan = await createRazorpayPlan();
+      const plan = await createRazorpayPlan(requestedFlatCount, requestedFlatCount * PRICE_PER_FLAT_PAISE);
       const updatedSubscription = await updateRazorpaySubscription(latestActive.razorpaySubscriptionId!, {
         planId: plan.id,
-        quantity: requestedFlatCount,
+        quantity: 1,
         remainingCount: parseRemainingCount(remoteSubscription.remaining_count),
         scheduleChangeAt: 'cycle_end',
+        notes: {
+          societyId,
+          lockedFlatCount: String(requestedFlatCount),
+        },
       });
 
       let pendingUpdate: RazorpaySubscriptionEntity | null = null;

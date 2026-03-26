@@ -77,6 +77,9 @@ describe('premium routes helpers', () => {
         current_start: 1710000000,
         current_end: 1712592000,
         change_scheduled_at: 1712592000,
+        notes: {
+          lockedFlatCount: '6',
+        },
       },
       {
         amountPerFlatPaise: 1500,
@@ -87,8 +90,11 @@ describe('premium routes helpers', () => {
       },
       {
         plan_id: 'plan_next',
-        quantity: 10,
+        quantity: 1,
         change_scheduled_at: 1712592000,
+        notes: {
+          lockedFlatCount: '10',
+        },
       },
     );
 
