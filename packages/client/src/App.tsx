@@ -19,6 +19,7 @@ import SettingsPage from './pages/settings/SettingsPage';
 import ChangePasswordSettingsPage from './pages/settings/ChangePasswordSettingsPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import StaffPage from './pages/staff/StaffPage';
+import { isNativePlatform } from './lib/platform';
 import { SOCIETY_ADMINS, SOCIETY_MANAGERS, FINANCIAL_ROLES } from './types';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -39,6 +40,7 @@ function RoleRoute({ children, roles }: { children: React.ReactNode; roles: stri
 
 export default function App() {
   const { isAuthenticated, user } = useAuthStore();
+  const nativePlatform = isNativePlatform();
 
   return (
     <Routes>
@@ -52,7 +54,11 @@ export default function App() {
         />
         <Route
           path="/register"
-          element={isAuthenticated ? <Navigate to="/" replace /> : <RegisterPage />}
+          element={
+            isAuthenticated ? <Navigate to="/" replace /> :
+            nativePlatform ? <Navigate to="/login" replace /> :
+            <RegisterPage />
+          }
         />
         <Route
           path="/forgot-password"

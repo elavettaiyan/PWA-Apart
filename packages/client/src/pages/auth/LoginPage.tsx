@@ -4,10 +4,12 @@ import { Eye, EyeOff } from 'lucide-react';
 import BrandMark from '../../components/ui/BrandMark';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
+import { isNativePlatform } from '../../lib/platform';
 import { useAuthStore } from '../../store/authStore';
 import type { AuthResponse } from '../../types';
 
 export default function LoginPage() {
+  const showRegistrationLink = !isNativePlatform();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -113,11 +115,8 @@ export default function LoginPage() {
               </Link>
             </div>
           </form>
-
-        
-         
-
-          <div className="mt-4 text-center">
+          {showRegistrationLink && (
+            <div className="mt-4 text-center">
             {/* <Link
               to="/admin/login"
               className="block text-sm text-on-surface-variant hover:text-on-surface-variant font-medium mb-3"
@@ -130,7 +129,8 @@ export default function LoginPage() {
             >
               Register a new apartment complex →
             </Link>
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
