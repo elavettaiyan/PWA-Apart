@@ -510,10 +510,9 @@ router.post(
 
       const user = await prisma.user.findUnique({ where: { email } });
 
-      // Always return success to prevent email enumeration
       if (!user || !user.isActive) {
-        logger.info('Forgot password: email not found (silent)', { email });
-        return res.json({ message: 'If an account with that email exists, a reset token has been generated.' });
+        logger.warn('Forgot password failed: user not found or inactive', { email });
+        return res.status(404).json({ error: 'No active account found with that email address.' });
       }
 
       // Generate a secure reset token
