@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { openRazorpaySubscriptionCheckout } from '../../lib/razorpay';
 import { useAuthStore } from '../../store/authStore';
-import { getFlatTypeLabel, cn } from '../../lib/utils';
+import { getFlatTypeLabel, cn, isValidEmailAddress, isValidIndianMobileNumber, normalizeEmail } from '../../lib/utils';
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
 import type { Flat, Block, PremiumStatusResponse } from '../../types';
@@ -263,9 +263,9 @@ export default function FlatsPage() {
       </Modal>
 
       {/* Add Owner Modal */}
-      <Modal isOpen={showAddOwner} onClose={() => setShowAddOwner(false)} title={`Manage - ${activeFlat?.flatNumber}`} size="lg">
+      <Modal isOpen={showAddOwner} onClose={() => setShowAddOwner(false)} title={`Manage Flat - ${activeFlat?.flatNumber}`} size="lg">
         {activeFlat && (
-          <AddOwnerForm flat={activeFlat} onSuccess={() => { setShowAddOwner(false); queryClient.invalidateQueries({ queryKey: ['flats'] }); }} />
+          <ManageFlatForm flat={activeFlat} onSaved={() => { queryClient.invalidateQueries({ queryKey: ['flats'] }); }} />
         )}
       </Modal>
 
@@ -727,8 +727,28 @@ function AddFlatForm({ blocks, onSuccess, onLimitReached }: { blocks: Block[]; o
   );
 }
 
-// ── Add/Edit Owner Form ─────────────────────────────────
-function AddOwnerForm({ flat, onSuccess }: { flat: Flat; onSuccess: () => void }) {
+function validateResidentContactDetails({ phone, email }: { phone: string; email?: string }) {
+  const trimmedPhone = phone.trim();
+  const trimmedEmail = email?.trim() || '';
+
+  if (!isValidIndianMobileNumber(trimmedPhone)) {
+    toast.error('Phone number must be a valid 10-digit Indian mobile number.');
+    return null;
+  }
+
+  if (trimmedEmail && !isValidEmailAddress(trimmedEmail)) {
+    toast.error('Enter a valid email address.');
+    return null;
+  }
+
+  return {
+    phone: trimmedPhone,
+    email: trimmedEmail ? normalizeEmail(trimmedEmail) : '',
+  };
+}
+
+// ── Manage Flat Form ────────────────────────────────────
+function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) {
   const [form, setForm] = useState({
     name: flat.owner?.name || '',
     phone: flat.owner?.phone || '',
@@ -736,81 +756,241 @@ function AddOwnerForm({ flat, onSuccess }: { flat: Flat; onSuccess: () => void }
     aadharNo: flat.owner?.aadharNo || '',
     panNo: flat.owner?.panNo || '',
   });
+  const [tenantForm, setTenantForm] = useState({
+    name: flat.tenant?.name || '',
+    phone: flat.tenant?.phone || '',
+    email: flat.tenant?.email || '',
+    leaseStart: flat.tenant?.leaseStart ? new Date(flat.tenant.leaseStart).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    leaseEnd: flat.tenant?.leaseEnd ? new Date(flat.tenant.leaseEnd).toISOString().split('T')[0] : '',
+    rentAmount: flat.tenant?.rentAmount?.toString() || '',
+    deposit: flat.tenant?.deposit?.toString() || '',
+  });
 
-  const mutation = useMutation({
+  const ownerMutation = useMutation({
     mutationFn: (data: any) => {
       if (flat.owner?.id) {
         return api.put(`/flats/owners/${flat.owner.id}`, data);
       }
       return api.post('/flats/owners', { ...data, flatId: flat.id });
     },
-    onSuccess: () => { toast.success('Owner details saved!'); onSuccess(); },
+    onSuccess: () => { toast.success('Owner details saved!'); onSaved(); },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const tenantMutation = useMutation({
+    mutationFn: (data: any) => {
+      if (flat.tenant?.id) {
+        return api.put(`/flats/tenants/${flat.tenant.id}`, data);
+      }
+      return api.post('/flats/tenants', { ...data, flatId: flat.id });
+    },
+    onSuccess: () => { toast.success(flat.tenant?.id ? 'Tenant details saved!' : 'Tenant added successfully!'); onSaved(); },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
+  });
+
+  const handleOwnerSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    mutation.mutate(form);
+    if (!form.name.trim()) {
+      toast.error('Owner name is required.');
+      return;
+    }
+
+    const contact = validateResidentContactDetails({ phone: form.phone, email: form.email });
+    if (!contact) return;
+
+    ownerMutation.mutate({
+      ...form,
+      name: form.name.trim(),
+      phone: contact.phone,
+      email: contact.email || undefined,
+      aadharNo: form.aadharNo.trim() || undefined,
+      panNo: form.panNo.trim() || undefined,
+    });
+  };
+
+  const handleTenantSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tenantForm.name.trim()) {
+      toast.error('Tenant name is required.');
+      return;
+    }
+    if (!tenantForm.leaseStart) {
+      toast.error('Lease start date is required.');
+      return;
+    }
+    if (tenantForm.leaseEnd && tenantForm.leaseEnd < tenantForm.leaseStart) {
+      toast.error('Lease end date cannot be before lease start date.');
+      return;
+    }
+
+    const contact = validateResidentContactDetails({ phone: tenantForm.phone, email: tenantForm.email });
+    if (!contact) return;
+
+    tenantMutation.mutate({
+      name: tenantForm.name.trim(),
+      phone: contact.phone,
+      email: contact.email || undefined,
+      leaseStart: tenantForm.leaseStart,
+      leaseEnd: tenantForm.leaseEnd || undefined,
+      rentAmount: tenantForm.rentAmount || undefined,
+      deposit: tenantForm.deposit || undefined,
+    });
   };
 
   return (
-    <div>
+    <div className="space-y-6">
       <div className="mb-4 p-3 bg-surface-container-low rounded-lg">
         <p className="text-sm text-on-surface-variant">
           <strong>Flat:</strong> {flat.flatNumber} · {flat.block?.name} · Floor {flat.floor} · {getFlatTypeLabel(flat.type)}
         </p>
       </div>
 
-      <h3 className="font-semibold text-on-surface mb-3">Owner Details</h3>
+      <section className="rounded-2xl border border-outline-variant/15 p-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-on-surface">Owner Details</h3>
+            <p className="text-xs text-on-surface-variant mt-1">Phone must be a 10-digit Indian mobile number. Email is optional.</p>
+          </div>
+          <span className={cn('badge', flat.owner ? 'badge-success' : 'badge-neutral')}>
+            {flat.owner ? 'Owner linked' : 'No owner'}
+          </span>
+        </div>
 
-      {!flat.owner && (
-        <div className="mb-4 p-3 bg-slate-100 border border-slate-200 rounded-lg">
-          <p className="text-xs text-slate-700">
-            <strong>📱 Auto Login Creation:</strong> When you provide both email & phone number,
-            a login account will be automatically created. The default password will be the phone number.
-            The owner will be asked to change it on first login.
-          </p>
-        </div>
-      )}
+        {!flat.owner && (
+          <div className="mb-4 p-3 bg-slate-100 border border-slate-200 rounded-lg">
+            <p className="text-xs text-slate-700">
+              <strong>Auto Login Creation:</strong> When you provide both email and phone number,
+              a login account will be automatically created. The default password will be the phone number.
+            </p>
+          </div>
+        )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="label">Name *</label>
-            <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+        <form onSubmit={handleOwnerSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Name *</label>
+              <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+            </div>
+            <div>
+              <label className="label">Phone *</label>
+              <input
+                className="input"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                inputMode="numeric"
+                maxLength={10}
+                placeholder="9876543210"
+                required
+              />
+            </div>
+            <div>
+              <label className="label">Email</label>
+              <input
+                type="email"
+                className="input"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="owner@email.com"
+              />
+            </div>
+            <div>
+              <label className="label">Aadhar No</label>
+              <input className="input" value={form.aadharNo} onChange={(e) => setForm({ ...form, aadharNo: e.target.value })} />
+            </div>
+            <div>
+              <label className="label">PAN No</label>
+              <input className="input" value={form.panNo} onChange={(e) => setForm({ ...form, panNo: e.target.value })} />
+            </div>
           </div>
-          <div>
-            <label className="label">Phone *</label>
-            <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="submit" className="btn-primary" disabled={ownerMutation.isPending}>
+              {ownerMutation.isPending ? 'Saving...' : flat.owner ? 'Update Owner' : 'Add Owner'}
+            </button>
           </div>
-          <div>
-            <label className="label">Email</label>
-            <input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          </div>
-          <div>
-            <label className="label">Aadhar No</label>
-            <input className="input" value={form.aadharNo} onChange={(e) => setForm({ ...form, aadharNo: e.target.value })} />
-          </div>
-          <div>
-            <label className="label">PAN No</label>
-            <input className="input" value={form.panNo} onChange={(e) => setForm({ ...form, panNo: e.target.value })} />
-          </div>
-        </div>
-        <div className="flex justify-end gap-3 pt-4">
-          <button type="submit" className="btn-primary" disabled={mutation.isPending}>
-            {mutation.isPending ? 'Saving...' : flat.owner ? 'Update Owner' : 'Add Owner'}
-          </button>
-        </div>
-      </form>
+        </form>
 
-      {flat.owner?.email && (
-        <div className="mt-4 p-3 bg-slate-100 border border-slate-200 rounded-lg">
-          <p className="text-xs text-slate-700">
-            <strong>Login Account:</strong> A login account {flat.owner.userId ? 'is linked' : 'will be created when email & phone are provided'} for this owner.
-            Default password is the owner's phone number.
-          </p>
+        {flat.owner?.email && (
+          <div className="mt-4 p-3 bg-slate-100 border border-slate-200 rounded-lg">
+            <p className="text-xs text-slate-700">
+              <strong>Login Account:</strong> A login account {flat.owner.userId ? 'is linked' : 'will be created when email and phone are provided'} for this owner.
+              Default password is the owner's phone number.
+            </p>
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-outline-variant/15 p-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-on-surface">Tenant Details</h3>
+            <p className="text-xs text-on-surface-variant mt-1">Manage the active resident for this flat from the same panel.</p>
+          </div>
+          <span className={cn('badge', flat.tenant?.isActive ? 'badge-info' : 'badge-neutral')}>
+            {flat.tenant?.isActive ? 'Tenant active' : flat.tenant ? 'Tenant inactive' : 'No tenant'}
+          </span>
         </div>
-      )}
+
+        {!flat.tenant?.isActive && (
+          <div className="mb-4 p-3 bg-slate-100 border border-slate-200 rounded-lg">
+            <p className="text-xs text-slate-700">
+              <strong>Auto Login Creation:</strong> When you provide both email and phone number,
+              a login account will be automatically created for the tenant with phone number as the default password.
+            </p>
+          </div>
+        )}
+
+        <form onSubmit={handleTenantSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Name *</label>
+              <input className="input" value={tenantForm.name} onChange={(e) => setTenantForm({ ...tenantForm, name: e.target.value })} required />
+            </div>
+            <div>
+              <label className="label">Phone *</label>
+              <input
+                className="input"
+                value={tenantForm.phone}
+                onChange={(e) => setTenantForm({ ...tenantForm, phone: e.target.value })}
+                inputMode="numeric"
+                maxLength={10}
+                placeholder="9876543210"
+                required
+              />
+            </div>
+            <div>
+              <label className="label">Email</label>
+              <input
+                type="email"
+                className="input"
+                value={tenantForm.email}
+                onChange={(e) => setTenantForm({ ...tenantForm, email: e.target.value })}
+                placeholder="tenant@email.com"
+              />
+            </div>
+            <div>
+              <label className="label">Lease Start *</label>
+              <input className="input" type="date" value={tenantForm.leaseStart} onChange={(e) => setTenantForm({ ...tenantForm, leaseStart: e.target.value })} required />
+            </div>
+            <div>
+              <label className="label">Lease End</label>
+              <input className="input" type="date" value={tenantForm.leaseEnd} onChange={(e) => setTenantForm({ ...tenantForm, leaseEnd: e.target.value })} min={tenantForm.leaseStart || undefined} />
+            </div>
+            <div>
+              <label className="label">Rent Amount</label>
+              <input className="input" type="number" min="0" value={tenantForm.rentAmount} onChange={(e) => setTenantForm({ ...tenantForm, rentAmount: e.target.value })} />
+            </div>
+            <div>
+              <label className="label">Deposit</label>
+              <input className="input" type="number" min="0" value={tenantForm.deposit} onChange={(e) => setTenantForm({ ...tenantForm, deposit: e.target.value })} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="submit" className="btn-primary" disabled={tenantMutation.isPending}>
+              {tenantMutation.isPending ? 'Saving...' : flat.tenant?.id ? 'Update Tenant' : 'Add Tenant'}
+            </button>
+          </div>
+        </form>
+      </section>
     </div>
   );
 }

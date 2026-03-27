@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, User, Phone, Mail, Home, Calendar, UserPlus, Pencil, Trash2, Loader2, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
-import { formatCurrency, formatDate, getMonthName, getStatusColor, cn } from '../../lib/utils';
+import { formatCurrency, formatDate, getMonthName, getStatusColor, cn, isValidEmailAddress, isValidIndianMobileNumber, normalizeEmail } from '../../lib/utils';
 import { PageLoader } from '../../components/ui/Loader';
 import { useAuthStore } from '../../store/authStore';
 import type { MaintenanceBill, PaymentMethod } from '../../types';
@@ -190,6 +190,39 @@ interface TenantFormData {
 
 const emptyForm: TenantFormData = { name: '', phone: '', email: '', leaseStart: '', leaseEnd: '', rentAmount: '', deposit: '' };
 
+function normalizeTenantForm(form: TenantFormData): TenantFormData | null {
+  const trimmedName = form.name.trim();
+  const trimmedPhone = form.phone.trim();
+  const trimmedEmail = form.email.trim();
+
+  if (!trimmedName) {
+    toast.error('Tenant name is required.');
+    return null;
+  }
+
+  if (!isValidIndianMobileNumber(trimmedPhone)) {
+    toast.error('Phone number must be a valid 10-digit Indian mobile number.');
+    return null;
+  }
+
+  if (trimmedEmail && !isValidEmailAddress(trimmedEmail)) {
+    toast.error('Enter a valid email address.');
+    return null;
+  }
+
+  if (form.leaseStart && form.leaseEnd && form.leaseEnd < form.leaseStart) {
+    toast.error('Lease end date cannot be before lease start date.');
+    return null;
+  }
+
+  return {
+    ...form,
+    name: trimmedName,
+    phone: trimmedPhone,
+    email: trimmedEmail ? normalizeEmail(trimmedEmail) : '',
+  };
+}
+
 function TenantForm({ initial, onSubmit, onCancel, isPending, submitLabel }: {
   initial: TenantFormData;
   onSubmit: (data: TenantFormData) => void;
@@ -209,7 +242,7 @@ function TenantForm({ initial, onSubmit, onCancel, isPending, submitLabel }: {
         </div>
         <div>
           <label className="label">Phone *</label>
-          <input className="input" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="10-digit mobile" />
+          <input className="input" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="10-digit mobile" inputMode="numeric" maxLength={10} />
         </div>
         <div>
           <label className="label">Email</label>
@@ -244,7 +277,11 @@ function TenantForm({ initial, onSubmit, onCancel, isPending, submitLabel }: {
         <button
           className="btn-primary"
           disabled={isPending || !form.name.trim() || !form.phone.trim()}
-          onClick={() => onSubmit(form)}
+          onClick={() => {
+            const normalized = normalizeTenantForm(form);
+            if (!normalized) return;
+            onSubmit(normalized);
+          }}
         >
           {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : submitLabel}
         </button>

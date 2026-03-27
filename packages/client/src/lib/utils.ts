@@ -5,6 +5,21 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const INDIAN_MOBILE_REGEX = /^[6-9]\d{9}$/;
+
+export function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export function isValidEmailAddress(value: string): boolean {
+  return EMAIL_REGEX.test(normalizeEmail(value));
+}
+
+export function isValidIndianMobileNumber(value: string): boolean {
+  return INDIAN_MOBILE_REGEX.test(value.trim());
+}
+
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',

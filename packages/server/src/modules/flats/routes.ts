@@ -10,6 +10,7 @@ import logger from '../../config/logger';
 
 const router = Router();
 const FREE_TIER_FLAT_LIMIT = 5;
+const INDIAN_MOBILE_REGEX = /^[6-9]\d{9}$/;
 
 // All routes require authentication
 router.use(authenticate);
@@ -442,9 +443,9 @@ router.post(
   '/owners',
   authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [
-    body('name').trim().notEmpty(),
-    body('phone').notEmpty(),
-    body('email').optional({ values: 'falsy' }).isEmail(),
+    body('name').trim().notEmpty().withMessage('Owner name is required'),
+    body('phone').trim().matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
+    body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email address'),
     body('flatId').isUUID(),
   ],
   validate,
@@ -585,7 +586,12 @@ router.post(
 router.put(
   '/owners/:id',
   authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
-  [param('id').isUUID()],
+  [
+    param('id').isUUID(),
+    body('name').optional().trim().notEmpty().withMessage('Owner name is required'),
+    body('phone').optional().trim().matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
+    body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email address'),
+  ],
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -648,8 +654,9 @@ router.post(
   '/tenants',
   authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [
-    body('name').trim().notEmpty(),
-    body('phone').notEmpty(),
+    body('name').trim().notEmpty().withMessage('Tenant name is required'),
+    body('phone').trim().matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
+    body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email address'),
     body('flatId').isUUID(),
     body('leaseStart').isISO8601(),
   ],
@@ -750,7 +757,12 @@ router.post(
 router.put(
   '/tenants/:id',
   authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
-  [param('id').isUUID()],
+  [
+    param('id').isUUID(),
+    body('name').optional().trim().notEmpty().withMessage('Tenant name is required'),
+    body('phone').optional().trim().matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
+    body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email address'),
+  ],
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -764,12 +776,14 @@ router.put(
         return res.status(403).json({ error: 'Access denied' });
       }
 
+      const normalizedEmail = req.body.email ? String(req.body.email).trim().toLowerCase() : undefined;
+
       const tenant = await prisma.tenant.update({
         where: { id: req.params.id },
         data: {
           name: req.body.name,
           phone: req.body.phone,
-          email: req.body.email,
+          email: normalizedEmail,
           altPhone: req.body.altPhone,
           aadharNo: req.body.aadharNo,
           leaseStart: req.body.leaseStart ? new Date(req.body.leaseStart) : undefined,
@@ -791,8 +805,8 @@ router.post(
   '/my-flat/tenant',
   [
     body('name').trim().notEmpty().withMessage('Tenant name is required'),
-    body('phone').trim().notEmpty().withMessage('Phone is required'),
-    body('email').optional({ values: 'falsy' }).isEmail().withMessage('Invalid email'),
+    body('phone').trim().matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
+    body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email'),
     body('leaseStart').optional({ values: 'falsy' }).isISO8601(),
     body('leaseEnd').optional({ values: 'falsy' }).isISO8601(),
     body('rentAmount').optional({ values: 'falsy' }).isFloat({ min: 0 }),
@@ -912,8 +926,8 @@ router.put(
   '/my-flat/tenant',
   [
     body('name').optional().trim().notEmpty(),
-    body('phone').optional().trim().notEmpty(),
-    body('email').optional({ values: 'falsy' }).isEmail(),
+    body('phone').optional().trim().matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
+    body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email'),
     body('leaseStart').optional({ values: 'falsy' }).isISO8601(),
     body('leaseEnd').optional({ values: 'falsy' }).isISO8601(),
     body('rentAmount').optional({ values: 'falsy' }).isFloat({ min: 0 }),
@@ -933,12 +947,14 @@ router.put(
       if (!owner) return res.status(403).json({ error: 'You are not an owner in this society' });
       if (!owner.flat.tenant) return res.status(404).json({ error: 'No tenant found for this flat' });
 
+      const normalizedEmail = req.body.email ? String(req.body.email).trim().toLowerCase() : undefined;
+
       const tenant = await prisma.tenant.update({
         where: { id: owner.flat.tenant.id },
         data: {
           name: req.body.name,
           phone: req.body.phone,
-          email: req.body.email,
+          email: normalizedEmail,
           leaseStart: req.body.leaseStart ? new Date(req.body.leaseStart) : undefined,
           leaseEnd: req.body.leaseEnd ? new Date(req.body.leaseEnd) : undefined,
           rentAmount: req.body.rentAmount !== undefined ? parseFloat(req.body.rentAmount) : undefined,
