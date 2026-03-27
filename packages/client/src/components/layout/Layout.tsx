@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { cn } from '../../lib/utils';
+import BrandMark from '../ui/BrandMark';
 import api from '../../lib/api';
 import { SOCIETY_ADMINS, SOCIETY_MANAGERS, FINANCIAL_ROLES } from '../../types';
 
@@ -126,9 +127,12 @@ export default function Layout({ children }: LayoutProps) {
         <div className="flex flex-col h-full p-6 space-y-2">
           {/* Logo */}
           <div className="mb-10 px-2 flex items-center justify-between">
-            <div>
-              <h1 className="font-headline font-extrabold text-white text-2xl tracking-tight">Dwell Hub</h1>
-              <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest mt-1">Management Portal</p>
+            <div className="flex items-center gap-3">
+              <BrandMark size={40} className="rounded-xl" />
+              <div>
+                <h1 className="font-headline font-extrabold text-white text-2xl tracking-tight">Dwell Hub</h1>
+                <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest mt-1">Management Portal</p>
+              </div>
             </div>
             <button className="lg:hidden" onClick={() => setSidebarOpen(false)}>
               <X className="w-5 h-5 text-white/60" />

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Building2, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
+import BrandMark from '../../components/ui/BrandMark';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
@@ -51,9 +52,7 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
         <div className="w-full max-w-md">
           <div className="flex items-center gap-3 mb-10">
-            <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center">
-              <Building2 className="w-7 h-7 text-white" />
-            </div>
+            <BrandMark size={48} className="rounded-2xl" />
             <div>
               <h1 className="text-2xl font-extrabold text-primary font-headline tracking-tight">Dwell Hub</h1>
               <p className="text-[10px] text-outline font-bold uppercase tracking-widest">Management Portal</p>
@@ -141,7 +140,7 @@ export default function LoginPage() {
         <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-64 h-64 bg-tertiary-fixed/5 rounded-full blur-2xl"></div>
         <div className="relative z-10 text-center text-white max-w-md">
           <div className="w-20 h-20 bg-white/10 backdrop-blur rounded-3xl flex items-center justify-center mx-auto mb-8">
-            <Building2 className="w-10 h-10 text-primary-fixed" />
+            <BrandMark size={48} />
           </div>
           <h2 className="editorial-title text-4xl font-extrabold mb-4 leading-tight">Apartment<br/>Management,<br/><em className="text-primary-fixed">Made Clearer.</em></h2>
           <p className="text-primary-fixed/60 leading-relaxed mt-6">

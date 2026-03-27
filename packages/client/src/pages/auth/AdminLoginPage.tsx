@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Shield, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
+import BrandMark from '../../components/ui/BrandMark';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
@@ -47,9 +48,7 @@ export default function AdminLoginPage() {
         <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
         <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-64 h-64 bg-tertiary-fixed/5 rounded-full blur-2xl"></div>
         <div className="relative z-10 max-w-md text-white">
-          <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur border border-white/10 flex items-center justify-center mb-6">
-            <Shield className="w-8 h-8 text-primary-fixed" />
-          </div>
+          <BrandMark size={64} className="rounded-2xl mb-6" />
           <h1 className="editorial-title text-4xl font-extrabold tracking-tight">Admin Portal</h1>
           <p className="mt-4 text-sm leading-6 text-primary-fixed/60">
             Sign in with an admin account. This portal only accepts ADMIN and SUPER_ADMIN roles.
@@ -60,9 +59,7 @@ export default function AdminLoginPage() {
       <div className="flex-1 flex items-center justify-center p-6 sm:p-8 bg-surface">
         <div className="w-full max-w-md">
           <div className="flex items-center gap-3 mb-10">
-            <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center">
-              <Shield className="w-6 h-6 text-primary-fixed" />
-            </div>
+            <BrandMark size={48} className="rounded-2xl" />
             <div>
               <h1 className="text-2xl font-extrabold text-primary font-headline tracking-tight">Dwell Hub</h1>
               <p className="text-[10px] text-outline font-bold uppercase tracking-widest">Admin Access</p>

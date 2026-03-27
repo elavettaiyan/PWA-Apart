@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Eye, EyeOff, CheckCircle, ShieldAlert } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle, ShieldAlert } from 'lucide-react';
+import BrandMark from '../../components/ui/BrandMark';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
@@ -55,9 +56,7 @@ export default function ChangePasswordPage() {
       <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
         <div className="w-full max-w-md">
           <div className="flex items-center gap-3 mb-10">
-            <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center">
-              <Building2 className="w-7 h-7 text-white" />
-            </div>
+            <BrandMark size={48} className="rounded-2xl" />
             <div>
               <h1 className="text-2xl font-extrabold text-primary font-headline tracking-tight">Dwell Hub</h1>
               <p className="text-[10px] text-outline font-bold uppercase tracking-widest">Management Portal</p>

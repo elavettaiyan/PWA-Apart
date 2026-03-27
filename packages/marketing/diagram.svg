@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 512 512" height="512" width="512">
+  
+  <rect fill="#171C3F" rx="128" height="512" width="512"></rect>
+
+  
+  <g filter="url(#glow)">
+    
+    <path fill="#00D4C0" d="M168 210 L210 225 L210 390 L168 390 Z"></path>
+    
+    <path fill="#00D4C0" d="M225 165 L280 165 L280 390 L225 390 Z"></path>
+    
+    <path fill="#00D4C0" d="M295 210 L337 210 L337 390 L295 390 Z"></path>
+    
+    <path fill="#00D4C0" d="M225 195 L280 195 L280 165 L225 165 Z"></path>
+    <path fill="#00D4C0" d="M168 235 L210 250 L210 225 L168 210 Z"></path>
+  </g>
+
+  
+  
+  <path fill="#00E6D0" d="M168 210 L210 225 L210 390 L168 390 Z"></path>
+  
+  <path fill="#00E6D0" d="M225 165 L280 165 L280 390 L225 390 Z"></path>
+  
+  <path fill="#00E6D0" d="M295 210 L337 210 L337 390 L295 390 Z"></path>
+
+  
+  <path fill="#4FFFF0" d="M225 195 L280 195 L280 165 L225 165 Z"></path>
+  <path fill="#4FFFF0" d="M168 235 L210 250 L210 225 L168 210 Z"></path>
+
+  
+  <circle fill="#171C3F" r="9" cy="280" cx="195"></circle>
+  <circle fill="#171C3F" r="9" cy="255" cx="255"></circle>
+  <circle fill="#171C3F" r="9" cy="280" cx="315"></circle>
+
+  <circle fill="#FFFFFF" r="6" cy="280" cx="195"></circle>
+  <circle fill="#FFFFFF" r="6" cy="255" cx="255"></circle>
+  <circle fill="#FFFFFF" r="6" cy="280" cx="315"></circle>
+
+  
+  <line stroke-linecap="round" stroke-width="7" stroke="#FFFFFF" y2="255" x2="247" y1="280" x1="203"></line>
+  <line stroke-linecap="round" stroke-width="7" stroke="#FFFFFF" y2="280" x2="307" y1="255" x1="263"></line>
+
+  
+  <defs>
+    <filter height="140%" width="140%" y="-20%" x="-20%" id="glow">
+      <feGaussianBlur result="coloredBlur" stdDeviation="6"></feGaussianBlur>
+      <feMerge>
+        <feMergeNode in="coloredBlur"></feMergeNode>
+        <feMergeNode in="SourceGraphic"></feMergeNode>
+      </feMerge>
+    </filter>
+  </defs>
+</svg>

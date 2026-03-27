@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { Building2, ArrowLeft, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import BrandMark from '../../components/ui/BrandMark';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 
@@ -51,9 +52,7 @@ export default function ResetPasswordPage() {
       <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
         <div className="w-full max-w-md">
           <div className="flex items-center gap-3 mb-10">
-            <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center">
-              <Building2 className="w-7 h-7 text-white" />
-            </div>
+            <BrandMark size={48} className="rounded-2xl" />
             <div>
               <h1 className="text-2xl font-extrabold text-primary font-headline tracking-tight">Dwell Hub</h1>
               <p className="text-[10px] text-outline font-bold uppercase tracking-widest">Management Portal</p>
@@ -166,7 +165,7 @@ export default function ResetPasswordPage() {
         <div className="absolute bottom-10 right-10 w-56 h-56 bg-tertiary/10 rounded-full blur-2xl" />
         <div className="relative text-center text-white max-w-md">
           <div className="w-20 h-20 mx-auto mb-8 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center">
-            <Building2 className="w-10 h-10 text-white/90" />
+            <BrandMark size={48} />
           </div>
           <h2 className="font-manrope text-4xl font-extrabold tracking-tight mb-3">Almost <span className="italic text-primary-fixed">There</span></h2>
           <p className="text-on-primary/50 text-sm leading-relaxed">
