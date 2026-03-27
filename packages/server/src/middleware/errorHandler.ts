@@ -43,11 +43,17 @@ export const notFound = (req: Request, res: Response): void => {
 export const validate = (req: Request, res: Response, next: NextFunction): void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    const errorList = errors.array();
+    const firstError = errorList[0];
+
     logger.warn('Validation failed', {
       url: req.originalUrl,
-      errors: errors.array().map(e => ({ field: (e as any).path, msg: e.msg })),
+      errors: errorList.map(e => ({ field: (e as any).path, msg: e.msg })),
     });
-    res.status(400).json({ errors: errors.array() });
+    res.status(400).json({
+      error: firstError?.msg || 'Validation failed',
+      errors: errorList,
+    });
     return;
   }
   next();

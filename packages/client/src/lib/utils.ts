@@ -12,12 +12,26 @@ export function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
 }
 
+export function normalizeIndianMobileNumber(value: string): string {
+  const digitsOnly = value.replace(/\D/g, '');
+
+  if (digitsOnly.length === 12 && digitsOnly.startsWith('91')) {
+    return digitsOnly.slice(2);
+  }
+
+  if (digitsOnly.length === 11 && digitsOnly.startsWith('0')) {
+    return digitsOnly.slice(1);
+  }
+
+  return digitsOnly;
+}
+
 export function isValidEmailAddress(value: string): boolean {
   return EMAIL_REGEX.test(normalizeEmail(value));
 }
 
 export function isValidIndianMobileNumber(value: string): boolean {
-  return INDIAN_MOBILE_REGEX.test(value.trim());
+  return INDIAN_MOBILE_REGEX.test(normalizeIndianMobileNumber(value));
 }
 
 export function formatCurrency(amount: number): string {

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, User, Phone, Mail, Home, Calendar, UserPlus, Pencil, Trash2, Loader2, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
-import { formatCurrency, formatDate, getMonthName, getStatusColor, cn, isValidEmailAddress, isValidIndianMobileNumber, normalizeEmail } from '../../lib/utils';
+import { formatCurrency, formatDate, getMonthName, getStatusColor, cn, isValidEmailAddress, isValidIndianMobileNumber, normalizeEmail, normalizeIndianMobileNumber } from '../../lib/utils';
 import { PageLoader } from '../../components/ui/Loader';
 import { useAuthStore } from '../../store/authStore';
 import type { MaintenanceBill, PaymentMethod } from '../../types';
@@ -190,9 +190,13 @@ interface TenantFormData {
 
 const emptyForm: TenantFormData = { name: '', phone: '', email: '', leaseStart: '', leaseEnd: '', rentAmount: '', deposit: '' };
 
+function getApiErrorMessage(error: any, fallback: string): string {
+  return error?.response?.data?.error || error?.response?.data?.errors?.[0]?.msg || fallback;
+}
+
 function normalizeTenantForm(form: TenantFormData): TenantFormData | null {
   const trimmedName = form.name.trim();
-  const trimmedPhone = form.phone.trim();
+  const trimmedPhone = normalizeIndianMobileNumber(form.phone);
   const trimmedEmail = form.email.trim();
 
   if (!trimmedName) {
@@ -315,7 +319,7 @@ function AddTenantCard() {
       setShowForm(false);
       queryClient.invalidateQueries({ queryKey: ['my-flat'] });
     },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to add tenant'),
+    onError: (e: any) => toast.error(getApiErrorMessage(e, 'Failed to add tenant')),
   });
 
   if (!showForm) {
@@ -370,7 +374,7 @@ function TenantCard({ tenant, isOwner }: { tenant: any; isOwner: boolean }) {
       setEditing(false);
       queryClient.invalidateQueries({ queryKey: ['my-flat'] });
     },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to update tenant'),
+    onError: (e: any) => toast.error(getApiErrorMessage(e, 'Failed to update tenant')),
   });
 
   const removeMutation = useMutation({
@@ -380,7 +384,7 @@ function TenantCard({ tenant, isOwner }: { tenant: any; isOwner: boolean }) {
       setShowRemoveConfirm(false);
       queryClient.invalidateQueries({ queryKey: ['my-flat'] });
     },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to remove tenant'),
+    onError: (e: any) => toast.error(getApiErrorMessage(e, 'Failed to remove tenant')),
   });
 
   const toDateStr = (d: string | null | undefined) => (d ? new Date(d).toISOString().split('T')[0] : '');

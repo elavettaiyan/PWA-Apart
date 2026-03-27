@@ -12,6 +12,20 @@ const router = Router();
 const FREE_TIER_FLAT_LIMIT = 5;
 const INDIAN_MOBILE_REGEX = /^[6-9]\d{9}$/;
 
+function normalizeIndianMobileNumber(value: string): string {
+  const digitsOnly = String(value || '').replace(/\D/g, '');
+
+  if (digitsOnly.length === 12 && digitsOnly.startsWith('91')) {
+    return digitsOnly.slice(2);
+  }
+
+  if (digitsOnly.length === 11 && digitsOnly.startsWith('0')) {
+    return digitsOnly.slice(1);
+  }
+
+  return digitsOnly;
+}
+
 // All routes require authentication
 router.use(authenticate);
 
@@ -444,7 +458,7 @@ router.post(
   authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [
     body('name').trim().notEmpty().withMessage('Owner name is required'),
-    body('phone').trim().matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
+    body('phone').trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
     body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email address'),
     body('flatId').isUUID(),
   ],
@@ -589,7 +603,7 @@ router.put(
   [
     param('id').isUUID(),
     body('name').optional().trim().notEmpty().withMessage('Owner name is required'),
-    body('phone').optional().trim().matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
+    body('phone').optional().trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
     body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email address'),
   ],
   validate,
@@ -655,7 +669,7 @@ router.post(
   authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   [
     body('name').trim().notEmpty().withMessage('Tenant name is required'),
-    body('phone').trim().matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
+    body('phone').trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
     body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email address'),
     body('flatId').isUUID(),
     body('leaseStart').isISO8601(),
@@ -760,7 +774,7 @@ router.put(
   [
     param('id').isUUID(),
     body('name').optional().trim().notEmpty().withMessage('Tenant name is required'),
-    body('phone').optional().trim().matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
+    body('phone').optional().trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
     body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email address'),
   ],
   validate,
@@ -805,7 +819,7 @@ router.post(
   '/my-flat/tenant',
   [
     body('name').trim().notEmpty().withMessage('Tenant name is required'),
-    body('phone').trim().matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
+    body('phone').trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
     body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email'),
     body('leaseStart').optional({ values: 'falsy' }).isISO8601(),
     body('leaseEnd').optional({ values: 'falsy' }).isISO8601(),
@@ -926,7 +940,7 @@ router.put(
   '/my-flat/tenant',
   [
     body('name').optional().trim().notEmpty(),
-    body('phone').optional().trim().matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
+    body('phone').optional().trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
     body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email'),
     body('leaseStart').optional({ values: 'falsy' }).isISO8601(),
     body('leaseEnd').optional({ values: 'falsy' }).isISO8601(),

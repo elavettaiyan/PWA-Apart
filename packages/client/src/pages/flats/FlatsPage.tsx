@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { openRazorpaySubscriptionCheckout } from '../../lib/razorpay';
 import { useAuthStore } from '../../store/authStore';
-import { getFlatTypeLabel, cn, isValidEmailAddress, isValidIndianMobileNumber, normalizeEmail } from '../../lib/utils';
+import { getFlatTypeLabel, cn, isValidEmailAddress, isValidIndianMobileNumber, normalizeEmail, normalizeIndianMobileNumber } from '../../lib/utils';
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
 import type { Flat, Block, PremiumStatusResponse } from '../../types';
@@ -728,7 +728,7 @@ function AddFlatForm({ blocks, onSuccess, onLimitReached }: { blocks: Block[]; o
 }
 
 function validateResidentContactDetails({ phone, email }: { phone: string; email?: string }) {
-  const trimmedPhone = phone.trim();
+  const trimmedPhone = normalizeIndianMobileNumber(phone);
   const trimmedEmail = email?.trim() || '';
 
   if (!isValidIndianMobileNumber(trimmedPhone)) {
@@ -745,6 +745,10 @@ function validateResidentContactDetails({ phone, email }: { phone: string; email
     phone: trimmedPhone,
     email: trimmedEmail ? normalizeEmail(trimmedEmail) : '',
   };
+}
+
+function getApiErrorMessage(error: any, fallback: string): string {
+  return error?.response?.data?.error || error?.response?.data?.errors?.[0]?.msg || fallback;
 }
 
 // ── Manage Flat Form ────────────────────────────────────
@@ -774,7 +778,7 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
       return api.post('/flats/owners', { ...data, flatId: flat.id });
     },
     onSuccess: () => { toast.success('Owner details saved!'); onSaved(); },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
+    onError: (e: any) => toast.error(getApiErrorMessage(e, 'Failed to save owner details')),
   });
 
   const tenantMutation = useMutation({
@@ -785,7 +789,7 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
       return api.post('/flats/tenants', { ...data, flatId: flat.id });
     },
     onSuccess: () => { toast.success(flat.tenant?.id ? 'Tenant details saved!' : 'Tenant added successfully!'); onSaved(); },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
+    onError: (e: any) => toast.error(getApiErrorMessage(e, 'Failed to save tenant details')),
   });
 
   const handleOwnerSubmit = (e: React.FormEvent) => {
