@@ -22,10 +22,8 @@ const allNavigation = [
   { name: 'Gate Management', href: '/gate-management', icon: ShieldCheck, roles: ['SUPER_ADMIN', ...SOCIETY_MANAGERS, 'SERVICE_STAFF'] },
   { name: 'Entry Activity', href: '/entry-activity', icon: ClipboardList, roles: ['SUPER_ADMIN', ...SOCIETY_MANAGERS, 'SERVICE_STAFF'] },
   { name: 'Expenses', href: '/expenses', icon: Wallet, roles: ['SUPER_ADMIN', ...FINANCIAL_ROLES] },
-  { name: 'Association Bylaws', href: '/bylaws', icon: ScrollText, roles: '*' as const },
   { name: 'Reports', href: '/reports', icon: BarChart3, roles: ['SUPER_ADMIN', ...FINANCIAL_ROLES] },
   { name: 'Settings', href: '/settings', icon: Settings, roles: ['SUPER_ADMIN', ...SOCIETY_ADMINS] },
-  { name: 'Manage Staff', href: '/staff', icon: User, roles: ['SUPER_ADMIN', ...SOCIETY_ADMINS] },
 ];
 
 const securityNavigationHrefs = ['/gate-management', '/entry-activity'];
@@ -101,6 +99,7 @@ export default function Layout({ children }: LayoutProps) {
   const isResident = ['OWNER', 'TENANT'].includes(user?.role || '');
   const isSecurityStaffUser = isSecurityServiceStaff(user);
   const isOtherServiceStaffUser = isNonSecurityServiceStaff(user);
+  const isAdminUser = user?.role === 'SUPER_ADMIN' || SOCIETY_ADMINS.includes(user?.role as any);
   const bottomNavItems = isResident
     ? [
         { name: 'Hub', href: '/', icon: 'grid_view', filled: true },
@@ -291,6 +290,19 @@ export default function Layout({ children }: LayoutProps) {
                       {societiesData.societies.find(s => s.id === user?.societyId)?.name}
                     </p>
                   ) : null}
+                  {!isAdminUser && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileOpen(false);
+                        navigate('/bylaws');
+                      }}
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80"
+                    >
+                      <ScrollText className="w-3.5 h-3.5" />
+                      Association Bylaws
+                    </button>
+                  )}
                 </div>
                 <button
                   onClick={() => {
@@ -386,6 +398,19 @@ export default function Layout({ children }: LayoutProps) {
                             {societiesData.societies.find(s => s.id === user?.societyId)?.name}
                           </p>
                         ) : null}
+                        {!isAdminUser && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setProfileOpen(false);
+                              navigate('/bylaws');
+                            }}
+                            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80"
+                          >
+                            <ScrollText className="w-3.5 h-3.5" />
+                            Association Bylaws
+                          </button>
+                        )}
                       </div>
                       <button
                         onClick={() => {

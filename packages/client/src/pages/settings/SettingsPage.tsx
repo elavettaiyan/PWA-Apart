@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Settings, CreditCard, Eye, EyeOff, CheckCircle2, XCircle,
   Loader2, Zap, ToggleLeft, ToggleRight, ShieldCheck, Globe, Clock,
-  Users, ChevronDown,
+  Users, ChevronDown, KeyRound, LogOut, UserCog, ScrollText,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -162,50 +162,116 @@ export default function SettingsPage() {
 
   return (
     <div>
-      {/* User Profile Card — visible on mobile */}
-      <div className="card p-5 mb-6 lg:hidden">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 bg-secondary-container rounded-full flex items-center justify-center ring-2 ring-primary/10 flex-shrink-0">
-            <span className="text-xl font-bold text-on-secondary-container">
-              {user?.name?.charAt(0).toUpperCase()}
-            </span>
-          </div>
-          <div className="min-w-0">
-            <p className="text-lg font-bold text-primary truncate">{user?.name}</p>
-            <p className="text-xs text-outline">{user?.email}</p>
-            <p className="text-[10px] text-outline uppercase tracking-widest font-bold mt-0.5">{user?.role?.replace('_', ' ')}</p>
-          </div>
-        </div>
-        <div className="flex gap-3 mt-4">
-          <button
-            onClick={() => navigate('/settings/change-password')}
-            className="flex-1 btn btn-outline text-sm py-2"
-          >
-            Change Password
-          </button>
-          <button
-            onClick={() => { queryClient.clear(); logout(); navigate('/login'); }}
-            className="flex-1 btn text-sm py-2 bg-error-container/30 text-error hover:bg-error-container/50"
-          >
-            Sign Out
-          </button>
-        </div>
-      </div>
-
-      {isAdmin && (
-      <>
       <div className="page-header">
         <div>
           <p className="section-label mb-2">Configuration</p>
           <h1 className="page-title">Settings</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Configure payment gateway and application settings</p>
+          <p className="text-sm text-on-surface-variant mt-1">
+            {isAdmin
+              ? 'Configure society administration, billing setup, and application settings'
+              : 'Manage your account settings and review policy information'}
+          </p>
         </div>
       </div>
 
-      {/* Members & Roles */}
-      <MembersRoles />
+      <SettingsAccordion
+        title="Account"
+        description="Manage password, session access, and account details"
+        icon={Settings}
+        defaultOpen
+      >
+        <div className="card p-5">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-secondary-container rounded-full flex items-center justify-center ring-2 ring-primary/10 flex-shrink-0">
+              <span className="text-xl font-bold text-on-secondary-container">
+                {user?.name?.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-lg font-bold text-primary truncate">{user?.name}</p>
+              <p className="text-xs text-outline break-all">{user?.email}</p>
+              <p className="text-[10px] text-outline uppercase tracking-widest font-bold mt-0.5">{user?.role?.replace('_', ' ')}</p>
+              {user?.societies?.length ? (
+                <p className="text-sm text-on-surface-variant mt-2 truncate">
+                  {user.societies.find((society) => society.id === (user.activeSocietyId || user.societyId))?.name || user.societies[0]?.name}
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 mt-5">
+            <button
+              onClick={() => navigate('/settings/change-password')}
+              className="btn-secondary"
+            >
+              <KeyRound className="w-4 h-4" /> Change Password
+            </button>
+            <button
+              onClick={() => { queryClient.clear(); logout(); navigate('/login'); }}
+              className="btn-secondary text-error border-error/20 hover:bg-error-container/30"
+            >
+              <LogOut className="w-4 h-4" /> Sign Out
+            </button>
+          </div>
+        </div>
+      </SettingsAccordion>
 
-      <div className="card p-6 mb-8">
+      {isAdmin && (
+      <>
+      <SettingsAccordion
+        title="Society Administration"
+        description="Access staff management and association bylaws from one place"
+        icon={ShieldCheck}
+        defaultOpen
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <button
+            type="button"
+            onClick={() => navigate('/staff')}
+            className="card p-5 text-left hover:border-primary/20 transition-colors"
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 bg-blue-50 rounded-xl flex items-center justify-center">
+                <UserCog className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-on-surface">Manage Staff</h2>
+                <p className="text-sm text-on-surface-variant mt-1">Create and manage service staff accounts from settings.</p>
+              </div>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/bylaws')}
+            className="card p-5 text-left hover:border-primary/20 transition-colors"
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 bg-emerald-50 rounded-xl flex items-center justify-center">
+                <ScrollText className="w-5 h-5 text-emerald-700" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-on-surface">Association Bylaws</h2>
+                <p className="text-sm text-on-surface-variant mt-1">Review existing bylaws and use the bylaw page to add or edit rules.</p>
+              </div>
+            </div>
+          </button>
+        </div>
+      </SettingsAccordion>
+
+      <SettingsAccordion
+        title="Members & Roles"
+        description="Expand to assign committee roles and manage member access"
+        icon={Users}
+      >
+        <MembersRoles />
+      </SettingsAccordion>
+
+      <SettingsAccordion
+        title="Premium Plan"
+        description="Review subscription status, limits, and billing impact"
+        icon={ShieldCheck}
+        defaultOpen
+      >
+      <div className="card p-6 mb-0">
         <div className="flex items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 bg-emerald-50 rounded-xl flex items-center justify-center">
@@ -279,8 +345,13 @@ export default function SettingsPage() {
           <p className="text-sm text-on-surface-variant">Premium plan details are unavailable right now.</p>
         )}
       </div>
+      </SettingsAccordion>
 
-      {/* PhonePe Configuration Card */}
+      <SettingsAccordion
+        title="Payment Gateway"
+        description="Configure PhonePe, connection testing, and callback URL settings"
+        icon={CreditCard}
+      >
       <div className="card p-6 mb-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -594,8 +665,16 @@ export default function SettingsPage() {
             <p>Do not rely on shared sample credentials because they may be expired, disabled, or rate-limited.</p>
         </div>
       </div>
+      </SettingsAccordion>
+      </>
+      )}
 
-      <div className="card p-5 mt-6">
+      <SettingsAccordion
+        title="Legal"
+        description="Privacy, terms, and refund policies"
+        icon={ShieldCheck}
+      >
+      <div className="card p-5 mt-0">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-11 h-11 bg-surface-container-low rounded-xl flex items-center justify-center">
             <ShieldCheck className="w-5 h-5 text-primary" />
@@ -621,9 +700,42 @@ export default function SettingsPage() {
           </a>
         </div>
       </div>
-      </>
-      )}
+      </SettingsAccordion>
     </div>
+  );
+}
+
+function SettingsAccordion({
+  title,
+  description,
+  icon: Icon,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  description: string;
+  icon: typeof Settings;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="group mb-6" open={defaultOpen}>
+      <summary className="list-none cursor-pointer card px-5 py-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-surface-container-low flex items-center justify-center shrink-0">
+              <Icon className="w-5 h-5 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-on-surface">{title}</h2>
+              <p className="text-sm text-on-surface-variant truncate">{description}</p>
+            </div>
+          </div>
+          <ChevronDown className="w-4 h-4 text-outline transition-transform group-open:rotate-180 shrink-0" />
+        </div>
+      </summary>
+      <div className="mt-3">{children}</div>
+    </details>
   );
 }
 
