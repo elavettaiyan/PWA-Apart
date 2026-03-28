@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Settings, CreditCard, Eye, EyeOff, CheckCircle2, XCircle,
   Loader2, Zap, ToggleLeft, ToggleRight, ShieldCheck, Globe, Clock,
-  Users, ChevronDown, KeyRound, LogOut, UserCog, ScrollText,
+  Users, ChevronDown, KeyRound, LogOut, ScrollText,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import type { PremiumStatusResponse } from '../../types';
 import { SOCIETY_ADMINS } from '../../types';
+import ManageStaffPanel from '../../components/settings/ManageStaffPanel';
 
 interface PhonePeConfig {
   id?: string;
@@ -180,7 +181,7 @@ export default function SettingsPage() {
         icon={Settings}
         defaultOpen
       >
-        <div className="card p-5">
+        <div className="space-y-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-secondary-container rounded-full flex items-center justify-center ring-2 ring-primary/10 flex-shrink-0">
               <span className="text-xl font-bold text-on-secondary-container">
@@ -219,30 +220,16 @@ export default function SettingsPage() {
       <>
       <SettingsAccordion
         title="Society Administration"
-        description="Access staff management and association bylaws from one place"
+        description="Manage staff accounts and access association governance tools"
         icon={ShieldCheck}
         defaultOpen
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <button
-            type="button"
-            onClick={() => navigate('/staff')}
-            className="card p-5 text-left hover:border-primary/20 transition-colors"
-          >
-            <div className="flex items-start gap-3">
-              <div className="w-11 h-11 bg-blue-50 rounded-xl flex items-center justify-center">
-                <UserCog className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <h2 className="text-base font-semibold text-on-surface">Manage Staff</h2>
-                <p className="text-sm text-on-surface-variant mt-1">Create and manage service staff accounts from settings.</p>
-              </div>
-            </div>
-          </button>
+        <div className="space-y-5">
+          <ManageStaffPanel embedded />
           <button
             type="button"
             onClick={() => navigate('/bylaws')}
-            className="card p-5 text-left hover:border-primary/20 transition-colors"
+            className="w-full rounded-2xl border border-outline-variant/15 bg-surface-container-low p-5 text-left hover:border-primary/20 transition-colors"
           >
             <div className="flex items-start gap-3">
               <div className="w-11 h-11 bg-emerald-50 rounded-xl flex items-center justify-center">
@@ -250,7 +237,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <h2 className="text-base font-semibold text-on-surface">Association Bylaws</h2>
-                <p className="text-sm text-on-surface-variant mt-1">Review existing bylaws and use the bylaw page to add or edit rules.</p>
+                <p className="text-sm text-on-surface-variant mt-1">Open the bylaw management screen to add, edit, or review association rules.</p>
               </div>
             </div>
           </button>
@@ -271,7 +258,7 @@ export default function SettingsPage() {
         icon={ShieldCheck}
         defaultOpen
       >
-      <div className="card p-6 mb-0">
+      <div className="space-y-4">
         <div className="flex items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 bg-emerald-50 rounded-xl flex items-center justify-center">
@@ -352,7 +339,7 @@ export default function SettingsPage() {
         description="Configure PhonePe, connection testing, and callback URL settings"
         icon={CreditCard}
       >
-      <div className="card p-6 mb-6">
+      <div className="space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 bg-purple-50 rounded-xl flex items-center justify-center">
@@ -581,7 +568,7 @@ export default function SettingsPage() {
       {testResult && (
         <div
           className={cn(
-            'card p-5',
+            'rounded-2xl border border-outline-variant/15 bg-surface-container-low p-5',
             testResult.success ? 'ring-2 ring-tertiary/20' : 'ring-2 ring-error/20',
           )}
         >
@@ -650,7 +637,7 @@ export default function SettingsPage() {
       )}
 
       {/* Info Card */}
-      <div className="card p-5 mt-6 bg-slate-50 border-slate-200">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
         <h3 className="text-sm font-semibold text-slate-900 mb-2">📘 How to get PhonePe credentials</h3>
         <ol className="text-sm text-slate-700 space-y-1.5 list-decimal list-inside">
           <li>Sign up on <a href="https://www.phonepe.com/business" target="_blank" rel="noopener noreferrer" className="underline font-medium">PhonePe Business</a></li>
@@ -674,7 +661,7 @@ export default function SettingsPage() {
         description="Privacy, terms, and refund policies"
         icon={ShieldCheck}
       >
-      <div className="card p-5 mt-0">
+      <div>
         <div className="flex items-center gap-3 mb-4">
           <div className="w-11 h-11 bg-surface-container-low rounded-xl flex items-center justify-center">
             <ShieldCheck className="w-5 h-5 text-primary" />
@@ -719,8 +706,8 @@ function SettingsAccordion({
   children: React.ReactNode;
 }) {
   return (
-    <details className="group mb-6" open={defaultOpen}>
-      <summary className="list-none cursor-pointer card px-5 py-4">
+    <details className="group mb-6 rounded-3xl border border-outline-variant/15 bg-surface shadow-sm" open={defaultOpen}>
+      <summary className="list-none cursor-pointer px-5 py-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-surface-container-low flex items-center justify-center shrink-0">
@@ -734,7 +721,7 @@ function SettingsAccordion({
           <ChevronDown className="w-4 h-4 text-outline transition-transform group-open:rotate-180 shrink-0" />
         </div>
       </summary>
-      <div className="mt-3">{children}</div>
+      <div className="border-t border-outline-variant/10 px-5 py-5">{children}</div>
     </details>
   );
 }
@@ -809,7 +796,7 @@ function MembersRoles() {
     ROLE_OPTIONS.find((r) => r.value === role)?.label || role.replace(/_/g, ' ');
 
   return (
-    <div className="card p-6 mb-6">
+    <div>
       <div className="flex items-center gap-3 mb-5">
         <div className="w-11 h-11 bg-blue-50 rounded-xl flex items-center justify-center">
           <Users className="w-6 h-6 text-blue-600" />
