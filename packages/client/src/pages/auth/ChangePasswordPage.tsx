@@ -4,6 +4,7 @@ import { Eye, EyeOff, CheckCircle, ShieldAlert } from 'lucide-react';
 import BrandMark from '../../components/ui/BrandMark';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
+import { getPostLoginRoute } from '../../lib/serviceStaff';
 import { useAuthStore } from '../../store/authStore';
 
 export default function ChangePasswordPage() {
@@ -39,10 +40,14 @@ export default function ChangePasswordPage() {
       await api.post('/auth/change-password', { currentPassword, newPassword });
       // Update user in store to remove mustChangePassword flag
       if (user && accessToken && refreshToken) {
-        setAuth({ ...user, mustChangePassword: false }, accessToken, refreshToken);
+        const updatedUser = { ...user, mustChangePassword: false };
+        setAuth(updatedUser, accessToken, refreshToken);
+        toast.success('Password changed successfully!');
+        navigate(getPostLoginRoute(updatedUser), { replace: true });
+        return;
       }
       toast.success('Password changed successfully!');
-      navigate('/');
+      navigate('/', { replace: true });
     } catch (error: any) {
       const message = error.response?.data?.error || 'Failed to change password';
       toast.error(message);

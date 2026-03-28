@@ -87,6 +87,20 @@ enum ComplaintPriority {
   URGENT
 }
 
+enum VisitorStatus {
+  ACTIVE
+  LEFT
+}
+
+enum DeliveryType {
+  COURIER
+  FOOD
+  GROCERY
+  MEDICINE
+  PARCEL
+  OTHER
+}
+
 enum ExpenseCategory {
   MAINTENANCE
   REPAIR
@@ -131,6 +145,8 @@ model Society {
   users              User[]
   userMemberships    UserSocietyMembership[]
   complaints         Complaint[]
+  visitors           Visitor[]
+  deliveries         Delivery[]
   expenses           Expense[]
   bylaws             AssociationBylaw[]
   maintenanceConfig  MaintenanceConfig[]
@@ -176,6 +192,8 @@ model Flat {
   tenant      Tenant?
   bills       MaintenanceBill[]
   complaints  Complaint[]
+  visitors    Visitor[]
+  deliveries  Delivery[]
 
   @@unique([flatNumber, blockId])
   @@index([blockId])
@@ -260,6 +278,8 @@ model User {
   societyMemberships UserSocietyMembership[]
   complaints   Complaint[] @relation("ComplaintCreator")
   assignedComplaints Complaint[] @relation("ComplaintAssignee")
+  capturedVisitors Visitor[] @relation("VisitorCapturedBy")
+  capturedDeliveries Delivery[] @relation("DeliveryCapturedBy")
 
   @@index([societyId])
   @@index([activeSocietyId])
@@ -495,6 +515,63 @@ model Expense {
   @@index([societyId, expenseDate])
   @@index([societyId, category])
   @@map("expenses")
+}
+
+model Visitor {
+  id               String        @id @default(uuid())
+  societyId        String
+  flatId           String
+  capturedByUserId String
+  visitorName      String
+  mobile           String
+  vehicleNumber    String?
+  purpose          String
+  notes            String?
+  photoUrl         String?
+  status           VisitorStatus @default(ACTIVE)
+  checkedInAt      DateTime      @default(now())
+  checkedOutAt     DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  society          Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  flat             Flat          @relation(fields: [flatId], references: [id], onDelete: Cascade)
+  capturedBy       User          @relation("VisitorCapturedBy", fields: [capturedByUserId], references: [id])
+
+  @@index([societyId])
+  @@index([flatId])
+  @@index([capturedByUserId])
+  @@index([societyId, status])
+  @@index([checkedInAt])
+  @@map("visitors")
+}
+
+model Delivery {
+  id                 String       @id @default(uuid())
+  societyId          String
+  flatId             String
+  capturedByUserId   String
+  deliveryType       DeliveryType
+  deliveryPersonName String
+  mobile             String?
+  companyName        String?
+  vehicleNumber      String?
+  notes              String?
+  photoUrl           String?
+  deliveredAt        DateTime     @default(now())
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  society            Society      @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  flat               Flat         @relation(fields: [flatId], references: [id], onDelete: Cascade)
+  capturedBy         User         @relation("DeliveryCapturedBy", fields: [capturedByUserId], references: [id])
+
+  @@index([societyId])
+  @@index([flatId])
+  @@index([capturedByUserId])
+  @@index([societyId, deliveryType])
+  @@index([deliveredAt])
+  @@map("deliveries")
 }
 
 // ─── ASSOCIATION BYLAWS ─────────────────────────────────

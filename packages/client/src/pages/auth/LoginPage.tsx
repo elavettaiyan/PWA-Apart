@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import BrandMark from '../../components/ui/BrandMark';
 import toast from 'react-hot-toast';
+import { getPostLoginRoute } from '@/lib/serviceStaff';
 import api from '../../lib/api';
 import { isNativePlatform } from '../../lib/platform';
 import { useAuthStore } from '../../store/authStore';
@@ -35,7 +36,7 @@ export default function LoginPage() {
           </div>
         ), { duration: 7000 });
       }
-      navigate('/', { replace: true });
+      navigate(getPostLoginRoute(data.user), { replace: true });
     } catch (error: any) {
       const data = error.response?.data;
       const message =

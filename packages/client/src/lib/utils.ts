@@ -50,6 +50,16 @@ export function formatDate(date: string | Date): string {
   }).format(new Date(date));
 }
 
+export function formatDateTime(date: string | Date): string {
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(date));
+}
+
 export function getMonthName(month: number): string {
   return new Date(2024, month - 1).toLocaleString('en-IN', { month: 'long' });
 }
@@ -63,7 +73,9 @@ export function getStatusColor(status: string): string {
     PENDING: 'badge-warning',
     INITIATED: 'badge-warning',
     OPEN: 'badge-info',
+    ACTIVE: 'badge-info',
     IN_PROGRESS: 'badge-info',
+    LEFT: 'badge-neutral',
     PARTIAL: 'badge-warning',
     OVERDUE: 'badge-danger',
     FAILED: 'badge-danger',

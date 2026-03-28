@@ -82,7 +82,7 @@ router.post(
             societyId: society.id,
             activeSocietyId: society.id,
           },
-          select: { id: true, email: true, name: true, role: true, societyId: true },
+          select: { id: true, email: true, name: true, role: true, specialization: true, societyId: true },
         });
 
         await ensureMembership(tx, user.id, society.id, 'ADMIN');
@@ -155,7 +155,7 @@ router.post(
           societyId,
           activeSocietyId: societyId || null,
         },
-        select: { id: true, email: true, name: true, role: true, societyId: true },
+        select: { id: true, email: true, name: true, role: true, specialization: true, societyId: true },
       });
 
       if (societyId) {
@@ -309,10 +309,11 @@ router.post(
           email: user.email,
           name: user.name,
           role: effectiveRole,
+          specialization: user.specialization,
           societyId: activeSocietyId,
           flat: flatFromOwners || flatFromTenants || null,
           mustChangePassword: user.mustChangePassword,
-          societies: societies.map((membership) => ({ id: membership.society.id, name: membership.society.name })),
+          societies: societies.map((membership) => ({ id: membership.society.id, name: membership.society.name, role: membership.role })),
         },
         premiumLifecycle,
         ...tokens,
@@ -379,6 +380,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
         name: true,
         phone: true,
         role: true,
+        specialization: true,
         societyId: true,
         activeSocietyId: true,
         lastLogin: true,
@@ -435,7 +437,7 @@ router.post(
           activeSocietyId: societyId,
           societyId,
         },
-        select: { id: true, email: true, name: true, role: true, societyId: true, mustChangePassword: true },
+        select: { id: true, email: true, name: true, role: true, specialization: true, societyId: true, mustChangePassword: true },
       });
 
       const effectiveRole = membership.role;

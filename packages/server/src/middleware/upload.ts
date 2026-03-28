@@ -4,6 +4,16 @@ import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config';
 import fs from 'fs';
 
+export class UploadValidationError extends Error {
+  statusCode: number;
+
+  constructor(message: string, statusCode = 400) {
+    super(message);
+    this.name = 'UploadValidationError';
+    this.statusCode = statusCode;
+  }
+}
+
 export const isVercel = process.env.VERCEL === '1';
 
 // On Vercel the filesystem is read-only — use /tmp for ephemeral uploads
@@ -32,11 +42,19 @@ const storage = isVercel
     });
 
 const fileFilter = (_req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+  const allowedTypes = [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/heic',
+    'image/heif',
+    'application/pdf',
+  ];
+
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only JPEG, PNG, WebP and PDF files are allowed.'));
+    cb(new UploadValidationError('Invalid file type. Only JPEG, PNG, WebP, HEIC, HEIF and PDF files are allowed.'));
   }
 };
 

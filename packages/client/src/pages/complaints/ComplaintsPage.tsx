@@ -7,6 +7,7 @@ import api from '../../lib/api';
 import { getStatusColor, formatDate, cn } from '../../lib/utils';
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
+import { getDefaultComplaintCategoryForUser, isNonSecurityServiceStaff } from '../../lib/serviceStaff';
 import { useAuthStore } from '../../store/authStore';
 import type { Complaint } from '../../types';
 
@@ -17,12 +18,22 @@ export default function ComplaintsPage() {
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const defaultCategory = getDefaultComplaintCategoryForUser(user);
+  const isSpecializedStaffView = isNonSecurityServiceStaff(user) && !!defaultCategory;
 
   const { data: complaints = [], isLoading } = useQuery<Complaint[]>({
-    queryKey: ['complaints', statusFilter],
+    queryKey: ['complaints', statusFilter, defaultCategory],
     queryFn: async () => {
-      const params = statusFilter ? `?status=${statusFilter}` : '';
-      return (await api.get(`/complaints${params}`)).data;
+      const searchParams = new URLSearchParams();
+      if (statusFilter) {
+        searchParams.set('status', statusFilter);
+      }
+      if (defaultCategory) {
+        searchParams.set('category', defaultCategory);
+      }
+      const query = searchParams.toString();
+      return (await api.get(`/complaints${query ? `?${query}` : ''}`)).data;
     },
   });
 
@@ -41,11 +52,17 @@ export default function ComplaintsPage() {
         <div>
           <p className="section-label mb-2">Service Desk</p>
           <h1 className="page-title">Complaints</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Track and manage resident complaints</p>
+          <p className="text-sm text-on-surface-variant mt-1">
+            {isSpecializedStaffView
+              ? `${defaultCategory} complaints for your service desk`
+              : 'Track and manage resident complaints'}
+          </p>
         </div>
-        <button className="btn-primary" onClick={() => setShowCreate(true)}>
-          <Plus className="w-4 h-4" /> New Complaint
-        </button>
+        {!isSpecializedStaffView && (
+          <button className="btn-primary" onClick={() => setShowCreate(true)}>
+            <Plus className="w-4 h-4" /> New Complaint
+          </button>
+        )}
       </div>
 
       {/* Status Filter Pills */}

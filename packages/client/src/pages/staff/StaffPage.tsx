@@ -70,7 +70,10 @@ function CreateStaffForm({ onClose, onSuccess }: { onClose: () => void; onSucces
 
   const create = useMutation({
     mutationFn: (data: typeof form) => api.post('/staff', data),
-    onSuccess: () => { toast.success('Staff member created'); onSuccess(); },
+    onSuccess: (response) => {
+      toast.success(response.data?.message || 'Staff member created');
+      onSuccess();
+    },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to create staff'),
   });
 
@@ -98,8 +101,11 @@ function CreateStaffForm({ onClose, onSuccess }: { onClose: () => void; onSucces
           </select>
         </div>
         <div className="sm:col-span-2">
-          <label className="label">Password *</label>
-          <input className="input" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Min 8 characters" />
+          <label className="label">Password</label>
+          <input className="input" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Required only for a brand new account" />
+          <p className="mt-1 text-xs text-on-surface-variant">
+            If this email already belongs to a service staff account in another apartment, the existing account will be linked to this society.
+          </p>
         </div>
       </div>
       <div className="flex justify-end gap-3 mt-4">
@@ -107,7 +113,7 @@ function CreateStaffForm({ onClose, onSuccess }: { onClose: () => void; onSucces
         <button
           className="btn-primary"
           onClick={() => create.mutate(form)}
-          disabled={create.isPending || !form.name || !form.email || form.password.length < 8}
+          disabled={create.isPending || !form.name || !form.email}
         >
           {create.isPending ? 'Creating...' : 'Create'}
         </button>

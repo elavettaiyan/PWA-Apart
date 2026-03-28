@@ -4,8 +4,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   LayoutDashboard, Building2, Receipt, MessageSquareWarning,
   Wallet, ScrollText, BarChart3, LogOut, Menu, X, ChevronDown, User, Settings, KeyRound,
-  HelpCircle, Plus, CreditCard, Wrench,
+  HelpCircle, Plus, CreditCard, Wrench, ShieldCheck, ClipboardList,
 } from 'lucide-react';
+import { getDefaultAuthenticatedRoute, isNonSecurityServiceStaff, isSecurityServiceStaff } from '@/lib/serviceStaff';
 import { useAuthStore } from '../../store/authStore';
 import { cn } from '../../lib/utils';
 import BrandMark from '../ui/BrandMark';
@@ -15,15 +16,20 @@ import { SOCIETY_ADMINS, SOCIETY_MANAGERS, FINANCIAL_ROLES } from '../../types';
 const allNavigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: '*' as const },
   { name: 'Flats & Residents', href: '/flats', icon: Building2, roles: ['SUPER_ADMIN', ...SOCIETY_MANAGERS] },
-  { name: 'My Flat', href: '/my-flat', icon: Building2, roles: ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT', 'SERVICE_STAFF'] },
+  { name: 'My Flat', href: '/my-flat', icon: Building2, roles: ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT'] },
   { name: 'Billing', href: '/billing', icon: Receipt, roles: '*' as const },
   { name: 'Complaints', href: '/complaints', icon: MessageSquareWarning, roles: '*' as const },
+  { name: 'Gate Management', href: '/gate-management', icon: ShieldCheck, roles: ['SUPER_ADMIN', ...SOCIETY_MANAGERS, 'SERVICE_STAFF'] },
+  { name: 'Entry Activity', href: '/entry-activity', icon: ClipboardList, roles: ['SUPER_ADMIN', ...SOCIETY_MANAGERS, 'SERVICE_STAFF'] },
   { name: 'Expenses', href: '/expenses', icon: Wallet, roles: ['SUPER_ADMIN', ...FINANCIAL_ROLES] },
   { name: 'Association Bylaws', href: '/bylaws', icon: ScrollText, roles: '*' as const },
   { name: 'Reports', href: '/reports', icon: BarChart3, roles: ['SUPER_ADMIN', ...FINANCIAL_ROLES] },
   { name: 'Settings', href: '/settings', icon: Settings, roles: ['SUPER_ADMIN', ...SOCIETY_ADMINS] },
   { name: 'Manage Staff', href: '/staff', icon: User, roles: ['SUPER_ADMIN', ...SOCIETY_ADMINS] },
 ];
+
+const securityNavigationHrefs = ['/gate-management', '/entry-activity'];
+const serviceComplaintNavigationHrefs = ['/complaints'];
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -93,12 +99,23 @@ export default function Layout({ children }: LayoutProps) {
 
   // Mobile bottom nav items — role-aware
   const isResident = ['OWNER', 'TENANT'].includes(user?.role || '');
+  const isSecurityStaffUser = isSecurityServiceStaff(user);
+  const isOtherServiceStaffUser = isNonSecurityServiceStaff(user);
   const bottomNavItems = isResident
     ? [
         { name: 'Hub', href: '/', icon: 'grid_view', filled: true },
         { name: 'Payments', href: '/billing', icon: 'account_balance_wallet', filled: false },
         { name: 'Service', href: '/complaints', icon: 'construction', filled: false },
         { name: 'Profile', href: '/settings', icon: 'person', filled: false },
+      ]
+    : isSecurityStaffUser
+    ? [
+        { name: 'Gate', href: '/gate-management', icon: 'shield', filled: false },
+        { name: 'Activity', href: '/entry-activity', icon: 'list_alt', filled: false },
+      ]
+    : isOtherServiceStaffUser
+    ? [
+        { name: 'Service', href: '/complaints', icon: 'construction', filled: false },
       ]
     : [
         { name: 'Hub', href: '/', icon: 'grid_view', filled: true },
@@ -142,7 +159,17 @@ export default function Layout({ children }: LayoutProps) {
           {/* Nav Links */}
           <nav className="flex-1 space-y-1 overflow-y-auto hide-scrollbar">
             {allNavigation
-              .filter((item) => item.roles === '*' || item.roles.includes(user?.role || ''))
+              .filter((item) => {
+                if (isSecurityStaffUser) {
+                  return securityNavigationHrefs.includes(item.href);
+                }
+
+                if (isOtherServiceStaffUser) {
+                  return serviceComplaintNavigationHrefs.includes(item.href);
+                }
+
+                return item.roles === '*' || item.roles.includes(user?.role || '');
+              })
               .map((item) => {
               const isActive = location.pathname === item.href ||
                 (item.href !== '/' && location.pathname.startsWith(item.href));
@@ -191,11 +218,11 @@ export default function Layout({ children }: LayoutProps) {
               <span>New Request</span>
             </button> */}
             <button
-              onClick={() => navigate('/settings')}
+              onClick={() => navigate(isOtherServiceStaffUser ? getDefaultAuthenticatedRoute(user) : '/settings')}
               className="w-full flex items-center gap-3 px-4 py-2 text-white/40 hover:text-white transition-colors text-sm"
             >
               <HelpCircle className="w-5 h-5" />
-              <span>Help Center</span>
+              <span>{isOtherServiceStaffUser ? 'Service Requests' : 'Help Center'}</span>
             </button>
             {/* <button
               onClick={handleLogout}

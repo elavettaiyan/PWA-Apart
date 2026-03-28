@@ -8,6 +8,15 @@ import { upload, getFileUrl } from '../../middleware/upload';
 const router = Router();
 router.use(authenticate);
 
+const COMPLAINT_CATEGORY_BY_SPECIALIZATION: Record<string, string> = {
+  Plumber: 'Plumbing',
+  Electrician: 'Electrical',
+  Cleaner: 'Cleaning',
+  'Lift Operator': 'Lift',
+  Carpenter: 'Civil',
+  Security: 'Security',
+};
+
 /** Parse the images JSON string into an actual array */
 function parseImages(complaint: any) {
   if (!complaint) return complaint;
@@ -31,6 +40,7 @@ router.get(
   async (req: AuthRequest, res: Response) => {
     try {
       const where: any = {};
+      let serviceStaffCategory = '';
 
       if (req.query.status) where.status = req.query.status;
       if (req.query.priority) where.priority = req.query.priority;
@@ -43,9 +53,19 @@ router.get(
       if ([...RESIDENT_ROLES, 'TREASURER'].includes(req.user!.role as any)) {
         where.createdById = req.user!.id;
       } else if (req.user!.role === 'SERVICE_STAFF') {
+        const serviceStaffUser = await prisma.user.findUnique({
+          where: { id: req.user!.id },
+          select: { specialization: true },
+        });
+
+        if (!req.query.category) {
+          serviceStaffCategory = COMPLAINT_CATEGORY_BY_SPECIALIZATION[serviceStaffUser?.specialization || ''] || '';
+        }
+
         where.OR = [
           { assignedToId: req.user!.id },
           { createdById: req.user!.id },
+          ...(serviceStaffCategory ? [{ category: serviceStaffCategory }] : []),
         ];
       }
 

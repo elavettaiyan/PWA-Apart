@@ -20,6 +20,8 @@ import reportRoutes from './modules/reports/routes';
 import settingsRoutes from './modules/settings/routes';
 import adminRoutes from './modules/admin/routes';
 import staffRoutes from './modules/staff/routes';
+import visitorRoutes from './modules/visitors/routes';
+import deliveryRoutes from './modules/deliveries/routes';
 import premiumRoutes, { premiumWebhookHandler } from './modules/premium/routes';
 
 const app = express();
@@ -202,6 +204,8 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/staff', staffRoutes);
+app.use('/api/visitors', visitorRoutes);
+app.use('/api/deliveries', deliveryRoutes);
 app.use('/api/premium', premiumRoutes);
 
 // ── ERROR HANDLING ──────────────────────────────────────

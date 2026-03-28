@@ -5,11 +5,12 @@ import {
   Wallet, TrendingUp, TrendingDown, Home, CreditCard, Shield, Trash2,
   ChevronRight,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
 import { PageLoader } from '../../components/ui/Loader';
+import { getDefaultAuthenticatedRoute } from '../../lib/serviceStaff';
 import { useAuthStore } from '../../store/authStore';
 import type { DashboardData } from '../../types';
 import { FINANCIAL_ROLES } from '../../types';
@@ -18,6 +19,11 @@ export default function DashboardPage() {
   const { user } = useAuthStore();
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const isManager = FINANCIAL_ROLES.includes(user?.role as any);
+  const defaultRoute = getDefaultAuthenticatedRoute(user);
+
+  if (defaultRoute !== '/') {
+    return <Navigate to={defaultRoute} replace />;
+  }
 
   if (isSuperAdmin) return <SuperAdminDashboard />;
   if (isManager) return <AdminDashboard />;

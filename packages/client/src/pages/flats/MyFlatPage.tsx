@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, User, Phone, Mail, Home, Calendar, UserPlus, Pencil, Trash2, Loader2, Info } from 'lucide-react';
+import { Building2, User, Phone, Mail, Home, Calendar, UserPlus, Pencil, Trash2, Loader2, Info, ShieldCheck, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
-import { formatCurrency, formatDate, getMonthName, getStatusColor, cn, isValidEmailAddress, isValidIndianMobileNumber, normalizeEmail, normalizeIndianMobileNumber } from '../../lib/utils';
+import { formatCurrency, formatDate, formatDateTime, getMonthName, getStatusColor, cn, isValidEmailAddress, isValidIndianMobileNumber, normalizeEmail, normalizeIndianMobileNumber } from '../../lib/utils';
 import { PageLoader } from '../../components/ui/Loader';
 import { useAuthStore } from '../../store/authStore';
-import type { MaintenanceBill, PaymentMethod } from '../../types';
+import type { Delivery, Flat, MaintenanceBill, PaymentMethod, Visitor } from '../../types';
 
 export default function MyFlatPage() {
   const currentYear = new Date().getFullYear();
@@ -14,7 +14,7 @@ export default function MyFlatPage() {
   const { user } = useAuthStore();
   const isOwner = user?.role === 'OWNER';
 
-  const { data: flat, isLoading, error } = useQuery<any>({
+  const { data: flat, isLoading, error } = useQuery<Flat>({
     queryKey: ['my-flat', selectedYear],
     queryFn: async () => (await api.get(`/flats/my-flat?year=${selectedYear}`)).data,
   });
@@ -94,6 +94,11 @@ export default function MyFlatPage() {
         </div>
       </div>
 
+      <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <RecentVisitorsCard visitors={flat.visitors || []} />
+        <RecentDeliveriesCard deliveries={flat.deliveries || []} />
+      </div>
+
       {/* Bill Summary */}
       {flat.bills && flat.bills.length > 0 && (
         <div className="mt-6">
@@ -154,6 +159,79 @@ export default function MyFlatPage() {
   );
 }
 
+function RecentVisitorsCard({ visitors }: { visitors: Visitor[] }) {
+  return (
+    <div className="card-elevated p-6">
+      <h2 className="text-lg font-bold text-primary mb-4 flex items-center gap-2 editorial-title">
+        <div className="w-8 h-8 rounded-xl bg-primary-container flex items-center justify-center">
+          <ShieldCheck className="w-4 h-4 text-on-primary-container" />
+        </div>
+        Recent Visitors
+      </h2>
+      {visitors.length === 0 ? (
+        <p className="text-sm text-on-surface-variant">No recent visitors recorded for your flat.</p>
+      ) : (
+        <div className="space-y-3">
+          {visitors.map((visitor) => (
+            <div key={visitor.id} className="rounded-2xl border border-outline-variant/20 p-4 bg-surface-container/40">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-on-surface">{visitor.visitorName}</p>
+                  <p className="text-sm text-on-surface-variant">{visitor.purpose}</p>
+                </div>
+                <span className={cn('badge', getStatusColor(visitor.status))}>{visitor.status}</span>
+              </div>
+              <div className="mt-3 space-y-1 text-sm text-on-surface-variant">
+                <p>In: {formatDateTime(visitor.checkedInAt)}</p>
+                {visitor.checkedOutAt && <p>Out: {formatDateTime(visitor.checkedOutAt)}</p>}
+                <p>Mobile: {visitor.mobile}</p>
+                {visitor.vehicleNumber && <p>Vehicle: {visitor.vehicleNumber}</p>}
+                {visitor.capturedBy?.name && <p>Recorded by: {visitor.capturedBy.name}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RecentDeliveriesCard({ deliveries }: { deliveries: Delivery[] }) {
+  return (
+    <div className="card-elevated p-6">
+      <h2 className="text-lg font-bold text-primary mb-4 flex items-center gap-2 editorial-title">
+        <div className="w-8 h-8 rounded-xl bg-secondary-container flex items-center justify-center">
+          <Package className="w-4 h-4 text-on-secondary-container" />
+        </div>
+        Recent Deliveries
+      </h2>
+      {deliveries.length === 0 ? (
+        <p className="text-sm text-on-surface-variant">No recent deliveries recorded for your flat.</p>
+      ) : (
+        <div className="space-y-3">
+          {deliveries.map((delivery) => (
+            <div key={delivery.id} className="rounded-2xl border border-outline-variant/20 p-4 bg-surface-container/40">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-on-surface">{getDeliveryTypeLabel(delivery.deliveryType)}</p>
+                  <p className="text-sm text-on-surface-variant">{delivery.deliveryPersonName}</p>
+                </div>
+                <span className="badge badge-info">{getDeliveryTypeLabel(delivery.deliveryType)}</span>
+              </div>
+              <div className="mt-3 space-y-1 text-sm text-on-surface-variant">
+                <p>Delivered at: {formatDateTime(delivery.deliveredAt)}</p>
+                {delivery.companyName && <p>Company: {delivery.companyName}</p>}
+                {delivery.mobile && <p>Mobile: {delivery.mobile}</p>}
+                {delivery.capturedBy?.name && <p>Recorded by: {delivery.capturedBy.name}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function getPaymentMethodLabel(method: PaymentMethod) {
   const labels: Record<PaymentMethod, string> = {
     PHONEPE: 'PhonePe',
@@ -164,6 +242,10 @@ function getPaymentMethodLabel(method: PaymentMethod) {
   };
 
   return labels[method] || method;
+}
+
+function getDeliveryTypeLabel(type: Delivery['deliveryType']) {
+  return type.replace('_', ' ');
 }
 
 function Row({ label, value, icon }: { label: string; value: string | number | null | undefined; icon?: React.ReactNode }) {

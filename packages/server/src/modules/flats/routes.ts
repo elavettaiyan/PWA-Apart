@@ -34,6 +34,20 @@ function buildMyFlatInclude(year?: number): Prisma.FlatInclude {
     block: { include: { society: { select: { id: true, name: true } } } },
     owner: true,
     tenant: true,
+    visitors: {
+      orderBy: { checkedInAt: 'desc' },
+      take: 5,
+      include: {
+        capturedBy: { select: { name: true } },
+      },
+    },
+    deliveries: {
+      orderBy: { deliveredAt: 'desc' },
+      take: 5,
+      include: {
+        capturedBy: { select: { name: true } },
+      },
+    },
     bills: {
       where: year ? { year } : undefined,
       include: {
@@ -139,6 +153,44 @@ router.get('/my-flat', [query('societyId').optional().isUUID(), query('year').op
     return res.status(404).json({ error: 'No flat linked to your account' });
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch your flat' });
+  }
+});
+
+router.get('/options', authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS, 'SERVICE_STAFF'), async (req: AuthRequest, res: Response) => {
+  try {
+    const societyId = req.user!.societyId;
+    if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+
+    const flats = await prisma.flat.findMany({
+      where: { block: { societyId } },
+      select: {
+        id: true,
+        flatNumber: true,
+        floor: true,
+        block: { select: { name: true } },
+        owner: { select: { name: true } },
+        tenant: { select: { name: true, isActive: true } },
+      },
+      orderBy: [{ floor: 'asc' }, { flatNumber: 'asc' }],
+    });
+
+    return res.json(
+      flats
+        .map((flat) => ({
+          id: flat.id,
+          flatNumber: flat.flatNumber,
+          floor: flat.floor,
+          blockName: flat.block.name,
+          residentName: flat.tenant?.isActive ? flat.tenant.name : flat.owner?.name || null,
+        }))
+        .sort((left, right) => {
+          const blockCompare = left.blockName.localeCompare(right.blockName);
+          if (blockCompare !== 0) return blockCompare;
+          return left.flatNumber.localeCompare(right.flatNumber, undefined, { numeric: true, sensitivity: 'base' });
+        }),
+    );
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to fetch flat options' });
   }
 });
 

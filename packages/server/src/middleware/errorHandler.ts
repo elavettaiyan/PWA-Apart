@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 import { validationResult } from 'express-validator';
 import logger from '../config/logger';
+import { UploadValidationError } from './upload';
 
 export const errorHandler = (
   err: Error,
@@ -8,6 +10,35 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction,
 ): void => {
+  if (err instanceof UploadValidationError) {
+    logger.warn('Upload validation failed', {
+      error: err.message,
+      method: req.method,
+      url: req.originalUrl,
+      ip: req.ip,
+    });
+
+    res.status(err.statusCode).json({ error: err.message });
+    return;
+  }
+
+  if (err instanceof multer.MulterError) {
+    logger.warn('Upload failed', {
+      error: err.message,
+      code: err.code,
+      method: req.method,
+      url: req.originalUrl,
+      ip: req.ip,
+    });
+
+    const message = err.code === 'LIMIT_FILE_SIZE'
+      ? 'Uploaded file is too large.'
+      : err.message;
+
+    res.status(400).json({ error: message });
+    return;
+  }
+
   // Sanitize sensitive fields before logging
   const sanitizedBody = req.method !== 'GET' && req.body
     ? (() => {

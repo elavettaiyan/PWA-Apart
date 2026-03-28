@@ -15,6 +15,7 @@ export interface User {
   name: string;
   phone?: string;
   role: Role;
+  specialization?: string | null;
   societyId?: string;
   activeSocietyId?: string;
   societies?: Array<{ id: string; name: string; role?: Role }>;
@@ -77,6 +78,16 @@ export interface Flat {
   tenant?: Tenant;
   bills?: MaintenanceBill[];
   complaints?: Complaint[];
+  visitors?: Visitor[];
+  deliveries?: Delivery[];
+}
+
+export interface FlatOption {
+  id: string;
+  flatNumber: string;
+  floor: number;
+  blockName: string;
+  residentName?: string | null;
 }
 
 // ─── OWNER ──────────────────────────────────────────────
@@ -217,6 +228,55 @@ export interface ComplaintComment {
   authorName: string;
   content: string;
   createdAt: string;
+}
+
+// ─── VISITORS & DELIVERIES ─────────────────────────────
+
+export type VisitorStatus = 'ACTIVE' | 'LEFT';
+export type DeliveryType = 'COURIER' | 'FOOD' | 'GROCERY' | 'MEDICINE' | 'PARCEL' | 'OTHER';
+
+export interface EntryFlatSummary {
+  id: string;
+  flatNumber: string;
+  block?: { name: string };
+  residentName?: string | null;
+}
+
+export interface Visitor {
+  id: string;
+  societyId: string;
+  flatId: string;
+  capturedByUserId: string;
+  visitorName: string;
+  mobile: string;
+  vehicleNumber?: string | null;
+  purpose: string;
+  notes?: string | null;
+  photoUrl?: string | null;
+  status: VisitorStatus;
+  checkedInAt: string;
+  checkedOutAt?: string | null;
+  createdAt: string;
+  flat?: EntryFlatSummary | null;
+  capturedBy?: { name: string };
+}
+
+export interface Delivery {
+  id: string;
+  societyId: string;
+  flatId: string;
+  capturedByUserId: string;
+  deliveryType: DeliveryType;
+  deliveryPersonName: string;
+  mobile?: string | null;
+  companyName?: string | null;
+  vehicleNumber?: string | null;
+  notes?: string | null;
+  photoUrl?: string | null;
+  deliveredAt: string;
+  createdAt: string;
+  flat?: EntryFlatSummary | null;
+  capturedBy?: { name: string };
 }
 
 // ─── EXPENSE ────────────────────────────────────────────

@@ -39,7 +39,7 @@ router.post(
     body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
     body('phone').optional({ values: 'falsy' }).isMobilePhone('en-IN'),
     body('specialization').optional().isString(),
-    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+    body('password').optional({ values: 'falsy' }).isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
   ],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -51,7 +51,50 @@ router.post(
 
       const existing = await prisma.user.findUnique({ where: { email } });
       if (existing) {
-        return res.status(409).json({ error: 'Email already registered' });
+        const membership = await prisma.userSocietyMembership.findUnique({
+          where: { userId_societyId: { userId: existing.id, societyId } },
+        });
+
+        if (membership?.role === 'SERVICE_STAFF') {
+          return res.status(409).json({ error: 'This service staff account is already linked to your society' });
+        }
+
+        if (membership) {
+          return res.status(409).json({ error: 'This user is already assigned to your society with a different role' });
+        }
+
+        if (existing.specialization && specialization && existing.specialization !== specialization) {
+          return res.status(409).json({
+            error: `This account is already registered as ${existing.specialization}. Use the same specialization to link it to another society.`,
+          });
+        }
+
+        const linkedUser = await prisma.$transaction(async (tx) => {
+          const user = await tx.user.update({
+            where: { id: existing.id },
+            data: {
+              name,
+              phone: phone || existing.phone,
+              specialization: specialization || existing.specialization,
+            },
+            select: { id: true, name: true, email: true, phone: true, specialization: true, isActive: true, createdAt: true },
+          });
+
+          await tx.userSocietyMembership.create({
+            data: { userId: existing.id, societyId, role: 'SERVICE_STAFF' },
+          });
+
+          return user;
+        });
+
+        return res.status(200).json({
+          message: 'Existing account linked to this society. The user keeps their current password.',
+          user: linkedUser,
+        });
+      }
+
+      if (!password || password.length < 8) {
+        return res.status(400).json({ error: 'Password is required for new staff accounts and must be at least 8 characters' });
       }
 
       const passwordHash = await bcrypt.hash(password, 12);
@@ -78,7 +121,10 @@ router.post(
         return user;
       });
 
-      return res.status(201).json(result);
+      return res.status(201).json({
+        message: 'Staff member created',
+        user: result,
+      });
     } catch (error) {
       return res.status(500).json({ error: 'Failed to create staff member' });
     }
