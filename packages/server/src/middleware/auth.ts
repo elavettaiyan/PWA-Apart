@@ -110,8 +110,13 @@ export const authenticate = async (
     }
 
     const effectiveSocietyId = user.activeSocietyId || user.societyId || decoded.societyId || null;
-    // Always use DB role so role changes take effect immediately (within cache TTL)
-    const effectiveRole = user.role;
+    const membership = effectiveSocietyId
+      ? await prisma.userSocietyMembership.findUnique({
+          where: { userId_societyId: { userId: user.id, societyId: effectiveSocietyId } },
+          select: { role: true },
+        })
+      : null;
+    const effectiveRole = membership?.role || decoded.role || user.role;
 
     req.user = {
       id: user.id,
@@ -155,6 +160,7 @@ export const authenticate = async (
       userId: user.id,
       role: effectiveRole,
       societyId: effectiveSocietyId,
+      membershipRole: membership?.role || null,
       url: req.originalUrl,
       cacheHit,
       inFlightHit,

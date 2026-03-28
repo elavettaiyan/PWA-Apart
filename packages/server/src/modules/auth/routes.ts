@@ -7,7 +7,7 @@ import { config } from '../../config';
 import prisma from '../../config/database';
 import logger from '../../config/logger';
 import { validate } from '../../middleware/errorHandler';
-import { authenticate, AuthRequest } from '../../middleware/auth';
+import { authenticate, AuthRequest, invalidateAuthCache } from '../../middleware/auth';
 import { sendPasswordResetEmail, sendRegistrationEmail } from '../../config/email';
 import { buildPremiumLifecycleMessage, ensurePremiumLifecycleForSociety, shouldBlockPremiumRole, shouldWarnPremiumRole } from '../premium/lifecycle';
 
@@ -442,6 +442,7 @@ router.post(
 
       const effectiveRole = membership.role;
       const tokens = generateTokens({ ...updatedUser, role: effectiveRole });
+      invalidateAuthCache(req.user!.id);
 
       return res.json({
         message: 'Active society switched',
