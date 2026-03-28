@@ -4,7 +4,6 @@ import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import { getFileUrl, upload } from '../../middleware/upload';
-import logger from '../../config/logger';
 import { ENTRY_ACCESS_ROLES, ENTRY_MANAGE_ROLES, findFlatInSociety, getFlatResidentName, getResidentFlatIds, isResidentRole } from '../entries/utils';
 import { notifyVisitorEntry } from '../notifications/service';
 
@@ -136,26 +135,7 @@ router.post(
         },
       });
 
-      notifyVisitorEntry(visitor.id)
-        .then((result) => {
-          logger.info('Visitor push notification processed', {
-            visitorId: visitor.id,
-            flatId: visitor.flatId,
-            societyId,
-            configured: result.configured,
-            sentCount: result.sentCount,
-            failedCount: result.failedCount,
-            skipped: result.skipped,
-          });
-        })
-        .catch((error: any) => {
-          logger.error('Visitor push notification failed', {
-            visitorId: visitor.id,
-            flatId: visitor.flatId,
-            societyId,
-            error: error.message,
-          });
-        });
+      notifyVisitorEntry(visitor.id).catch(() => {});
 
       return res.status(201).json(toVisitorResponse(visitor));
     } catch (error) {
