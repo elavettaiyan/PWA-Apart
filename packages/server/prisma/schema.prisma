@@ -149,6 +149,7 @@ model Society {
   deliveries         Delivery[]
   pushDevices        PushNotificationDevice[]
   announcementBroadcasts AnnouncementBroadcast[]
+  memberRemovalAudits MemberRemovalAudit[]
   expenses           Expense[]
   bylaws             AssociationBylaw[]
   maintenanceConfig  MaintenanceConfig[]
@@ -342,6 +343,29 @@ model UserSocietyMembership {
   @@unique([userId, societyId])
   @@index([societyId])
   @@map("user_society_memberships")
+}
+
+model MemberRemovalAudit {
+  id              String   @id @default(uuid())
+  societyId       String
+  targetUserId    String?
+  targetRole      String
+  deletedByUserId String
+  deletedByRole   String
+  reason          String
+  source          String
+  ownerId         String?
+  tenantId        String?
+  flatId          String?
+  snapshot        String?
+  createdAt       DateTime @default(now())
+
+  society         Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  @@index([societyId])
+  @@index([targetUserId])
+  @@index([deletedByUserId])
+  @@map("member_removal_audits")
 }
 
 // ─── MAINTENANCE CONFIG ─────────────────────────────────

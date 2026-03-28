@@ -8,6 +8,7 @@ import {
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { PageLoader } from '../../components/ui/Loader';
+import Modal from '../../components/ui/Modal';
 import { cn } from '../../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -661,6 +662,8 @@ function MembersRoles() {
   const { user } = useAuthStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState('');
+  const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
+  const [removalReason, setRemovalReason] = useState('');
 
   const { data: members = [], isLoading } = useQuery<Member[]>({
     queryKey: ['settings-members'],
@@ -676,6 +679,18 @@ function MembersRoles() {
       queryClient.invalidateQueries({ queryKey: ['settings-members'] });
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to update role'),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: ({ userId, reason }: { userId: string; reason: string }) =>
+      api.delete(`/settings/members/${userId}`, { data: { reason } }),
+    onSuccess: () => {
+      toast.success('Owner removed');
+      setRemoveTarget(null);
+      setRemovalReason('');
+      queryClient.invalidateQueries({ queryKey: ['settings-members'] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to remove owner'),
   });
 
   const formatRole = (role: string) =>
@@ -744,12 +759,25 @@ function MembersRoles() {
                   </td>
                   <td className="px-6 py-3 text-right">
                     {editingId !== m.id && m.id !== user?.id && (
-                      <button
-                        className="text-xs text-primary hover:text-primary font-medium"
-                        onClick={() => { setEditingId(m.id); setSelectedRole(m.role); }}
-                      >
-                        Change Role
-                      </button>
+                      <div className="inline-flex items-center gap-3">
+                        <button
+                          className="text-xs text-primary hover:text-primary font-medium"
+                          onClick={() => { setEditingId(m.id); setSelectedRole(m.role); }}
+                        >
+                          Change Role
+                        </button>
+                        {m.role === 'OWNER' && (
+                          <button
+                            className="text-xs text-error hover:text-error font-medium"
+                            onClick={() => {
+                              setRemoveTarget(m);
+                              setRemovalReason('');
+                            }}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
                     )}
                     {m.id === user?.id && (
                       <span className="text-xs text-outline">You</span>
@@ -761,6 +789,58 @@ function MembersRoles() {
           </table>
         </div>
       )}
+
+      <Modal
+        isOpen={!!removeTarget}
+        onClose={() => {
+          if (removeMutation.isPending) return;
+          setRemoveTarget(null);
+          setRemovalReason('');
+        }}
+        title="Remove Owner"
+        size="md"
+      >
+        {removeTarget && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-error/15 bg-error-container/40 p-4">
+              <p className="text-sm font-semibold text-on-surface">{removeTarget.name}</p>
+              <p className="mt-1 text-xs text-on-surface-variant">{removeTarget.email} · {formatRole(removeTarget.role)}</p>
+            </div>
+
+            <div>
+              <label className="label">Reason *</label>
+              <textarea
+                className="input min-h-[120px]"
+                value={removalReason}
+                onChange={(event) => setRemovalReason(event.target.value)}
+                placeholder="Explain why this owner is being removed from the society."
+              />
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setRemoveTarget(null);
+                  setRemovalReason('');
+                }}
+                disabled={removeMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary bg-error text-white hover:bg-error/90"
+                disabled={removeMutation.isPending || !removalReason.trim()}
+                onClick={() => removeMutation.mutate({ userId: removeTarget.id, reason: removalReason.trim() })}
+              >
+                {removeMutation.isPending ? 'Removing...' : 'Remove Owner'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

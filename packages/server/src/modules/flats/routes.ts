@@ -7,6 +7,7 @@ import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest, SOCIETY_MANAGERS } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
+import { runMemberRemoval } from '../members/removal';
 
 const router = Router();
 const FREE_TIER_FLAT_LIMIT = 5;
@@ -862,6 +863,106 @@ router.put(
       return res.json(tenant);
     } catch (error) {
       return res.status(500).json({ error: 'Failed to update tenant' });
+    }
+  },
+);
+
+router.delete(
+  '/tenants/:id',
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
+  [
+    param('id').isUUID(),
+    body('reason').trim().notEmpty().withMessage('Reason is required'),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const existing = await prisma.tenant.findUnique({
+        where: { id: req.params.id },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          flat: { include: { block: { select: { societyId: true, name: true } }, owner: { select: { id: true, name: true } } } },
+        },
+      });
+
+      if (!existing) return res.status(404).json({ error: 'Tenant not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && existing.flat.block.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const societyId = existing.flat.block.societyId;
+      const reason = String(req.body.reason || '').trim();
+      const society = await prisma.society.findUnique({ where: { id: societyId }, select: { name: true } });
+
+      await runMemberRemoval({
+        societyId,
+        societyName: society?.name || 'your society',
+        targetUserId: existing.userId,
+        targetRole: 'TENANT',
+        removedByUserId: req.user!.id,
+        removedByRole: req.user!.role as any,
+        reason,
+        source: 'FLAT_MANAGEMENT',
+        recipientEmail: existing.user?.email || existing.email || null,
+        recipientName: existing.user?.name || existing.name,
+        tenantId: existing.id,
+        flatId: existing.flatId,
+        snapshot: {
+          name: existing.name,
+          email: existing.email,
+          phone: existing.phone,
+          flatNumber: existing.flat.flatNumber,
+          blockName: existing.flat.block.name,
+          ownerName: existing.flat.owner?.name || null,
+        },
+        removeData: async (tx) => {
+          await tx.tenant.update({
+            where: { id: existing.id },
+            data: { isActive: false, userId: null },
+          });
+
+          const hasActiveOwner = await tx.owner.findFirst({
+            where: { flatId: existing.flatId },
+            select: { id: true },
+          });
+
+          await tx.flat.update({
+            where: { id: existing.flatId },
+            data: { isOccupied: !!hasActiveOwner },
+          });
+        },
+        deleteMembership: async (tx) => {
+          if (!existing.userId) return false;
+
+          const [remainingOwner, remainingTenant] = await Promise.all([
+            tx.owner.findFirst({
+              where: { userId: existing.userId, flat: { block: { societyId } } },
+              select: { id: true },
+            }),
+            tx.tenant.findFirst({
+              where: {
+                userId: existing.userId,
+                flat: { block: { societyId } },
+                isActive: true,
+              },
+              select: { id: true },
+            }),
+          ]);
+
+          return !remainingOwner && !remainingTenant;
+        },
+      });
+
+      logger.info('Admin removed tenant', {
+        removedBy: req.user!.id,
+        tenantId: existing.id,
+        societyId,
+      });
+
+      return res.json({ message: 'Tenant removed successfully' });
+    } catch (error: any) {
+      logger.error('Failed to remove tenant', { error: error.message, tenantId: req.params.id });
+      return res.status(500).json({ error: 'Failed to remove tenant' });
     }
   },
 );

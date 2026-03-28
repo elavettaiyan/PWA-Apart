@@ -21,6 +21,15 @@ logger.info('Email transport configured', {
   from: FROM_EMAIL,
 });
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export async function sendPasswordResetEmail(to: string, resetToken: string, userName: string) {
   const resetUrl = `${CLIENT_URL}/reset-password?token=${resetToken}`;
 
@@ -254,8 +263,60 @@ interface PremiumLifecycleEmailData {
   archivedAt?: Date;
 }
 
+interface MemberRemovalEmailData {
+  userName: string;
+  societyName: string;
+  removedRole: string;
+  reason: string;
+}
+
 function formatLifecycleDate(value?: Date) {
   return value?.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) || 'soon';
+}
+
+export async function sendMemberRemovalEmail(to: string, data: MemberRemovalEmailData) {
+  const loginUrl = `${CLIENT_URL}/login`;
+  const roleLabel = escapeHtml(data.removedRole.replace(/_/g, ' ').toLowerCase());
+  const safeUserName = escapeHtml(data.userName);
+  const safeSocietyName = escapeHtml(data.societyName);
+  const safeReason = escapeHtml(data.reason);
+
+  try {
+    const { error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: `Access removed from ${safeSocietyName}`,
+      html: `
+        <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #ffffff;">
+          <div style="text-align: center; margin-bottom: 32px;">
+            <h1 style="color: #171C3F; font-size: 28px; margin: 0;">Dwell Hub</h1>
+            <p style="color: #6b7280; font-size: 14px; margin: 4px 0 0;">Management Portal</p>
+          </div>
+          <div style="background: #f9fafb; border-radius: 12px; padding: 32px; border: 1px solid #e5e7eb;">
+            <h2 style="color: #111827; font-size: 20px; margin: 0 0 16px;">Access Removed</h2>
+            <p style="color: #4b5563; line-height: 1.6; margin: 0 0 8px;">Hi ${safeUserName},</p>
+            <p style="color: #4b5563; line-height: 1.6; margin: 0 0 16px;">Your ${roleLabel} access for <strong>${safeSocietyName}</strong> has been removed by the society administration.</p>
+            <div style="background: #ffffff; border-radius: 8px; padding: 20px; border: 1px solid #e5e7eb; margin-bottom: 20px;">
+              <p style="color: #6b7280; font-size: 13px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.08em;">Reason</p>
+              <p style="color: #111827; line-height: 1.6; margin: 0; white-space: pre-wrap;">${safeReason}</p>
+            </div>
+            <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 0 0 24px;">If you think this is incorrect, contact your society admin for clarification.</p>
+            <div style="text-align: center; margin: 24px 0 0;">
+              <a href="${loginUrl}" style="background: #171C3F; color: #ffffff; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block;">Open Dwell Hub</a>
+            </div>
+          </div>
+          <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 32px 0 0;">This is an automated notification from Dwell Hub.</p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      throw new Error(`Failed to send email: ${error.message}`);
+    }
+  } catch (err: any) {
+    logger.error('Resend: failed to send member removal email', { to, error: err.message });
+    throw new Error(`Failed to send email: ${err.message}`);
+  }
 }
 
 async function sendPremiumLifecycleEmail(to: string, subject: string, heading: string, message: string) {

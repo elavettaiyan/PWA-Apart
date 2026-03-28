@@ -5,6 +5,7 @@ import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest, SOCIETY_ADMINS, invalidateAuthCache } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
+import { runMemberRemoval } from '../members/removal';
 
 const ASSIGNABLE_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'SERVICE_STAFF'] as const;
 
@@ -416,6 +417,107 @@ router.patch(
       return res.json({ message: 'Role updated successfully' });
     } catch (error) {
       return res.status(500).json({ error: 'Failed to update role' });
+    }
+  },
+);
+
+router.delete(
+  '/members/:userId',
+  [
+    param('userId').isUUID(),
+    body('reason').trim().notEmpty().withMessage('Reason is required'),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const societyId = req.user!.societyId;
+      if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+
+      const { userId } = req.params;
+      const reason = String(req.body.reason || '').trim();
+
+      if (userId === req.user!.id) {
+        return res.status(400).json({ error: 'You cannot remove your own account from this society' });
+      }
+
+      const [membership, society] = await Promise.all([
+        prisma.userSocietyMembership.findUnique({
+          where: { userId_societyId: { userId, societyId } },
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, phone: true, activeSocietyId: true },
+            },
+          },
+        }),
+        prisma.society.findUnique({ where: { id: societyId }, select: { name: true } }),
+      ]);
+
+      if (!membership) return res.status(404).json({ error: 'Member not found in this society' });
+      if (membership.role !== 'OWNER') {
+        return res.status(400).json({ error: 'Only owners can be removed from Members & Roles' });
+      }
+
+      const ownerRecords = await prisma.owner.findMany({
+        where: { userId, flat: { block: { societyId } } },
+        include: {
+          flat: {
+            select: {
+              id: true,
+              flatNumber: true,
+              tenant: { select: { id: true, isActive: true } },
+              block: { select: { name: true } },
+            },
+          },
+        },
+      });
+
+      await runMemberRemoval({
+        societyId,
+        societyName: society?.name || 'your society',
+        targetUserId: membership.user.id,
+        targetRole: 'OWNER',
+        removedByUserId: req.user!.id,
+        removedByRole: req.user!.role as any,
+        reason,
+        source: 'MEMBERS_ROLES',
+        recipientEmail: membership.user.email,
+        recipientName: membership.user.name,
+        snapshot: {
+          name: membership.user.name,
+          email: membership.user.email,
+          phone: membership.user.phone,
+          flats: ownerRecords.map((owner) => ({
+            ownerId: owner.id,
+            flatId: owner.flat.id,
+            flatNumber: owner.flat.flatNumber,
+            blockName: owner.flat.block.name,
+          })),
+        },
+        removeData: async (tx) => {
+          const ownerIds = ownerRecords.map((owner) => owner.id);
+          if (ownerIds.length > 0) {
+            await tx.owner.deleteMany({ where: { id: { in: ownerIds } } });
+          }
+
+          for (const owner of ownerRecords) {
+            await tx.flat.update({
+              where: { id: owner.flat.id },
+              data: { isOccupied: !!owner.flat.tenant?.isActive },
+            });
+          }
+        },
+      });
+
+      logger.info('Owner removed from society members', {
+        removedBy: req.user!.id,
+        targetUser: userId,
+        societyId,
+      });
+
+      return res.json({ message: 'Owner removed successfully' });
+    } catch (error: any) {
+      logger.error('Failed to remove owner member', { error: error.message, userId: req.params.userId });
+      return res.status(500).json({ error: 'Failed to remove owner' });
     }
   },
 );

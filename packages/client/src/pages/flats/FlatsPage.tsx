@@ -39,6 +39,21 @@ export default function FlatsPage() {
     [flats, selectedFlatId],
   );
 
+  useEffect(() => {
+    if (!activeFlat) return;
+
+    const refreshedActiveFlat = flats.find((flat) => flat.id === activeFlat.id) ?? null;
+    if (!refreshedActiveFlat) {
+      setActiveFlat(null);
+      setShowAddOwner(false);
+      return;
+    }
+
+    if (refreshedActiveFlat !== activeFlat) {
+      setActiveFlat(refreshedActiveFlat);
+    }
+  }, [activeFlat, flats]);
+
   const deleteMutation = useMutation({
     mutationFn: ({ id, confirmation }: { id: string; confirmation: string }) =>
       api.delete(`/flats/flats/${id}`, { data: { confirmation } }),
@@ -265,7 +280,12 @@ export default function FlatsPage() {
       {/* Add Owner Modal */}
       <Modal isOpen={showAddOwner} onClose={() => setShowAddOwner(false)} title={`Manage Flat - ${activeFlat?.flatNumber}`} size="lg">
         {activeFlat && (
-          <ManageFlatForm flat={activeFlat} onSaved={() => { queryClient.invalidateQueries({ queryKey: ['flats'] }); }} />
+          <ManageFlatForm
+            flat={activeFlat}
+            onSaved={() => {
+              queryClient.invalidateQueries({ queryKey: ['flats'] });
+            }}
+          />
         )}
       </Modal>
 
@@ -753,6 +773,8 @@ function getApiErrorMessage(error: any, fallback: string): string {
 
 // ── Manage Flat Form ────────────────────────────────────
 function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) {
+  const user = useAuthStore((state) => state.user);
+  const isAdminManager = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'] as string[]).includes(user?.role || '');
   const [form, setForm] = useState({
     name: flat.owner?.name || '',
     phone: flat.owner?.phone || '',
@@ -769,6 +791,8 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
     rentAmount: flat.tenant?.rentAmount?.toString() || '',
     deposit: flat.tenant?.deposit?.toString() || '',
   });
+  const [showTenantRemoveConfirm, setShowTenantRemoveConfirm] = useState(false);
+  const [tenantRemovalReason, setTenantRemovalReason] = useState('');
 
   const ownerMutation = useMutation({
     mutationFn: (data: any) => {
@@ -790,6 +814,17 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
     },
     onSuccess: () => { toast.success(flat.tenant?.id ? 'Tenant details saved!' : 'Tenant added successfully!'); onSaved(); },
     onError: (e: any) => toast.error(getApiErrorMessage(e, 'Failed to save tenant details')),
+  });
+
+  const removeTenantMutation = useMutation({
+    mutationFn: (reason: string) => api.delete(`/flats/tenants/${flat.tenant?.id}`, { data: { reason } }),
+    onSuccess: () => {
+      toast.success('Tenant removed');
+      setShowTenantRemoveConfirm(false);
+      setTenantRemovalReason('');
+      onSaved();
+    },
+    onError: (e: any) => toast.error(getApiErrorMessage(e, 'Failed to remove tenant')),
   });
 
   const handleOwnerSubmit = (e: React.FormEvent) => {
@@ -989,11 +1024,57 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">
+            {isAdminManager && flat.tenant?.id && flat.tenant?.isActive && (
+              <button
+                type="button"
+                className="btn-secondary text-error border-error/25 hover:bg-error-container/50"
+                onClick={() => setShowTenantRemoveConfirm((value) => !value)}
+              >
+                Remove Tenant
+              </button>
+            )}
             <button type="submit" className="btn-primary" disabled={tenantMutation.isPending}>
               {tenantMutation.isPending ? 'Saving...' : flat.tenant?.id ? 'Update Tenant' : 'Add Tenant'}
             </button>
           </div>
         </form>
+
+        {isAdminManager && flat.tenant?.id && flat.tenant?.isActive && showTenantRemoveConfirm && (
+          <div className="mt-4 rounded-xl border border-error/15 bg-error-container/40 p-4 space-y-3">
+            <p className="text-sm font-semibold text-on-surface">Remove active tenant</p>
+            <p className="text-xs text-on-surface-variant">This will remove tenant access for the current society and send an email to the removed tenant.</p>
+            <div>
+              <label className="label">Reason *</label>
+              <textarea
+                className="input min-h-[100px]"
+                value={tenantRemovalReason}
+                onChange={(event) => setTenantRemovalReason(event.target.value)}
+                placeholder="Explain why this tenant is being removed."
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setShowTenantRemoveConfirm(false);
+                  setTenantRemovalReason('');
+                }}
+                disabled={removeTenantMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary bg-error text-white hover:bg-error/90"
+                disabled={removeTenantMutation.isPending || !tenantRemovalReason.trim()}
+                onClick={() => removeTenantMutation.mutate(tenantRemovalReason.trim())}
+              >
+                {removeTenantMutation.isPending ? 'Removing...' : 'Confirm Remove'}
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );
