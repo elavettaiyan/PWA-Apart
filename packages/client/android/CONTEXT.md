@@ -87,8 +87,13 @@ Current values from `variables.gradle` and app Gradle config:
 
 Notes:
 - Release minification is currently disabled
-- `google-services.json` is optional and only needed for Firebase-related features
+- `google-services.json` is required for Android push notifications because the app now uses Capacitor Push Notifications with Firebase Cloud Messaging
 - The manifest currently declares `INTERNET` permission
+
+## Push Notifications
+- Android push registration is wired through Capacitor Push Notifications
+- The app stores FCM device tokens on the backend via authenticated `/api/auth/push-tokens` calls
+- Notification tap handling can deep-link into in-app routes through the notification `data.path` or `data.route` field
 
 ## Development Flow
 ### Install dependencies

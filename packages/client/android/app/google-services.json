@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "563378976826",
+    "project_id": "dwell-hub-mobile",
+    "storage_bucket": "dwell-hub-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:563378976826:android:b11e4968707b8fdb835d03",
+        "android_client_info": {
+          "package_name": "com.resilynk.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCyhgt7fCcHuy3DqLQ3kcWVllg4JKJOc4M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

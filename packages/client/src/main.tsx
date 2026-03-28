@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import App from './App';
 import NavigationBridge from './components/routing/NavigationBridge';
+import PushNotificationsBootstrap from './components/routing/PushNotificationsBootstrap';
 import { shouldUseHashRouter } from './lib/platform';
 import './index.css';
 
@@ -25,6 +26,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <Router>
       <QueryClientProvider client={queryClient}>
         <NavigationBridge />
+        <PushNotificationsBootstrap />
         <App />
         <Toaster
           position="top-right"

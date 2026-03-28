@@ -459,6 +459,114 @@ router.post(
   },
 );
 
+router.post(
+  '/push-tokens',
+  authenticate,
+  [
+    body('token').isString().trim().notEmpty().withMessage('Push token is required'),
+    body('platform').isIn(['android']).withMessage('Only android push registration is supported'),
+    body('societyIds').optional().isArray().withMessage('societyIds must be an array'),
+    body('societyIds.*').optional().isUUID().withMessage('Each societyId must be a valid UUID'),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { token, platform, societyIds } = req.body as {
+        token: string;
+        platform: 'android';
+        societyIds?: string[];
+      };
+
+      const memberships = await prisma.userSocietyMembership.findMany({
+        where: { userId: req.user!.id },
+        select: { societyId: true },
+      });
+
+      const membershipIds = memberships.map((membership) => membership.societyId);
+      const requestedSocietyIds = Array.isArray(societyIds) ? societyIds : [];
+      const fallbackSocietyIds = req.user!.societyId ? [req.user!.societyId] : [];
+      const candidateSocietyIds = requestedSocietyIds.length > 0 ? requestedSocietyIds : fallbackSocietyIds;
+      const allowedSocietyIds = [...new Set(candidateSocietyIds.filter((societyId) => membershipIds.includes(societyId)))];
+
+      if (allowedSocietyIds.length === 0) {
+        return res.status(400).json({ error: 'No eligible societies found for push registration' });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.pushNotificationDevice.deleteMany({
+          where: {
+            token,
+            NOT: { userId: req.user!.id },
+          },
+        });
+
+        await tx.pushNotificationDevice.deleteMany({
+          where: {
+            userId: req.user!.id,
+            token,
+            societyId: { notIn: allowedSocietyIds },
+          },
+        });
+
+        for (const societyId of allowedSocietyIds) {
+          await tx.pushNotificationDevice.upsert({
+            where: {
+              userId_societyId_token: {
+                userId: req.user!.id,
+                societyId,
+                token,
+              },
+            },
+            update: {
+              platform,
+              lastRegisteredAt: new Date(),
+            },
+            create: {
+              userId: req.user!.id,
+              societyId,
+              token,
+              platform,
+              lastRegisteredAt: new Date(),
+            },
+          });
+        }
+      });
+
+      return res.json({
+        message: 'Push token registered',
+        societyIds: allowedSocietyIds,
+      });
+    } catch (error: any) {
+      logger.error('Push token registration failed', { userId: req.user!.id, error: error.message });
+      return res.status(500).json({ error: 'Failed to register push token' });
+    }
+  },
+);
+
+router.delete(
+  '/push-tokens',
+  authenticate,
+  [body('token').isString().trim().notEmpty().withMessage('Push token is required')],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { token } = req.body as { token: string };
+
+      await prisma.pushNotificationDevice.deleteMany({
+        where: {
+          userId: req.user!.id,
+          token,
+        },
+      });
+
+      return res.json({ message: 'Push token removed' });
+    } catch (error: any) {
+      logger.error('Push token deletion failed', { userId: req.user!.id, error: error.message });
+      return res.status(500).json({ error: 'Failed to remove push token' });
+    }
+  },
+);
+
 // ── CHANGE PASSWORD (authenticated) ─────────────────────
 router.post(
   '/change-password',

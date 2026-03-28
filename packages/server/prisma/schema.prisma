@@ -147,6 +147,7 @@ model Society {
   complaints         Complaint[]
   visitors           Visitor[]
   deliveries         Delivery[]
+  pushDevices        PushNotificationDevice[]
   expenses           Expense[]
   bylaws             AssociationBylaw[]
   maintenanceConfig  MaintenanceConfig[]
@@ -280,10 +281,31 @@ model User {
   assignedComplaints Complaint[] @relation("ComplaintAssignee")
   capturedVisitors Visitor[] @relation("VisitorCapturedBy")
   capturedDeliveries Delivery[] @relation("DeliveryCapturedBy")
+  pushDevices       PushNotificationDevice[]
 
   @@index([societyId])
   @@index([activeSocietyId])
   @@map("users")
+}
+
+model PushNotificationDevice {
+  id               String    @id @default(uuid())
+  userId           String
+  societyId        String
+  token            String
+  platform         String
+  lastRegisteredAt DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  society          Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, societyId, token])
+  @@index([userId])
+  @@index([societyId])
+  @@index([token])
+  @@map("push_notification_devices")
 }
 
 model UserSocietyMembership {
