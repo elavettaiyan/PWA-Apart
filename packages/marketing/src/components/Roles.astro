@@ -3,8 +3,8 @@ const roles = [
   {
     icon: 'admin_panel_settings',
     title: 'Secretary / Admin',
-    description: 'Full society overview — manage flats, handle complaints, update bylaws, and oversee staff. Your dashboard shows occupancy, pending issues, and recent activity across the entire complex.',
-    highlights: ['Flat & resident management', 'Complaint resolution', 'Bylaw editing', 'Staff directory'],
+    description: 'Full society overview — manage flats, handle complaints, update bylaws, oversee staff, and monitor gate activity. Your dashboard shows occupancy, pending issues, and recent entry records across the entire complex.',
+    highlights: ['Flat & resident management', 'Complaint resolution', 'Bylaw editing', 'Entry activity oversight'],
   },
   {
     icon: 'account_balance',
@@ -18,6 +18,12 @@ const roles = [
     description: 'Self-service access to flat details, bill history, and online payments. Lodge complaints, check bylaws, and manage tenant information — without calling the office.',
     highlights: ['Bill payments', 'Complaint filing', 'Flat details', 'Tenant management'],
   },
+  {
+    icon: 'shield_person',
+    title: 'Security / Service Staff',
+    description: 'Security and service staff can capture visitor and delivery entries with flat-level mapping, mobile details, purpose tracking, and exit updates. The workflow is built for quick action at the gate without losing audit visibility.',
+    highlights: ['Visitor entry capture', 'Delivery logging', 'Flat mapping', 'Exit status updates'],
+  },
 ];
 ---
 
@@ -29,7 +35,7 @@ const roles = [
       <p class="text-on-surface-variant font-body">Every committee member gets exactly the tools they need. No more, no less.</p>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
       {roles.map((role) => (
         <div class="bg-surface-container-lowest p-10 rounded-xl transition-all duration-300 hover:translate-y-[-4px]">
           <div class="w-12 h-12 bg-primary/5 rounded-xl flex items-center justify-center mb-6">
