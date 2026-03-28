@@ -148,6 +148,7 @@ model Society {
   visitors           Visitor[]
   deliveries         Delivery[]
   pushDevices        PushNotificationDevice[]
+  announcementBroadcasts AnnouncementBroadcast[]
   expenses           Expense[]
   bylaws             AssociationBylaw[]
   maintenanceConfig  MaintenanceConfig[]
@@ -282,6 +283,7 @@ model User {
   capturedVisitors Visitor[] @relation("VisitorCapturedBy")
   capturedDeliveries Delivery[] @relation("DeliveryCapturedBy")
   pushDevices       PushNotificationDevice[]
+  announcementBroadcasts AnnouncementBroadcast[] @relation("AnnouncementBroadcastCreator")
 
   @@index([societyId])
   @@index([activeSocietyId])
@@ -306,6 +308,25 @@ model PushNotificationDevice {
   @@index([societyId])
   @@index([token])
   @@map("push_notification_devices")
+}
+
+model AnnouncementBroadcast {
+  id           String   @id @default(uuid())
+  societyId    String
+  createdById  String
+  title        String
+  message      String
+  path         String?
+  targetRoles  String?
+  sentCount    Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  society      Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  createdBy    User     @relation("AnnouncementBroadcastCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([societyId])
+  @@index([createdById])
+  @@map("announcement_broadcasts")
 }
 
 model UserSocietyMembership {

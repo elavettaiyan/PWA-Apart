@@ -23,6 +23,7 @@ import staffRoutes from './modules/staff/routes';
 import visitorRoutes from './modules/visitors/routes';
 import deliveryRoutes from './modules/deliveries/routes';
 import premiumRoutes, { premiumWebhookHandler } from './modules/premium/routes';
+import notificationRoutes from './modules/notifications/routes';
 
 const app = express();
 const processStartMs = Date.now();
@@ -207,6 +208,7 @@ app.use('/api/staff', staffRoutes);
 app.use('/api/visitors', visitorRoutes);
 app.use('/api/deliveries', deliveryRoutes);
 app.use('/api/premium', premiumRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // ── ERROR HANDLING ──────────────────────────────────────
 app.use(notFound);

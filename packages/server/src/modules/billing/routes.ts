@@ -6,6 +6,7 @@ import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 import { buildResidentBillFilter, canResidentAccessBill } from './scope';
 import { sendPaymentReceiptEmail, PaymentReceiptData } from '../../config/email';
+import { notifyPaymentSuccess } from '../notifications/service';
 
 const router = Router();
 router.use(authenticate);
@@ -672,6 +673,8 @@ router.post(
       } catch (emailErr: any) {
         logger.error('Record payment receipt email failed (non-blocking)', { billId: bill.id, error: emailErr.message });
       }
+
+      notifyPaymentSuccess(payment.id).catch(() => {});
 
       return res.json({ payment, newStatus, paidAmount: newPaidAmount });
     } catch (error) {

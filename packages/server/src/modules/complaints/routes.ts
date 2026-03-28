@@ -4,6 +4,7 @@ import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest, SOCIETY_MANAGERS, RESIDENT_ROLES } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import { upload, getFileUrl } from '../../middleware/upload';
+import { notifyNewComplaint } from '../notifications/service';
 
 const router = Router();
 router.use(authenticate);
@@ -154,6 +155,8 @@ router.post(
           createdBy: { select: { name: true } },
         },
       });
+
+      notifyNewComplaint(complaint.id).catch(() => {});
 
       return res.status(201).json(parseImages(complaint));
     } catch (error) {

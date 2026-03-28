@@ -9,6 +9,7 @@ import logger from '../../config/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { calculateBillPaymentUpdate, generateChecksum, verifyCallbackChecksum } from './phonepeUtils';
 import { sendPaymentReceiptEmail, PaymentReceiptData } from '../../config/email';
+import { notifyPaymentSuccess } from '../notifications/service';
 
 const router = Router();
 const BULK_REF_PREFIX = 'BULK:'; // Prefix in payment.notes to link bulk payments without merchantTransId on each record
@@ -134,6 +135,7 @@ async function markBulkPaymentsSuccess(merchantTransId: string, transactionId: s
     }
 
     let processedCount = 0;
+    const processedPaymentIds: string[] = [];
 
     for (const payment of linkedPayments) {
       if (payment.status === 'SUCCESS') continue;
@@ -160,9 +162,10 @@ async function markBulkPaymentsSuccess(merchantTransId: string, transactionId: s
       });
 
       processedCount++;
+      processedPaymentIds.push(payment.id);
     }
 
-    return { processedCount };
+    return { processedCount, processedPaymentIds };
   });
 }
 
@@ -531,13 +534,9 @@ router.post('/phonepe/callback', async (req: Request, res: Response) => {
         const result = await markBulkPaymentsSuccess(merchantTransId, decodedResponse.data?.transactionId, decodedResponse);
         logger.info(`Bulk payment successful: ${merchantTransId}`, { processedCount: result.processedCount });
 
-        // Send receipt emails for each bill in the bulk payment
-        const bulkPayments = await prisma.payment.findMany({
-          where: { OR: [{ merchantTransId }, { notes: bulkRef(merchantTransId) }], status: 'SUCCESS' },
-          select: { id: true },
-        });
-        for (const bp of bulkPayments) {
-          sendReceiptForPayment(bp.id).catch(() => {});
+        for (const paymentId of result.processedPaymentIds) {
+          sendReceiptForPayment(paymentId).catch(() => {});
+          notifyPaymentSuccess(paymentId).catch(() => {});
         }
       } else {
         const result = await markPaymentSuccess(payment.id, decodedResponse.data?.transactionId, decodedResponse);
@@ -545,6 +544,7 @@ router.post('/phonepe/callback', async (req: Request, res: Response) => {
 
         if (!result.alreadyProcessed) {
           sendReceiptForPayment(payment.id).catch(() => {});
+          notifyPaymentSuccess(payment.id).catch(() => {});
         }
       }
     } else {
@@ -632,12 +632,9 @@ router.get(
             if (isBulkPayment(payment.notes)) {
               const result = await markBulkPaymentsSuccess(merchantTransId, statusData.data?.transactionId, statusData);
 
-              const bulkPayments = await prisma.payment.findMany({
-                where: { OR: [{ merchantTransId }, { notes: bulkRef(merchantTransId) }], status: 'SUCCESS' },
-                select: { id: true },
-              });
-              for (const bp of bulkPayments) {
-                sendReceiptForPayment(bp.id).catch(() => {});
+              for (const paymentId of result.processedPaymentIds) {
+                sendReceiptForPayment(paymentId).catch(() => {});
+                notifyPaymentSuccess(paymentId).catch(() => {});
               }
               return res.json({ ...payment, status: 'SUCCESS', bulkProcessedCount: result.processedCount });
             }
@@ -645,6 +642,7 @@ router.get(
             const result = await markPaymentSuccess(payment.id, statusData.data?.transactionId, statusData);
             if (!result.alreadyProcessed) {
               sendReceiptForPayment(payment.id).catch(() => {});
+              notifyPaymentSuccess(payment.id).catch(() => {});
             }
             return res.json({ ...payment, status: 'SUCCESS', alreadyProcessed: result.alreadyProcessed });
           }

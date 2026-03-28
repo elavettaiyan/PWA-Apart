@@ -5,6 +5,7 @@ import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import { getFileUrl, upload } from '../../middleware/upload';
 import { ENTRY_ACCESS_ROLES, ENTRY_MANAGE_ROLES, findFlatInSociety, getFlatResidentName, getResidentFlatIds, isResidentRole } from '../entries/utils';
+import { notifyDeliveryAlert } from '../notifications/service';
 
 const router = Router();
 router.use(authenticate);
@@ -132,6 +133,8 @@ router.post(
           capturedBy: { select: { name: true } },
         },
       });
+
+      notifyDeliveryAlert(delivery.id).catch(() => {});
 
       return res.status(201).json(toDeliveryResponse(delivery));
     } catch (error) {
