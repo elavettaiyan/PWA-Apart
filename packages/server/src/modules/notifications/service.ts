@@ -13,6 +13,8 @@ type PushPayload = {
   entityId?: string;
 };
 
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
 const COMPLAINT_SPECIALIZATION_BY_CATEGORY: Record<string, string> = {
   Plumbing: 'Plumber',
   Electrical: 'Electrician',
@@ -256,6 +258,32 @@ export async function notifyPaymentSuccess(paymentId: string) {
     route: '/billing',
     type: 'payment.success',
     entityId: payment.id,
+  });
+}
+
+export async function notifyBillGenerated(billId: string) {
+  const bill = await prisma.maintenanceBill.findUnique({
+    where: { id: billId },
+    include: {
+      flat: {
+        include: {
+          block: { select: { societyId: true, name: true } },
+        },
+      },
+    },
+  });
+
+  if (!bill) {
+    return { configured: false, sentCount: 0, failedCount: 0, skipped: true };
+  }
+
+  return sendPushToFlatResidents(bill.flat.block.societyId, bill.flatId, {
+    title: 'Maintenance bill generated',
+    body: `${bill.flat.block.name} ${bill.flat.flatNumber}: ${MONTH_NAMES[bill.month - 1]} ${bill.year} bill of INR ${bill.totalAmount.toFixed(0)} is now available.`,
+    path: '/billing',
+    route: '/billing',
+    type: 'billing.generated',
+    entityId: bill.id,
   });
 }
 

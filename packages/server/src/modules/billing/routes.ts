@@ -6,7 +6,7 @@ import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 import { buildResidentBillFilter, canResidentAccessBill } from './scope';
 import { sendPaymentReceiptEmail, PaymentReceiptData } from '../../config/email';
-import { notifyPaymentSuccess } from '../notifications/service';
+import { notifyBillGenerated, notifyPaymentSuccess } from '../notifications/service';
 
 const router = Router();
 router.use(authenticate);
@@ -280,6 +280,7 @@ router.post(
       const configMap = new Map(configs.map((c) => [c.flatType, c]));
 
       let generatedCount = 0;
+      const generatedBillIds: string[] = [];
       const errors: string[] = [];
 
       for (const flat of flats) {
@@ -310,7 +311,7 @@ router.post(
         const dueDay = Math.min(Math.max(cfg.dueDay, 1), 28);
         const dueDate = new Date(year, month - 1, dueDay);
 
-        await prisma.maintenanceBill.create({
+        const bill = await prisma.maintenanceBill.create({
           data: {
             flatId: flat.id,
             month,
@@ -327,10 +328,17 @@ router.post(
           },
         });
 
+        generatedBillIds.push(bill.id);
         generatedCount++;
       }
 
       logger.info(`Generated ${generatedCount} bills for ${month}/${year}`);
+
+      for (const billId of generatedBillIds) {
+        notifyBillGenerated(billId).catch((error: any) => {
+          logger.error('Bill generation notification failed', { billId, error: error.message });
+        });
+      }
 
       if (generatedCount === 0) {
         return res.status(400).json({
