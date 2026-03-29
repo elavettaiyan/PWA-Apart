@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Settings, CreditCard, Eye, EyeOff, CheckCircle2, XCircle,
   Loader2, Zap, ToggleLeft, ToggleRight, ShieldCheck, Globe, Clock,
-  Users, ChevronDown, KeyRound, LogOut,
+  Users, ChevronDown,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -51,7 +51,7 @@ export default function SettingsPage() {
   const legalBaseUrl = 'https://dwellhub.in';
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
   const activeSocietyId = user?.activeSocietyId || user?.societyId || '';
   const [showSaltKey, setShowSaltKey] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
@@ -198,48 +198,6 @@ export default function SettingsPage() {
           </p>
         </div>
       </div>
-
-      <SettingsAccordion
-        title="Account"
-        description="Manage password, session access, and account details"
-        icon={Settings}
-        iconWrapperClassName="group-open:bg-sky-100"
-        iconClassName="group-open:text-sky-800"
-      >
-        <div className="space-y-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-secondary-container rounded-full flex items-center justify-center ring-2 ring-primary/10 flex-shrink-0">
-              <span className="text-xl font-bold text-on-secondary-container">
-                {user?.name?.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <div className="min-w-0">
-              <p className="text-lg font-bold text-primary truncate">{user?.name}</p>
-              <p className="text-xs text-outline break-all">{user?.email}</p>
-              <p className="text-[10px] text-outline uppercase tracking-widest font-bold mt-0.5">{user?.role?.replace('_', ' ')}</p>
-              {user?.societies?.length ? (
-                <p className="text-sm text-on-surface-variant mt-2 truncate">
-                  {user.societies.find((society) => society.id === (user.activeSocietyId || user.societyId))?.name || user.societies[0]?.name}
-                </p>
-              ) : null}
-            </div>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3 mt-5">
-            <button
-              onClick={() => navigate('/settings/change-password')}
-              className="btn-secondary"
-            >
-              <KeyRound className="w-4 h-4" /> Change Password
-            </button>
-            <button
-              onClick={() => { queryClient.clear(); logout(); navigate('/login'); }}
-              className="btn-secondary text-error border-error/20 hover:bg-error-container/30"
-            >
-              <LogOut className="w-4 h-4" /> Sign Out
-            </button>
-          </div>
-        </div>
-      </SettingsAccordion>
 
       {isAdmin && (
       <>
@@ -477,7 +435,7 @@ export default function SettingsPage() {
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface-variant"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 p-2 text-outline hover:text-on-surface-variant touch-manipulation"
                   onClick={() => setShowSaltKey(!showSaltKey)}
                 >
                   {showSaltKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}

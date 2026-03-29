@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Building2, Users, Receipt, MessageSquareWarning,
-  Wallet, TrendingUp, TrendingDown, Home, CreditCard, Shield, Trash2,
-  ChevronRight, BarChart3, ClipboardList, FileText,
+  Building2, Users, MessageSquareWarning,
+  Shield, Trash2,
+  ChevronRight,
 } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -279,40 +279,6 @@ function ResidentDashboard() {
           <ChevronRight className="w-5 h-5 text-on-surface-variant" />
         </button>
       )}
-
-      {/* Quick actions */}
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Quick Actions</p>
-        <div className="grid grid-cols-3 gap-3">
-          <button
-            onClick={() => navigate('/billing')}
-            className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex flex-col items-center gap-2 hover:border-primary/20 transition-colors"
-          >
-            <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center">
-              <CreditCard className="w-5 h-5 text-primary" />
-            </div>
-            <p className="text-xs font-semibold text-on-surface">Pay Bills</p>
-          </button>
-          <button
-            onClick={() => navigate('/complaints')}
-            className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex flex-col items-center gap-2 hover:border-primary/20 transition-colors"
-          >
-            <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center">
-              <MessageSquareWarning className="w-5 h-5 text-primary" />
-            </div>
-            <p className="text-xs font-semibold text-on-surface">Complaints</p>
-          </button>
-          <button
-            onClick={() => navigate('/my-flat')}
-            className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex flex-col items-center gap-2 hover:border-primary/20 transition-colors"
-          >
-            <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center">
-              <Home className="w-5 h-5 text-primary" />
-            </div>
-            <p className="text-xs font-semibold text-on-surface">My Flat</p>
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
@@ -322,7 +288,6 @@ function AdminDashboard() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const isAdmin = SOCIETY_ADMINS.includes(user?.role as any);
-  const isTreasurer = user?.role === 'TREASURER';
 
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ['dashboard'],
@@ -389,7 +354,7 @@ function AdminDashboard() {
 
       {/* ── Occupancy (Admin / Secretary / Joint Secretary) ── */}
       {(isAdmin || user?.role === 'JOINT_SECRETARY') && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="rounded-2xl bg-surface-container-low p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Total Flats</p>
@@ -417,102 +382,6 @@ function AdminDashboard() {
           </div>
         </div>
       )}
-
-      {/* ── Quick Actions — role filtered ── */}
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Quick Actions</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Billing — all financial roles */}
-          <button
-            onClick={() => navigate('/billing')}
-            className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex items-center gap-3 hover:border-primary/20 transition-colors"
-          >
-            <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Receipt className="w-5 h-5 text-primary" />
-            </div>
-            <div className="text-left">
-              <p className="text-sm font-semibold text-on-surface">Billing</p>
-              <p className="text-[10px] text-on-surface-variant">Generate & track bills</p>
-            </div>
-          </button>
-
-          {/* Expenses — all financial roles */}
-          <button
-            onClick={() => navigate('/expenses')}
-            className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex items-center gap-3 hover:border-primary/20 transition-colors"
-          >
-            <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Wallet className="w-5 h-5 text-primary" />
-            </div>
-            <div className="text-left">
-              <p className="text-sm font-semibold text-on-surface">Expenses</p>
-              <p className="text-[10px] text-on-surface-variant">Record & review</p>
-            </div>
-          </button>
-
-          {/* Reports — all financial roles */}
-          <button
-            onClick={() => navigate('/reports')}
-            className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex items-center gap-3 hover:border-primary/20 transition-colors"
-          >
-            <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center flex-shrink-0">
-              <BarChart3 className="w-5 h-5 text-primary" />
-            </div>
-            <div className="text-left">
-              <p className="text-sm font-semibold text-on-surface">Reports</p>
-              <p className="text-[10px] text-on-surface-variant">P&L, defaulters</p>
-            </div>
-          </button>
-
-          {/* Complaints — Admin, Secretary, JointSec */}
-          {!isTreasurer && (
-            <button
-              onClick={() => navigate('/complaints')}
-              className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex items-center gap-3 hover:border-primary/20 transition-colors"
-            >
-              <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center flex-shrink-0">
-                <MessageSquareWarning className="w-5 h-5 text-primary" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-semibold text-on-surface">Complaints</p>
-                <p className="text-[10px] text-on-surface-variant">Resolve issues</p>
-              </div>
-            </button>
-          )}
-
-          {/* Flats — Admin & Secretary */}
-          {isAdmin && (
-            <button
-              onClick={() => navigate('/flats')}
-              className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex items-center gap-3 hover:border-primary/20 transition-colors"
-            >
-              <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Building2 className="w-5 h-5 text-primary" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-semibold text-on-surface">Flats</p>
-                <p className="text-[10px] text-on-surface-variant">Manage residents</p>
-              </div>
-            </button>
-          )}
-
-          {/* Settings — Admin & Secretary */}
-          {isAdmin && (
-            <button
-              onClick={() => navigate('/settings')}
-              className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex items-center gap-3 hover:border-primary/20 transition-colors"
-            >
-              <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center flex-shrink-0">
-                <ClipboardList className="w-5 h-5 text-primary" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-semibold text-on-surface">Settings</p>
-                <p className="text-[10px] text-on-surface-variant">Staff, menus, billing</p>
-              </div>
-            </button>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

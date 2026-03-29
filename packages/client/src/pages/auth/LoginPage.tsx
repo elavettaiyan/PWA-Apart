@@ -58,7 +58,7 @@ export default function LoginPage() {
             <BrandMark size={48} className="rounded-2xl" />
             <div>
               <h1 className="text-2xl font-extrabold text-primary font-headline tracking-tight">Dwell Hub</h1>
-              <p className="text-[10px] text-outline font-bold uppercase tracking-widest">Management Portal</p>
+              <p className="text-[10px] text-outline font-bold uppercase tracking-widest">Apartment Console</p>
             </div>
           </div>
 
@@ -92,7 +92,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface-variant"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 p-2 text-outline hover:text-on-surface-variant touch-manipulation"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -118,12 +118,6 @@ export default function LoginPage() {
           </form>
           {showRegistrationLink && (
             <div className="mt-4 text-center">
-            {/* <Link
-              to="/admin/login"
-              className="block text-sm text-on-surface-variant hover:text-on-surface-variant font-medium mb-3"
-            >
-              Admin portal login
-            </Link> */}
             <Link
               to="/register"
               className="text-sm text-primary hover:text-primary font-medium"

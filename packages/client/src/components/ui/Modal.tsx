@@ -36,7 +36,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
           <h2 className="text-base font-headline font-bold text-primary sm:text-lg">{title}</h2>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-surface-container transition"
+            className="p-2.5 -mr-1.5 rounded-lg hover:bg-surface-container transition touch-manipulation"
           >
             <X className="w-5 h-5 text-outline" />
           </button>

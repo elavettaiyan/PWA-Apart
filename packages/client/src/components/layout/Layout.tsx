@@ -246,19 +246,7 @@ export default function Layout({ children }: LayoutProps) {
 
         {/* Desktop Top App Bar — glassmorphism */}
         <header className="hidden lg:block sticky top-0 z-30 bg-surface-container-lowest/80 backdrop-blur-xl">
-          <div className="flex items-center justify-between px-8 py-4">
-            <div className="flex items-center gap-4">
-              {/* Search Bar */}
-              {/* <div className="flex items-center bg-surface-container-low rounded-full px-4 py-2 w-96">
-                <span className="material-symbols-outlined text-outline mr-2 text-xl">search</span>
-                <input
-                  className="bg-transparent border-none focus:ring-0 focus:outline-none text-sm w-full placeholder:text-outline text-on-surface"
-                  placeholder="Search residents, bills, or units..."
-                  type="text"
-                />
-              </div> */}
-            </div>
-
+          <div className="flex items-center justify-end px-8 py-4">
             <div className="flex items-center gap-4">
               {(societiesData?.societies?.length || 0) > 1 && (
                 <select
@@ -273,19 +261,13 @@ export default function Layout({ children }: LayoutProps) {
                 </select>
               )}
 
-              {/* Notifications */}
-              <button className="text-outline hover:text-primary transition-colors relative">
-                <span className="material-symbols-outlined">notifications</span>
-                <span className="absolute -top-1 -right-1 bg-error w-2 h-2 rounded-full border-2 border-surface-container-lowest"></span>
-              </button>
-
               {/* Settings gear */}
               {visibleMenuIdSet.has('settings') && (
                 <button
                   onClick={() => navigate('/settings')}
                   className="text-outline hover:text-primary transition-colors"
                 >
-                  <span className="material-symbols-outlined">settings</span>
+                  <Settings className="w-5 h-5" />
                 </button>
               )}
 
