@@ -13,6 +13,21 @@ import { buildPremiumLifecycleMessage, ensurePremiumLifecycleForSociety, shouldB
 
 const router = Router();
 
+async function findUserByEmailInsensitive(tx: any, email: string, options: Record<string, any> = {}) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+
+  return tx.user.findFirst({
+    where: {
+      email: {
+        equals: normalizedEmail,
+        mode: 'insensitive',
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+    ...options,
+  });
+}
+
 async function ensureMembership(tx: any, userId: string, societyId: string, role: string) {
   await tx.userSocietyMembership.upsert({
     where: { userId_societyId: { userId, societyId } },
@@ -50,7 +65,9 @@ router.post(
       logger.info('Register society attempt', { email, societyName });
 
       // Check if email already exists
-      const existing = await prisma.user.findUnique({ where: { email } });
+      const existing = await findUserByEmailInsensitive(prisma, email, {
+        select: { id: true },
+      });
       if (existing) {
         logger.warn('Register society: email already exists', { email });
         return res.status(409).json({ error: 'Email already registered. Please login instead.' });
@@ -138,7 +155,9 @@ router.post(
     try {
       const { email, password, name, phone, role, societyId } = req.body;
 
-      const existing = await prisma.user.findUnique({ where: { email } });
+      const existing = await findUserByEmailInsensitive(prisma, email, {
+        select: { id: true },
+      });
       if (existing) {
         return res.status(409).json({ error: 'Email already registered' });
       }
@@ -185,8 +204,7 @@ router.post(
 
       logger.info('Login attempt', { email });
 
-      const user = await prisma.user.findUnique({
-        where: { email },
+      const user = await findUserByEmailInsensitive(prisma, email, {
         include: {
           owners: { include: { flat: { include: { block: true } } } },
           tenants: { include: { flat: { include: { block: true } } } },
@@ -212,16 +230,16 @@ router.post(
       });
 
       const ownerSocietyIds = user.owners
-        .map((owner) => owner.flat?.block?.societyId)
-        .filter((id): id is string => !!id);
+        .map((owner: any) => owner.flat?.block?.societyId)
+        .filter((id: any): id is string => !!id);
       const tenantSocietyIds = user.tenants
-        .map((tenant) => tenant.flat?.block?.societyId)
-        .filter((id): id is string => !!id);
+        .map((tenant: any) => tenant.flat?.block?.societyId)
+        .filter((id: any): id is string => !!id);
       const knownSocietyIds = new Set<string>([
         ...(user.societyId ? [user.societyId] : []),
         ...ownerSocietyIds,
         ...tenantSocietyIds,
-        ...user.societyMemberships.map((m) => m.societyId),
+        ...user.societyMemberships.map((m: any) => m.societyId),
       ]);
 
       if (knownSocietyIds.size > 0) {
@@ -252,8 +270,8 @@ router.post(
         });
       }
 
-      const flatFromOwners = user.owners.find((owner) => owner.flat?.block?.societyId === activeSocietyId)?.flat;
-      const flatFromTenants = user.tenants.find((tenant) => tenant.flat?.block?.societyId === activeSocietyId)?.flat;
+      const flatFromOwners = user.owners.find((owner: any) => owner.flat?.block?.societyId === activeSocietyId)?.flat;
+      const flatFromTenants = user.tenants.find((tenant: any) => tenant.flat?.block?.societyId === activeSocietyId)?.flat;
 
       const societies = await prisma.userSocietyMembership.findMany({
         where: { userId: user.id },
@@ -619,7 +637,7 @@ router.post(
 
       logger.info('Forgot password requested', { email });
 
-      const user = await prisma.user.findUnique({ where: { email } });
+      const user = await findUserByEmailInsensitive(prisma, email);
 
       if (!user || !user.isActive) {
         logger.warn('Forgot password failed: user not found or inactive', { email });

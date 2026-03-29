@@ -27,6 +27,33 @@ function normalizeIndianMobileNumber(value: string): string {
   return digitsOnly;
 }
 
+async function findUserByEmailInsensitive(tx: any, email: string, select?: Record<string, boolean>) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+
+  return tx.user.findFirst({
+    where: {
+      email: {
+        equals: normalizedEmail,
+        mode: 'insensitive',
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+    ...(select ? { select } : {}),
+  });
+}
+
+function getLinkedMembershipRole(
+  existingUser: { role: string; societyId?: string | null; activeSocietyId?: string | null },
+  societyId: string,
+  fallbackRole: 'OWNER' | 'TENANT',
+) {
+  if (existingUser.societyId === societyId || existingUser.activeSocietyId === societyId) {
+    return existingUser.role;
+  }
+
+  return fallbackRole;
+}
+
 // All routes require authentication
 router.use(authenticate);
 
@@ -536,7 +563,10 @@ router.post(
         if (normalizedEmail) {
           const existingOwner = await tx.owner.findFirst({
             where: {
-              email: normalizedEmail,
+              email: {
+                equals: normalizedEmail,
+                mode: 'insensitive',
+              },
               flat: { block: { societyId: flat.block.societyId } },
             },
             select: { id: true },
@@ -551,9 +581,11 @@ router.post(
         if (req.body.email && req.body.phone) {
           const normalizedOwnerEmail = String(req.body.email).trim().toLowerCase();
 
-          const existingUser = await tx.user.findUnique({
-            where: { email: normalizedOwnerEmail },
-            select: { id: true, role: true },
+          const existingUser = await findUserByEmailInsensitive(tx, normalizedOwnerEmail, {
+            id: true,
+            role: true,
+            societyId: true,
+            activeSocietyId: true,
           });
 
           if (existingUser) {
@@ -567,7 +599,7 @@ router.post(
                 data: {
                   userId: existingUser.id,
                   societyId: flat.block.societyId,
-                  role: 'OWNER',
+                  role: getLinkedMembershipRole(existingUser, flat.block.societyId, 'OWNER') as any,
                 },
               });
             }
@@ -678,9 +710,11 @@ router.put(
       // Re-link userId when email changes
       let userId: string | undefined;
       if (normalizedEmail && normalizedEmail !== existing.email) {
-        const matchedUser = await prisma.user.findUnique({
-          where: { email: normalizedEmail },
-          select: { id: true },
+        const matchedUser = await findUserByEmailInsensitive(prisma, normalizedEmail, {
+          id: true,
+          role: true,
+          societyId: true,
+          activeSocietyId: true,
         });
         if (matchedUser) {
           userId = matchedUser.id;
@@ -690,7 +724,11 @@ router.put(
           });
           if (!membership) {
             await prisma.userSocietyMembership.create({
-              data: { userId: matchedUser.id, societyId, role: 'OWNER' },
+              data: {
+                userId: matchedUser.id,
+                societyId,
+                role: getLinkedMembershipRole(matchedUser, societyId, 'OWNER') as any,
+              },
             });
           }
         }
@@ -745,9 +783,11 @@ router.post(
         let tenantUserId: string | null = null;
         if (req.body.email && req.body.phone) {
           const normalizedEmail = String(req.body.email).trim().toLowerCase();
-          const existingUser = await tx.user.findUnique({
-            where: { email: normalizedEmail },
-            select: { id: true },
+          const existingUser = await findUserByEmailInsensitive(tx, normalizedEmail, {
+            id: true,
+            role: true,
+            societyId: true,
+            activeSocietyId: true,
           });
 
           if (existingUser) {
@@ -758,7 +798,11 @@ router.post(
             });
             if (!sameSocietyMembership) {
               await tx.userSocietyMembership.create({
-                data: { userId: existingUser.id, societyId: flat.block.societyId, role: 'TENANT' },
+                data: {
+                  userId: existingUser.id,
+                  societyId: flat.block.societyId,
+                  role: getLinkedMembershipRole(existingUser, flat.block.societyId, 'TENANT') as any,
+                },
               });
             }
             tenantUserId = existingUser.id;
@@ -844,6 +888,34 @@ router.put(
       }
 
       const normalizedEmail = req.body.email ? String(req.body.email).trim().toLowerCase() : undefined;
+      let userId: string | undefined;
+
+      if (normalizedEmail && normalizedEmail !== existing.email) {
+        const matchedUser = await findUserByEmailInsensitive(prisma, normalizedEmail, {
+          id: true,
+          role: true,
+          societyId: true,
+          activeSocietyId: true,
+        });
+
+        if (matchedUser) {
+          userId = matchedUser.id;
+
+          const membership = await prisma.userSocietyMembership.findUnique({
+            where: { userId_societyId: { userId: matchedUser.id, societyId: existing.flat.block.societyId } },
+          });
+
+          if (!membership) {
+            await prisma.userSocietyMembership.create({
+              data: {
+                userId: matchedUser.id,
+                societyId: existing.flat.block.societyId,
+                role: getLinkedMembershipRole(matchedUser, existing.flat.block.societyId, 'TENANT') as any,
+              },
+            });
+          }
+        }
+      }
 
       const tenant = await prisma.tenant.update({
         where: { id: req.params.id },
@@ -858,6 +930,7 @@ router.put(
           rentAmount: req.body.rentAmount !== undefined ? parseFloat(req.body.rentAmount) : undefined,
           deposit: req.body.deposit !== undefined ? parseFloat(req.body.deposit) : undefined,
           isActive: req.body.isActive,
+          ...(userId !== undefined ? { userId } : {}),
         },
       });
       return res.json(tenant);
