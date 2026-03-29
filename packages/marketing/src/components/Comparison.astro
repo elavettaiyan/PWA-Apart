@@ -5,35 +5,40 @@ const rows = [
   {
     label: 'Platform fee',
     icon: 'payments',
-    others: '₹3–15 /flat/month',
-    ours: '₹15 /flat/month',
-    oursNote: 'All features included',
+    others: '₹3–15 /flat/month base fee',
+    perFlat: 5,
+    ours: '₹20 /flat/month',
+    oursNote: 'All core workflows included',
   },
   {
     label: 'Payment gateway',
     icon: 'account_balance',
-    others: '1.5–2 % per transaction',
+    others: '1.5–2 % per txn (≈₹30 on ₹1,500 bill)',
+    perFlat: 30,
     ours: '0 %',
     oursNote: 'UPI is free in India',
   },
   {
     label: 'Setup & onboarding',
     icon: 'handshake',
-    others: '₹5,000 – ₹50,000',
+    others: '₹10,000+ one-time (≈₹17/flat/mo over 12 mo)',
+    perFlat: 17,
     ours: 'Free',
     oursNote: 'Self-serve setup in minutes',
   },
   {
     label: 'Feature modules',
     icon: 'extension',
-    others: '₹2–5 /flat extra per module',
+    others: '₹2–5 /flat extra per module (≈₹25 /flat total)',
+    perFlat: 25,
     ours: 'Everything included',
-    oursNote: 'Billing, complaints, gate management & more',
+    oursNote: 'Billing, complaints, gate management, reports, and more',
   },
   {
     label: 'SMS & notifications',
     icon: 'notifications',
-    others: '₹500 – ₹1,000 /month',
+    others: '₹500+ /month (≈₹10/flat for 50 flats)',
+    perFlat: 10,
     ours: 'Free',
     oursNote: 'Push notifications & email',
   },
@@ -47,8 +52,25 @@ const rows = [
 ];
 
 const totals = [
-  { flats: 50, others: '₹8,000 – ₹25,000', ours: '₹750' },
-  { flats: 100, others: '₹15,000 – ₹40,000', ours: '₹1,500' },
+  { flats: 50, others: '~₹4,350', ours: '₹1,000' },
+];
+
+const summaryTotals = [
+  {
+    label: 'Per flat',
+    others: '~₹87/month',
+    ours: '₹20/month',
+  },
+  {
+    label: '50-flat society',
+    others: '~₹4,350/month',
+    ours: '₹1,000/month',
+  },
+  {
+    label: '100-flat society',
+    others: '~₹8,700/month',
+    ours: '₹2,000/month',
+  },
 ];
 ---
 
@@ -56,18 +78,26 @@ const totals = [
   <div class="max-w-7xl mx-auto">
 
     <!-- Header -->
-    <div class="mb-16 max-w-2xl">
-      <p class="text-xs font-bold tracking-widest uppercase text-primary mb-4 font-label">The Real Cost</p>
+    <div class="mb-12 max-w-3xl">
+      <p class="text-xs font-bold tracking-widest uppercase text-primary mb-4 font-label">Clear Monthly Pricing</p>
       <h2 class="text-4xl font-extrabold text-primary tracking-tight mb-6 font-headline leading-tight">
-        They advertise ₹3/flat.<br class="hidden sm:block" />You end up paying ₹15,000.
+        Manage your 50-flat community for just ₹1,000/month.
       </h2>
       <p class="text-on-surface-variant font-body leading-relaxed">
-        Most society apps hide fees behind gateway charges, module upgrades, and setup costs. Here's what you actually pay — no fine print.
+        Start with the number your committee actually needs. Dwell Hub keeps billing simple: one transparent monthly price, core workflows included, and no setup surprises.
       </p>
     </div>
 
-    <!-- Comparison Table -->
-    <div class="bg-surface-container-lowest rounded-2xl overflow-hidden editorial-shadow">
+    <!-- Intro -->
+    <div class="mb-12 max-w-3xl">
+      <h3 class="text-xl font-bold text-primary font-headline mb-3">Why total cost stays predictable</h3>
+      <p class="text-on-surface-variant font-body leading-relaxed">
+        Most apps start with a low sticker price but pile on charges for modules, SMS packs, payment processing, and mandatory onboarding — making the real monthly cost much higher. Dwell Hub folds everything your committee needs into one transparent number.
+      </p>
+    </div>
+
+    <!-- Unified Comparison Table -->
+    <div class="bg-surface-container-lowest rounded-2xl overflow-hidden editorial-shadow relative">
 
       <!-- Column Headers -->
       <div class="grid grid-cols-[1fr_1fr_1fr] sm:grid-cols-[2fr_1.5fr_1.5fr] border-b border-primary/5">
@@ -77,14 +107,21 @@ const totals = [
         <div class="p-6 lg:p-8 bg-surface-container-low/50">
           <span class="text-xs font-bold tracking-widest uppercase text-on-surface-variant font-label">Typical Apps</span>
         </div>
-        <div class="p-6 lg:p-8 bg-primary/[0.03]">
-          <span class="text-xs font-bold tracking-widest uppercase text-primary font-label">Dwell Hub</span>
+        <div class="p-6 lg:p-8 bg-primary text-on-primary flex items-center gap-3 relative">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 32 32" fill="none" class="flex-shrink-0">
+            <rect width="32" height="32" rx="8" fill="rgba(255,255,255,0.15)"/>
+            <path d="M22 26V10a2 2 0 00-2-2h-8a2 2 0 00-2 2v16m14 0h1.5m-1.5 0h-4m-10 0H8.5m1.5 0h4M13 13h1m-1 3h1m4-3h1m-1 3h1m-4 10v-4a1 1 0 011-1h2a1 1 0 011 1v4m-4 0h4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <div>
+            <span class="text-sm font-bold tracking-tighter font-headline block">Dwell Hub</span>
+            <span class="text-[10px] font-bold tracking-widest uppercase opacity-70">Save 4×</span>
+          </div>
         </div>
       </div>
 
       <!-- Rows -->
       {rows.map((row) => (
-        <div class="grid grid-cols-[1fr_1fr_1fr] sm:grid-cols-[2fr_1.5fr_1.5fr] border-b border-primary/5 last:border-b-0">
+        <div class="grid grid-cols-[1fr_1fr_1fr] sm:grid-cols-[2fr_1.5fr_1.5fr] border-b border-primary/5">
           <div class="p-6 lg:p-8 flex items-start gap-4">
             <div class="hidden sm:flex w-9 h-9 bg-primary/5 rounded-lg items-center justify-center flex-shrink-0 mt-0.5">
               <span class="material-symbols-outlined text-primary text-xl">{row.icon}</span>
@@ -94,35 +131,36 @@ const totals = [
           <div class="p-6 lg:p-8 bg-surface-container-low/50 flex items-start">
             <span class="text-sm text-on-surface-variant font-body">{row.others}</span>
           </div>
-          <div class="p-6 lg:p-8 bg-primary/[0.03] flex items-start gap-3">
+          <div class="p-6 lg:p-8 bg-primary/[0.06] flex items-start gap-3">
             <span class="material-symbols-outlined text-emerald-600 text-lg flex-shrink-0 mt-0.5">check_circle</span>
             <div>
-              <span class="text-sm font-semibold text-primary font-headline block">{row.ours}</span>
+              <span class="text-sm font-bold text-primary font-headline block">{row.ours}</span>
               <span class="text-xs text-on-surface-variant font-body hidden sm:block">{row.oursNote}</span>
             </div>
           </div>
         </div>
       ))}
 
-      <!-- Total Cost Highlight -->
-      <div class="bg-primary/[0.06] border-t-2 border-primary/10">
-        <div class="p-6 lg:p-8">
-          <p class="text-xs font-bold tracking-widest uppercase text-primary mb-6 font-label">Real monthly cost</p>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {totals.map((t) => (
-              <div class="flex items-center justify-between sm:block bg-surface-container-lowest rounded-xl p-6">
-                <div>
-                  <p class="text-sm text-on-surface-variant font-body mb-1">{t.flats}-flat society</p>
-                  <p class="text-sm text-on-surface-variant font-body line-through">{t.others}/month</p>
-                </div>
-                <p class="text-3xl font-extrabold text-primary font-headline sm:mt-2">
-                  {t.ours}<span class="text-sm font-medium text-on-surface-variant">/month</span>
-                </p>
+      <!-- Total Rows -->
+      <div class="border-t-2 border-primary/15">
+        {summaryTotals.map((total, i) => (
+          <div class="grid grid-cols-[1fr_1fr_1fr] sm:grid-cols-[2fr_1.5fr_1.5fr] border-b border-primary/5 last:border-b-0">
+            <div class="p-6 lg:p-8 flex items-center gap-4 bg-surface-container-low/30">
+              <div class="hidden sm:flex w-9 h-9 bg-primary/10 rounded-lg items-center justify-center flex-shrink-0">
+                <span class="material-symbols-outlined text-primary text-xl">calculate</span>
               </div>
-            ))}
+              <span class="font-bold text-sm text-primary font-headline">{total.label}</span>
+            </div>
+            <div class="p-6 lg:p-8 bg-error-container/30 flex items-center">
+              <span class="text-lg font-bold text-error font-headline line-through decoration-error/40">{total.others}</span>
+            </div>
+            <div class="p-6 lg:p-8 bg-primary flex items-center">
+              <span class="text-xl font-extrabold text-on-primary font-headline">{total.ours}</span>
+            </div>
           </div>
-        </div>
+        ))}
       </div>
+
     </div>
 
     <!-- Pricing Summary + CTA -->
@@ -140,21 +178,21 @@ const totals = [
             <span class="material-symbols-outlined text-primary text-xl">apartment</span>
             <div>
               <p class="text-xs text-on-surface-variant font-label uppercase tracking-widest font-bold">Premium</p>
-              <p class="text-sm font-semibold text-primary font-headline">₹15 × all flats/month</p>
+              <p class="text-sm font-semibold text-primary font-headline">₹20 × all flats/month</p>
             </div>
           </div>
           <div class="flex items-center gap-3 bg-surface-container-lowest px-5 py-3 rounded-xl">
-            <span class="material-symbols-outlined text-primary text-xl">block</span>
+            <span class="material-symbols-outlined text-primary text-xl">task_alt</span>
             <div>
-              <p class="text-xs text-on-surface-variant font-label uppercase tracking-widest font-bold">Hidden Charges</p>
-              <p class="text-sm font-semibold text-primary font-headline">Zero. None. Zilch.</p>
+              <p class="text-xs text-on-surface-variant font-label uppercase tracking-widest font-bold">Included</p>
+              <p class="text-sm font-semibold text-primary font-headline">Billing, complaints, gate, reports</p>
             </div>
           </div>
         </div>
       </div>
       <div class="lg:col-span-5 flex lg:justify-end">
         <a href={`${appUrl}/register`} class="bg-primary text-on-primary px-8 py-4 rounded-xl font-bold tracking-wide hover:opacity-90 transition-opacity editorial-shadow text-center w-full sm:w-auto">
-          Start free with 5 flats
+          Start free, scale when ready
         </a>
       </div>
     </div>

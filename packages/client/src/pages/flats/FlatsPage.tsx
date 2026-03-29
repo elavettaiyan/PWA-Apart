@@ -451,7 +451,7 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
         </div>
         <div className="rounded-xl bg-surface-container-low p-4">
           <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Pricing</p>
-          <p className="mt-1 text-sm font-semibold text-on-surface">₹15 per flat / month</p>
+          <p className="mt-1 text-sm font-semibold text-on-surface">₹20 per flat / month</p>
         </div>
       </div>
 

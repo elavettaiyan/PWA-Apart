@@ -15,7 +15,7 @@ import {
 
 const router = Router();
 
-const PRICE_PER_FLAT_PAISE = 1500;
+const PRICE_PER_FLAT_PAISE = 2000;
 const CURRENCY = 'INR';
 const FREE_TIER_FLAT_LIMIT = 5;
 const ACTIVE_STATUSES = new Set<PremiumSubscriptionStatus>(['ACTIVE']);

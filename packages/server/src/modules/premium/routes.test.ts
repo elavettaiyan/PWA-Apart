@@ -83,7 +83,7 @@ describe('premium routes helpers', () => {
         },
       },
       {
-        amountPerFlatPaise: 1500,
+        amountPerFlatPaise: 2000,
         lockedFlatCount: 6,
         includedFlatCount: 6,
         usesPerFlatQuantity: false,
@@ -102,7 +102,7 @@ describe('premium routes helpers', () => {
     assert.equal(update.lockedFlatCount, 6);
     assert.equal(update.includedFlatCount, 10);
     assert.equal(update.scheduledFlatCount, 10);
-    assert.equal(update.scheduledAmountPaise, 15000);
+    assert.equal(update.scheduledAmountPaise, 20000);
   });
 
   it('calculates lifecycle thresholds from the missed billing date', () => {
