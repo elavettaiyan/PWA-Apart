@@ -1074,10 +1074,7 @@ router.post(
         let tenantUserId: string | null = null;
         if (req.body.email && req.body.phone) {
           const normalizedEmail = String(req.body.email).trim().toLowerCase();
-          const existingUser = await tx.user.findUnique({
-            where: { email: normalizedEmail },
-            select: { id: true },
-          });
+          const existingUser = await findUserByEmailInsensitive(tx, normalizedEmail, { id: true, role: true, societyId: true, activeSocietyId: true });
 
           if (existingUser) {
             // If user already belongs to this society, reuse them
@@ -1086,8 +1083,9 @@ router.post(
               select: { id: true },
             });
             if (!sameSocietyMembership) {
+              const membershipRole = getLinkedMembershipRole(existingUser, societyId, 'TENANT');
               await tx.userSocietyMembership.create({
-                data: { userId: existingUser.id, societyId, role: 'TENANT' },
+                data: { userId: existingUser.id, societyId, role: membershipRole as any },
               });
             }
             tenantUserId = existingUser.id;
