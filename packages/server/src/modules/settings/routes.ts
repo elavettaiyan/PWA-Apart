@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { body, param } from 'express-validator';
+import { Role } from '@prisma/client';
 import crypto from 'crypto';
 import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest, SOCIETY_ADMINS, invalidateAuthCache } from '../../middleware/auth';
@@ -19,7 +20,61 @@ const ROLE_LIMITS: Partial<Record<string, number>> = {
 
 const router = Router();
 router.use(authenticate);
-router.use(authorize('SUPER_ADMIN', ...SOCIETY_ADMINS));
+
+const MENU_CATALOG = [
+  { id: 'dashboard', label: 'Dashboard', href: '/' },
+  { id: 'flats', label: 'Flats & Residents', href: '/flats' },
+  { id: 'my-flat', label: 'My Flat', href: '/my-flat' },
+  { id: 'billing', label: 'Billing', href: '/billing' },
+  { id: 'complaints', label: 'Complaints', href: '/complaints' },
+  { id: 'gate-management', label: 'Gate Management', href: '/gate-management' },
+  { id: 'entry-activity', label: 'Entry Activity', href: '/entry-activity' },
+  { id: 'expenses', label: 'Expenses', href: '/expenses' },
+  { id: 'reports', label: 'Reports', href: '/reports' },
+  { id: 'settings', label: 'Settings', href: '/settings' },
+] as const;
+
+const CONFIGURABLE_MENU_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT'] as const;
+const ROLE_LABELS: Record<(typeof CONFIGURABLE_MENU_ROLES)[number], string> = {
+  ADMIN: 'Admin',
+  SECRETARY: 'Secretary',
+  JOINT_SECRETARY: 'Joint Secretary',
+  TREASURER: 'Treasurer',
+  OWNER: 'Owner',
+  TENANT: 'Tenant',
+};
+
+type MenuId = (typeof MENU_CATALOG)[number]['id'];
+type ConfigurableMenuRole = (typeof CONFIGURABLE_MENU_ROLES)[number];
+
+const MENU_ID_SET = new Set<MenuId>(MENU_CATALOG.map((item) => item.id));
+
+const BASELINE_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, MenuId[]> = {
+  ADMIN: ['dashboard', 'my-flat', 'billing', 'settings'],
+  SECRETARY: ['dashboard', 'my-flat', 'billing', 'settings'],
+  JOINT_SECRETARY: ['dashboard', 'my-flat', 'billing'],
+  TREASURER: ['my-flat', 'billing', 'expenses', 'reports'],
+  OWNER: ['my-flat', 'billing'],
+  TENANT: ['my-flat', 'billing'],
+};
+
+const DEFAULT_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, MenuId[]> = {
+  ADMIN: ['dashboard', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
+  SECRETARY: ['dashboard', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'reports', 'settings'],
+  JOINT_SECRETARY: ['dashboard', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity'],
+  TREASURER: ['dashboard', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
+  OWNER: ['dashboard', 'my-flat', 'billing', 'complaints'],
+  TENANT: ['dashboard', 'my-flat', 'billing', 'complaints'],
+};
+
+const ALLOWED_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, MenuId[]> = {
+  ADMIN: ['dashboard', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
+  SECRETARY: ['dashboard', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
+  JOINT_SECRETARY: ['dashboard', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports'],
+  TREASURER: ['dashboard', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
+  OWNER: ['dashboard', 'my-flat', 'billing', 'complaints'],
+  TENANT: ['dashboard', 'my-flat', 'billing', 'complaints'],
+};
 
 function getRequestOrigin(req: AuthRequest) {
   const forwardedProto = req.get('x-forwarded-proto')?.split(',')[0]?.trim();
@@ -33,6 +88,165 @@ function getRequestOrigin(req: AuthRequest) {
 function getDefaultRedirectUrl() {
   return `${process.env.CLIENT_URL || 'http://localhost:5173'}/billing?payment=done`;
 }
+
+function resolveSettingsSocietyId(req: AuthRequest, providedSocietyId?: string) {
+  if (req.user?.role === 'SUPER_ADMIN') {
+    return providedSocietyId || req.user.societyId || null;
+  }
+
+  return req.user?.societyId || null;
+}
+
+function isConfigurableMenuRole(value: string): value is ConfigurableMenuRole {
+  return (CONFIGURABLE_MENU_ROLES as readonly string[]).includes(value);
+}
+
+function parseVisibleMenuIds(rawValue?: string | null): MenuId[] {
+  if (!rawValue) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter((item): item is MenuId => typeof item === 'string' && MENU_ID_SET.has(item as MenuId));
+  } catch {
+    return [];
+  }
+}
+
+function normalizeVisibleMenuIds(role: ConfigurableMenuRole, value: unknown): MenuId[] {
+  const requestedIds = Array.isArray(value)
+    ? value.filter((item): item is MenuId => typeof item === 'string' && MENU_ID_SET.has(item as MenuId))
+    : DEFAULT_MENU_IDS_BY_ROLE[role];
+
+  const mandatoryIds = new Set(BASELINE_MENU_IDS_BY_ROLE[role]);
+  const allowedIds = new Set(ALLOWED_MENU_IDS_BY_ROLE[role]);
+
+  const normalizedIds = [...new Set(requestedIds)].filter((item) => allowedIds.has(item));
+  for (const mandatoryId of mandatoryIds) {
+    if (!normalizedIds.includes(mandatoryId)) {
+      normalizedIds.push(mandatoryId);
+    }
+  }
+
+  return MENU_CATALOG.filter((item) => normalizedIds.includes(item.id)).map((item) => item.id);
+}
+
+function buildRoleMenuConfig(role: ConfigurableMenuRole, storedVisibleMenuIds: MenuId[]) {
+  const mandatoryMenuIds = BASELINE_MENU_IDS_BY_ROLE[role];
+  const defaultMenuIds = DEFAULT_MENU_IDS_BY_ROLE[role];
+  const allowedIds = ALLOWED_MENU_IDS_BY_ROLE[role];
+  const allowedIdSet = new Set<MenuId>(allowedIds);
+  const mandatoryIdSet = new Set<MenuId>(mandatoryMenuIds);
+  const defaultIdSet = new Set<MenuId>(defaultMenuIds);
+  const visibleMenuIds = normalizeVisibleMenuIds(role, storedVisibleMenuIds.length > 0 ? storedVisibleMenuIds : defaultMenuIds);
+  const visibleIdSet = new Set<MenuId>(visibleMenuIds);
+
+  return {
+    role,
+    roleLabel: ROLE_LABELS[role],
+    mandatoryMenuIds,
+    defaultMenuIds,
+    visibleMenuIds,
+    menuItems: MENU_CATALOG.map((item) => ({
+      id: item.id,
+      label: item.label,
+      href: item.href,
+      allowed: allowedIdSet.has(item.id),
+      mandatory: mandatoryIdSet.has(item.id),
+      enabled: visibleIdSet.has(item.id),
+      defaultEnabled: defaultIdSet.has(item.id),
+      selectable: allowedIdSet.has(item.id) && !mandatoryIdSet.has(item.id),
+    })),
+  };
+}
+
+async function getRoleMenuConfigResponse(societyId: string) {
+  const configs = await prisma.societyRoleMenuConfig.findMany({
+    where: {
+      societyId,
+      role: { in: [...CONFIGURABLE_MENU_ROLES] as Role[] },
+    },
+  });
+
+  const configMap = new Map<ConfigurableMenuRole, MenuId[]>();
+  for (const config of configs) {
+    if (isConfigurableMenuRole(config.role)) {
+      configMap.set(config.role, parseVisibleMenuIds(config.visibleMenuIds));
+    }
+  }
+
+  return {
+    societyId,
+    configurableRoles: CONFIGURABLE_MENU_ROLES.map((role) => buildRoleMenuConfig(role, configMap.get(role) || [])),
+  };
+}
+
+router.get('/menu-visibility', async (req: AuthRequest, res: Response) => {
+  try {
+    const societyId = resolveSettingsSocietyId(req, req.query.societyId as string | undefined);
+    if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+
+    return res.json(await getRoleMenuConfigResponse(societyId));
+  } catch (error) {
+    logger.error('Failed to fetch menu visibility config:', error);
+    return res.status(500).json({ error: 'Failed to fetch menu visibility config' });
+  }
+});
+
+router.use(authorize('SUPER_ADMIN', ...SOCIETY_ADMINS));
+
+router.put(
+  '/menu-visibility/:role',
+  [
+    param('role').isIn([...CONFIGURABLE_MENU_ROLES]).withMessage('Invalid role'),
+    body('visibleMenuIds').isArray().withMessage('visibleMenuIds must be an array'),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const role = req.params.role as ConfigurableMenuRole;
+      const societyId = resolveSettingsSocietyId(req, req.body.societyId);
+      if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+
+      const visibleMenuIds = normalizeVisibleMenuIds(role, req.body.visibleMenuIds);
+      const defaultMenuIds = DEFAULT_MENU_IDS_BY_ROLE[role];
+      const isDefaultConfig =
+        visibleMenuIds.length === defaultMenuIds.length &&
+        visibleMenuIds.every((menuId, index) => menuId === defaultMenuIds[index]);
+
+      if (isDefaultConfig) {
+        await prisma.societyRoleMenuConfig.deleteMany({ where: { societyId, role } });
+      } else {
+        await prisma.societyRoleMenuConfig.upsert({
+          where: { societyId_role: { societyId, role } },
+          update: { visibleMenuIds: JSON.stringify(visibleMenuIds) },
+          create: { societyId, role, visibleMenuIds: JSON.stringify(visibleMenuIds) },
+        });
+      }
+
+      logger.info('Updated menu visibility config', {
+        updatedBy: req.user?.id,
+        societyId,
+        role,
+        visibleMenuIds,
+      });
+
+      const response = await getRoleMenuConfigResponse(societyId);
+      return res.json({
+        message: 'Menu visibility updated successfully',
+        ...response,
+      });
+    } catch (error) {
+      logger.error('Failed to update menu visibility config:', error);
+      return res.status(500).json({ error: 'Failed to update menu visibility config' });
+    }
+  },
+);
 
 // ── GET PHONEPE CONFIG ──────────────────────────────────
 router.get('/payment-gateway', async (req: AuthRequest, res: Response) => {

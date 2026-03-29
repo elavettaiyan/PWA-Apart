@@ -9,6 +9,45 @@ export const FINANCIAL_ROLES: Role[] = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY',
 export const RESIDENT_ROLES: Role[] = ['OWNER', 'TENANT'];
 export const ALL_SOCIETY_ROLES: Role[] = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT', 'SERVICE_STAFF'];
 
+export type NavigationMenuId =
+  | 'dashboard'
+  | 'flats'
+  | 'my-flat'
+  | 'billing'
+  | 'complaints'
+  | 'gate-management'
+  | 'entry-activity'
+  | 'expenses'
+  | 'reports'
+  | 'settings';
+
+export type ConfigurableMenuRole = 'ADMIN' | 'SECRETARY' | 'JOINT_SECRETARY' | 'TREASURER' | 'OWNER' | 'TENANT';
+
+export interface RoleMenuVisibilityItem {
+  id: NavigationMenuId;
+  label: string;
+  href: string;
+  allowed: boolean;
+  mandatory: boolean;
+  enabled: boolean;
+  defaultEnabled: boolean;
+  selectable: boolean;
+}
+
+export interface RoleMenuVisibilityConfig {
+  role: ConfigurableMenuRole;
+  roleLabel: string;
+  mandatoryMenuIds: NavigationMenuId[];
+  defaultMenuIds: NavigationMenuId[];
+  visibleMenuIds: NavigationMenuId[];
+  menuItems: RoleMenuVisibilityItem[];
+}
+
+export interface MenuVisibilityResponse {
+  societyId: string;
+  configurableRoles: RoleMenuVisibilityConfig[];
+}
+
 export interface User {
   id: string;
   email: string;

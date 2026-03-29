@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -11,23 +11,46 @@ import { useAuthStore } from '../../store/authStore';
 import { cn } from '../../lib/utils';
 import BrandMark from '../ui/BrandMark';
 import api from '../../lib/api';
-import { SOCIETY_ADMINS, SOCIETY_MANAGERS, FINANCIAL_ROLES } from '../../types';
+import { MenuVisibilityResponse, NavigationMenuId, SOCIETY_ADMINS } from '../../types';
+import { getFallbackMenuVisibility, getVisibleMenuIdsForUser, getVisibleNavigationItemsForUser } from '../../lib/menuConfig';
 
-const allNavigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: '*' as const },
-  { name: 'Flats & Residents', href: '/flats', icon: Building2, roles: ['SUPER_ADMIN', ...SOCIETY_MANAGERS] },
-  { name: 'My Flat', href: '/my-flat', icon: Building2, roles: ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT'] },
-  { name: 'Billing', href: '/billing', icon: Receipt, roles: '*' as const },
-  { name: 'Complaints', href: '/complaints', icon: MessageSquareWarning, roles: '*' as const },
-  { name: 'Gate Management', href: '/gate-management', icon: ShieldCheck, roles: ['SUPER_ADMIN', ...SOCIETY_MANAGERS, 'SERVICE_STAFF'] },
-  { name: 'Entry Activity', href: '/entry-activity', icon: ClipboardList, roles: ['SUPER_ADMIN', ...SOCIETY_MANAGERS, 'SERVICE_STAFF'] },
-  { name: 'Expenses', href: '/expenses', icon: Wallet, roles: ['SUPER_ADMIN', ...FINANCIAL_ROLES] },
-  { name: 'Reports', href: '/reports', icon: BarChart3, roles: ['SUPER_ADMIN', ...FINANCIAL_ROLES] },
-  { name: 'Settings', href: '/settings', icon: Settings, roles: ['SUPER_ADMIN', ...SOCIETY_ADMINS] },
-];
+const navigationIcons: Record<NavigationMenuId, typeof LayoutDashboard> = {
+  dashboard: LayoutDashboard,
+  flats: Building2,
+  'my-flat': Building2,
+  billing: Receipt,
+  complaints: MessageSquareWarning,
+  'gate-management': ShieldCheck,
+  'entry-activity': ClipboardList,
+  expenses: Wallet,
+  reports: BarChart3,
+  settings: Settings,
+};
 
-const securityNavigationHrefs = ['/gate-management', '/entry-activity'];
-const serviceComplaintNavigationHrefs = ['/complaints'];
+const mobileNavMeta: Record<NavigationMenuId, { label: string; icon: string }> = {
+  dashboard: { label: 'Hub', icon: 'grid_view' },
+  flats: { label: 'Residents', icon: 'group' },
+  'my-flat': { label: 'My Flat', icon: 'home_work' },
+  billing: { label: 'Billing', icon: 'receipt_long' },
+  complaints: { label: 'Service', icon: 'construction' },
+  'gate-management': { label: 'Gate', icon: 'shield' },
+  'entry-activity': { label: 'Activity', icon: 'list_alt' },
+  expenses: { label: 'Expenses', icon: 'account_balance_wallet' },
+  reports: { label: 'Reports', icon: 'bar_chart' },
+  settings: { label: 'Profile', icon: 'person' },
+};
+
+function getMobileNavPriority(menuIds: NavigationMenuId[], userRole?: string | null) {
+  if (userRole === 'OWNER' || userRole === 'TENANT') {
+    return ['dashboard', 'my-flat', 'billing', 'complaints', 'settings'] as NavigationMenuId[];
+  }
+
+  if (menuIds.includes('gate-management') || menuIds.includes('entry-activity')) {
+    return ['gate-management', 'entry-activity', 'dashboard', 'complaints'] as NavigationMenuId[];
+  }
+
+  return ['dashboard', 'billing', 'flats', 'settings', 'reports', 'complaints', 'my-flat', 'expenses'] as NavigationMenuId[];
+}
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -42,6 +65,7 @@ export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, logout, setUser, setTokens, setActiveSociety } = useAuthStore();
+  const activeSocietyId = user?.activeSocietyId || user?.societyId || '';
 
   // Hide mobile header & bottom nav on scroll down, show on scroll up
   useEffect(() => {
@@ -60,6 +84,14 @@ export default function Layout({ children }: LayoutProps) {
     queryKey: ['my-societies'],
     queryFn: async () => (await api.get('/auth/my-societies')).data,
     enabled: !!user,
+  });
+
+  const { data: menuVisibilityData } = useQuery<MenuVisibilityResponse>({
+    queryKey: ['menu-visibility', activeSocietyId],
+    queryFn: async () => (await api.get('/settings/menu-visibility')).data,
+    enabled: !!user && user.role !== 'SUPER_ADMIN' && user.role !== 'SERVICE_STAFF',
+    placeholderData: () => getFallbackMenuVisibility(activeSocietyId),
+    retry: false,
   });
 
   const switchSocietyMutation = useMutation({
@@ -96,32 +128,26 @@ export default function Layout({ children }: LayoutProps) {
   };
 
   // Mobile bottom nav items — role-aware
-  const isResident = ['OWNER', 'TENANT'].includes(user?.role || '');
   const isSecurityStaffUser = isSecurityServiceStaff(user);
   const isOtherServiceStaffUser = isNonSecurityServiceStaff(user);
   const isAdminUser = user?.role === 'SUPER_ADMIN' || SOCIETY_ADMINS.includes(user?.role as any);
-  const bottomNavItems = isResident
-    ? [
-        { name: 'Hub', href: '/', icon: 'grid_view', filled: true },
-        { name: 'Payments', href: '/billing', icon: 'account_balance_wallet', filled: false },
-        { name: 'Service', href: '/complaints', icon: 'construction', filled: false },
-        { name: 'Profile', href: '/settings', icon: 'person', filled: false },
-      ]
-    : isSecurityStaffUser
-    ? [
-        { name: 'Gate', href: '/gate-management', icon: 'shield', filled: false },
-        { name: 'Activity', href: '/entry-activity', icon: 'list_alt', filled: false },
-      ]
-    : isOtherServiceStaffUser
-    ? [
-        { name: 'Service', href: '/complaints', icon: 'construction', filled: false },
-      ]
-    : [
-        { name: 'Hub', href: '/', icon: 'grid_view', filled: true },
-        { name: 'Billing', href: '/billing', icon: 'receipt_long', filled: false },
-        { name: 'Residents', href: '/flats', icon: 'group', filled: false },
-        { name: 'More', href: '/settings', icon: 'menu', filled: false },
-      ];
+  const effectiveMenuVisibility = menuVisibilityData || getFallbackMenuVisibility(activeSocietyId);
+  const visibleNavigationItems = getVisibleNavigationItemsForUser(user, effectiveMenuVisibility);
+  const visibleMenuIds = getVisibleMenuIdsForUser(user, effectiveMenuVisibility);
+  const visibleMenuIdSet = new Set(visibleMenuIds);
+  const bottomNavPriority = getMobileNavPriority(visibleMenuIds, user?.role);
+  const bottomNavItems = [...bottomNavPriority, ...visibleMenuIds]
+    .filter((menuId, index, array) => visibleMenuIdSet.has(menuId) && array.indexOf(menuId) === index)
+    .slice(0, isSecurityStaffUser ? 2 : 4)
+    .map((menuId) => {
+      const item = visibleNavigationItems.find((entry) => entry.id === menuId);
+      const meta = mobileNavMeta[menuId];
+      return {
+        name: meta.label,
+        href: item?.href || '/',
+        icon: meta.icon,
+      };
+    });
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -157,24 +183,13 @@ export default function Layout({ children }: LayoutProps) {
 
           {/* Nav Links */}
           <nav className="flex-1 space-y-1 overflow-y-auto hide-scrollbar">
-            {allNavigation
-              .filter((item) => {
-                if (isSecurityStaffUser) {
-                  return securityNavigationHrefs.includes(item.href);
-                }
-
-                if (isOtherServiceStaffUser) {
-                  return serviceComplaintNavigationHrefs.includes(item.href);
-                }
-
-                return item.roles === '*' || item.roles.includes(user?.role || '');
-              })
-              .map((item) => {
+            {visibleNavigationItems.map((item) => {
               const isActive = location.pathname === item.href ||
                 (item.href !== '/' && location.pathname.startsWith(item.href));
+              const Icon = navigationIcons[item.id];
               return (
                 <button
-                  key={item.name}
+                  key={item.id}
                   type="button"
                   onClick={() => {
                     setSidebarOpen(false);
@@ -187,8 +202,8 @@ export default function Layout({ children }: LayoutProps) {
                       : 'text-white/60 hover:bg-white/10 hover:translate-x-1',
                   )}
                 >
-                  <item.icon className={cn('w-5 h-5 pointer-events-none', isActive ? 'text-white' : 'text-white/40')} />
-                  <span className="pointer-events-none">{item.name}</span>
+                  <Icon className={cn('w-5 h-5 pointer-events-none', isActive ? 'text-white' : 'text-white/40')} />
+                  <span className="pointer-events-none">{item.label}</span>
                 </button>
               );
             })}
@@ -362,12 +377,14 @@ export default function Layout({ children }: LayoutProps) {
               </button>
 
               {/* Settings gear */}
-              <button
-                onClick={() => navigate('/settings')}
-                className="text-outline hover:text-primary transition-colors"
-              >
-                <span className="material-symbols-outlined">settings</span>
-              </button>
+              {visibleMenuIdSet.has('settings') && (
+                <button
+                  onClick={() => navigate('/settings')}
+                  className="text-outline hover:text-primary transition-colors"
+                >
+                  <span className="material-symbols-outlined">settings</span>
+                </button>
+              )}
 
               {/* Profile Dropdown */}
               <div className="relative">

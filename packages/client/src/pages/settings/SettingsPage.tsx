@@ -10,9 +10,10 @@ import api from '../../lib/api';
 import { PageLoader } from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
 import { cn } from '../../lib/utils';
+import { getFallbackMenuVisibility } from '../../lib/menuConfig';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import type { PremiumStatusResponse } from '../../types';
+import type { ConfigurableMenuRole, MenuVisibilityResponse, NavigationMenuId, PremiumStatusResponse } from '../../types';
 import { SOCIETY_ADMINS } from '../../types';
 import ManageStaffPanel from '../../components/settings/ManageStaffPanel';
 
@@ -51,6 +52,7 @@ export default function SettingsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const activeSocietyId = user?.activeSocietyId || user?.societyId || '';
   const [showSaltKey, setShowSaltKey] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [form, setForm] = useState({
@@ -75,6 +77,14 @@ export default function SettingsPage() {
     queryKey: ['premium-status'],
     queryFn: async () => (await api.get('/premium/status')).data,
     enabled: isAdmin,
+  });
+
+  const { data: menuVisibility } = useQuery<MenuVisibilityResponse>({
+    queryKey: ['menu-visibility', activeSocietyId],
+    queryFn: async () => (await api.get('/settings/menu-visibility')).data,
+    enabled: isAdmin,
+    placeholderData: () => getFallbackMenuVisibility(activeSocietyId),
+    retry: false,
   });
 
   // Populate form when data loads
@@ -128,6 +138,20 @@ export default function SettingsPage() {
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
   });
 
+  const menuVisibilityMutation = useMutation({
+    mutationFn: async ({ role, visibleMenuIds }: { role: ConfigurableMenuRole; visibleMenuIds: NavigationMenuId[] }) => (
+      await api.put(`/settings/menu-visibility/${role}`, { visibleMenuIds })
+    ).data as MenuVisibilityResponse & { message?: string },
+    onSuccess: (response) => {
+      queryClient.setQueryData(['menu-visibility', activeSocietyId], {
+        societyId: response.societyId,
+        configurableRoles: response.configurableRoles,
+      });
+      toast.success(response.message || 'Menu visibility updated');
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to update menu visibility'),
+  });
+
   const handleChange = (field: string, value: string | number) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setHasChanges(true);
@@ -179,6 +203,8 @@ export default function SettingsPage() {
         title="Account"
         description="Manage password, session access, and account details"
         icon={Settings}
+        iconWrapperClassName="group-open:bg-sky-100"
+        iconClassName="group-open:text-sky-800"
       >
         <div className="space-y-4">
           <div className="flex items-center gap-4">
@@ -221,6 +247,8 @@ export default function SettingsPage() {
         title="Society Administration"
         description="Manage staff accounts and access association governance tools"
         icon={ShieldCheck}
+        iconWrapperClassName="group-open:bg-emerald-100"
+        iconClassName="group-open:text-emerald-800"
       >
         <div className="space-y-5">
           <ManageStaffPanel embedded />
@@ -246,27 +274,35 @@ export default function SettingsPage() {
         title="Members & Roles"
         description="Expand to assign committee roles and manage member access"
         icon={Users}
+        iconWrapperClassName="group-open:bg-amber-100"
+        iconClassName="group-open:text-amber-800"
       >
         <MembersRoles />
+      </SettingsAccordion>
+
+      <SettingsAccordion
+        title="Menu Management"
+        description="Choose which extra navigation menus each role can see"
+        icon={Settings}
+        iconWrapperClassName="group-open:bg-fuchsia-100"
+        iconClassName="group-open:text-fuchsia-800"
+      >
+        <MenuManagementPanel
+          menuVisibility={menuVisibility || getFallbackMenuVisibility(activeSocietyId)}
+          savingRole={menuVisibilityMutation.isPending ? menuVisibilityMutation.variables?.role : null}
+          onToggleMenu={(role, visibleMenuIds) => menuVisibilityMutation.mutate({ role, visibleMenuIds })}
+        />
       </SettingsAccordion>
 
       <SettingsAccordion
         title="Premium Plan"
         description="Review subscription status, limits, and billing impact"
         icon={ShieldCheck}
+        iconWrapperClassName="group-open:bg-violet-100"
+        iconClassName="group-open:text-violet-800"
       >
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-emerald-50 rounded-xl flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5 text-emerald-700" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-on-surface">Premium Plan</h2>
-              <p className="text-xs text-on-surface-variant">Platform subscription status for your society account</p>
-            </div>
-          </div>
-
+        <div className="flex items-center justify-end gap-4 mb-6">
           <span className={cn(
             'badge',
             premiumStatus?.isPremium ? 'badge-success' : 'badge-neutral'
@@ -335,21 +371,11 @@ export default function SettingsPage() {
         title="Payment Gateway"
         description="Configure PhonePe, connection testing, and callback URL settings"
         icon={CreditCard}
+        iconWrapperClassName="group-open:bg-rose-100"
+        iconClassName="group-open:text-rose-800"
       >
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-purple-50 rounded-xl flex items-center justify-center">
-              <CreditCard className="w-6 h-6 text-purple-600" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-on-surface">PhonePe Payment Gateway</h2>
-              <p className="text-xs text-on-surface-variant">
-                Configure your PhonePe merchant credentials to enable online payments
-              </p>
-            </div>
-          </div>
-
           {/* Status Badge */}
           <div className="flex items-center gap-3">
             {isConfigured && (
@@ -406,7 +432,7 @@ export default function SettingsPage() {
           {/* Environment Selector */}
           <div>
             <label className="label">Environment</label>
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
               {['UAT', 'PRODUCTION'].map((env) => (
                 <button
                   key={env}
@@ -483,7 +509,7 @@ export default function SettingsPage() {
           <div>
             <label className="label">Salt Index</label>
             <input
-              className="input w-32"
+              className="input w-full sm:w-32"
               type="number"
               value={form.saltIndex}
               onChange={(e) => handleChange('saltIndex', e.target.value)}
@@ -524,8 +550,9 @@ export default function SettingsPage() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-between mt-8 pt-6 border-t border-outline-variant/10">
-          <div className="flex gap-3">
+        <div className="mt-8 border-t border-outline-variant/10 pt-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <button
               onClick={handleSave}
               disabled={saveMutation.isPending}
@@ -554,10 +581,11 @@ export default function SettingsPage() {
           </div>
 
           {hasChanges && (
-            <span className="text-xs text-warning flex items-center gap-1">
+            <span className="text-xs text-warning flex items-center gap-1 sm:justify-end">
               <Clock className="w-3 h-3" /> Unsaved changes
             </span>
           )}
+          </div>
         </div>
       </div>
 
@@ -588,7 +616,7 @@ export default function SettingsPage() {
 
               {testResult.details && (
                 <div className="mt-3 bg-surface-container-low rounded-lg p-3">
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
                     {testResult.details.httpStatus && (
                       <div>
                         <span className="text-on-surface-variant">HTTP Status:</span>{' '}
@@ -657,18 +685,10 @@ export default function SettingsPage() {
         title="Legal"
         description="Privacy, terms, and refund policies"
         icon={ShieldCheck}
+        iconWrapperClassName="group-open:bg-slate-200"
+        iconClassName="group-open:text-slate-900"
       >
       <div>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-11 h-11 bg-surface-container-low rounded-xl flex items-center justify-center">
-            <ShieldCheck className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <h3 className="text-base font-semibold text-on-surface">Legal</h3>
-            <p className="text-xs text-on-surface-variant">Review the policies that govern platform usage, privacy, and refunds.</p>
-          </div>
-        </div>
-
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <a href={`${legalBaseUrl}/privacy`} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-4 hover:border-primary/20 transition-colors">
             <p className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Privacy</p>
@@ -694,12 +714,16 @@ function SettingsAccordion({
   description,
   icon: Icon,
   defaultOpen = false,
+  iconWrapperClassName,
+  iconClassName,
   children,
 }: {
   title: string;
   description: string;
   icon: typeof Settings;
   defaultOpen?: boolean;
+  iconWrapperClassName?: string;
+  iconClassName?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -707,12 +731,15 @@ function SettingsAccordion({
       <summary className="list-none cursor-pointer px-5 py-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-surface-container-low flex items-center justify-center shrink-0">
-              <Icon className="w-5 h-5 text-primary" />
+            <div className={cn(
+              'w-10 h-10 rounded-xl bg-surface-container-low flex items-center justify-center shrink-0 transition-colors',
+              iconWrapperClassName,
+            )}>
+              <Icon className={cn('w-5 h-5 text-primary transition-colors', iconClassName || 'group-open:text-on-primary-container')} />
             </div>
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-on-surface">{title}</h2>
-              <p className="text-sm text-on-surface-variant truncate">{description}</p>
+              <p className="text-xs text-on-surface-variant sm:text-sm sm:truncate">{description}</p>
             </div>
           </div>
           <ChevronDown className="w-4 h-4 text-outline transition-transform group-open:rotate-180 shrink-0" />
@@ -720,6 +747,207 @@ function SettingsAccordion({
       </summary>
       <div className="border-t border-outline-variant/10 px-5 py-5">{children}</div>
     </details>
+  );
+}
+
+function MenuManagementPanel({
+  menuVisibility,
+  savingRole,
+  onToggleMenu,
+}: {
+  menuVisibility: MenuVisibilityResponse;
+  savingRole: ConfigurableMenuRole | null | undefined;
+  onToggleMenu: (role: ConfigurableMenuRole, visibleMenuIds: NavigationMenuId[]) => void;
+}) {
+  const [selectedRole, setSelectedRole] = useState<ConfigurableMenuRole | null>(null);
+  const selectedRoleConfig = menuVisibility.configurableRoles.find((roleConfig) => roleConfig.role === selectedRole) || null;
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-low p-4 text-sm text-on-surface-variant">
+        Current role menus stay locked as the mandatory baseline. Only additional menu items that already have usable route access can be enabled here.
+      </div>
+
+      <div className="space-y-3 md:hidden">
+        {menuVisibility.configurableRoles.map((roleConfig) => {
+          const isSaving = savingRole === roleConfig.role;
+          const selectableCount = roleConfig.menuItems.filter((item) => item.selectable).length;
+
+          return (
+            <div key={roleConfig.role} className="rounded-2xl border border-outline-variant/15 bg-surface-container-low p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <span className={cn('inline-block px-2.5 py-0.5 rounded-full text-xs font-medium', ROLE_BADGE[roleConfig.role] || 'bg-surface-container text-on-surface-variant')}>
+                    {roleConfig.roleLabel}
+                  </span>
+                  <p className="mt-3 text-sm font-medium text-on-surface">{roleConfig.visibleMenuIds.length} menus visible</p>
+                  <p className="mt-1 text-xs text-on-surface-variant">
+                    {selectableCount === 0
+                      ? 'Locked'
+                      : `${roleConfig.visibleMenuIds.filter((menuId) => !roleConfig.mandatoryMenuIds.includes(menuId)).length} configurable visible`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:text-primary font-medium inline-flex items-center gap-2 shrink-0"
+                  onClick={() => setSelectedRole(roleConfig.role)}
+                  disabled={isSaving}
+                >
+                  {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                  Configure
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="hidden overflow-x-auto -mx-6 md:block">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-xs text-on-surface-variant uppercase tracking-wider">
+              <th className="px-6 py-2.5">Role</th>
+              <th className="px-6 py-2.5">Visible Menus</th>
+              <th className="px-6 py-2.5">Optional Menus</th>
+              <th className="px-6 py-2.5 text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {menuVisibility.configurableRoles.map((roleConfig) => {
+              const isSaving = savingRole === roleConfig.role;
+              const selectableCount = roleConfig.menuItems.filter((item) => item.selectable).length;
+
+              return (
+                <tr key={roleConfig.role} className="border-b last:border-0 hover:bg-surface-container-low/50">
+                  <td className="px-6 py-3">
+                    <div className="flex items-center gap-3">
+                      <span className={cn('inline-block px-2.5 py-0.5 rounded-full text-xs font-medium', ROLE_BADGE[roleConfig.role] || 'bg-surface-container text-on-surface-variant')}>
+                        {roleConfig.roleLabel}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-3 text-on-surface">
+                    {roleConfig.visibleMenuIds.length} menus
+                  </td>
+                  <td className="px-6 py-3 text-on-surface-variant">
+                    {selectableCount === 0
+                      ? 'Locked'
+                      : `${roleConfig.visibleMenuIds.filter((menuId) => !roleConfig.mandatoryMenuIds.includes(menuId)).length} configurable visible`}
+                  </td>
+                  <td className="px-6 py-3 text-right">
+                    <button
+                      type="button"
+                      className="text-xs text-primary hover:text-primary font-medium inline-flex items-center gap-2"
+                      onClick={() => setSelectedRole(roleConfig.role)}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                      Configure
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-low p-4 text-sm text-on-surface-variant">
+        Service staff menus are not included in this matrix yet because their navigation still depends on specialization, such as security versus non-security staff.
+      </div>
+
+      <Modal
+        isOpen={!!selectedRoleConfig}
+        onClose={() => {
+          if (savingRole === selectedRole) return;
+          setSelectedRole(null);
+        }}
+        title={selectedRoleConfig ? `${selectedRoleConfig.roleLabel} Menus` : 'Configure Menus'}
+        size="lg"
+      >
+        {selectedRoleConfig ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low p-4">
+              <p className="text-sm font-semibold text-on-surface">{selectedRoleConfig.roleLabel}</p>
+              <p className="mt-1 text-xs text-on-surface-variant">
+                Mandatory menus stay enabled. Default menus can be turned off only when they are not mandatory and the role is allowed to configure them.
+              </p>
+            </div>
+
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+              {selectedRoleConfig.menuItems.map((item) => {
+                const isSaving = savingRole === selectedRoleConfig.role;
+                const disabled = !item.selectable || isSaving;
+
+                return (
+                  <label
+                    key={item.id}
+                    className={cn(
+                      'flex flex-col gap-3 rounded-xl border px-4 py-3 transition-colors sm:flex-row sm:items-center sm:justify-between sm:gap-4',
+                      item.enabled
+                        ? 'border-primary/20 bg-primary-container/20'
+                        : 'border-outline-variant/15 bg-surface',
+                      disabled ? 'opacity-70' : 'cursor-pointer hover:border-primary/20',
+                    )}
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-on-surface">{item.label}</p>
+                      <p className="text-xs text-on-surface-variant mt-1">
+                        {item.mandatory
+                          ? 'Required by the current default role setup'
+                          : !item.allowed
+                            ? 'This role is not allowed to use this menu'
+                            : item.defaultEnabled
+                              ? 'Visible by default, but configurable'
+                              : 'Hidden by default, but configurable'
+                        }
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 sm:shrink-0">
+                      <span className={cn(
+                        'badge',
+                        item.mandatory
+                          ? 'badge-neutral'
+                          : !item.allowed
+                            ? 'bg-surface-container text-on-surface-variant'
+                            : item.enabled
+                              ? 'badge-success'
+                              : 'badge-neutral',
+                      )}>
+                        {item.mandatory ? 'Required' : !item.allowed ? 'Unavailable' : item.enabled ? 'Visible' : 'Hidden'}
+                      </span>
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-outline-variant/30 text-primary focus:ring-primary"
+                        checked={item.enabled}
+                        disabled={disabled}
+                        onChange={(event) => {
+                          const nextVisibleMenuIds = event.target.checked
+                            ? [...selectedRoleConfig.visibleMenuIds, item.id]
+                            : selectedRoleConfig.visibleMenuIds.filter((menuId) => menuId !== item.id);
+                          onToggleMenu(selectedRoleConfig.role, nextVisibleMenuIds);
+                        }}
+                      />
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setSelectedRole(null)}
+                disabled={savingRole === selectedRoleConfig.role}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+    </div>
   );
 }
 
@@ -794,22 +1022,83 @@ function MembersRoles() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-5">
-        <div className="w-11 h-11 bg-blue-50 rounded-xl flex items-center justify-center">
-          <Users className="w-6 h-6 text-blue-600" />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold text-on-surface">Members & Roles</h2>
-          <p className="text-xs text-on-surface-variant">Assign committee roles — President, Secretary, Treasurer, etc.</p>
-        </div>
-      </div>
-
       {isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-outline" /></div>
       ) : members.length === 0 ? (
         <p className="text-sm text-outline text-center py-6">No members found</p>
       ) : (
-        <div className="overflow-x-auto -mx-6">
+        <>
+        <div className="space-y-3 md:hidden">
+          {members.map((m) => (
+            <div key={m.id} className="rounded-2xl border border-outline-variant/15 bg-surface-container-low p-4">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-on-surface">{m.name}</p>
+                  <p className="mt-1 text-xs break-all text-on-surface-variant">{m.email}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider text-on-surface-variant mb-2">Current Role</p>
+                  {editingId === m.id ? (
+                    <div className="space-y-2">
+                      <select
+                        className="select w-full text-sm py-2"
+                        value={selectedRole}
+                        onChange={(e) => setSelectedRole(e.target.value)}
+                      >
+                        {ROLE_OPTIONS.map((r) => (
+                          <option key={r.value} value={r.value}>{r.label}</option>
+                        ))}
+                      </select>
+                      <div className="flex gap-2">
+                        <button
+                          className="btn-primary btn-sm text-xs"
+                          onClick={() => changeMutation.mutate({ userId: m.id, role: selectedRole })}
+                          disabled={changeMutation.isPending || selectedRole === m.role}
+                        >
+                          Save
+                        </button>
+                        <button className="btn-secondary btn-sm text-xs" onClick={() => setEditingId(null)}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <span className={cn('inline-block px-2.5 py-0.5 rounded-full text-xs font-medium', ROLE_BADGE[m.role] || 'bg-surface-container text-on-surface-variant')}>
+                      {formatRole(m.role)}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between gap-3 pt-1">
+                  {m.id === user?.id ? (
+                    <span className="text-xs text-outline">You</span>
+                  ) : editingId !== m.id ? (
+                    <div className="inline-flex items-center gap-3 flex-wrap">
+                      <button
+                        className="text-xs text-primary hover:text-primary font-medium"
+                        onClick={() => { setEditingId(m.id); setSelectedRole(m.role); }}
+                      >
+                        Change Role
+                      </button>
+                      {m.role === 'OWNER' && (
+                        <button
+                          className="text-xs text-error hover:text-error font-medium"
+                          onClick={() => {
+                            setRemoveTarget(m);
+                            setRemovalReason('');
+                          }}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ) : <span />}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto -mx-6 md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-xs text-on-surface-variant uppercase tracking-wider">
@@ -884,6 +1173,7 @@ function MembersRoles() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       <Modal

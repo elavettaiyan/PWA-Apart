@@ -150,6 +150,7 @@ model Society {
   pushDevices        PushNotificationDevice[]
   announcementBroadcasts AnnouncementBroadcast[]
   memberRemovalAudits MemberRemovalAudit[]
+  roleMenuConfigs    SocietyRoleMenuConfig[]
   expenses           Expense[]
   bylaws             AssociationBylaw[]
   maintenanceConfig  MaintenanceConfig[]
@@ -366,6 +367,21 @@ model MemberRemovalAudit {
   @@index([targetUserId])
   @@index([deletedByUserId])
   @@map("member_removal_audits")
+}
+
+model SocietyRoleMenuConfig {
+  id              String   @id @default(uuid())
+  societyId       String
+  role            Role
+  visibleMenuIds  String   @default("[]")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  society         Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  @@unique([societyId, role])
+  @@index([societyId])
+  @@map("society_role_menu_configs")
 }
 
 // ─── MAINTENANCE CONFIG ─────────────────────────────────
