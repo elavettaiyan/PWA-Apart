@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Settings, CreditCard, Eye, EyeOff, CheckCircle2, XCircle,
   Loader2, Zap, ToggleLeft, ToggleRight, ShieldCheck, Globe, Clock,
-  Users, ChevronDown, KeyRound, LogOut, ScrollText,
+  Users, ChevronDown, KeyRound, LogOut,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -245,28 +245,13 @@ export default function SettingsPage() {
       <>
       <SettingsAccordion
         title="Society Administration"
-        description="Manage staff accounts and access association governance tools"
+        description="Manage staff accounts and administration access"
         icon={ShieldCheck}
         iconWrapperClassName="group-open:bg-emerald-100"
         iconClassName="group-open:text-emerald-800"
       >
         <div className="space-y-5">
           <ManageStaffPanel embedded />
-          <button
-            type="button"
-            onClick={() => navigate('/bylaws')}
-            className="w-full rounded-2xl border border-outline-variant/15 bg-surface-container-low p-5 text-left hover:border-primary/20 transition-colors"
-          >
-            <div className="flex items-start gap-3">
-              <div className="w-11 h-11 bg-emerald-50 rounded-xl flex items-center justify-center">
-                <ScrollText className="w-5 h-5 text-emerald-700" />
-              </div>
-              <div>
-                <h2 className="text-base font-semibold text-on-surface">Association Bylaws</h2>
-                <p className="text-sm text-on-surface-variant mt-1">Open the bylaw management screen to add, edit, or review association rules.</p>
-              </div>
-            </div>
-          </button>
         </div>
       </SettingsAccordion>
 
@@ -683,13 +668,22 @@ export default function SettingsPage() {
 
       <SettingsAccordion
         title="Legal"
-        description="Privacy, terms, and refund policies"
+        description="Privacy, terms, bylaws, and refund policies"
         icon={ShieldCheck}
         iconWrapperClassName="group-open:bg-slate-200"
         iconClassName="group-open:text-slate-900"
       >
       <div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          <button
+            type="button"
+            onClick={() => navigate('/bylaws')}
+            className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-4 text-left hover:border-primary/20 transition-colors"
+          >
+            <p className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Association</p>
+            <p className="mt-1 text-sm font-semibold text-primary">Association Bylaws</p>
+            <p className="mt-1 text-xs text-on-surface-variant">Open society rules, penalties, and governance guidelines.</p>
+          </button>
           <a href={`${legalBaseUrl}/privacy`} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-4 hover:border-primary/20 transition-colors">
             <p className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Privacy</p>
             <p className="mt-1 text-sm font-semibold text-primary">Privacy Policy</p>

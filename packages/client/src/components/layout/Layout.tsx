@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   LayoutDashboard, Building2, Receipt, MessageSquareWarning,
-  Wallet, ScrollText, BarChart3, LogOut, Menu, X, ChevronDown, User, Settings, KeyRound,
+  Wallet, BarChart3, LogOut, Menu, X, ChevronDown, User, Settings, KeyRound,
   HelpCircle, Plus, CreditCard, Wrench, ShieldCheck, ClipboardList,
 } from 'lucide-react';
 import { getDefaultAuthenticatedRoute, isNonSecurityServiceStaff, isSecurityServiceStaff } from '@/lib/serviceStaff';
@@ -305,19 +305,6 @@ export default function Layout({ children }: LayoutProps) {
                       {societiesData.societies.find(s => s.id === user?.societyId)?.name}
                     </p>
                   ) : null}
-                  {!isAdminUser && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfileOpen(false);
-                        navigate('/bylaws');
-                      }}
-                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80"
-                    >
-                      <ScrollText className="w-3.5 h-3.5" />
-                      Association Bylaws
-                    </button>
-                  )}
                 </div>
                 <button
                   onClick={() => {
@@ -415,19 +402,6 @@ export default function Layout({ children }: LayoutProps) {
                             {societiesData.societies.find(s => s.id === user?.societyId)?.name}
                           </p>
                         ) : null}
-                        {!isAdminUser && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setProfileOpen(false);
-                              navigate('/bylaws');
-                            }}
-                            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80"
-                          >
-                            <ScrollText className="w-3.5 h-3.5" />
-                            Association Bylaws
-                          </button>
-                        )}
                       </div>
                       <button
                         onClick={() => {

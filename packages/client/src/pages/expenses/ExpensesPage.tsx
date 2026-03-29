@@ -26,6 +26,8 @@ const CATEGORIES: { value: ExpenseCategory; label: string }[] = [
   { value: 'OTHER', label: 'Other' },
 ];
 
+const ADD_EXPENSE_CATEGORIES = CATEGORIES.filter((category) => category.value !== 'MAINTENANCE');
+
 const MONTH_OPTIONS = [
   'January',
   'February',
@@ -242,7 +244,7 @@ export default function ExpensesPage() {
 function AddExpenseForm({ onSuccess }: { onSuccess: () => void }) {
   const currentPeriod = getCurrentAccountingPeriod();
   const [form, setForm] = useState({
-    category: 'MAINTENANCE' as ExpenseCategory,
+    category: 'REPAIR' as ExpenseCategory,
     amount: '',
     description: '',
     vendor: '',
@@ -292,7 +294,7 @@ function AddExpenseForm({ onSuccess }: { onSuccess: () => void }) {
         <div>
           <label className="label">Category</label>
           <select className="select" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as ExpenseCategory })}>
-            {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+            {ADD_EXPENSE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
         </div>
         <div>
