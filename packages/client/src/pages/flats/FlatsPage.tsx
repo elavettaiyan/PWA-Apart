@@ -87,21 +87,21 @@ export default function FlatsPage() {
           <p className="text-sm text-on-surface-variant mt-1">Manage all flats, owners, and tenants</p>
         </div>
         {isAdmin && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
-              className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-secondary text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={() => setShowDeleteFlat(true)}
               disabled={!selectedFlat}
             >
               <Trash2 className="w-4 h-4" /> Delete Selected
             </button>
-            <button className="btn-secondary" onClick={() => setShowBulkUpload(true)}>
+            <button className="btn-secondary text-xs sm:text-sm" onClick={() => setShowBulkUpload(true)}>
               <Upload className="w-4 h-4" /> Bulk Upload
             </button>
-            <button className="btn-secondary" onClick={() => setShowAddBlock(true)}>
+            <button className="btn-secondary text-xs sm:text-sm" onClick={() => setShowAddBlock(true)}>
               <Layers className="w-4 h-4" /> Add Block
             </button>
-            <button className="btn-primary" onClick={() => setShowAddFlat(true)}>
+            <button className="btn-primary text-xs sm:text-sm" onClick={() => setShowAddFlat(true)}>
               <Plus className="w-4 h-4" /> Add Flat
             </button>
           </div>
