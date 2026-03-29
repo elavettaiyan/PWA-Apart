@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   LayoutDashboard, Building2, Receipt, MessageSquareWarning,
-  Wallet, BarChart3, LogOut, Menu, X, ChevronDown, User, Settings, KeyRound,
-  HelpCircle, Plus, CreditCard, Wrench, ShieldCheck, ClipboardList,
+  Wallet, BarChart3, LogOut, Menu, X, Settings, KeyRound,
+  ShieldCheck, ClipboardList,
 } from 'lucide-react';
-import { getDefaultAuthenticatedRoute, isNonSecurityServiceStaff, isSecurityServiceStaff } from '@/lib/serviceStaff';
+import { isNonSecurityServiceStaff, isSecurityServiceStaff } from '@/lib/serviceStaff';
 import { useAuthStore } from '../../store/authStore';
 import { cn } from '../../lib/utils';
 import BrandMark from '../ui/BrandMark';
@@ -27,31 +27,6 @@ const navigationIcons: Record<NavigationMenuId, typeof LayoutDashboard> = {
   settings: Settings,
 };
 
-const mobileNavMeta: Record<NavigationMenuId, { label: string; icon: string }> = {
-  dashboard: { label: 'Hub', icon: 'grid_view' },
-  flats: { label: 'Residents', icon: 'group' },
-  'my-flat': { label: 'My Flat', icon: 'home_work' },
-  billing: { label: 'Billing', icon: 'receipt_long' },
-  complaints: { label: 'Service', icon: 'construction' },
-  'gate-management': { label: 'Gate', icon: 'shield' },
-  'entry-activity': { label: 'Activity', icon: 'list_alt' },
-  expenses: { label: 'Expenses', icon: 'account_balance_wallet' },
-  reports: { label: 'Reports', icon: 'bar_chart' },
-  settings: { label: 'Profile', icon: 'person' },
-};
-
-function getMobileNavPriority(menuIds: NavigationMenuId[], userRole?: string | null) {
-  if (userRole === 'OWNER' || userRole === 'TENANT') {
-    return ['dashboard', 'my-flat', 'billing', 'complaints', 'settings'] as NavigationMenuId[];
-  }
-
-  if (menuIds.includes('gate-management') || menuIds.includes('entry-activity')) {
-    return ['gate-management', 'entry-activity', 'dashboard', 'complaints'] as NavigationMenuId[];
-  }
-
-  return ['dashboard', 'billing', 'flats', 'settings', 'reports', 'complaints', 'my-flat', 'expenses'] as NavigationMenuId[];
-}
-
 interface LayoutProps {
   children: React.ReactNode;
 }
@@ -59,26 +34,11 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [barsVisible, setBarsVisible] = useState(true);
-  const lastScrollY = useRef(0);
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, logout, setUser, setTokens, setActiveSociety } = useAuthStore();
   const activeSocietyId = user?.activeSocietyId || user?.societyId || '';
-
-  // Hide mobile header & bottom nav on scroll down, show on scroll up
-  useEffect(() => {
-    const onScroll = () => {
-      const y = window.scrollY;
-      if (y < 10) { setBarsVisible(true); }
-      else if (y > lastScrollY.current + 5) { setBarsVisible(false); }
-      else if (y < lastScrollY.current - 5) { setBarsVisible(true); }
-      lastScrollY.current = y;
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
 
   const { data: societiesData } = useQuery<{ activeSocietyId?: string; societies: Array<{ id: string; name: string; role?: string }> }>({
     queryKey: ['my-societies'],
@@ -127,27 +87,10 @@ export default function Layout({ children }: LayoutProps) {
     navigate('/login');
   };
 
-  // Mobile bottom nav items — role-aware
-  const isSecurityStaffUser = isSecurityServiceStaff(user);
-  const isOtherServiceStaffUser = isNonSecurityServiceStaff(user);
-  const isAdminUser = user?.role === 'SUPER_ADMIN' || SOCIETY_ADMINS.includes(user?.role as any);
   const effectiveMenuVisibility = menuVisibilityData || getFallbackMenuVisibility(activeSocietyId);
   const visibleNavigationItems = getVisibleNavigationItemsForUser(user, effectiveMenuVisibility);
   const visibleMenuIds = getVisibleMenuIdsForUser(user, effectiveMenuVisibility);
   const visibleMenuIdSet = new Set(visibleMenuIds);
-  const bottomNavPriority = getMobileNavPriority(visibleMenuIds, user?.role);
-  const bottomNavItems = [...bottomNavPriority, ...visibleMenuIds]
-    .filter((menuId, index, array) => visibleMenuIdSet.has(menuId) && array.indexOf(menuId) === index)
-    .slice(0, isSecurityStaffUser ? 2 : 4)
-    .map((menuId) => {
-      const item = visibleNavigationItems.find((entry) => entry.id === menuId);
-      const meta = mobileNavMeta[menuId];
-      return {
-        name: meta.label,
-        href: item?.href || '/',
-        icon: meta.icon,
-      };
-    });
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -162,18 +105,18 @@ export default function Layout({ children }: LayoutProps) {
       {/* Sidebar — Editorial Design (desktop & mobile drawer) */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 flex flex-col transform transition-transform lg:static lg:z-0 lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 w-72 max-w-[88vw] bg-slate-900 flex flex-col transform transition-transform lg:static lg:z-0 lg:translate-x-0',
           sidebarOpen ? 'block translate-x-0' : 'hidden -translate-x-full lg:block',
         )}
       >
         <div className="flex flex-col h-full p-6 space-y-2">
           {/* Logo */}
-          <div className="mb-10 px-2 flex items-center justify-between">
+          <div className="mb-8 px-2 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <BrandMark size={40} className="rounded-xl" />
               <div>
                 <h1 className="font-headline font-extrabold text-white text-2xl tracking-tight">Dwell Hub</h1>
-                <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest mt-1">Management Portal</p>
+                <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest mt-1">Apartment Console</p>
               </div>
             </div>
             <button className="lg:hidden" onClick={() => setSidebarOpen(false)}>
@@ -209,42 +152,15 @@ export default function Layout({ children }: LayoutProps) {
             })}
           </nav>
 
-          {/* User Profile in Sidebar */}
-          <div className="pt-6 border-t border-white/10 mb-2 lg:hidden">
-            <div className="flex items-center gap-3 px-4 py-2">
-              <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-sm font-bold text-white">{user?.name?.charAt(0).toUpperCase()}</span>
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
-                <p className="text-[10px] text-white/50 uppercase tracking-widest font-bold">{user?.role?.replace('_', ' ')}</p>
-              </div>
-            </div>
-          </div>
-
           {/* Bottom Actions */}
           <div className="pt-6 border-t border-white/10 space-y-1">
-            {/* <button
-              onClick={() => navigate('/complaints')}
-              className="w-full bg-white text-primary font-bold py-3 rounded-xl mb-4 flex items-center justify-center gap-2 hover:bg-white/90 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              <span>New Request</span>
-            </button> */}
             <button
-              onClick={() => navigate(isOtherServiceStaffUser ? getDefaultAuthenticatedRoute(user) : '/settings')}
-              className="w-full flex items-center gap-3 px-4 py-2 text-white/40 hover:text-white transition-colors text-sm"
-            >
-              <HelpCircle className="w-5 h-5" />
-              <span>{isOtherServiceStaffUser ? 'Service Requests' : 'Help Center'}</span>
-            </button>
-            {/* <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-2 text-white/40 hover:text-rose-300 transition-colors text-sm"
+              className="w-full flex items-center gap-3 px-4 py-3 text-white/50 hover:text-rose-300 hover:bg-white/10 rounded-lg transition-colors text-sm"
             >
               <LogOut className="w-5 h-5" />
-              <span>Logout</span>
-            </button> */}
+              <span>Sign out</span>
+            </button>
           </div>
         </div>
       </aside>
@@ -252,10 +168,8 @@ export default function Layout({ children }: LayoutProps) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile Top App Bar */}
-        <header className={cn(
-          'lg:hidden fixed top-0 z-30 w-full flex justify-between items-center px-5 py-3 bg-surface/80 backdrop-blur-xl transition-transform duration-300',
-          barsVisible ? 'translate-y-0' : '-translate-y-full',
-        )}>
+        <header className="lg:hidden fixed top-0 z-30 w-full border-b border-outline-variant/20 bg-surface/95 backdrop-blur-xl">
+          <div className="flex justify-between items-center px-4 py-3">
           <div className="flex items-center gap-3">
             <button
               className="p-1.5 -ml-1 rounded-lg hover:bg-surface-container"
@@ -263,25 +177,12 @@ export default function Layout({ children }: LayoutProps) {
             >
               <Menu className="w-5 h-5 text-on-surface-variant" />
             </button>
-            <span className="font-headline text-xl font-bold tracking-tight text-primary">Dwell Hub</span>
+            <div>
+              <span className="font-headline text-lg font-bold tracking-tight text-primary block leading-none">Dwell Hub</span>
+              <span className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">{user?.role?.replace('_', ' ')}</span>
+            </div>
           </div>
           <div className="flex items-center gap-3">
-            {(societiesData?.societies?.length || 0) > 1 && (
-              <select
-                className="select text-xs w-32 py-1.5 rounded-lg"
-                value={user?.societyId || societiesData?.activeSocietyId || ''}
-                onChange={(e) => switchSocietyMutation.mutate(e.target.value)}
-                disabled={switchSocietyMutation.isPending}
-              >
-                {societiesData?.societies.map((society) => (
-                  <option key={society.id} value={society.id}>{society.name}</option>
-                ))}
-              </select>
-            )}
-            <button className="text-on-surface-variant hover:text-primary transition-colors relative p-1">
-              <span className="material-symbols-outlined text-2xl">notifications</span>
-              <span className="absolute top-0.5 right-0.5 bg-error w-2 h-2 rounded-full border-2 border-surface"></span>
-            </button>
             <button
               onClick={() => setProfileOpen(!profileOpen)}
               className="w-8 h-8 bg-secondary-container rounded-full flex items-center justify-center ring-2 ring-primary/10 touch-manipulation"
@@ -291,6 +192,21 @@ export default function Layout({ children }: LayoutProps) {
               </span>
             </button>
           </div>
+          </div>
+          {(societiesData?.societies?.length || 0) > 1 && (
+            <div className="px-4 pb-3">
+              <select
+                className="select text-xs w-full py-2 rounded-xl"
+                value={user?.societyId || societiesData?.activeSocietyId || ''}
+                onChange={(e) => switchSocietyMutation.mutate(e.target.value)}
+                disabled={switchSocietyMutation.isPending}
+              >
+                {societiesData?.societies.map((society) => (
+                  <option key={society.id} value={society.id}>{society.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           {/* Mobile profile dropdown */}
           {profileOpen && (
             <>
@@ -429,39 +345,8 @@ export default function Layout({ children }: LayoutProps) {
         </header>
 
         {/* Page Content — mobile: extra top/bottom padding for fixed bars */}
-        <main className="flex-1 pt-16 pb-24 px-4 sm:px-6 lg:pt-0 lg:pb-0 lg:p-8 overflow-auto">{children}</main>
+        <main className="flex-1 pt-20 pb-6 px-4 sm:px-6 lg:pt-0 lg:pb-0 lg:p-8 overflow-auto">{children}</main>
       </div>
-
-      {/* Mobile Bottom Navigation Bar */}
-      <nav className={cn(
-        'lg:hidden fixed bottom-0 left-0 right-0 z-50 flex justify-around items-center px-4 pt-2 pb-3 mobile-bottom-safe bg-surface/80 backdrop-blur-xl rounded-t-3xl shadow-[0_-4px_20px_0_rgba(0,0,0,0.04)] border-t border-on-surface/5 transition-transform duration-300',
-        barsVisible ? 'translate-y-0' : 'translate-y-full',
-      )}>
-        {bottomNavItems.map((item) => {
-          const isActive = location.pathname === item.href ||
-            (item.href !== '/' && location.pathname.startsWith(item.href));
-          return (
-            <button
-              key={item.name}
-              onClick={() => navigate(item.href)}
-              className={cn(
-                'flex flex-col items-center justify-center px-4 py-1.5 rounded-2xl transition-all duration-300 touch-manipulation',
-                isActive
-                  ? 'bg-primary text-on-primary'
-                  : 'text-on-surface hover:bg-surface-container',
-              )}
-            >
-              <span
-                className="material-symbols-outlined text-xl mb-0.5"
-                style={isActive ? { fontVariationSettings: "'FILL' 1" } : undefined}
-              >
-                {item.icon}
-              </span>
-              <span className="text-[10px] uppercase tracking-wider font-bold">{item.name}</span>
-            </button>
-          );
-        })}
-      </nav>
     </div>
   );
 }
