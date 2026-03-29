@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Building2, Users, Receipt, MessageSquareWarning,
   Wallet, TrendingUp, TrendingDown, Home, CreditCard, Shield, Trash2,
-  ChevronRight,
+  ChevronRight, BarChart3, ClipboardList, FileText,
 } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -13,7 +13,7 @@ import { PageLoader } from '../../components/ui/Loader';
 import { getDefaultAuthenticatedRoute } from '../../lib/serviceStaff';
 import { useAuthStore } from '../../store/authStore';
 import type { DashboardData } from '../../types';
-import { FINANCIAL_ROLES } from '../../types';
+import { FINANCIAL_ROLES, SOCIETY_ADMINS } from '../../types';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
@@ -28,6 +28,16 @@ export default function DashboardPage() {
   if (isSuperAdmin) return <SuperAdminDashboard />;
   if (isManager) return <AdminDashboard />;
   return <ResidentDashboard />;
+}
+
+function Greeting({ name }: { name?: string }) {
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  return (
+    <p className="text-on-surface-variant text-sm font-body">
+      {greeting}{name ? `, ${name.split(' ')[0]}` : ''}
+    </p>
+  );
 }
 
 type RegisteredUser = {
@@ -219,300 +229,288 @@ function ResidentDashboard() {
 
   if (isLoading) return <PageLoader />;
 
+  const hasDue = (data?.totalDue ?? 0) > 0;
+
   return (
-    <div className="space-y-8 max-w-2xl mx-auto lg:max-w-none">
-      {/* Editorial Header — Mobile-first */}
+    <div className="space-y-6 max-w-2xl mx-auto lg:max-w-none">
+      {/* Header */}
       <header>
-        <p className="section-label mb-2">Your Space</p>
-        <h1 className="editorial-title text-4xl font-extrabold text-primary leading-tight">
-          Everything<br />Made Clearer.
-        </h1>
+        <Greeting name={user?.name} />
+        <h1 className="text-2xl font-extrabold text-primary font-headline mt-1">My Dashboard</h1>
       </header>
 
-      {/* Financial Health — Dark Hero Card */}
-      <div className="bg-gradient-to-br from-[#171C3F] to-[#2A3060] rounded-3xl p-6 text-white relative overflow-hidden">
-        <div className="relative z-10">
-          <p className="text-[10px] uppercase tracking-widest text-white/50 font-bold mb-1">Financial Health</p>
-          <h2 className="text-3xl sm:text-4xl font-extrabold editorial-title">{formatCurrency(data?.totalDue ?? 0)}</h2>
-          <p className="text-sm text-white/50 leading-relaxed mt-2 max-w-[220px]">
-            Outstanding balance across pending bills.
+      {/* Financial strip */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* Outstanding */}
+        <div className={`rounded-2xl p-5 ${hasDue ? 'bg-error-container/30' : 'bg-tertiary-container/20'}`}>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Outstanding</p>
+          <p className={`text-2xl font-extrabold font-headline ${hasDue ? 'text-error' : 'text-tertiary'}`}>
+            {formatCurrency(data?.totalDue ?? 0)}
+          </p>
+          <p className="text-xs text-on-surface-variant mt-1">
+            {data?.pendingBills ?? 0} bill{(data?.pendingBills ?? 0) !== 1 ? 's' : ''} unpaid
           </p>
         </div>
-        <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white opacity-10 rounded-full blur-3xl"></div>
-        <div className="absolute right-6 top-6">
-          <span className="material-symbols-outlined text-4xl text-white/20">account_balance</span>
+        {/* Paid */}
+        <div className="rounded-2xl p-5 bg-surface-container-low">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Total Paid</p>
+          <p className="text-2xl font-extrabold font-headline text-primary">
+            {formatCurrency(data?.totalPaid ?? 0)}
+          </p>
+          <p className="text-xs text-on-surface-variant mt-1">Lifetime payments</p>
         </div>
       </div>
 
-      {/* Bento Mini Cards */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white border border-slate-100 rounded-2xl p-5 flex flex-col justify-between aspect-square">
-          <span className="material-symbols-outlined text-primary text-2xl">receipt_long</span>
-          <div>
-            <p className="text-3xl font-extrabold text-slate-950 editorial-title">{data?.pendingBills ?? 0}</p>
-            <p className="text-[10px] uppercase tracking-tight text-slate-500 font-bold">Pending Bills</p>
-          </div>
-        </div>
-        <div className="bg-emerald-50 rounded-2xl p-5 flex flex-col justify-between aspect-square">
-          <span className="material-symbols-outlined text-emerald-700 text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>trending_up</span>
-          <div>
-            <p className="text-3xl font-extrabold text-emerald-900 editorial-title">{formatCurrency(data?.totalPaid ?? 0)}</p>
-            <p className="text-[10px] uppercase tracking-tight text-emerald-700 font-bold">Total Paid</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Operations Summary */}
-      <section className="space-y-3">
-        <h3 className="text-xl font-bold text-slate-950 editorial-title mb-5">Operations Summary</h3>
-
-        {/* Due Amount */}
-        <div className="ops-card">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center">
-              <span className="material-symbols-outlined text-rose-900 text-xl">account_balance_wallet</span>
+      {/* Active complaints */}
+      {(data?.openComplaints ?? 0) > 0 && (
+        <button
+          onClick={() => navigate('/complaints')}
+          className="w-full rounded-2xl border border-outline-variant/15 bg-surface-container-lowest p-4 flex items-center justify-between hover:border-primary/20 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
+              <MessageSquareWarning className="w-5 h-5 text-amber-700" />
             </div>
-            <div>
-              <h4 className="font-bold text-base text-slate-950">Amount Due</h4>
-              <p className="text-sm text-slate-600">Unpaid maintenance bills</p>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-on-surface">{data.openComplaints} open complaint{data.openComplaints !== 1 ? 's' : ''}</p>
+              <p className="text-xs text-on-surface-variant">Tap to view status</p>
             </div>
           </div>
-          <div className="text-xl font-black text-rose-900 editorial-title">{formatCurrency(data?.totalDue ?? 0)}</div>
-        </div>
+          <ChevronRight className="w-5 h-5 text-on-surface-variant" />
+        </button>
+      )}
 
-        {/* Open Complaints */}
-        <div className="ops-card">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center">
-              <span className="material-symbols-outlined text-slate-700 text-xl">forum</span>
-            </div>
-            <div>
-              <h4 className="font-bold text-base text-slate-950">Open Complaints</h4>
-              <p className="text-sm text-slate-600">{data?.openComplaints ?? 0} items pending</p>
-            </div>
-          </div>
-          <div className="text-xl font-black text-slate-950 editorial-title">{String(data?.openComplaints ?? 0).padStart(2, '0')}</div>
-        </div>
-      </section>
-
-      {/* Quick Actions */}
-      <section>
-        <p className="section-label mb-4">Quick Actions</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Quick actions */}
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Quick Actions</p>
+        <div className="grid grid-cols-3 gap-3">
           <button
             onClick={() => navigate('/billing')}
-            className="card-elevated p-5 flex items-center gap-4 hover:bg-slate-50 transition-colors text-left group"
+            className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex flex-col items-center gap-2 hover:border-primary/20 transition-colors"
           >
-            <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center">
-              <CreditCard className="w-5 h-5 text-slate-700" />
+            <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center">
+              <CreditCard className="w-5 h-5 text-primary" />
             </div>
-            <div>
-              <p className="font-bold text-slate-950 group-hover:text-primary transition-colors">Pay Bills</p>
-              <p className="text-xs text-slate-500">View & pay maintenance</p>
-            </div>
+            <p className="text-xs font-semibold text-on-surface">Pay Bills</p>
           </button>
           <button
             onClick={() => navigate('/complaints')}
-            className="card-elevated p-5 flex items-center gap-4 hover:bg-slate-50 transition-colors text-left group"
+            className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex flex-col items-center gap-2 hover:border-primary/20 transition-colors"
           >
-            <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center">
-              <MessageSquareWarning className="w-5 h-5 text-emerald-700" />
+            <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center">
+              <MessageSquareWarning className="w-5 h-5 text-primary" />
             </div>
-            <div>
-              <p className="font-bold text-slate-950 group-hover:text-primary transition-colors">Complaints</p>
-              <p className="text-xs text-slate-500">File or track a complaint</p>
-            </div>
+            <p className="text-xs font-semibold text-on-surface">Complaints</p>
           </button>
           <button
             onClick={() => navigate('/my-flat')}
-            className="card-elevated p-5 flex items-center gap-4 hover:bg-slate-50 transition-colors text-left group"
+            className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex flex-col items-center gap-2 hover:border-primary/20 transition-colors"
           >
-            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center">
               <Home className="w-5 h-5 text-primary" />
             </div>
-            <div>
-              <p className="font-bold text-slate-950 group-hover:text-primary transition-colors">My Flat</p>
-              <p className="text-xs text-slate-500">View your flat details</p>
-            </div>
+            <p className="text-xs font-semibold text-on-surface">My Flat</p>
           </button>
         </div>
-      </section>
+      </div>
     </div>
   );
 }
 
-/* ─── Admin Dashboard — Editorial Bento Grid ───────────────── */
+/* ─── Admin Dashboard — Role-aware overview ────────────────── */
 function AdminDashboard() {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const isAdmin = SOCIETY_ADMINS.includes(user?.role as any);
+  const isTreasurer = user?.role === 'TREASURER';
+
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ['dashboard'],
-    queryFn: async () => {
-      const { data } = await api.get('/reports/dashboard');
-      return data;
-    },
+    queryFn: async () => (await api.get('/reports/dashboard')).data,
   });
 
   if (isLoading) return <PageLoader />;
 
   const occupancyRate = data?.totalFlats ? Math.round(((data?.occupiedFlats || 0) / data.totalFlats) * 100) : 0;
-  const pendingBillPercent = data?.totalFlats ? Math.min(Math.round(((data?.pendingBills || 0) / data.totalFlats) * 100), 100) : 0;
   const netBalance = (data?.totalCollected || 0) - (data?.totalExpenses || 0);
+  const pendingBillPercent = data?.totalFlats ? Math.min(Math.round(((data?.pendingBills || 0) / data.totalFlats) * 100), 100) : 0;
+
+  const roleLabel = user?.role?.replace('_', ' ') || 'Manager';
 
   return (
-    <div className="space-y-8">
-      {/* Editorial Header — matches reference */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h2 className="editorial-title text-3xl sm:text-4xl font-extrabold text-slate-950">Overview</h2>
-          <p className="text-slate-600 mt-2 text-base">Your property health at a glance today.</p>
-        </div>
-        <div className="bg-slate-100 px-4 py-2 rounded-lg flex items-center gap-2 text-slate-900 font-medium text-sm">
-          <span className="material-symbols-outlined text-lg">calendar_today</span>
-          <span>{new Date().toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
-        </div>
-      </div>
-
-      {/* Bento Grid — Occupancy Stats (matches reference web layout) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-        {/* Total Flats — Large Card */}
-        <div className="col-span-2 bg-white border border-slate-100 rounded-2xl p-6 lg:p-8 flex flex-col justify-between min-h-[180px] group hover:bg-primary transition-colors duration-500">
-          <div className="flex justify-between items-start">
-            <span className="material-symbols-outlined text-primary group-hover:text-white text-3xl">apartment</span>
-            <span className="text-[10px] font-bold tracking-widest uppercase text-slate-500 group-hover:text-white/50">Capacity</span>
-          </div>
-          <div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-4xl lg:text-5xl font-extrabold editorial-title text-slate-950 group-hover:text-white">{data?.totalFlats || 0}</span>
-              <span className="text-slate-600 group-hover:text-white/80 font-bold">Total Flats</span>
-            </div>
-            <div className="mt-4 w-full bg-slate-100 group-hover:bg-white/20 rounded-full h-1.5 overflow-hidden">
-              <div className="bg-primary group-hover:bg-white h-full rounded-full transition-all" style={{ width: `${occupancyRate}%` }}></div>
-            </div>
-            <p className="text-xs text-slate-500 group-hover:text-white/50 mt-1">{occupancyRate}% Occupancy</p>
-          </div>
-        </div>
-
-        {/* Occupied — Informational Slate Card */}
-        <div className="bg-slate-100 rounded-2xl p-5 lg:p-8 flex flex-col justify-between min-h-[160px] lg:min-h-[180px]">
-          <div className="flex justify-between items-start">
-            <span className="material-symbols-outlined text-slate-700 text-2xl lg:text-3xl">done_all</span>
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-          </div>
-          <div>
-            <span className="text-3xl lg:text-4xl font-extrabold editorial-title text-slate-900">{data?.occupiedFlats || 0}</span>
-            <p className="text-slate-600 font-medium text-sm">Occupied Units</p>
-          </div>
-        </div>
-
-        {/* Vacant */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-5 lg:p-8 flex flex-col justify-between min-h-[160px] lg:min-h-[180px]">
-          <div className="flex justify-between items-start">
-            <span className="material-symbols-outlined text-slate-500 text-2xl lg:text-3xl">event_busy</span>
-            <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded text-[10px] font-bold">STABLE</span>
-          </div>
-          <div>
-            <span className="text-3xl lg:text-4xl font-extrabold editorial-title text-slate-900">{data?.vacantFlats || 0}</span>
-            <p className="text-slate-600 font-medium text-sm">Vacant Units</p>
-          </div>
+          <Greeting name={user?.name} />
+          <h1 className="text-2xl font-extrabold text-primary font-headline mt-1">Dashboard</h1>
+          <p className="text-xs text-on-surface-variant mt-1">
+            {new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+            <span className="mx-2">·</span>
+            <span className="text-primary font-semibold">{roleLabel}</span>
+          </p>
         </div>
       </div>
 
-      {/* Residents & Complaints Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-        <div className="bg-white border border-slate-100 rounded-2xl p-5 lg:p-8 flex items-center gap-4 lg:gap-6">
-          <div className="bg-slate-100 p-3 lg:p-4 rounded-2xl">
-            <span className="material-symbols-outlined text-slate-700 text-2xl lg:text-3xl">person</span>
-          </div>
-          <div>
-            <p className="text-slate-500 text-xs sm:text-sm font-bold uppercase tracking-tighter">Owners</p>
-            <p className="text-2xl lg:text-3xl font-extrabold text-slate-950 editorial-title">{data?.totalOwners || 0}</p>
-          </div>
-        </div>
-        <div className="bg-white border border-slate-100 rounded-2xl p-5 lg:p-8 flex items-center gap-4 lg:gap-6">
-          <div className="bg-slate-100 p-3 lg:p-4 rounded-2xl">
-            <span className="material-symbols-outlined text-slate-700 text-2xl lg:text-3xl">diversity_3</span>
-          </div>
-          <div>
-            <p className="text-slate-500 text-xs sm:text-sm font-bold uppercase tracking-tighter">Tenants</p>
-            <p className="text-2xl lg:text-3xl font-extrabold text-slate-950 editorial-title">{data?.totalTenants || 0}</p>
+      {/* ── Financial Summary (visible to all FINANCIAL_ROLES) ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-2xl bg-primary p-5 text-on-primary col-span-2">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-primary/50 mb-1">Total Collected</p>
+          <p className="text-3xl font-extrabold font-headline">{formatCurrency(data?.totalCollected || 0)}</p>
+          <div className="flex items-center gap-4 mt-3 text-sm">
+            <span className="text-on-primary/70">Expenses: {formatCurrency(data?.totalExpenses || 0)}</span>
+            <span className="text-on-primary/40">·</span>
+            <span className={netBalance >= 0 ? 'text-tertiary-fixed' : 'text-error-container'}>
+              Net: {formatCurrency(netBalance)}
+            </span>
           </div>
         </div>
-        <div className="col-span-2 lg:col-span-1 bg-rose-50 rounded-2xl p-5 lg:p-8 flex items-center justify-between cursor-pointer hover:opacity-90 transition-opacity" onClick={() => navigate('/complaints')}>
-          <div className="flex items-center gap-4 lg:gap-6">
-            <div className="bg-white p-3 lg:p-4 rounded-2xl">
-              <span className="material-symbols-outlined text-rose-900 text-2xl lg:text-3xl">warning</span>
-            </div>
-            <div>
-              <p className="text-rose-900 text-xs sm:text-sm font-bold uppercase tracking-tighter">Open Complaints</p>
-              <p className="text-2xl lg:text-3xl font-extrabold text-rose-900 editorial-title">{data?.openComplaints || 0}</p>
-            </div>
+        <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-lowest p-5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Pending Bills</p>
+          <p className="text-3xl font-extrabold font-headline text-error">{data?.pendingBills || 0}</p>
+          <div className="mt-2 w-full bg-surface-container-high rounded-full h-1.5">
+            <div className="bg-error h-full rounded-full" style={{ width: `${pendingBillPercent}%` }} />
           </div>
-          <span className="material-symbols-outlined text-rose-300 text-4xl lg:text-5xl">arrow_forward_ios</span>
+          <p className="text-[10px] text-on-surface-variant mt-1">{pendingBillPercent}% of flats</p>
+        </div>
+        <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-lowest p-5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Open Complaints</p>
+          <p className="text-3xl font-extrabold font-headline text-on-surface">{data?.openComplaints || 0}</p>
+          {(data?.openComplaints || 0) > 0 && (
+            <button
+              onClick={() => navigate('/complaints')}
+              className="mt-2 text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+            >
+              View all <ChevronRight className="w-3 h-3" />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Financial Summary — Editorial Dark Block (matches ref web layout) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
-        {/* Main Financial Card */}
-        <div className="lg:col-span-8 bg-gradient-to-br from-[#171C3F] to-[#2A3060] text-white p-6 sm:p-8 lg:p-10 rounded-2xl relative overflow-hidden">
-          <div className="relative z-10 flex flex-col h-full justify-between min-h-[200px]">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-              <div>
-                <h3 className="text-primary-fixed-dim text-xs sm:text-sm font-bold uppercase tracking-widest">Financial Summary</h3>
-                <p className="text-4xl lg:text-5xl font-extrabold editorial-title mt-2">{formatCurrency(data?.totalCollected || 0)}</p>
-                <p className="text-primary-fixed/60 mt-1 text-sm">Total Collected this cycle</p>
-              </div>
-              <div className="bg-white/10 backdrop-blur px-4 py-2 rounded-xl border border-white/10">
-                <p className="text-xs uppercase font-bold text-primary-fixed">Net Balance</p>
-                <p className="text-xl sm:text-2xl font-bold">{formatCurrency(netBalance)}</p>
-              </div>
+      {/* ── Occupancy (Admin / Secretary / Joint Secretary) ── */}
+      {(isAdmin || user?.role === 'JOINT_SECRETARY') && (
+        <div className="grid grid-cols-3 gap-4">
+          <div className="rounded-2xl bg-surface-container-low p-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Total Flats</p>
+              <Building2 className="w-4 h-4 text-on-surface-variant" />
             </div>
-            <div className="mt-8 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8">
-              <div>
-                <p className="text-primary-fixed/60 text-xs font-bold uppercase">Total Expenses</p>
-                <p className="text-xl sm:text-2xl font-bold editorial-title">{formatCurrency(data?.totalExpenses || 0)}</p>
-              </div>
-              <div className="hidden sm:block flex-1 h-px bg-white/10"></div>
-              <button
-                onClick={() => navigate('/reports')}
-                className="bg-primary-fixed text-primary px-5 py-2.5 rounded-lg font-bold flex items-center gap-2 hover:opacity-90 transition-opacity text-sm"
-              >
-                <span>View Ledger</span>
-                <span className="material-symbols-outlined text-lg">trending_up</span>
-              </button>
+            <p className="text-2xl font-extrabold font-headline text-primary">{data?.totalFlats || 0}</p>
+            <div className="mt-2 w-full bg-surface-container-high rounded-full h-1.5">
+              <div className="bg-primary h-full rounded-full" style={{ width: `${occupancyRate}%` }} />
             </div>
+            <p className="text-[10px] text-on-surface-variant mt-1">{occupancyRate}% occupied</p>
           </div>
-          {/* Abstract Background */}
-          <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-64 h-64 bg-tertiary-fixed/5 rounded-full blur-2xl"></div>
+          <div className="rounded-2xl bg-surface-container-low p-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Owners</p>
+              <Users className="w-4 h-4 text-on-surface-variant" />
+            </div>
+            <p className="text-2xl font-extrabold font-headline text-on-surface">{data?.totalOwners || 0}</p>
+          </div>
+          <div className="rounded-2xl bg-surface-container-low p-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tenants</p>
+              <Users className="w-4 h-4 text-on-surface-variant" />
+            </div>
+            <p className="text-2xl font-extrabold font-headline text-on-surface">{data?.totalTenants || 0}</p>
+          </div>
         </div>
+      )}
 
-        {/* Billing Status Card */}
-        <div className="lg:col-span-4 bg-white border border-slate-100 p-6 lg:p-8 rounded-2xl flex flex-col justify-between">
-          <div>
-            <div className="flex justify-between items-center mb-6">
-              <span className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Billing Status</span>
-              {(data?.pendingBills || 0) > 0 && (
-                <span className="bg-rose-50 text-rose-900 px-2 py-0.5 rounded text-[10px] font-bold">ACTION REQUIRED</span>
-              )}
-            </div>
-            <div className="space-y-4">
-              <div className="flex justify-between items-end">
-                <p className="text-slate-600 font-medium">Pending Bills</p>
-                <p className="text-2xl lg:text-3xl font-extrabold text-slate-950 editorial-title">{data?.pendingBills || 0}</p>
-              </div>
-              <div className="w-full bg-slate-100 rounded-full h-2">
-                <div className="bg-rose-500 h-full rounded-full transition-all" style={{ width: `${pendingBillPercent}%` }}></div>
-              </div>
-              <p className="text-xs text-slate-500">{pendingBillPercent}% of units have outstanding invoices.</p>
-            </div>
-          </div>
+      {/* ── Quick Actions — role filtered ── */}
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Quick Actions</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Billing — all financial roles */}
           <button
             onClick={() => navigate('/billing')}
-            className="w-full border border-slate-200 text-primary py-2.5 rounded-lg font-bold mt-6 hover:bg-slate-50 transition-colors text-sm"
+            className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex items-center gap-3 hover:border-primary/20 transition-colors"
           >
-            Send Reminders
+            <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Receipt className="w-5 h-5 text-primary" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-on-surface">Billing</p>
+              <p className="text-[10px] text-on-surface-variant">Generate & track bills</p>
+            </div>
           </button>
+
+          {/* Expenses — all financial roles */}
+          <button
+            onClick={() => navigate('/expenses')}
+            className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex items-center gap-3 hover:border-primary/20 transition-colors"
+          >
+            <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Wallet className="w-5 h-5 text-primary" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-on-surface">Expenses</p>
+              <p className="text-[10px] text-on-surface-variant">Record & review</p>
+            </div>
+          </button>
+
+          {/* Reports — all financial roles */}
+          <button
+            onClick={() => navigate('/reports')}
+            className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex items-center gap-3 hover:border-primary/20 transition-colors"
+          >
+            <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center flex-shrink-0">
+              <BarChart3 className="w-5 h-5 text-primary" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-on-surface">Reports</p>
+              <p className="text-[10px] text-on-surface-variant">P&L, defaulters</p>
+            </div>
+          </button>
+
+          {/* Complaints — Admin, Secretary, JointSec */}
+          {!isTreasurer && (
+            <button
+              onClick={() => navigate('/complaints')}
+              className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex items-center gap-3 hover:border-primary/20 transition-colors"
+            >
+              <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center flex-shrink-0">
+                <MessageSquareWarning className="w-5 h-5 text-primary" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-semibold text-on-surface">Complaints</p>
+                <p className="text-[10px] text-on-surface-variant">Resolve issues</p>
+              </div>
+            </button>
+          )}
+
+          {/* Flats — Admin & Secretary */}
+          {isAdmin && (
+            <button
+              onClick={() => navigate('/flats')}
+              className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex items-center gap-3 hover:border-primary/20 transition-colors"
+            >
+              <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Building2 className="w-5 h-5 text-primary" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-semibold text-on-surface">Flats</p>
+                <p className="text-[10px] text-on-surface-variant">Manage residents</p>
+              </div>
+            </button>
+          )}
+
+          {/* Settings — Admin & Secretary */}
+          {isAdmin && (
+            <button
+              onClick={() => navigate('/settings')}
+              className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 p-4 flex items-center gap-3 hover:border-primary/20 transition-colors"
+            >
+              <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center flex-shrink-0">
+                <ClipboardList className="w-5 h-5 text-primary" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-semibold text-on-surface">Settings</p>
+                <p className="text-[10px] text-on-surface-variant">Staff, menus, billing</p>
+              </div>
+            </button>
+          )}
         </div>
       </div>
     </div>
