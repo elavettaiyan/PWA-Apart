@@ -7,6 +7,37 @@ import { validate } from '../../middleware/errorHandler';
 const router = Router();
 router.use(authenticate);
 
+function getMonthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function addToBucket(bucket: Record<string, number>, key: string, amount: number) {
+  bucket[key] = (bucket[key] || 0) + amount;
+}
+
+function getOutstandingAmount(totalAmount: number, paidAmount: number) {
+  return Math.max(totalAmount - paidAmount, 0);
+}
+
+function getProratedCollectedAmount(componentAmount: number, totalAmount: number, paidAmount: number) {
+  if (componentAmount <= 0 || totalAmount <= 0 || paidAmount <= 0) {
+    return 0;
+  }
+
+  return (Math.min(paidAmount, totalAmount) * componentAmount) / totalAmount;
+}
+
+function getAgingBucket(dueDate: Date, asOfDate: Date) {
+  const dayMs = 24 * 60 * 60 * 1000;
+  const daysPastDue = Math.floor((asOfDate.getTime() - dueDate.getTime()) / dayMs);
+
+  if (daysPastDue <= 0) return 'current';
+  if (daysPastDue <= 30) return 'days1To30';
+  if (daysPastDue <= 60) return 'days31To60';
+  if (daysPastDue <= 90) return 'days61To90';
+  return 'days90Plus';
+}
+
 // ── MY DASHBOARD (Owner/Tenant) ─────────────────────────
 router.get('/my-dashboard', async (req: AuthRequest, res: Response) => {
   try {
@@ -278,12 +309,33 @@ router.get(
         : req.user!.societyId;
       const fromDate = new Date(req.query.fromDate as string);
       const toDate = new Date(req.query.toDate as string);
+      const periodEnd = new Date(toDate);
+      periodEnd.setHours(23, 59, 59, 999);
 
-      // INCOME: Successful payments in the period
+      const billedBills = await prisma.maintenanceBill.findMany({
+        where: {
+          dueDate: { gte: fromDate, lte: periodEnd },
+          flat: { block: { societyId: societyId! } },
+        },
+        select: {
+          totalAmount: true,
+          paidAmount: true,
+          dueDate: true,
+          baseAmount: true,
+          waterCharge: true,
+          parkingCharge: true,
+          sinkingFund: true,
+          repairFund: true,
+          otherCharges: true,
+          lateFee: true,
+        },
+      });
+
+      // COLLECTED INCOME: Successful payments in the period
       const income = await prisma.payment.aggregate({
         where: {
           status: 'SUCCESS',
-          paidAt: { gte: fromDate, lte: toDate },
+          paidAt: { gte: fromDate, lte: periodEnd },
           bill: { flat: { block: { societyId: societyId! } } },
         },
         _sum: { amount: true },
@@ -293,7 +345,7 @@ router.get(
       const payments = await prisma.payment.findMany({
         where: {
           status: 'SUCCESS',
-          paidAt: { gte: fromDate, lte: toDate },
+          paidAt: { gte: fromDate, lte: periodEnd },
           bill: { flat: { block: { societyId: societyId! } } },
         },
         select: { amount: true, paidAt: true },
@@ -302,9 +354,80 @@ router.get(
       const incomeByMonth: Record<string, number> = {};
       payments.forEach((p) => {
         if (p.paidAt) {
-          const key = `${p.paidAt.getFullYear()}-${String(p.paidAt.getMonth() + 1).padStart(2, '0')}`;
+          const key = getMonthKey(p.paidAt);
           incomeByMonth[key] = (incomeByMonth[key] || 0) + p.amount;
         }
+      });
+
+      const billedIncomeByMonth: Record<string, number> = {};
+      const billedIncomeByComponent = {
+        baseAmount: 0,
+        waterCharge: 0,
+        parkingCharge: 0,
+        sinkingFund: 0,
+        repairFund: 0,
+        otherCharges: 0,
+        lateFee: 0,
+      };
+      const reserveFunds = {
+        sinkingFundBilled: 0,
+        repairFundBilled: 0,
+        sinkingFundCollected: 0,
+        repairFundCollected: 0,
+        sinkingFundOutstanding: 0,
+        repairFundOutstanding: 0,
+      };
+
+      billedBills.forEach((bill) => {
+        addToBucket(billedIncomeByMonth, getMonthKey(bill.dueDate), bill.totalAmount);
+        billedIncomeByComponent.baseAmount += bill.baseAmount;
+        billedIncomeByComponent.waterCharge += bill.waterCharge;
+        billedIncomeByComponent.parkingCharge += bill.parkingCharge;
+        billedIncomeByComponent.sinkingFund += bill.sinkingFund;
+        billedIncomeByComponent.repairFund += bill.repairFund;
+        billedIncomeByComponent.otherCharges += bill.otherCharges;
+        billedIncomeByComponent.lateFee += bill.lateFee;
+
+        const sinkingFundCollected = getProratedCollectedAmount(bill.sinkingFund, bill.totalAmount, bill.paidAmount);
+        const repairFundCollected = getProratedCollectedAmount(bill.repairFund, bill.totalAmount, bill.paidAmount);
+
+        reserveFunds.sinkingFundBilled += bill.sinkingFund;
+        reserveFunds.repairFundBilled += bill.repairFund;
+        reserveFunds.sinkingFundCollected += sinkingFundCollected;
+        reserveFunds.repairFundCollected += repairFundCollected;
+        reserveFunds.sinkingFundOutstanding += Math.max(bill.sinkingFund - sinkingFundCollected, 0);
+        reserveFunds.repairFundOutstanding += Math.max(bill.repairFund - repairFundCollected, 0);
+      });
+
+      const receivableBills = await prisma.maintenanceBill.findMany({
+        where: {
+          status: { in: ['PENDING', 'OVERDUE', 'PARTIAL'] },
+          flat: { block: { societyId: societyId! } },
+          dueDate: { lte: periodEnd },
+        },
+        select: {
+          totalAmount: true,
+          paidAmount: true,
+          dueDate: true,
+        },
+      });
+
+      const agingBuckets = {
+        current: 0,
+        days1To30: 0,
+        days31To60: 0,
+        days61To90: 0,
+        days90Plus: 0,
+      };
+
+      receivableBills.forEach((bill) => {
+        const outstandingAmount = getOutstandingAmount(bill.totalAmount, bill.paidAmount);
+        if (outstandingAmount <= 0) {
+          return;
+        }
+
+        const agingBucket = getAgingBucket(bill.dueDate, periodEnd);
+        agingBuckets[agingBucket] += outstandingAmount;
       });
 
       // EXPENSES: Expenses in the period
@@ -333,17 +456,28 @@ router.get(
 
       const expenseByMonth: Record<string, number> = {};
       expensesList.forEach((e) => {
-        const key = `${e.expenseDate.getFullYear()}-${String(e.expenseDate.getMonth() + 1).padStart(2, '0')}`;
+        const key = getMonthKey(e.expenseDate);
         expenseByMonth[key] = (expenseByMonth[key] || 0) + e.amount;
       });
 
-      const totalIncome = income._sum.amount || 0;
-      const netProfitLoss = totalIncome - totalExpenses;
+      const totalCollectedIncome = income._sum.amount || 0;
+      const totalBilledIncome = billedBills.reduce((sum, bill) => sum + bill.totalAmount, 0);
+      const netProfitLoss = totalBilledIncome - totalExpenses;
+      const cashSurplus = totalCollectedIncome - totalExpenses;
+      const totalOutstandingReceivables = receivableBills.reduce(
+        (sum, bill) => sum + getOutstandingAmount(bill.totalAmount, bill.paidAmount),
+        0,
+      );
 
       return res.json({
         period: { from: fromDate, to: toDate },
-        income: {
-          total: totalIncome,
+        billedIncome: {
+          total: totalBilledIncome,
+          byMonth: billedIncomeByMonth,
+          byComponent: billedIncomeByComponent,
+        },
+        collectedIncome: {
+          total: totalCollectedIncome,
           byMonth: incomeByMonth,
         },
         expenses: {
@@ -351,9 +485,15 @@ router.get(
           byCategory: expensesByCategory,
           byMonth: expenseByMonth,
         },
+        receivables: {
+          totalOutstanding: totalOutstandingReceivables,
+          agingBuckets,
+        },
+        reserveFunds,
         netProfitLoss,
-        profitMargin: totalIncome > 0
-          ? ((netProfitLoss / totalIncome) * 100).toFixed(1)
+        cashSurplus,
+        profitMargin: totalBilledIncome > 0
+          ? ((netProfitLoss / totalBilledIncome) * 100).toFixed(1)
           : '0',
       });
     } catch (error) {

@@ -383,13 +383,45 @@ export interface CollectionReport {
 
 export interface PnLReport {
   period: { from: string; to: string };
-  income: { total: number; byMonth: Record<string, number> };
+  billedIncome: {
+    total: number;
+    byMonth: Record<string, number>;
+    byComponent: {
+      baseAmount: number;
+      waterCharge: number;
+      parkingCharge: number;
+      sinkingFund: number;
+      repairFund: number;
+      otherCharges: number;
+      lateFee: number;
+    };
+  };
+  collectedIncome: { total: number; byMonth: Record<string, number> };
   expenses: {
     total: number;
     byCategory: Array<{ category: string; _sum: { amount: number } }>;
     byMonth: Record<string, number>;
   };
+  receivables: {
+    totalOutstanding: number;
+    agingBuckets: {
+      current: number;
+      days1To30: number;
+      days31To60: number;
+      days61To90: number;
+      days90Plus: number;
+    };
+  };
+  reserveFunds: {
+    sinkingFundBilled: number;
+    repairFundBilled: number;
+    sinkingFundCollected: number;
+    repairFundCollected: number;
+    sinkingFundOutstanding: number;
+    repairFundOutstanding: number;
+  };
   netProfitLoss: number;
+  cashSurplus: number;
   profitMargin: string;
 }
 
