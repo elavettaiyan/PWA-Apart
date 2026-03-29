@@ -15,6 +15,7 @@ import type { User } from '../types';
 
 const PUSH_TOKEN_KEY = 'push.notification.token';
 const PUSH_TOKEN_SYNC_KEY = 'push.notification.token.sync';
+const PENDING_PUSH_TARGET_KEY = 'push.notification.target.pending';
 
 let listenersReady = false;
 let initPromise: Promise<void> | null = null;
@@ -52,7 +53,17 @@ function buildSyncKey(token: string, user: User) {
 function resolveNotificationTarget(notification: PushNotificationSchema | ActionPerformed['notification']) {
   const route = notification.data?.route;
   const path = notification.data?.path;
-  const target = typeof route === 'string' && route ? route : typeof path === 'string' && path ? path : null;
+  const type = notification.data?.type;
+  const defaultTarget = typeof route === 'string' && route ? route : typeof path === 'string' && path ? path : null;
+
+  if (type === 'visitor.entry' || type === 'delivery.alert') {
+    const role = useAuthStore.getState().user?.role;
+    if (role === 'OWNER' || role === 'TENANT') {
+      return '/my-flat';
+    }
+  }
+
+  const target = defaultTarget;
 
   if (!target) {
     return null;
@@ -83,6 +94,19 @@ async function clearStoredSyncKey() {
   await Preferences.remove({ key: PUSH_TOKEN_SYNC_KEY });
 }
 
+async function storePendingNotificationTarget(target: string) {
+  await Preferences.set({ key: PENDING_PUSH_TARGET_KEY, value: target });
+}
+
+async function readPendingNotificationTarget() {
+  const { value } = await Preferences.get({ key: PENDING_PUSH_TARGET_KEY });
+  return value;
+}
+
+async function clearPendingNotificationTarget() {
+  await Preferences.remove({ key: PENDING_PUSH_TARGET_KEY });
+}
+
 async function handleRegistration(token: Token) {
   await storePushToken(token.value);
 
@@ -106,8 +130,28 @@ async function handleNotificationAction(action: ActionPerformed) {
   const target = resolveNotificationTarget(action.notification);
 
   if (target) {
-    navigateTo(target, false);
+    await storePendingNotificationTarget(target);
+
+    if (useAuthStore.getState().isAuthenticated) {
+      await clearPendingNotificationTarget();
+      navigateTo(target, false);
+    }
   }
+}
+
+export async function openPendingPushNotificationTarget() {
+  const target = await readPendingNotificationTarget();
+  if (!target) {
+    return false;
+  }
+
+  if (!useAuthStore.getState().isAuthenticated) {
+    return false;
+  }
+
+  await clearPendingNotificationTarget();
+  navigateTo(target, false);
+  return true;
 }
 
 export async function initializePushNotifications() {

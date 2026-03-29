@@ -104,7 +104,6 @@ router.post(
     try {
       const societyId = req.user!.societyId;
       if (!societyId) return res.status(400).json({ error: 'Society ID required' });
-      if (!req.file) return res.status(400).json({ error: 'Visitor photo is required' });
 
       const flat = await findFlatInSociety(req.body.flatId, societyId);
       if (!flat) return res.status(404).json({ error: 'Flat not found in your society' });
@@ -119,7 +118,7 @@ router.post(
           vehicleNumber: req.body.vehicleNumber || null,
           purpose: req.body.purpose,
           notes: req.body.notes || null,
-          photoUrl: getFileUrl(req.file),
+          photoUrl: req.file ? getFileUrl(req.file) : null,
         },
         include: {
           flat: {

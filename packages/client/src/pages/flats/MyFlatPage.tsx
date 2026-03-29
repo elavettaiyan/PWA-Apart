@@ -175,9 +175,22 @@ function RecentVisitorsCard({ visitors }: { visitors: Visitor[] }) {
           {visitors.map((visitor) => (
             <div key={visitor.id} className="rounded-2xl border border-outline-variant/20 p-4 bg-surface-container/40">
               <div className="flex items-start justify-between gap-3">
-                <div>
+                <div className="flex items-start gap-3 min-w-0">
+                  {visitor.photoUrl ? (
+                    <img
+                      src={visitor.photoUrl}
+                      alt={visitor.visitorName}
+                      className="h-14 w-14 rounded-xl object-cover border border-outline-variant/20 shrink-0"
+                    />
+                  ) : (
+                    <div className="h-14 w-14 rounded-xl bg-surface-container-low border border-outline-variant/15 flex items-center justify-center text-xs text-outline shrink-0">
+                      No photo
+                    </div>
+                  )}
+                  <div className="min-w-0">
                   <p className="font-semibold text-on-surface">{visitor.visitorName}</p>
                   <p className="text-sm text-on-surface-variant">{visitor.purpose}</p>
+                </div>
                 </div>
                 <span className={cn('badge', getStatusColor(visitor.status))}>{visitor.status}</span>
               </div>

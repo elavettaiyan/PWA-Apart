@@ -70,17 +70,15 @@ export default function GateManagementPage() {
 
   const createVisitor = useMutation({
     mutationFn: async () => {
-      if (!visitorPhoto) {
-        throw new Error('Visitor photo is required');
-      }
-
       const formData = new FormData();
       formData.append('flatId', visitorForm.flatId);
       formData.append('visitorName', visitorForm.visitorName);
       formData.append('mobile', visitorForm.mobile);
       formData.append('vehicleNumber', visitorForm.vehicleNumber);
       formData.append('purpose', visitorForm.purpose);
-      formData.append('photo', visitorPhoto);
+      if (visitorPhoto) {
+        formData.append('photo', visitorPhoto);
+      }
       return (await api.post('/visitors', formData, { headers: { 'Content-Type': 'multipart/form-data' } })).data;
     },
     onSuccess: () => {
@@ -181,7 +179,7 @@ export default function GateManagementPage() {
             <>
               <div>
                 <h2 className="text-lg font-semibold text-on-surface">Record Visitor</h2>
-                <p className="text-sm text-on-surface-variant mt-1">Visitor photo is required by default.</p>
+                <p className="text-sm text-on-surface-variant mt-1">Visitor photo is optional.</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <SelectFlat value={visitorForm.flatId} onChange={(value) => setVisitorForm((current) => ({ ...current, flatId: value }))} flats={flats} />
@@ -194,7 +192,7 @@ export default function GateManagementPage() {
                 <Field label="Vehicle Number">
                   <input className="input" value={visitorForm.vehicleNumber} onChange={(event) => setVisitorForm((current) => ({ ...current, vehicleNumber: event.target.value }))} placeholder="Optional vehicle number" />
                 </Field>
-                <Field label="Photo *">
+                <Field label="Photo">
                   <input className="input file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-semibold file:text-on-primary" type="file" accept="image/*" capture="environment" onChange={(event) => setVisitorPhoto(event.target.files?.[0] || null)} />
                   {visitorPhoto && <p className="mt-2 text-xs text-on-surface-variant">Selected: {visitorPhoto.name}</p>}
                 </Field>
@@ -209,7 +207,7 @@ export default function GateManagementPage() {
               <div className="flex justify-end">
                 <button
                   className="btn-primary"
-                  disabled={createVisitor.isPending || !visitorForm.flatId || !visitorForm.visitorName.trim() || !visitorForm.mobile.trim() || !visitorForm.purpose.trim() || !visitorPhoto}
+                  disabled={createVisitor.isPending || !visitorForm.flatId || !visitorForm.visitorName.trim() || !visitorForm.mobile.trim() || !visitorForm.purpose.trim()}
                   onClick={() => createVisitor.mutate()}
                 >
                   {createVisitor.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : 'Save Visitor'}

@@ -179,7 +179,6 @@ export default function SettingsPage() {
         title="Account"
         description="Manage password, session access, and account details"
         icon={Settings}
-        defaultOpen
       >
         <div className="space-y-4">
           <div className="flex items-center gap-4">
@@ -222,7 +221,6 @@ export default function SettingsPage() {
         title="Society Administration"
         description="Manage staff accounts and access association governance tools"
         icon={ShieldCheck}
-        defaultOpen
       >
         <div className="space-y-5">
           <ManageStaffPanel embedded />
@@ -256,7 +254,6 @@ export default function SettingsPage() {
         title="Premium Plan"
         description="Review subscription status, limits, and billing impact"
         icon={ShieldCheck}
-        defaultOpen
       >
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-4 mb-6">
