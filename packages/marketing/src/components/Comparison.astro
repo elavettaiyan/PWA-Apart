@@ -96,11 +96,74 @@ const summaryTotals = [
       </p>
     </div>
 
-    <!-- Unified Comparison Table -->
-    <div class="bg-surface-container-lowest rounded-2xl overflow-hidden editorial-shadow relative">
+    <!-- Mobile Comparison Cards -->
+    <div class="sm:hidden space-y-4">
+      {rows.map((row) => (
+        <div class="bg-surface-container-lowest rounded-2xl overflow-hidden editorial-shadow">
+          <div class="p-5 border-b border-primary/5 flex items-start gap-3">
+            <div class="w-9 h-9 bg-primary/5 rounded-lg flex items-center justify-center flex-shrink-0">
+              <span class="material-symbols-outlined text-primary text-xl">{row.icon}</span>
+            </div>
+            <div>
+              <p class="text-xs font-bold tracking-widest uppercase text-on-surface-variant font-label">Cost Item</p>
+              <h4 class="mt-1 font-semibold text-base text-primary font-headline leading-snug">{row.label}</h4>
+            </div>
+          </div>
+
+          <div class="p-5 bg-surface-container-low/50 border-b border-primary/5 space-y-1">
+            <p class="text-[10px] font-bold tracking-widest uppercase text-on-surface-variant font-label">Typical Apps</p>
+            <p class="text-sm text-on-surface-variant font-body leading-relaxed">{row.others}</p>
+          </div>
+
+          <div class="p-5 bg-primary/[0.06] flex items-start gap-3">
+            <span class="material-symbols-outlined text-emerald-600 text-lg flex-shrink-0 mt-0.5">check_circle</span>
+            <div class="min-w-0">
+              <p class="text-[10px] font-bold tracking-widest uppercase text-on-surface-variant font-label">Dwell Hub</p>
+              <p class="mt-1 text-base font-bold text-primary font-headline leading-snug">{row.ours}</p>
+              <p class="mt-1 text-xs text-on-surface-variant font-body leading-relaxed">{row.oursNote}</p>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      <div class="bg-surface-container-lowest rounded-2xl overflow-hidden editorial-shadow border border-primary/10">
+        <div class="p-5 bg-primary text-on-primary flex items-center gap-3">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 32 32" fill="none" class="flex-shrink-0">
+            <rect width="32" height="32" rx="8" fill="rgba(255,255,255,0.15)"/>
+            <path d="M22 26V10a2 2 0 00-2-2h-8a2 2 0 00-2 2v16m14 0h1.5m-1.5 0h-4m-10 0H8.5m1.5 0h4M13 13h1m-1 3h1m4-3h1m-1 3h1m-4 10v-4a1 1 0 011-1h2a1 1 0 011 1v4m-4 0h4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <div>
+            <span class="text-sm font-bold tracking-tighter font-headline block">Dwell Hub</span>
+            <span class="text-[10px] font-bold tracking-widest uppercase opacity-70">Save 4×</span>
+          </div>
+        </div>
+
+        {summaryTotals.map((total) => (
+          <div class="border-t border-primary/5">
+            <div class="p-5 bg-surface-container-low/30">
+              <p class="text-[10px] font-bold tracking-widest uppercase text-on-surface-variant font-label">Summary</p>
+              <p class="mt-1 font-bold text-primary font-headline text-base">{total.label}</p>
+            </div>
+            <div class="grid grid-cols-2">
+              <div class="p-5 bg-error-container/30">
+                <p class="text-[10px] font-bold tracking-widest uppercase text-on-error-container/70 font-label">Typical Apps</p>
+                <p class="mt-1 text-base font-bold text-error font-headline line-through decoration-error/40">{total.others}</p>
+              </div>
+              <div class="p-5 bg-primary text-on-primary">
+                <p class="text-[10px] font-bold tracking-widest uppercase text-on-primary/70 font-label">Dwell Hub</p>
+                <p class="mt-1 text-lg font-extrabold text-on-primary font-headline">{total.ours}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- Desktop Comparison Table -->
+    <div class="hidden sm:block bg-surface-container-lowest rounded-2xl overflow-hidden editorial-shadow relative">
 
       <!-- Column Headers -->
-      <div class="grid grid-cols-[1fr_1fr_1fr] sm:grid-cols-[2fr_1.5fr_1.5fr] border-b border-primary/5">
+      <div class="grid sm:grid-cols-[2fr_1.5fr_1.5fr] border-b border-primary/5">
         <div class="p-6 lg:p-8">
           <span class="text-xs font-bold tracking-widest uppercase text-on-surface-variant font-label">Cost Item</span>
         </div>
@@ -121,9 +184,9 @@ const summaryTotals = [
 
       <!-- Rows -->
       {rows.map((row) => (
-        <div class="grid grid-cols-[1fr_1fr_1fr] sm:grid-cols-[2fr_1.5fr_1.5fr] border-b border-primary/5">
+        <div class="grid sm:grid-cols-[2fr_1.5fr_1.5fr] border-b border-primary/5">
           <div class="p-6 lg:p-8 flex items-start gap-4">
-            <div class="hidden sm:flex w-9 h-9 bg-primary/5 rounded-lg items-center justify-center flex-shrink-0 mt-0.5">
+            <div class="w-9 h-9 bg-primary/5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
               <span class="material-symbols-outlined text-primary text-xl">{row.icon}</span>
             </div>
             <span class="font-semibold text-sm text-primary font-headline">{row.label}</span>
@@ -135,7 +198,7 @@ const summaryTotals = [
             <span class="material-symbols-outlined text-emerald-600 text-lg flex-shrink-0 mt-0.5">check_circle</span>
             <div>
               <span class="text-sm font-bold text-primary font-headline block">{row.ours}</span>
-              <span class="text-xs text-on-surface-variant font-body hidden sm:block">{row.oursNote}</span>
+              <span class="text-xs text-on-surface-variant font-body">{row.oursNote}</span>
             </div>
           </div>
         </div>
@@ -143,10 +206,10 @@ const summaryTotals = [
 
       <!-- Total Rows -->
       <div class="border-t-2 border-primary/15">
-        {summaryTotals.map((total, i) => (
-          <div class="grid grid-cols-[1fr_1fr_1fr] sm:grid-cols-[2fr_1.5fr_1.5fr] border-b border-primary/5 last:border-b-0">
+        {summaryTotals.map((total) => (
+          <div class="grid sm:grid-cols-[2fr_1.5fr_1.5fr] border-b border-primary/5 last:border-b-0">
             <div class="p-6 lg:p-8 flex items-center gap-4 bg-surface-container-low/30">
-              <div class="hidden sm:flex w-9 h-9 bg-primary/10 rounded-lg items-center justify-center flex-shrink-0">
+              <div class="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
                 <span class="material-symbols-outlined text-primary text-xl">calculate</span>
               </div>
               <span class="font-bold text-sm text-primary font-headline">{total.label}</span>
