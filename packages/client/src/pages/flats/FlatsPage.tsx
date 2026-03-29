@@ -775,6 +775,7 @@ function getApiErrorMessage(error: any, fallback: string): string {
 function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) {
   const user = useAuthStore((state) => state.user);
   const isAdminManager = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'] as string[]).includes(user?.role || '');
+  const activeTenant = flat.tenant?.isActive ? flat.tenant : null;
   const [form, setForm] = useState({
     name: flat.owner?.name || '',
     phone: flat.owner?.phone || '',
@@ -783,16 +784,40 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
     panNo: flat.owner?.panNo || '',
   });
   const [tenantForm, setTenantForm] = useState({
-    name: flat.tenant?.name || '',
-    phone: flat.tenant?.phone || '',
-    email: flat.tenant?.email || '',
-    leaseStart: flat.tenant?.leaseStart ? new Date(flat.tenant.leaseStart).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-    leaseEnd: flat.tenant?.leaseEnd ? new Date(flat.tenant.leaseEnd).toISOString().split('T')[0] : '',
-    rentAmount: flat.tenant?.rentAmount?.toString() || '',
-    deposit: flat.tenant?.deposit?.toString() || '',
+    name: activeTenant?.name || '',
+    phone: activeTenant?.phone || '',
+    email: activeTenant?.email || '',
+    leaseStart: activeTenant?.leaseStart ? new Date(activeTenant.leaseStart).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    leaseEnd: activeTenant?.leaseEnd ? new Date(activeTenant.leaseEnd).toISOString().split('T')[0] : '',
+    rentAmount: activeTenant?.rentAmount?.toString() || '',
+    deposit: activeTenant?.deposit?.toString() || '',
   });
   const [showTenantRemoveConfirm, setShowTenantRemoveConfirm] = useState(false);
   const [tenantRemovalReason, setTenantRemovalReason] = useState('');
+
+  useEffect(() => {
+    setForm({
+      name: flat.owner?.name || '',
+      phone: flat.owner?.phone || '',
+      email: flat.owner?.email || '',
+      aadharNo: flat.owner?.aadharNo || '',
+      panNo: flat.owner?.panNo || '',
+    });
+  }, [flat.owner]);
+
+  useEffect(() => {
+    setTenantForm({
+      name: activeTenant?.name || '',
+      phone: activeTenant?.phone || '',
+      email: activeTenant?.email || '',
+      leaseStart: activeTenant?.leaseStart ? new Date(activeTenant.leaseStart).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      leaseEnd: activeTenant?.leaseEnd ? new Date(activeTenant.leaseEnd).toISOString().split('T')[0] : '',
+      rentAmount: activeTenant?.rentAmount?.toString() || '',
+      deposit: activeTenant?.deposit?.toString() || '',
+    });
+    setShowTenantRemoveConfirm(false);
+    setTenantRemovalReason('');
+  }, [activeTenant, flat.id]);
 
   const ownerMutation = useMutation({
     mutationFn: (data: any) => {
@@ -807,12 +832,12 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
 
   const tenantMutation = useMutation({
     mutationFn: (data: any) => {
-      if (flat.tenant?.id) {
-        return api.put(`/flats/tenants/${flat.tenant.id}`, data);
+      if (activeTenant?.id) {
+        return api.put(`/flats/tenants/${activeTenant.id}`, data);
       }
       return api.post('/flats/tenants', { ...data, flatId: flat.id });
     },
-    onSuccess: () => { toast.success(flat.tenant?.id ? 'Tenant details saved!' : 'Tenant added successfully!'); onSaved(); },
+    onSuccess: () => { toast.success(activeTenant?.id ? 'Tenant details saved!' : 'Tenant added successfully!'); onSaved(); },
     onError: (e: any) => toast.error(getApiErrorMessage(e, 'Failed to save tenant details')),
   });
 
@@ -1034,7 +1059,7 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
               </button>
             )}
             <button type="submit" className="btn-primary" disabled={tenantMutation.isPending}>
-              {tenantMutation.isPending ? 'Saving...' : flat.tenant?.id ? 'Update Tenant' : 'Add Tenant'}
+              {tenantMutation.isPending ? 'Saving...' : activeTenant?.id ? 'Update Tenant' : 'Add Tenant'}
             </button>
           </div>
         </form>

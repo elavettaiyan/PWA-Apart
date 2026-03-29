@@ -771,11 +771,14 @@ router.post(
       // SECURITY: Verify flat belongs to admin's society
       const flat = await prisma.flat.findUnique({
         where: { id: req.body.flatId },
-        include: { block: { select: { societyId: true } } },
+        include: { block: { select: { societyId: true } }, tenant: true },
       });
       if (!flat) return res.status(404).json({ error: 'Flat not found' });
       if (req.user!.role !== 'SUPER_ADMIN' && flat.block.societyId !== req.user!.societyId) {
         return res.status(403).json({ error: 'Access denied' });
+      }
+      if (flat.tenant?.isActive) {
+        return res.status(409).json({ error: 'This flat already has an active tenant' });
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -825,6 +828,10 @@ router.post(
             });
             tenantUserId = newUser.id;
           }
+        }
+
+        if (flat.tenant && !flat.tenant.isActive) {
+          await tx.tenant.delete({ where: { id: flat.tenant.id } });
         }
 
         const tenant = await tx.tenant.create({
