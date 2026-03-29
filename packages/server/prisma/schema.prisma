@@ -588,6 +588,8 @@ model Expense {
   vendor      String?
   receiptUrl  String?
   expenseDate DateTime
+  accountingMonth Int
+  accountingYear  Int
   approvedBy  String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -596,6 +598,7 @@ model Expense {
 
   @@index([societyId])
   @@index([societyId, expenseDate])
+  @@index([societyId, accountingYear, accountingMonth])
   @@index([societyId, category])
   @@map("expenses")
 }

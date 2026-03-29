@@ -334,7 +334,26 @@ export interface Expense {
   vendor?: string;
   receiptUrl?: string;
   expenseDate: string;
+  accountingMonth: number;
+  accountingYear: number;
   approvedBy?: string;
+}
+
+export interface ExpenseListResponse {
+  expenses: Expense[];
+  summary: Array<{
+    category: ExpenseCategory;
+    _sum: { amount: number | null };
+    _count: number;
+  }>;
+  total: number;
+  selectedPeriod: {
+    accountingMonth: number;
+    accountingYear: number;
+    label: string;
+    fromDate: string;
+    toDate: string;
+  } | null;
 }
 
 // ─── ASSOCIATION BYLAW ──────────────────────────────────

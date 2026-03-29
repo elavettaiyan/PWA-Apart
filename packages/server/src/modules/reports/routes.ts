@@ -11,6 +11,39 @@ function getMonthKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function getAccountingMonthKey(accountingYear: number, accountingMonth: number) {
+  return `${accountingYear}-${String(accountingMonth).padStart(2, '0')}`;
+}
+
+function getAccountingPeriodsBetween(fromDate: Date, toDate: Date) {
+  const periods: Array<{ accountingYear: number; accountingMonth: number }> = [];
+  const cursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
+  const end = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
+
+  while (cursor <= end) {
+    periods.push({
+      accountingYear: cursor.getFullYear(),
+      accountingMonth: cursor.getMonth() + 1,
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  return periods;
+}
+
+function buildAccountingPeriodWhere(fromDate?: Date, toDate?: Date) {
+  if (!fromDate || !toDate) {
+    return undefined;
+  }
+
+  const periods = getAccountingPeriodsBetween(fromDate, toDate);
+  if (periods.length === 1) {
+    return periods[0];
+  }
+
+  return { OR: periods };
+}
+
 function addToBucket(bucket: Record<string, number>, key: string, amount: number) {
   bucket[key] = (bucket[key] || 0) + amount;
 }
@@ -259,11 +292,12 @@ router.get(
         ? (req.query.societyId as string) || req.user!.societyId
         : req.user!.societyId;
       const where: any = { societyId };
+      const fromDate = req.query.fromDate ? new Date(req.query.fromDate as string) : undefined;
+      const toDate = req.query.toDate ? new Date(req.query.toDate as string) : undefined;
 
-      if (req.query.fromDate || req.query.toDate) {
-        where.expenseDate = {};
-        if (req.query.fromDate) where.expenseDate.gte = new Date(req.query.fromDate as string);
-        if (req.query.toDate) where.expenseDate.lte = new Date(req.query.toDate as string);
+      const accountingPeriodFilter = buildAccountingPeriodWhere(fromDate, toDate);
+      if (accountingPeriodFilter) {
+        Object.assign(where, accountingPeriodFilter);
       }
 
       const byCategory = await prisma.expense.groupBy({
@@ -279,13 +313,13 @@ router.get(
       // Monthly trend (last 12 months)
       const expenses = await prisma.expense.findMany({
         where,
-        select: { amount: true, expenseDate: true, category: true },
-        orderBy: { expenseDate: 'asc' },
+        select: { amount: true, accountingMonth: true, accountingYear: true, category: true },
+        orderBy: [{ accountingYear: 'asc' }, { accountingMonth: 'asc' }, { expenseDate: 'asc' }],
       });
 
       const monthlyTrend: Record<string, number> = {};
       expenses.forEach((e) => {
-        const key = `${e.expenseDate.getFullYear()}-${String(e.expenseDate.getMonth() + 1).padStart(2, '0')}`;
+        const key = getAccountingMonthKey(e.accountingYear, e.accountingMonth);
         monthlyTrend[key] = (monthlyTrend[key] || 0) + e.amount;
       });
 
@@ -435,7 +469,7 @@ router.get(
         by: ['category'],
         where: {
           societyId: societyId!,
-          expenseDate: { gte: fromDate, lte: toDate },
+          ...buildAccountingPeriodWhere(fromDate, toDate),
         },
         _sum: { amount: true },
       });
@@ -449,14 +483,14 @@ router.get(
       const expensesList = await prisma.expense.findMany({
         where: {
           societyId: societyId!,
-          expenseDate: { gte: fromDate, lte: toDate },
+          ...buildAccountingPeriodWhere(fromDate, toDate),
         },
-        select: { amount: true, expenseDate: true, category: true },
+        select: { amount: true, accountingMonth: true, accountingYear: true, category: true },
       });
 
       const expenseByMonth: Record<string, number> = {};
       expensesList.forEach((e) => {
-        const key = getMonthKey(e.expenseDate);
+        const key = getAccountingMonthKey(e.accountingYear, e.accountingMonth);
         expenseByMonth[key] = (expenseByMonth[key] || 0) + e.amount;
       });
 
