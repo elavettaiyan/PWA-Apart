@@ -146,7 +146,7 @@
     @apply bg-white border border-slate-100 rounded-3xl p-5 sm:p-6 flex items-center justify-between transition-all;
   }
 
-  /* Bottom nav — mobile only, hide scrollbar */
+  /* Utility: hide scrollbar while preserving scrolling */
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -183,9 +183,3 @@
   max-height: 90vh !important;
 }
 
-/* Mobile bottom bar safe area */
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-  .mobile-bottom-safe {
-    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
-  }
-}

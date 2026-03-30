@@ -326,7 +326,7 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </header>
 
-        {/* Page Content — mobile: extra top/bottom padding for fixed bars */}
+        {/* Page Content — mobile offset only for the fixed top bar */}
         <main className="flex-1 pt-20 pb-6 px-4 sm:px-6 lg:pt-0 lg:pb-0 lg:p-8 overflow-auto">{children}</main>
       </div>
     </div>
