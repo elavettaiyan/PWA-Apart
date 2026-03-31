@@ -169,26 +169,26 @@ export default function Layout({ children }: LayoutProps) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile Top App Bar */}
-        <header className="lg:hidden fixed top-0 z-30 w-full border-b border-outline-variant/20 bg-surface/95 backdrop-blur-xl">
+        <header className="lg:hidden fixed top-0 z-30 w-full bg-white/90 backdrop-blur-xl" style={{ boxShadow: '0 1px 8px -2px rgba(23,37,84,0.06)' }}>
           <div className="flex justify-between items-center px-4 py-3">
           <div className="flex items-center gap-3">
             <button
-              className="p-1.5 -ml-1 rounded-lg hover:bg-surface-container"
+              className="p-1.5 -ml-1 rounded-lg hover:bg-[#f5f7fa]"
               onClick={() => setSidebarOpen(true)}
             >
-              <Menu className="w-5 h-5 text-on-surface-variant" />
+              <Menu className="w-5 h-5 text-[#5b6478]" />
             </button>
             <div>
               <span className="font-headline text-lg font-bold tracking-tight text-primary block leading-none">Dwell Hub</span>
-              <span className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">{user?.role?.replace('_', ' ')}</span>
+              <span className="text-[10px] uppercase tracking-widest text-[#8892a4] font-bold">{user?.role?.replace('_', ' ')}</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setProfileOpen(!profileOpen)}
-              className="w-8 h-8 bg-secondary-container rounded-full flex items-center justify-center ring-2 ring-primary/10 touch-manipulation"
+              className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center ring-2 ring-primary/5 touch-manipulation"
             >
-              <span className="text-xs font-bold text-on-secondary-container">
+              <span className="text-xs font-bold text-primary">
                 {user?.name?.charAt(0).toUpperCase()}
               </span>
             </button>
@@ -212,11 +212,11 @@ export default function Layout({ children }: LayoutProps) {
           {profileOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
-              <div className="absolute right-4 top-14 w-64 z-50 bg-surface-container-lowest rounded-2xl editorial-shadow py-2">
-                <div className="px-4 py-3 border-b border-outline-variant/15">
+              <div className="absolute right-4 top-14 w-64 z-50 bg-white rounded-2xl py-2" style={{ boxShadow: '0 4px 24px -4px rgba(23,37,84,0.12)' }}>
+                <div className="px-4 py-3 border-b border-[#edf1f6]">
                   <p className="text-sm font-bold text-primary">{user?.name}</p>
-                  <p className="text-xs text-outline">{user?.email}</p>
-                  <p className="text-[10px] text-outline uppercase tracking-widest font-bold mt-1">{user?.role?.replace('_', ' ')}</p>
+                  <p className="text-xs text-[#8892a4]">{user?.email}</p>
+                  <p className="text-[10px] text-[#8892a4] uppercase tracking-widest font-bold mt-1">{user?.role?.replace('_', ' ')}</p>
                   {societiesData?.societies?.length ? (
                     <p className="text-xs text-on-surface-variant mt-1 truncate">
                       {societiesData.societies.find(s => s.id === user?.societyId)?.name}
@@ -246,7 +246,7 @@ export default function Layout({ children }: LayoutProps) {
         </header>
 
         {/* Desktop Top App Bar — glassmorphism */}
-        <header className="hidden lg:block sticky top-0 z-30 bg-surface-container-lowest/80 backdrop-blur-xl">
+        <header className="hidden lg:block sticky top-0 z-30 bg-white/80 backdrop-blur-xl" style={{ boxShadow: '0 1px 4px -1px rgba(23,37,84,0.04)' }}>
           <div className="flex items-center justify-end px-8 py-4">
             <div className="flex items-center gap-4">
               {(societiesData?.societies?.length || 0) > 1 && (
@@ -282,8 +282,8 @@ export default function Layout({ children }: LayoutProps) {
                     <p className="text-sm font-bold text-primary">{user?.name}</p>
                     <p className="text-[10px] text-outline uppercase tracking-widest font-bold">{user?.role?.replace('_', ' ')}</p>
                   </div>
-                  <div className="w-10 h-10 bg-secondary-container rounded-full flex items-center justify-center ring-2 ring-primary/10">
-                    <span className="text-sm font-bold text-on-secondary-container">
+                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center ring-2 ring-primary/5">
+                    <span className="text-sm font-bold text-primary">
                       {user?.name?.charAt(0).toUpperCase()}
                     </span>
                   </div>
@@ -292,10 +292,10 @@ export default function Layout({ children }: LayoutProps) {
                 {profileOpen && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
-                    <div className="absolute right-0 mt-2 w-56 z-50 bg-surface-container-lowest rounded-2xl editorial-shadow py-2">
-                      <div className="px-4 py-3 border-b border-outline-variant/15">
+                    <div className="absolute right-0 mt-2 w-56 z-50 bg-white rounded-2xl py-2" style={{ boxShadow: '0 4px 24px -4px rgba(23,37,84,0.12)' }}>
+                      <div className="px-4 py-3 border-b border-[#edf1f6]">
                         <p className="text-sm font-bold text-primary">{user?.name}</p>
-                        <p className="text-xs text-outline">{user?.email}</p>
+                        <p className="text-xs text-[#8892a4]">{user?.email}</p>
                         {societiesData?.societies?.length ? (
                           <p className="text-xs text-on-surface-variant mt-1 truncate">
                             {societiesData.societies.find(s => s.id === user?.societyId)?.name}

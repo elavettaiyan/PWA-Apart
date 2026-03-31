@@ -159,8 +159,9 @@ export default function EventsPage({ embedded = false }: { embedded?: boolean })
             type="button"
             className={cn(
               'rounded-full px-3 py-1.5 text-xs font-medium transition',
-              filter === item.id ? 'bg-primary text-on-primary' : 'bg-surface-container-lowest text-on-surface-variant ghost-border hover:bg-surface-container-low',
+              filter === item.id ? 'bg-primary text-white' : 'bg-white text-[#5b6478] hover:bg-[#f5f7fa]',
             )}
+            style={filter !== item.id ? { boxShadow: '0 1px 4px -1px rgba(23,37,84,0.06)' } : undefined}
             onClick={() => setFilter(item.id as typeof filter)}
           >
             {item.label}

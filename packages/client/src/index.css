@@ -20,7 +20,7 @@
 @layer components {
   /* Editorial shadow used on elevated elements */
   .editorial-shadow {
-    box-shadow: 0 32px 64px -12px rgba(25, 28, 27, 0.06);
+    box-shadow: 0 2px 12px -2px rgba(23, 37, 84, 0.06), 0 1px 4px -1px rgba(23, 37, 84, 0.03);
   }
 
   /* Editorial title — Manrope tight tracking */
@@ -55,12 +55,14 @@
     @apply px-6 py-3 text-base;
   }
 
-  /* Cards — soft shadows + subtle slate borders */
+  /* Cards — soft shadows, borderless, airy  */
   .card {
-    @apply bg-white rounded-2xl border border-slate-100;
+    @apply bg-white rounded-2xl;
+    box-shadow: 0 1px 8px -2px rgba(23, 37, 84, 0.06);
   }
   .card-elevated {
-    @apply bg-white rounded-2xl border border-slate-100 editorial-shadow;
+    @apply bg-white rounded-2xl;
+    box-shadow: 0 2px 16px -3px rgba(23, 37, 84, 0.08), 0 1px 4px -1px rgba(23, 37, 84, 0.04);
   }
 
   /* Inputs — editorial form fields */
@@ -127,15 +129,16 @@
     @apply badge bg-surface-container-high text-on-surface-variant;
   }
 
-  /* Tables — tonal separation, no divider lines */
+  /* Tables — tonal separation, clean */
   .table-container {
-    @apply bg-surface-container-lowest rounded-2xl overflow-x-auto;
+    @apply bg-white rounded-2xl overflow-x-auto;
+    box-shadow: 0 1px 8px -2px rgba(23, 37, 84, 0.06);
   }
   .table-container table {
     @apply w-full text-sm;
   }
   .table-container thead {
-    @apply bg-surface-container-low;
+    @apply bg-[#f5f7fa];
   }
   .table-container th {
     @apply px-4 py-3 text-left text-[10px] font-bold text-outline uppercase tracking-widest;
@@ -144,21 +147,22 @@
     @apply px-4 py-3.5 text-on-surface;
   }
   .table-container tbody tr {
-    @apply bg-surface-container-lowest;
+    @apply bg-white;
   }
   .table-container tbody tr:hover {
-    @apply bg-surface-container-low transition-colors;
+    @apply bg-[#f8fafb] transition-colors;
   }
 
   /* Stat cards — editorial metric blocks */
   .stat-card {
-    @apply bg-surface-container-lowest p-5 rounded-2xl flex flex-col gap-1;
+    @apply bg-white p-5 rounded-2xl flex flex-col gap-1;
+    box-shadow: 0 1px 8px -2px rgba(23, 37, 84, 0.06);
   }
   .stat-card .stat-label {
-    @apply text-[10px] font-bold text-slate-500 uppercase tracking-widest font-label;
+    @apply text-[10px] font-bold text-[#8892a4] uppercase tracking-widest font-label;
   }
   .stat-card .stat-value {
-    @apply text-2xl font-bold text-slate-950 font-headline;
+    @apply text-2xl font-bold text-[#1a1f36] font-headline;
   }
 
   /* Page headers — editorial typography */
@@ -166,12 +170,12 @@
     @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6;
   }
   .page-title {
-    @apply text-3xl font-extrabold text-slate-950 font-headline tracking-tight;
+    @apply text-3xl font-extrabold text-[#1a1f36] font-headline tracking-tight;
   }
 
   /* Section label — editorial category header */
   .section-label {
-    @apply text-[10px] font-bold text-slate-500 uppercase tracking-widest font-label;
+    @apply text-[10px] font-bold text-[#8892a4] uppercase tracking-widest font-label;
   }
 
   /* Operations card — summary list item style */
@@ -190,22 +194,22 @@
 
   /* Ghost border — accessibility fallback */
   .ghost-border {
-    border: 1px solid rgba(192, 200, 196, 0.15);
+    border: 1px solid rgba(200, 208, 220, 0.25);
   }
 
   /* Gradient primary button */
   .btn-gradient {
     @apply btn text-white font-bold shadow-lg;
     background: linear-gradient(135deg, #171C3F 0%, #2A3060 100%);
-    box-shadow: 0 8px 24px -4px rgba(23, 28, 63, 0.25);
+    box-shadow: 0 8px 24px -4px rgba(23, 28, 63, 0.2);
   }
 }
 
-/* Custom scrollbar — subtle, editorial */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+/* Custom scrollbar — subtle */
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #c0c8c4; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #707976; }
+::-webkit-scrollbar-thumb { background: #c8d0dc; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #8892a4; }
 
 /* Force Razorpay checkout into desktop layout */
 .razorpay-checkout-frame {

@@ -75,9 +75,10 @@ export default function ComplaintsPage() {
             className={cn(
               'flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition whitespace-nowrap',
               statusFilter === tab.value
-                ? 'bg-primary text-on-primary'
-                : 'bg-surface-container-lowest text-on-surface-variant ghost-border hover:bg-surface-container-low',
+                ? 'bg-primary text-white'
+                : 'bg-white text-[#5b6478] hover:bg-[#f5f7fa]',
             )}
+            style={statusFilter !== tab.value ? { boxShadow: '0 1px 4px -1px rgba(23,37,84,0.06)' } : undefined}
           >
             {tab.label} ({tab.count})
           </button>
@@ -289,7 +290,7 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
         <div><span className="text-on-surface-variant">Date:</span> <span className="font-medium">{formatDate(complaint.createdAt)}</span></div>
       </div>
 
-      <div className="p-3 bg-surface-container-low rounded-lg">
+      <div className="p-3 bg-[#f5f7fa] rounded-lg">
         <p className="text-sm text-on-surface-variant">{complaint.description}</p>
       </div>
 
@@ -334,7 +335,7 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
       <div className="border-t pt-4">
         <h4 className="font-semibold text-on-surface mb-3">Comments</h4>
         {complaint.comments?.map((c) => (
-          <div key={c.id} className="mb-3 p-3 bg-surface-container-low rounded-lg">
+          <div key={c.id} className="mb-3 p-3 bg-[#f5f7fa] rounded-lg">
             <div className="flex justify-between text-xs text-on-surface-variant mb-1">
               <span className="font-medium">{c.authorName}</span>
               <span>{formatDate(c.createdAt)}</span>

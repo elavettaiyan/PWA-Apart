@@ -167,7 +167,7 @@ function SuperAdminDashboard() {
 
         <div className="space-y-3">
           {societies.map((society) => (
-            <div key={society.id} className="bg-surface-container-low rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div key={society.id} className="bg-[#f5f7fa] rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div>
                 <p className="text-sm font-bold text-on-surface">{society.name}</p>
                 <p className="text-xs text-on-surface-variant mt-1">{society.city}, {society.state}</p>

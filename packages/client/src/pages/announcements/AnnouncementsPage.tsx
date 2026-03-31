@@ -95,102 +95,109 @@ export default function AnnouncementsPage({ embedded = false }: { embedded?: boo
         />
       ) : (
         <div className="space-y-3 mt-4">
-          {announcements.map((announcement) => (
-            <article
-              key={announcement.id}
-              className={cn(
-                'rounded-2xl overflow-hidden transition-shadow border-l-[3px]',
-                announcement.isPinned
-                  ? 'bg-primary/[0.03] ring-1 ring-primary/15 shadow-sm border-l-primary'
-                  : !announcement.isRead
-                    ? 'bg-surface-container-low/80 shadow-sm ring-1 ring-outline-variant/10 border-l-amber-400'
-                    : 'bg-surface-container-lowest shadow-sm ring-1 ring-outline-variant/10 border-l-transparent',
-              )}
-            >
-              {/* Header row: badges */}
-              {(announcement.isPinned || !announcement.isRead) && (
-                <div className="flex items-center gap-2 px-4 pt-3 pb-0">
-                  {announcement.isPinned && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                      <Pin className="h-3 w-3" /> Pinned
-                    </span>
-                  )}
-                  {!announcement.isRead && (
-                    <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-                      New
-                    </span>
+          {announcements.map((announcement) => {
+            const initials = (announcement.createdBy?.name || 'C')[0].toUpperCase();
+            const avatarColors = announcement.isPinned
+              ? 'bg-primary/10 text-primary'
+              : !announcement.isRead
+                ? 'bg-amber-50 text-amber-600'
+                : 'bg-slate-100 text-slate-500';
+
+            return (
+              <article
+                key={announcement.id}
+                className="bg-white rounded-2xl overflow-hidden transition-all"
+                style={{ boxShadow: '0 1px 8px -2px rgba(23,37,84,0.06)' }}
+              >
+                <div className="flex gap-3 p-4">
+                  {/* Avatar */}
+                  <div className={cn('flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold', avatarColors)}>
+                    {announcement.isPinned ? <Pin className="w-4 h-4" /> : initials}
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h2 className="text-[15px] font-semibold text-[#1a1f36] leading-snug truncate">{announcement.title}</h2>
+                        <p className="text-[12px] text-[#8892a4] mt-0.5">
+                          {announcement.createdBy?.name || 'Committee'} · {formatDateTime(announcement.createdAt)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {announcement.isPinned && (
+                          <span className="inline-flex items-center rounded-full bg-primary/8 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                            Pinned
+                          </span>
+                        )}
+                        {!announcement.isRead && (
+                          <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-[13px] leading-relaxed text-[#5b6478] mt-1.5 line-clamp-2 whitespace-pre-wrap">{announcement.message}</p>
+
+                    {/* Images */}
+                    {announcement.images.length > 0 && (
+                      <div className="flex gap-2 mt-2.5 overflow-x-auto">
+                        {announcement.images.map((image, index) => (
+                          <a
+                            key={`${announcement.id}-${index}`}
+                            href={toAssetUrl(image)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex-shrink-0 h-16 w-16 overflow-hidden rounded-xl"
+                          >
+                            <img src={toAssetUrl(image)} alt={announcement.title} className="h-full w-full object-cover" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action bar */}
+                <div className="flex items-center gap-1 px-3 pb-2.5">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium text-[#5b6478] bg-[#f5f7fa] hover:bg-[#edf1f6] transition"
+                    onClick={() => readStateMutation.mutate({ announcementId: announcement.id, isRead: !announcement.isRead })}
+                    disabled={readStateMutation.isPending}
+                  >
+                    {announcement.isRead ? <RotateCcw className="w-3 h-3" /> : <CheckCheck className="w-3 h-3" />}
+                    {announcement.isRead ? 'Unread' : 'Read'}
+                  </button>
+                  {canManage && (
+                    <>
+                      <button
+                        type="button"
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium transition',
+                          announcement.isPinned
+                            ? 'text-primary bg-primary/8 hover:bg-primary/12'
+                            : 'text-[#5b6478] bg-[#f5f7fa] hover:bg-[#edf1f6]',
+                        )}
+                        onClick={() => pinMutation.mutate({ announcementId: announcement.id, isPinned: !announcement.isPinned })}
+                        disabled={pinMutation.isPending}
+                      >
+                        <Pin className="w-3 h-3" />
+                        {announcement.isPinned ? 'Unpin' : 'Pin'}
+                      </button>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium text-red-500 bg-red-50 hover:bg-red-100 transition ml-auto"
+                        onClick={() => deleteMutation.mutate(announcement.id)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Delete
+                      </button>
+                    </>
                   )}
                 </div>
-              )}
-
-              {/* Content */}
-              <div className="px-4 pt-3 pb-2">
-                <h2 className="text-[15px] font-semibold text-on-surface leading-snug">{announcement.title}</h2>
-                <p className="text-[11px] text-on-surface-variant mt-1">
-                  {announcement.createdBy?.name || 'Committee'} · {formatDateTime(announcement.createdAt)}
-                </p>
-                <p className="text-sm leading-relaxed text-on-surface-variant mt-2 line-clamp-3 whitespace-pre-wrap">{announcement.message}</p>
-              </div>
-
-              {/* Images */}
-              {announcement.images.length > 0 && (
-                <div className="flex gap-2 px-4 pb-2 overflow-x-auto">
-                  {announcement.images.map((image, index) => (
-                    <a
-                      key={`${announcement.id}-${index}`}
-                      href={toAssetUrl(image)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex-shrink-0 h-20 w-20 overflow-hidden rounded-xl border border-outline-variant/10"
-                    >
-                      <img src={toAssetUrl(image)} alt={announcement.title} className="h-full w-full object-cover" />
-                    </a>
-                  ))}
-                </div>
-              )}
-
-              {/* Action bar */}
-              <div className="flex items-center border-t border-outline-variant/10 px-2 py-1">
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-on-surface-variant hover:bg-surface-container-low transition"
-                  onClick={() => readStateMutation.mutate({ announcementId: announcement.id, isRead: !announcement.isRead })}
-                  disabled={readStateMutation.isPending}
-                >
-                  {announcement.isRead ? <RotateCcw className="w-3.5 h-3.5" /> : <CheckCheck className="w-3.5 h-3.5" />}
-                  {announcement.isRead ? 'Unread' : 'Read'}
-                </button>
-                {canManage && (
-                  <>
-                    <button
-                      type="button"
-                      className={cn(
-                        'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition',
-                        announcement.isPinned
-                          ? 'text-primary hover:bg-primary/5'
-                          : 'text-on-surface-variant hover:bg-surface-container-low',
-                      )}
-                      onClick={() => pinMutation.mutate({ announcementId: announcement.id, isPinned: !announcement.isPinned })}
-                      disabled={pinMutation.isPending}
-                    >
-                      <Pin className="w-3.5 h-3.5" />
-                      {announcement.isPinned ? 'Unpin' : 'Pin'}
-                    </button>
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-error hover:bg-error-container/30 transition ml-auto"
-                      onClick={() => deleteMutation.mutate(announcement.id)}
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Delete
-                    </button>
-                  </>
-                )}
-                {!canManage && <span className="ml-auto" />}
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
 
