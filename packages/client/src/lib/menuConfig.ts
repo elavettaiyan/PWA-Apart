@@ -10,6 +10,8 @@ import { isNonSecurityServiceStaff, isSecurityServiceStaff } from './serviceStaf
 
 export const NAVIGATION_MENU_CATALOG = [
   { id: 'dashboard', label: 'Dashboard', href: '/' },
+  { id: 'announcements', label: 'Announcements', href: '/announcements' },
+  { id: 'events', label: 'Events', href: '/events' },
   { id: 'flats', label: 'Flats & Residents', href: '/flats' },
   { id: 'my-flat', label: 'My Flat', href: '/my-flat' },
   { id: 'billing', label: 'Billing', href: '/billing' },
@@ -33,21 +35,21 @@ const BASELINE_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, NavigationMenuId[]
 };
 
 const DEFAULT_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, NavigationMenuId[]> = {
-  ADMIN: ['dashboard', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
-  SECRETARY: ['dashboard', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'reports', 'settings'],
-  JOINT_SECRETARY: ['dashboard', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity'],
-  TREASURER: ['dashboard', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
-  OWNER: ['dashboard', 'my-flat', 'billing', 'complaints'],
-  TENANT: ['dashboard', 'my-flat', 'billing', 'complaints'],
+  ADMIN: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
+  SECRETARY: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'reports', 'settings'],
+  JOINT_SECRETARY: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity'],
+  TREASURER: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
+  OWNER: ['dashboard', 'announcements', 'events', 'my-flat', 'billing', 'complaints'],
+  TENANT: ['dashboard', 'announcements', 'events', 'my-flat', 'billing', 'complaints'],
 };
 
 const ALLOWED_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, NavigationMenuId[]> = {
-  ADMIN: ['dashboard', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
-  SECRETARY: ['dashboard', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
-  JOINT_SECRETARY: ['dashboard', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports'],
-  TREASURER: ['dashboard', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
-  OWNER: ['dashboard', 'my-flat', 'billing', 'complaints'],
-  TENANT: ['dashboard', 'my-flat', 'billing', 'complaints'],
+  ADMIN: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
+  SECRETARY: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
+  JOINT_SECRETARY: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports'],
+  TREASURER: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
+  OWNER: ['dashboard', 'announcements', 'events', 'my-flat', 'billing', 'complaints'],
+  TENANT: ['dashboard', 'announcements', 'events', 'my-flat', 'billing', 'complaints'],
 };
 
 const ROLE_LABELS: Record<ConfigurableMenuRole, string> = {

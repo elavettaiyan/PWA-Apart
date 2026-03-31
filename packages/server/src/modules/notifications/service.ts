@@ -13,6 +13,8 @@ type PushPayload = {
   entityId?: string;
 };
 
+export const DEFAULT_COMMUNITY_AUDIENCE_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT'] as const;
+
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 const COMPLAINT_SPECIALIZATION_BY_CATEGORY: Record<string, string> = {
@@ -96,6 +98,21 @@ async function cleanupInvalidTokens(tokens: string[]) {
   await prisma.pushNotificationDevice.deleteMany({
     where: { token: { in: tokens } },
   });
+}
+
+function formatEventDateTime(date: Date) {
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function getAudienceRoles(roles?: string[]) {
+  const uniqueRoles = [...new Set((roles || []).filter((role) => DEFAULT_COMMUNITY_AUDIENCE_ROLES.includes(role as any)))];
+  return uniqueRoles.length > 0 ? uniqueRoles : [...DEFAULT_COMMUNITY_AUDIENCE_ROLES];
 }
 
 export async function sendPushToTokens(tokens: string[], payload: PushPayload) {
@@ -388,25 +405,16 @@ export async function sendAnnouncementBroadcast(input: {
   createdById: string;
   title: string;
   message: string;
+  images?: string[];
   path?: string;
   roles?: string[];
 }) {
-  const targetRoles = input.roles && input.roles.length > 0 ? input.roles : undefined;
-  const memberships = await prisma.userSocietyMembership.findMany({
-    where: {
-      societyId: input.societyId,
-      ...(targetRoles ? { role: { in: targetRoles as any[] } } : {}),
-      user: { isActive: true },
-    },
-    select: { userId: true },
-  });
-
-  const userIds = [...new Set(memberships.map((membership) => membership.userId))];
-  const result = await sendPushToSocietyUsers(input.societyId, userIds, {
+  const targetRoles = getAudienceRoles(input.roles);
+  const result = await sendPushToSocietyRoles(input.societyId, targetRoles as unknown as string[], {
     title: input.title,
     body: input.message,
-    path: input.path || '/',
-    route: input.path || '/',
+    path: input.path || '/announcements',
+    route: input.path || '/announcements',
     type: 'announcement.broadcast',
   });
 
@@ -416,11 +424,153 @@ export async function sendAnnouncementBroadcast(input: {
       createdById: input.createdById,
       title: input.title,
       message: input.message,
+      images: input.images && input.images.length > 0 ? JSON.stringify(input.images) : null,
       path: input.path || null,
-      targetRoles: targetRoles ? JSON.stringify(targetRoles) : null,
+      targetRoles: JSON.stringify(targetRoles),
       sentCount: result.sentCount,
     },
   });
 
   return { ...result, broadcastId: record.id };
+}
+
+export async function notifyEventCreated(eventId: string) {
+  const event = await prisma.societyEvent.findUnique({
+    where: { id: eventId },
+  });
+
+  if (!event) {
+    return { configured: false, sentCount: 0, failedCount: 0, skipped: true };
+  }
+
+  return sendPushToSocietyRoles(event.societyId, [...DEFAULT_COMMUNITY_AUDIENCE_ROLES], {
+    title: 'New society event',
+    body: `${event.title} at ${event.place} on ${formatEventDateTime(event.startAt)}.`,
+    path: '/events',
+    route: '/events',
+    type: 'event.created',
+    entityId: event.id,
+  });
+}
+
+export async function notifyEventUpdated(eventId: string) {
+  const event = await prisma.societyEvent.findUnique({
+    where: { id: eventId },
+  });
+
+  if (!event) {
+    return { configured: false, sentCount: 0, failedCount: 0, skipped: true };
+  }
+
+  return sendPushToSocietyRoles(event.societyId, [...DEFAULT_COMMUNITY_AUDIENCE_ROLES], {
+    title: 'Event updated',
+    body: `${event.title} is updated. Check the latest schedule and place details.`,
+    path: '/events',
+    route: '/events',
+    type: 'event.updated',
+    entityId: event.id,
+  });
+}
+
+export async function notifyEventCancelled(eventId: string) {
+  const event = await prisma.societyEvent.findUnique({
+    where: { id: eventId },
+  });
+
+  if (!event) {
+    return { configured: false, sentCount: 0, failedCount: 0, skipped: true };
+  }
+
+  return sendPushToSocietyRoles(event.societyId, [...DEFAULT_COMMUNITY_AUDIENCE_ROLES], {
+    title: 'Event cancelled',
+    body: `${event.title} scheduled for ${formatEventDateTime(event.startAt)} has been cancelled.`,
+    path: '/events',
+    route: '/events',
+    type: 'event.cancelled',
+    entityId: event.id,
+  });
+}
+
+export async function sendDueEventReminders(societyId?: string) {
+  const now = new Date();
+  const events = await prisma.societyEvent.findMany({
+    where: {
+      ...(societyId ? { societyId } : {}),
+      status: 'SCHEDULED',
+      startAt: { gt: now },
+    },
+    include: {
+      reminderLogs: true,
+    },
+    orderBy: { startAt: 'asc' },
+  });
+
+  let eventCount = 0;
+  let reminderCount = 0;
+  let sentCount = 0;
+  let failedCount = 0;
+
+  for (const event of events) {
+    const offsets = (() => {
+      if (!event.reminderMinutes) return [] as number[];
+      try {
+        const parsed = JSON.parse(event.reminderMinutes);
+        if (!Array.isArray(parsed)) return [] as number[];
+        return [...new Set(parsed.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0))].sort((left, right) => right - left);
+      } catch {
+        return [] as number[];
+      }
+    })();
+
+    if (offsets.length === 0) {
+      continue;
+    }
+
+    let eventTriggered = false;
+    for (const offset of offsets) {
+      const alreadySent = event.reminderLogs.some((log) => log.reminderMinutesBefore === offset);
+      if (alreadySent) {
+        continue;
+      }
+
+      const triggerAt = new Date(event.startAt.getTime() - offset * 60 * 1000);
+      if (triggerAt > now) {
+        continue;
+      }
+
+      eventTriggered = true;
+      reminderCount += 1;
+      const result = await sendPushToSocietyRoles(event.societyId, [...DEFAULT_COMMUNITY_AUDIENCE_ROLES], {
+        title: 'Event reminder',
+        body: `${event.title} starts at ${formatEventDateTime(event.startAt)} in ${event.place}.`,
+        path: '/events',
+        route: '/events',
+        type: 'event.reminder',
+        entityId: event.id,
+      });
+
+      sentCount += result.sentCount;
+      failedCount += result.failedCount;
+
+      await prisma.societyEventReminder.create({
+        data: {
+          eventId: event.id,
+          reminderMinutesBefore: offset,
+          sentCount: result.sentCount,
+          failedCount: result.failedCount,
+        },
+      });
+    }
+
+    if (eventTriggered) {
+      eventCount += 1;
+    }
+  }
+
+  return {
+    eventCount,
+    reminderCount,
+    sentCount,
+    failedCount,
+  };
 }

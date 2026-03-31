@@ -11,6 +11,8 @@ export const ALL_SOCIETY_ROLES: Role[] = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY
 
 export type NavigationMenuId =
   | 'dashboard'
+  | 'announcements'
+  | 'events'
   | 'flats'
   | 'my-flat'
   | 'billing'
@@ -267,6 +269,40 @@ export interface ComplaintComment {
   authorName: string;
   content: string;
   createdAt: string;
+}
+
+export interface Announcement {
+  id: string;
+  societyId: string;
+  createdById: string;
+  title: string;
+  message: string;
+  path?: string | null;
+  images: string[];
+  targetRoles: Role[];
+  sentCount: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: { id: string; name: string; role: Role };
+}
+
+export type EventStatus = 'SCHEDULED' | 'CANCELLED' | 'COMPLETED';
+
+export interface SocietyEvent {
+  id: string;
+  societyId: string;
+  createdById: string;
+  title: string;
+  description: string;
+  place: string;
+  startAt: string;
+  endAt?: string | null;
+  status: EventStatus;
+  imageUrls: string[];
+  reminderMinutes: number[];
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: { id: string; name: string; role: Role };
 }
 
 // ─── VISITORS & DELIVERIES ─────────────────────────────

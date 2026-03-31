@@ -6,9 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "mobile:build": "MOBILE_BUILD=1 tsc -b && MOBILE_BUILD=1 vite build --mode mobile",
+    "mobile:build": "npm run mobile:build:live",
+    "mobile:build:live": "MOBILE_BUILD=1 tsc -b && MOBILE_BUILD=1 vite build --mode mobile.live",
+    "mobile:build:local": "MOBILE_BUILD=1 tsc -b && MOBILE_BUILD=1 vite build --mode mobile.local",
     "mobile:add:android": "cap add android",
-    "mobile:sync": "npm run mobile:build && cap sync android",
+    "mobile:sync": "npm run mobile:sync:live",
+    "mobile:sync:live": "npm run mobile:build:live && cap sync android",
+    "mobile:sync:local": "npm run mobile:build:local && cap sync android",
     "mobile:open:android": "cap open android",
     "preview": "vite preview",
     "lint": "eslint ."

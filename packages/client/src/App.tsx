@@ -8,6 +8,8 @@ import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import ChangePasswordPage from './pages/auth/ChangePasswordPage';
 import SelectSocietyPage from './pages/auth/SelectSocietyPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
+import AnnouncementsPage from './pages/announcements/AnnouncementsPage';
+import EventsPage from './pages/events/EventsPage';
 import FlatsPage from './pages/flats/FlatsPage';
 import MyFlatPage from './pages/flats/MyFlatPage';
 import BillingPage from './pages/billing/BillingPage';
@@ -95,6 +97,8 @@ export default function App() {
         />
 
         <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+        <Route path="/announcements" element={<ProtectedRoute><AnnouncementsPage /></ProtectedRoute>} />
+        <Route path="/events" element={<ProtectedRoute><EventsPage /></ProtectedRoute>} />
         <Route path="/flats" element={<RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_MANAGERS]}><FlatsPage /></RoleRoute>} />
         <Route path="/my-flat" element={<ProtectedRoute><MyFlatPage /></ProtectedRoute>} />
         <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />

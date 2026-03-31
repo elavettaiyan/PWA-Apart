@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   LayoutDashboard, Building2, Receipt, MessageSquareWarning,
-  Wallet, BarChart3, LogOut, Menu, X, Settings, KeyRound,
+  Wallet, BarChart3, LogOut, Menu, X, Settings, KeyRound, Megaphone, CalendarDays,
   ShieldCheck, ClipboardList,
 } from 'lucide-react';
 import { isNonSecurityServiceStaff, isSecurityServiceStaff } from '@/lib/serviceStaff';
@@ -16,6 +16,8 @@ import { getFallbackMenuVisibility, getVisibleMenuIdsForUser, getVisibleNavigati
 
 const navigationIcons: Record<NavigationMenuId, typeof LayoutDashboard> = {
   dashboard: LayoutDashboard,
+  announcements: Megaphone,
+  events: CalendarDays,
   flats: Building2,
   'my-flat': Building2,
   billing: Receipt,
