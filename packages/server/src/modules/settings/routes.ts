@@ -23,8 +23,7 @@ router.use(authenticate);
 
 const MENU_CATALOG = [
   { id: 'dashboard', label: 'Dashboard', href: '/' },
-  { id: 'announcements', label: 'Announcements', href: '/announcements' },
-  { id: 'events', label: 'Events', href: '/events' },
+  { id: 'community', label: 'Community', href: '/community' },
   { id: 'flats', label: 'Flats & Residents', href: '/flats' },
   { id: 'my-flat', label: 'My Flat', href: '/my-flat' },
   { id: 'billing', label: 'Billing', href: '/billing' },
@@ -61,21 +60,26 @@ const BASELINE_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, MenuId[]> = {
 };
 
 const DEFAULT_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, MenuId[]> = {
-  ADMIN: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
-  SECRETARY: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'reports', 'settings'],
-  JOINT_SECRETARY: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity'],
-  TREASURER: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
-  OWNER: ['dashboard', 'announcements', 'events', 'my-flat', 'billing', 'complaints'],
-  TENANT: ['dashboard', 'announcements', 'events', 'my-flat', 'billing', 'complaints'],
+  ADMIN: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
+  SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'reports', 'settings'],
+  JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity'],
+  TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
+  OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
+  TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
 };
 
 const ALLOWED_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, MenuId[]> = {
-  ADMIN: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
-  SECRETARY: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
-  JOINT_SECRETARY: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports'],
-  TREASURER: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
-  OWNER: ['dashboard', 'announcements', 'events', 'my-flat', 'billing', 'complaints'],
-  TENANT: ['dashboard', 'announcements', 'events', 'my-flat', 'billing', 'complaints'],
+  ADMIN: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
+  SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
+  JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports'],
+  TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
+  OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
+  TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
+};
+
+const LEGACY_MENU_ID_MAP: Record<string, MenuId> = {
+  announcements: 'community',
+  events: 'community',
 };
 
 function getRequestOrigin(req: AuthRequest) {
@@ -114,15 +118,28 @@ function parseVisibleMenuIds(rawValue?: string | null): MenuId[] {
       return [];
     }
 
-    return parsed.filter((item): item is MenuId => typeof item === 'string' && MENU_ID_SET.has(item as MenuId));
+    return normalizeMenuIds(parsed);
   } catch {
     return [];
   }
 }
 
+function normalizeMenuIds(value: unknown): MenuId[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const normalized = value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => LEGACY_MENU_ID_MAP[item] || item)
+    .filter((item): item is MenuId => MENU_ID_SET.has(item as MenuId));
+
+  return [...new Set(normalized)];
+}
+
 function normalizeVisibleMenuIds(role: ConfigurableMenuRole, value: unknown): MenuId[] {
   const requestedIds = Array.isArray(value)
-    ? value.filter((item): item is MenuId => typeof item === 'string' && MENU_ID_SET.has(item as MenuId))
+    ? normalizeMenuIds(value)
     : DEFAULT_MENU_IDS_BY_ROLE[role];
 
   const mandatoryIds = new Set(BASELINE_MENU_IDS_BY_ROLE[role]);

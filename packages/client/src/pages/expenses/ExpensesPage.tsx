@@ -107,12 +107,11 @@ export default function ExpensesPage() {
     <div>
       <div className="page-header">
         <div>
-          <p className="section-label mb-2">Financial Ledger</p>
+          <p className="section-label mb-1">Financial Ledger</p>
           <h1 className="page-title">Expenses</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Track and manage society expenses by accounting month</p>
         </div>
-        <button className="btn-primary" onClick={() => setShowCreate(true)}>
-          <Plus className="w-4 h-4" /> Add Expense
+        <button className="btn-primary text-xs px-3 py-1.5" onClick={() => setShowCreate(true)}>
+          <Plus className="w-3.5 h-3.5" /> Add
         </button>
       </div>
 
@@ -170,11 +169,51 @@ export default function ExpensesPage() {
         ))}
       </div>
 
-      {/* Expenses Table */}
+      {/* Expenses — mobile cards + desktop table */}
       {expenses.length === 0 ? (
         <EmptyState icon={Wallet} title="No expenses" description={`No expenses recorded for ${selectedPeriodLabel}`} />
       ) : (
-        <div className="table-container">
+        <>
+        {/* Mobile card view */}
+        <div className="sm:hidden space-y-3">
+          {expenses.map((expense) => (
+            <div key={expense.id} className="card-elevated overflow-hidden">
+              <div className="px-4 pt-3 pb-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="badge badge-info text-[10px]">{expense.category.replace('_', ' ')}</span>
+                  <span className="text-sm font-bold text-rose-900">{formatCurrency(expense.amount)}</span>
+                </div>
+                <p className="text-[13px] font-medium text-on-surface mt-1.5 line-clamp-2">{expense.description}</p>
+                {expense.vendor && <p className="text-[11px] text-on-surface-variant mt-0.5">{expense.vendor}</p>}
+              </div>
+              <div className="flex items-center justify-between border-t border-outline-variant/10 px-4 py-2 text-[11px] text-on-surface-variant">
+                <span>{formatDate(expense.expenseDate)}</span>
+                <span className="text-outline">{formatAccountingPeriodLabel(expense.accountingMonth, expense.accountingYear)}</span>
+                <div className="flex items-center gap-1">
+                  {expense.receiptUrl && (
+                    <a
+                      href={expense.receiptUrl.startsWith('data:') ? expense.receiptUrl : `${getApiBaseUrl().replace('/api', '')}${expense.receiptUrl}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1 text-primary hover:bg-primary/5 rounded"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  <button
+                    className="p-1 text-error/60 hover:text-error hover:bg-error-container rounded"
+                    onClick={() => { if (confirm('Delete this expense?')) deleteMutation.mutate(expense.id); }}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop table view */}
+        <div className="hidden sm:block table-container">
           <table>
             <thead>
               <tr>
@@ -226,6 +265,7 @@ export default function ExpensesPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {/* Add Expense Modal */}

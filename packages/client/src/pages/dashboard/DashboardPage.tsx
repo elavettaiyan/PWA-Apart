@@ -103,9 +103,8 @@ function SuperAdminDashboard() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <p className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">Platform Controls</p>
-        <h1 className="page-title">Super Admin Panel</h1>
-        <p className="text-sm text-on-surface-variant mt-1">All user registrations and full apartment deletion controls</p>
+        <p className="text-[10px] font-bold text-outline uppercase tracking-widest mb-1">Platform Controls</p>
+        <h1 className="page-title">Super Admin</h1>
       </div>
 
       {/* Stats */}

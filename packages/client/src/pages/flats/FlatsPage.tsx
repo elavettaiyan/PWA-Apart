@@ -82,27 +82,26 @@ export default function FlatsPage() {
     <div>
       <div className="page-header">
         <div>
-          <p className="section-label mb-2">Residents</p>
+          <p className="section-label mb-1">Residents</p>
           <h1 className="page-title">Flats & Residents</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Manage all flats, owners, and tenants</p>
         </div>
         {isAdmin && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             <button
-              className="btn-secondary text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-secondary text-xs px-2.5 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={() => setShowDeleteFlat(true)}
               disabled={!selectedFlat}
             >
-              <Trash2 className="w-4 h-4" /> Delete Selected
+              <Trash2 className="w-3.5 h-3.5" /> Delete
             </button>
-            <button className="btn-secondary text-xs sm:text-sm" onClick={() => setShowBulkUpload(true)}>
-              <Upload className="w-4 h-4" /> Bulk Upload
+            <button className="btn-secondary text-xs px-2.5 py-1.5" onClick={() => setShowBulkUpload(true)}>
+              <Upload className="w-3.5 h-3.5" /> Upload
             </button>
-            <button className="btn-secondary text-xs sm:text-sm" onClick={() => setShowAddBlock(true)}>
-              <Layers className="w-4 h-4" /> Add Block
+            <button className="btn-secondary text-xs px-2.5 py-1.5" onClick={() => setShowAddBlock(true)}>
+              <Layers className="w-3.5 h-3.5" /> Block
             </button>
-            <button className="btn-primary text-xs sm:text-sm" onClick={() => setShowAddFlat(true)}>
-              <Plus className="w-4 h-4" /> Add Flat
+            <button className="btn-primary text-xs px-2.5 py-1.5" onClick={() => setShowAddFlat(true)}>
+              <Plus className="w-3.5 h-3.5" /> Flat
             </button>
           </div>
         )}
@@ -110,15 +109,13 @@ export default function FlatsPage() {
 
       {/* Blocks Summary */}
       {blocks.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 mb-6">
+        <div className="flex gap-2 overflow-x-auto pb-1 mb-4 -mx-1 px-1">
           {blocks.map((block) => (
-            <div key={block.id} className="card p-3 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
-                <Layers className="w-4 h-4" />
-              </div>
+            <div key={block.id} className="flex-shrink-0 card px-3 py-2 flex items-center gap-2">
+              <Layers className="w-3.5 h-3.5 text-slate-500" />
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-on-surface truncate">{block.name}</p>
-                <p className="text-xs text-on-surface-variant">{block.floors} floors · {block._count?.flats ?? 0} flats</p>
+                <p className="text-xs font-semibold text-on-surface truncate">{block.name}</p>
+                <p className="text-[10px] text-on-surface-variant">{block.floors}F · {block._count?.flats ?? 0}</p>
               </div>
             </div>
           ))}
@@ -126,33 +123,27 @@ export default function FlatsPage() {
       )}
 
       {/* Search */}
-      <div className="relative mb-6">
+      <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
         <input
           type="text"
-          className="input pl-10"
-          placeholder="Search by flat number, owner, or tenant..."
+          className="input pl-10 text-sm"
+          placeholder="Search flat, owner, tenant..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
-      <div className="mb-6 rounded-2xl border border-warning/20 bg-warning-container px-4 py-3">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-on-warning-container">Admin delete control</p>
-            <p className="text-xs text-on-warning-container mt-1">
-              Select one apartment, then confirm its flat number to delete it. Deletion is blocked if the flat still has an owner, tenant, bills, or complaints.
-            </p>
+      <div className="mb-4 rounded-xl border border-warning/20 bg-warning-container px-3 py-2.5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-on-warning-container">Select a flat to delete</p>
           </div>
-          <div className="rounded-xl bg-white/80 px-3 py-2 text-sm text-on-surface-variant border border-warning/10 min-w-[220px]">
+          <div className="rounded-lg bg-white/80 px-2.5 py-1.5 text-xs text-on-surface-variant border border-warning/10 shrink-0">
             {selectedFlat ? (
-              <>
-                <p className="font-semibold text-on-surface">{selectedFlat.flatNumber}</p>
-                <p className="text-xs text-on-surface-variant">{selectedFlat.block?.name} · Floor {selectedFlat.floor}</p>
-              </>
+              <span className="font-semibold text-on-surface">{selectedFlat.flatNumber} · {selectedFlat.block?.name}</span>
             ) : (
-              <p className="text-xs text-on-surface-variant">No apartment selected</p>
+              <span className="text-on-surface-variant">None</span>
             )}
           </div>
         </div>

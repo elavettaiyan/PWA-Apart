@@ -61,6 +61,10 @@ function parseImages(value?: string | null) {
 }
 
 function mapAnnouncement(record: any) {
+  const readAt = Array.isArray(record.readStates) && record.readStates.length > 0
+    ? record.readStates[0]?.readAt || null
+    : null;
+
   return {
     id: record.id,
     societyId: record.societyId,
@@ -71,6 +75,10 @@ function mapAnnouncement(record: any) {
     images: parseImages(record.images),
     targetRoles: parseRoles(record.targetRoles),
     sentCount: record.sentCount,
+    isPinned: Boolean(record.isPinned),
+    pinnedAt: record.pinnedAt,
+    isRead: Boolean(readAt),
+    readAt,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     createdBy: record.createdBy ? {
@@ -95,8 +103,15 @@ router.get(
       where: { societyId },
       include: {
         createdBy: { select: { id: true, name: true, role: true } },
+        readStates: req.user?.id
+          ? {
+              where: { userId: req.user.id },
+              select: { readAt: true },
+              take: 1,
+            }
+          : false,
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ isPinned: 'desc' }, { pinnedAt: 'desc' }, { createdAt: 'desc' }],
     });
 
     return res.json(announcements.map(mapAnnouncement));
@@ -154,7 +169,7 @@ router.post(
         title: req.body.title,
         message: req.body.message,
         images,
-        path: req.body.path || '/announcements',
+        path: req.body.path || '/community?tab=announcements',
         roles,
       });
 
@@ -209,6 +224,107 @@ router.delete(
 
     await prisma.announcementBroadcast.delete({ where: { id: announcement.id } });
     return res.json({ message: 'Announcement deleted successfully' });
+  },
+);
+
+router.patch(
+  '/:id/pin',
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
+  [param('id').isUUID(), body('isPinned').isBoolean().withMessage('isPinned must be a boolean')],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    const societyId = resolveSocietyId(req);
+    if (!societyId) {
+      return res.status(400).json({ error: 'Society ID required' });
+    }
+
+    const announcement = await prisma.announcementBroadcast.findFirst({
+      where: { id: req.params.id, societyId },
+      select: { id: true },
+    });
+
+    if (!announcement) {
+      return res.status(404).json({ error: 'Announcement not found' });
+    }
+
+    const updatedAnnouncement = await prisma.announcementBroadcast.update({
+      where: { id: announcement.id },
+      data: {
+        isPinned: req.body.isPinned,
+        pinnedAt: req.body.isPinned ? new Date() : null,
+      },
+      include: {
+        createdBy: { select: { id: true, name: true, role: true } },
+        readStates: req.user?.id
+          ? {
+              where: { userId: req.user.id },
+              select: { readAt: true },
+              take: 1,
+            }
+          : false,
+      },
+    });
+
+    return res.json(mapAnnouncement(updatedAnnouncement));
+  },
+);
+
+router.patch(
+  '/:id/read-state',
+  [param('id').isUUID(), body('isRead').isBoolean().withMessage('isRead must be a boolean')],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    const societyId = resolveSocietyId(req);
+    if (!societyId || !req.user?.id) {
+      return res.status(400).json({ error: 'Society ID required' });
+    }
+
+    const announcement = await prisma.announcementBroadcast.findFirst({
+      where: { id: req.params.id, societyId },
+      select: { id: true },
+    });
+
+    if (!announcement) {
+      return res.status(404).json({ error: 'Announcement not found' });
+    }
+
+    if (req.body.isRead) {
+      await prisma.announcementReadState.upsert({
+        where: {
+          announcementId_userId: {
+            announcementId: announcement.id,
+            userId: req.user.id,
+          },
+        },
+        update: { readAt: new Date() },
+        create: {
+          announcementId: announcement.id,
+          userId: req.user.id,
+          readAt: new Date(),
+        },
+      });
+    } else {
+      await prisma.announcementReadState.deleteMany({
+        where: {
+          announcementId: announcement.id,
+          userId: req.user.id,
+        },
+      });
+    }
+
+    const updatedAnnouncement = await prisma.announcementBroadcast.findUnique({
+      where: { id: announcement.id },
+      include: {
+        createdBy: { select: { id: true, name: true, role: true } },
+        readStates: {
+          where: { userId: req.user.id },
+          select: { readAt: true },
+          take: 1,
+        },
+      },
+    });
+
+    return res.json(mapAnnouncement(updatedAnnouncement));
   },
 );
 

@@ -39,13 +39,12 @@ export default function BylawsPage() {
     <div>
       <div className="page-header">
         <div>
-          <p className="section-label mb-2">Documents</p>
-          <h1 className="page-title">Association Bylaws</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Define and manage society rules, regulations, and penalties</p>
+          <p className="section-label mb-1">Documents</p>
+          <h1 className="page-title">Bylaws</h1>
         </div>
         {isAdmin && (
-          <button className="btn-primary" onClick={() => setShowCreate(true)}>
-            <Plus className="w-4 h-4" /> Add Bylaw
+          <button className="btn-primary text-xs px-3 py-1.5" onClick={() => setShowCreate(true)}>
+            <Plus className="w-3.5 h-3.5" /> Add
           </button>
         )}
       </div>
@@ -61,34 +60,32 @@ export default function BylawsPage() {
         <div className="space-y-6">
           {Object.entries(grouped).map(([category, bylaws]) => (
             <div key={category}>
-              <div className="flex items-center gap-2 mb-3">
-                <Shield className="w-4 h-4 text-primary" />
-                <h2 className="text-lg font-semibold text-on-surface">{category}</h2>
-                <span className="badge badge-neutral">{bylaws.length}</span>
+              <div className="flex items-center gap-2 mb-2">
+                <Shield className="w-3.5 h-3.5 text-primary" />
+                <h2 className="text-sm font-semibold text-on-surface">{category}</h2>
+                <span className="badge badge-neutral text-[10px]">{bylaws.length}</span>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {bylaws.map((bylaw) => (
-                  <div key={bylaw.id} className="card p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <h3 className="text-sm font-semibold text-on-surface mb-1">{bylaw.title}</h3>
-                        <p className="text-sm text-on-surface-variant whitespace-pre-wrap">{bylaw.content}</p>
-                        <div className="flex items-center gap-4 mt-3 text-xs text-outline">
-                          <span>Effective: {formatDate(bylaw.effectiveDate)}</span>
-                          {bylaw.penaltyAmount && (
-                            <span className="text-error font-medium">
-                              Penalty: {formatCurrency(bylaw.penaltyAmount)}
-                            </span>
-                          )}
-                        </div>
+                  <div key={bylaw.id} className="card-elevated overflow-hidden">
+                    <div className="px-4 pt-3 pb-2">
+                      <h3 className="text-[13px] font-semibold text-on-surface">{bylaw.title}</h3>
+                      <p className="text-xs text-on-surface-variant mt-1 whitespace-pre-wrap line-clamp-3">{bylaw.content}</p>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-outline-variant/10 px-4 py-1.5">
+                      <div className="flex items-center gap-3 text-[11px] text-outline">
+                        <span>{formatDate(bylaw.effectiveDate)}</span>
+                        {bylaw.penaltyAmount && (
+                          <span className="text-error font-medium">{formatCurrency(bylaw.penaltyAmount)}</span>
+                        )}
                       </div>
                       {isAdmin && (
-                        <div className="flex gap-1">
+                        <div className="flex gap-0.5">
                           <button
                             className="p-1.5 text-outline hover:text-primary hover:bg-primary-container rounded-lg"
                             onClick={() => setEditBylaw(bylaw)}
                           >
-                            <Edit3 className="w-4 h-4" />
+                            <Edit3 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             className="p-1.5 text-outline hover:text-error hover:bg-error-container rounded-lg"
@@ -96,7 +93,7 @@ export default function BylawsPage() {
                               if (confirm('Remove this bylaw?')) deleteMutation.mutate(bylaw.id);
                             }}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       )}

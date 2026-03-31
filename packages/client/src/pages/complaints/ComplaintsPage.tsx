@@ -50,23 +50,18 @@ export default function ComplaintsPage() {
     <div>
       <div className="page-header">
         <div>
-          <p className="section-label mb-2">Service Desk</p>
+          <p className="section-label mb-1">Service Desk</p>
           <h1 className="page-title">Complaints</h1>
-          <p className="text-sm text-on-surface-variant mt-1">
-            {isSpecializedStaffView
-              ? `${defaultCategory} complaints for your service desk`
-              : 'Track and manage resident complaints'}
-          </p>
         </div>
         {!isSpecializedStaffView && (
           <button className="btn-primary" onClick={() => setShowCreate(true)}>
-            <Plus className="w-4 h-4" /> New Complaint
+            <Plus className="w-4 h-4" /> New
           </button>
         )}
       </div>
 
-      {/* Status Filter Pills */}
-      <div className="flex flex-wrap gap-2 mb-6">
+      {/* Status Filter Chips */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 mb-5 -mx-1 px-1">
         {[
           { label: 'All', value: '', count: complaints.length },
           { label: 'Open', value: 'OPEN', count: statusCounts.OPEN },
@@ -78,7 +73,7 @@ export default function ComplaintsPage() {
             key={tab.value}
             onClick={() => setStatusFilter(tab.value)}
             className={cn(
-              'px-4 py-2 rounded-full text-sm font-medium transition',
+              'flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition whitespace-nowrap',
               statusFilter === tab.value
                 ? 'bg-primary text-on-primary'
                 : 'bg-surface-container-lowest text-on-surface-variant ghost-border hover:bg-surface-container-low',
@@ -101,31 +96,34 @@ export default function ComplaintsPage() {
           {complaints.map((complaint) => (
             <div
               key={complaint.id}
-              className="bg-surface-container-low rounded-2xl p-4 sm:p-5 hover:bg-surface-container transition-colors cursor-pointer"
+              className="card-elevated overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
               onClick={() => setSelectedComplaint(complaint)}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-sm font-semibold text-on-surface truncate">{complaint.title}</h3>
-                    <span className={cn('badge', getStatusColor(complaint.priority))}>{complaint.priority}</span>
-                  </div>
-                  <p className="text-xs text-on-surface-variant line-clamp-2 mb-2">{complaint.description}</p>
-                  <div className="flex flex-wrap gap-3 text-xs text-on-surface-variant">
-                    <span>📋 {complaint.category}</span>
-                    {complaint.flat && <span>🏠 {complaint.flat.block?.name} - {complaint.flat.flatNumber}</span>}
-                    <span>👤 {complaint.createdBy?.name}</span>
-                    <span>📅 {formatDate(complaint.createdAt)}</span>
-                    {complaint._count?.comments ? (
-                      <span className="flex items-center gap-1">
-                        <MessageCircle className="w-3 h-3" /> {complaint._count.comments}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-                <span className={cn('badge shrink-0', getStatusColor(complaint.status))}>
+              {/* Header: priority + status badges */}
+              <div className="flex items-center justify-between gap-2 px-4 pt-3">
+                <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', getStatusColor(complaint.priority))}>{complaint.priority}</span>
+                <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', getStatusColor(complaint.status))}>
                   {complaint.status.replace('_', ' ')}
                 </span>
+              </div>
+
+              {/* Content */}
+              <div className="px-4 pt-2 pb-2">
+                <h3 className="text-[15px] font-semibold text-on-surface leading-snug">{complaint.title}</h3>
+                <p className="text-xs text-on-surface-variant mt-1 line-clamp-2">{complaint.description}</p>
+              </div>
+
+              {/* Meta */}
+              <div className="flex items-center gap-3 px-4 pb-3 text-[11px] text-on-surface-variant">
+                <span className="inline-flex items-center gap-1">{complaint.category}</span>
+                {complaint.flat && <span>{complaint.flat.block?.name}-{complaint.flat.flatNumber}</span>}
+                <span>{complaint.createdBy?.name}</span>
+                <span>{formatDate(complaint.createdAt)}</span>
+                {complaint._count?.comments ? (
+                  <span className="inline-flex items-center gap-0.5 ml-auto">
+                    <MessageCircle className="w-3 h-3" /> {complaint._count.comments}
+                  </span>
+                ) : null}
               </div>
             </div>
           ))}

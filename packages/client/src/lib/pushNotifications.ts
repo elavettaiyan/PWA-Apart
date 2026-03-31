@@ -63,6 +63,14 @@ function resolveNotificationTarget(notification: PushNotificationSchema | Action
     }
   }
 
+  if ((typeof type === 'string' && type.startsWith('announcement.')) || defaultTarget === '/announcements') {
+    return '/community?tab=announcements';
+  }
+
+  if ((typeof type === 'string' && type.startsWith('event.')) || defaultTarget === '/events') {
+    return '/community?tab=events';
+  }
+
   const target = defaultTarget;
 
   if (!target) {

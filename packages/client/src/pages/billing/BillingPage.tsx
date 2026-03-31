@@ -240,20 +240,19 @@ export default function BillingPage() {
     <div>
       <div className="page-header">
         <div>
-          <p className="section-label mb-2">Financials</p>
-          <h1 className="page-title">Maintenance Billing</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Generate and manage monthly maintenance bills</p>
+          <p className="section-label mb-1">Financials</p>
+          <h1 className="page-title">Billing</h1>
         </div>
         {isAdmin && (
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
-            <button className="btn-secondary" onClick={() => reminderMutation.mutate()} disabled={reminderMutation.isPending}>
-              <BellRing className="w-4 h-4" /> {reminderMutation.isPending ? 'Sending...' : 'Send Payment Reminders'}
+          <div className="flex flex-wrap gap-1.5">
+            <button className="btn-secondary text-xs px-2.5 py-1.5" onClick={() => reminderMutation.mutate()} disabled={reminderMutation.isPending}>
+              <BellRing className="w-3.5 h-3.5" /> {reminderMutation.isPending ? 'Sending...' : 'Remind'}
             </button>
-            <button className="btn-secondary" onClick={openConfigModal}>
-              <Calendar className="w-4 h-4" /> Set Amount
+            <button className="btn-secondary text-xs px-2.5 py-1.5" onClick={openConfigModal}>
+              <Calendar className="w-3.5 h-3.5" /> Config
             </button>
-            <button className="btn-primary" onClick={() => setShowGenerate(true)} disabled={!canGenerateBills}>
-              <Plus className="w-4 h-4" /> Generate Bills
+            <button className="btn-primary text-xs px-2.5 py-1.5" onClick={() => setShowGenerate(true)} disabled={!canGenerateBills}>
+              <Plus className="w-3.5 h-3.5" /> Generate
             </button>
           </div>
         )}

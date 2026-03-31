@@ -40,9 +40,9 @@ export default function MyFlatPage() {
     <div>
       <div className="page-header">
         <div>
-          <p className="section-label mb-2">Your Space</p>
+          <p className="section-label mb-1">Your Space</p>
           <h1 className="page-title">My Flat</h1>
-          <p className="text-sm text-on-surface-variant mt-1">
+          <p className="text-xs text-on-surface-variant mt-0.5">
             {flat.block?.name} - {flat.flatNumber}
           </p>
         </div>

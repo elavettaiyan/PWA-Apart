@@ -10,8 +10,7 @@ import { isNonSecurityServiceStaff, isSecurityServiceStaff } from './serviceStaf
 
 export const NAVIGATION_MENU_CATALOG = [
   { id: 'dashboard', label: 'Dashboard', href: '/' },
-  { id: 'announcements', label: 'Announcements', href: '/announcements' },
-  { id: 'events', label: 'Events', href: '/events' },
+  { id: 'community', label: 'Community', href: '/community' },
   { id: 'flats', label: 'Flats & Residents', href: '/flats' },
   { id: 'my-flat', label: 'My Flat', href: '/my-flat' },
   { id: 'billing', label: 'Billing', href: '/billing' },
@@ -35,21 +34,21 @@ const BASELINE_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, NavigationMenuId[]
 };
 
 const DEFAULT_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, NavigationMenuId[]> = {
-  ADMIN: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
-  SECRETARY: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'reports', 'settings'],
-  JOINT_SECRETARY: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity'],
-  TREASURER: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
-  OWNER: ['dashboard', 'announcements', 'events', 'my-flat', 'billing', 'complaints'],
-  TENANT: ['dashboard', 'announcements', 'events', 'my-flat', 'billing', 'complaints'],
+  ADMIN: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
+  SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'reports', 'settings'],
+  JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity'],
+  TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
+  OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
+  TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
 };
 
 const ALLOWED_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, NavigationMenuId[]> = {
-  ADMIN: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
-  SECRETARY: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
-  JOINT_SECRETARY: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports'],
-  TREASURER: ['dashboard', 'announcements', 'events', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
-  OWNER: ['dashboard', 'announcements', 'events', 'my-flat', 'billing', 'complaints'],
-  TENANT: ['dashboard', 'announcements', 'events', 'my-flat', 'billing', 'complaints'],
+  ADMIN: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
+  SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
+  JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports'],
+  TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
+  OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
+  TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
 };
 
 const ROLE_LABELS: Record<ConfigurableMenuRole, string> = {
@@ -60,6 +59,45 @@ const ROLE_LABELS: Record<ConfigurableMenuRole, string> = {
   OWNER: 'Owner',
   TENANT: 'Tenant',
 };
+
+const LEGACY_MENU_ID_MAP: Partial<Record<string, NavigationMenuId>> = {
+  announcements: 'community',
+  events: 'community',
+};
+
+function normalizeMenuIds(menuIds: readonly string[]): NavigationMenuId[] {
+  const normalized = menuIds
+    .map((menuId) => LEGACY_MENU_ID_MAP[menuId] || menuId)
+    .filter((menuId): menuId is NavigationMenuId => NAVIGATION_MENU_CATALOG.some((item) => item.id === menuId));
+
+  return [...new Set(normalized)];
+}
+
+function normalizeRoleMenuVisibilityConfig(roleConfig: RoleMenuVisibilityConfig): RoleMenuVisibilityConfig {
+  const visibleMenuIds = normalizeMenuIds(roleConfig.visibleMenuIds);
+  const defaultMenuIds = normalizeMenuIds(roleConfig.defaultMenuIds);
+  const mandatoryMenuIds = normalizeMenuIds(roleConfig.mandatoryMenuIds);
+  const visibleIdSet = new Set(visibleMenuIds);
+  const defaultIdSet = new Set(defaultMenuIds);
+  const mandatoryIdSet = new Set(mandatoryMenuIds);
+
+  return {
+    ...roleConfig,
+    visibleMenuIds,
+    defaultMenuIds,
+    mandatoryMenuIds,
+    menuItems: NAVIGATION_MENU_CATALOG.map((item) => ({
+      id: item.id,
+      label: item.label,
+      href: item.href,
+      allowed: roleConfig.menuItems.some((menuItem) => (LEGACY_MENU_ID_MAP[menuItem.id] || menuItem.id) === item.id && menuItem.allowed),
+      mandatory: mandatoryIdSet.has(item.id),
+      enabled: visibleIdSet.has(item.id),
+      defaultEnabled: defaultIdSet.has(item.id),
+      selectable: roleConfig.menuItems.some((menuItem) => (LEGACY_MENU_ID_MAP[menuItem.id] || menuItem.id) === item.id && menuItem.selectable),
+    })),
+  };
+}
 
 function normalizeVisibleMenuIds(role: ConfigurableMenuRole, requestedMenuIds: NavigationMenuId[]) {
   const mandatoryIdSet = new Set(BASELINE_MENU_IDS_BY_ROLE[role]);
@@ -115,8 +153,11 @@ export function getRoleMenuVisibilityConfig(role: Role | undefined, menuVisibili
     return null;
   }
 
-  return menuVisibility?.configurableRoles.find((config) => config.role === role)
-    || buildRoleMenuVisibility(role as ConfigurableMenuRole, []);
+  const roleConfig = menuVisibility?.configurableRoles.find((config) => config.role === role);
+
+  return roleConfig
+    ? normalizeRoleMenuVisibilityConfig(roleConfig)
+    : buildRoleMenuVisibility(role as ConfigurableMenuRole, []);
 }
 
 export function getVisibleMenuIdsForUser(user?: User | null, menuVisibility?: MenuVisibilityResponse | null): NavigationMenuId[] {

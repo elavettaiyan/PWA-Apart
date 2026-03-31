@@ -72,9 +72,8 @@ export default function EntryActivityPage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="section-label mb-2">Admin View</p>
+        <p className="section-label mb-1">Admin View</p>
         <h1 className="page-title">Entry Activity</h1>
-        <p className="text-sm text-on-surface-variant">Monitor all visitor and delivery records across the active society.</p>
       </div>
 
       <div className="card-elevated p-4 flex flex-col gap-4 lg:flex-row lg:items-center">
@@ -125,25 +124,19 @@ export default function EntryActivityPage() {
 
 function VisitorActivityCard({ visitor }: { visitor: Visitor }) {
   return (
-    <div className="card-elevated p-5 space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-primary" />
-            <h2 className="font-semibold text-on-surface">{visitor.visitorName}</h2>
-          </div>
-          <p className="text-sm text-on-surface-variant mt-1">{visitor.flat?.block?.name} - {visitor.flat?.flatNumber}</p>
+    <div className="card-elevated overflow-hidden">
+      <div className="flex items-center justify-between gap-2 px-4 pt-3">
+        <div className="flex items-center gap-1.5">
+          <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+          <h2 className="text-[13px] font-semibold text-on-surface">{visitor.visitorName}</h2>
         </div>
-        <span className={cn('badge', getStatusColor(visitor.status))}>{visitor.status}</span>
+        <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold', getStatusColor(visitor.status))}>{visitor.status}</span>
       </div>
-      <div className="text-sm text-on-surface-variant space-y-1">
-        <p>Purpose: {visitor.purpose}</p>
-        <p>Mobile: {visitor.mobile}</p>
+      <div className="px-4 pt-1.5 pb-3 text-xs text-on-surface-variant space-y-0.5">
+        <p>{visitor.flat?.block?.name}-{visitor.flat?.flatNumber} {visitor.flat?.residentName ? `· ${visitor.flat.residentName}` : ''}</p>
+        <p>{visitor.purpose} · {visitor.mobile}</p>
         {visitor.vehicleNumber && <p>Vehicle: {visitor.vehicleNumber}</p>}
-        {visitor.flat?.residentName && <p>Resident: {visitor.flat.residentName}</p>}
-        <p>In: {formatDateTime(visitor.checkedInAt)}</p>
-        {visitor.checkedOutAt && <p>Out: {formatDateTime(visitor.checkedOutAt)}</p>}
-        {visitor.capturedBy?.name && <p>Recorded by: {visitor.capturedBy.name}</p>}
+        <p className="text-[11px] text-outline">In: {formatDateTime(visitor.checkedInAt)}{visitor.checkedOutAt ? ` · Out: ${formatDateTime(visitor.checkedOutAt)}` : ''}</p>
       </div>
     </div>
   );
@@ -151,22 +144,16 @@ function VisitorActivityCard({ visitor }: { visitor: Visitor }) {
 
 function DeliveryActivityCard({ delivery }: { delivery: Delivery }) {
   return (
-    <div className="card-elevated p-5 space-y-3">
-      <div>
-        <div className="flex items-center gap-2">
-          <Package className="w-4 h-4 text-primary" />
-          <h2 className="font-semibold text-on-surface">{delivery.deliveryType.replace('_', ' ')}</h2>
-        </div>
-        <p className="text-sm text-on-surface-variant mt-1">{delivery.flat?.block?.name} - {delivery.flat?.flatNumber}</p>
+    <div className="card-elevated overflow-hidden">
+      <div className="flex items-center gap-1.5 px-4 pt-3">
+        <Package className="w-3.5 h-3.5 text-primary" />
+        <h2 className="text-[13px] font-semibold text-on-surface">{delivery.deliveryType.replace('_', ' ')}</h2>
       </div>
-      <div className="text-sm text-on-surface-variant space-y-1">
-        <p>Person: {delivery.deliveryPersonName}</p>
-        {delivery.companyName && <p>Company: {delivery.companyName}</p>}
-        {delivery.mobile && <p>Mobile: {delivery.mobile}</p>}
-        {delivery.vehicleNumber && <p>Vehicle: {delivery.vehicleNumber}</p>}
-        {delivery.flat?.residentName && <p>Resident: {delivery.flat.residentName}</p>}
-        <p>At: {formatDateTime(delivery.deliveredAt)}</p>
-        {delivery.capturedBy?.name && <p>Recorded by: {delivery.capturedBy.name}</p>}
+      <div className="px-4 pt-1.5 pb-3 text-xs text-on-surface-variant space-y-0.5">
+        <p>{delivery.flat?.block?.name}-{delivery.flat?.flatNumber} {delivery.flat?.residentName ? `· ${delivery.flat.residentName}` : ''}</p>
+        <p>{delivery.deliveryPersonName}{delivery.companyName ? ` · ${delivery.companyName}` : ''}</p>
+        {delivery.mobile && <p>{delivery.mobile}</p>}
+        <p className="text-[11px] text-outline">At: {formatDateTime(delivery.deliveredAt)}</p>
       </div>
     </div>
   );

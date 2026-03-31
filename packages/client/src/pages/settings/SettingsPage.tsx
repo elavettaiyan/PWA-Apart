@@ -189,13 +189,8 @@ export default function SettingsPage() {
     <div>
       <div className="page-header">
         <div>
-          <p className="section-label mb-2">Configuration</p>
+          <p className="section-label mb-1">Configuration</p>
           <h1 className="page-title">Settings</h1>
-          <p className="text-sm text-on-surface-variant mt-1">
-            {isAdmin
-              ? 'Configure society administration, billing setup, and application settings'
-              : 'Manage your account settings and review policy information'}
-          </p>
         </div>
       </div>
 

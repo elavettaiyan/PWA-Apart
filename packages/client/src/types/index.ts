@@ -11,8 +11,7 @@ export const ALL_SOCIETY_ROLES: Role[] = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY
 
 export type NavigationMenuId =
   | 'dashboard'
-  | 'announcements'
-  | 'events'
+  | 'community'
   | 'flats'
   | 'my-flat'
   | 'billing'
@@ -281,6 +280,10 @@ export interface Announcement {
   images: string[];
   targetRoles: Role[];
   sentCount: number;
+  isPinned: boolean;
+  pinnedAt?: string | null;
+  isRead: boolean;
+  readAt?: string | null;
   createdAt: string;
   updatedAt: string;
   createdBy?: { id: string; name: string; role: Role };

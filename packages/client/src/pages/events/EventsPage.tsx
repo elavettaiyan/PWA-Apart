@@ -71,7 +71,7 @@ function formatSchedulePreview(dateValue: string, timeValue: string) {
   return timeValue;
 }
 
-export default function EventsPage() {
+export default function EventsPage({ embedded = false }: { embedded?: boolean }) {
   const [showCreate, setShowCreate] = useState(false);
   const [editingEvent, setEditingEvent] = useState<SocietyEvent | null>(null);
   const [filter, setFilter] = useState<'UPCOMING' | 'PAST' | 'CANCELLED'>('UPCOMING');
@@ -119,25 +119,36 @@ export default function EventsPage() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <p className="section-label mb-2">Community</p>
-          <h1 className="page-title">Events</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Plan society gatherings and send reminders to members.</p>
-        </div>
-        {canManage && (
-          <div className="flex flex-wrap gap-2">
-            <button className="btn-secondary" onClick={() => reminderMutation.mutate()} disabled={reminderMutation.isPending}>
-              <BellRing className="w-4 h-4" /> {reminderMutation.isPending ? 'Sending...' : 'Send Due Reminders'}
-            </button>
-            <button className="btn-primary" onClick={() => setShowCreate(true)}>
-              <Plus className="w-4 h-4" /> New Event
-            </button>
+      {!embedded ? (
+        <div className="page-header">
+          <div>
+            <p className="section-label mb-1">Community</p>
+            <h1 className="page-title">Events</h1>
           </div>
-        )}
-      </div>
+          {canManage && (
+            <div className="flex flex-wrap gap-2">
+              <button className="btn-secondary" onClick={() => reminderMutation.mutate()} disabled={reminderMutation.isPending}>
+                <BellRing className="w-4 h-4" /> {reminderMutation.isPending ? 'Sending...' : 'Reminders'}
+              </button>
+              <button className="btn-primary" onClick={() => setShowCreate(true)}>
+                <Plus className="w-4 h-4" /> New
+              </button>
+            </div>
+          )}
+        </div>
+      ) : canManage ? (
+        <div className="flex flex-wrap justify-end gap-2">
+          <button className="btn-secondary text-xs px-3 py-1.5" onClick={() => reminderMutation.mutate()} disabled={reminderMutation.isPending}>
+            <BellRing className="w-3.5 h-3.5" /> {reminderMutation.isPending ? 'Sending...' : 'Reminders'}
+          </button>
+          <button className="btn-primary text-xs px-3 py-1.5" onClick={() => setShowCreate(true)}>
+            <Plus className="w-3.5 h-3.5" /> New
+          </button>
+        </div>
+      ) : null}
 
-      <div className="mb-6 flex flex-wrap gap-2">
+      {/* Filter chips */}
+      <div className="mt-4 mb-4 flex gap-1.5">
         {[
           { id: 'UPCOMING', label: 'Upcoming' },
           { id: 'PAST', label: 'Past' },
@@ -147,7 +158,7 @@ export default function EventsPage() {
             key={item.id}
             type="button"
             className={cn(
-              'rounded-full px-4 py-2 text-sm font-medium transition',
+              'rounded-full px-3 py-1.5 text-xs font-medium transition',
               filter === item.id ? 'bg-primary text-on-primary' : 'bg-surface-container-lowest text-on-surface-variant ghost-border hover:bg-surface-container-low',
             )}
             onClick={() => setFilter(item.id as typeof filter)}
@@ -164,61 +175,73 @@ export default function EventsPage() {
           description="Create a society event to notify residents and committee members."
         />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {visibleEvents.map((event) => (
-            <article key={event.id} className="card-elevated p-5 space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-semibold text-on-surface">{event.title}</h2>
-                    <span className={cn('badge', getStatusColor(event.status))}>{event.status}</span>
-                  </div>
-                  <p className="mt-2 text-sm text-on-surface-variant whitespace-pre-wrap">{event.description}</p>
+            <article key={event.id} className="card-elevated overflow-hidden">
+              {/* Status badge */}
+              <div className="flex items-center gap-2 px-4 pt-3">
+                <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', getStatusColor(event.status))}>{event.status}</span>
+              </div>
+
+              {/* Content */}
+              <div className="px-4 pt-2 pb-2">
+                <h2 className="text-[15px] font-semibold text-on-surface leading-snug">{event.title}</h2>
+                <p className="text-sm leading-relaxed text-on-surface-variant mt-1.5 line-clamp-2 whitespace-pre-wrap">{event.description}</p>
+              </div>
+
+              {/* Meta info */}
+              <div className="px-4 pb-2 space-y-1.5">
+                <div className="flex items-center gap-2 text-xs text-on-surface-variant">
+                  <Clock3 className="w-3.5 h-3.5 text-outline flex-shrink-0" />
+                  <span>{formatDateTime(event.startAt)}{event.endAt ? ` – ${formatDateTime(event.endAt)}` : ''}</span>
                 </div>
-                {canManage && (
-                  <div className="flex flex-wrap gap-2">
-                    <button className="btn-secondary" onClick={() => setEditingEvent(event)}>
-                      <Pencil className="w-4 h-4" /> Edit
-                    </button>
-                    <button
-                      className="btn-secondary text-error border-error/20 hover:bg-error-container/40"
-                      onClick={() => deleteMutation.mutate(event.id)}
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Trash2 className="w-4 h-4" /> Delete
-                    </button>
+                <div className="flex items-center gap-2 text-xs text-on-surface-variant">
+                  <MapPin className="w-3.5 h-3.5 text-outline flex-shrink-0" />
+                  <span>{event.place}</span>
+                </div>
+                {event.reminderMinutes.length > 0 && (
+                  <div className="flex items-center gap-2 text-xs text-on-surface-variant">
+                    <BellRing className="w-3.5 h-3.5 text-outline flex-shrink-0" />
+                    <span>{event.reminderMinutes.map((m) => m >= 1440 ? `${m / 1440}d` : m >= 60 ? `${m / 60}h` : `${m}m`).join(', ')} before</span>
                   </div>
                 )}
               </div>
 
-              <div className="grid gap-3 text-sm text-on-surface-variant sm:grid-cols-2 xl:grid-cols-3">
-                <div className="flex items-center gap-2">
-                  <Clock3 className="w-4 h-4 text-outline" />
-                  <span>{formatDateTime(event.startAt)}{event.endAt ? ` - ${formatDateTime(event.endAt)}` : ''}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-outline" />
-                  <span>{event.place}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <BellRing className="w-4 h-4 text-outline" />
-                  <span>{event.reminderMinutes.length > 0 ? `${event.reminderMinutes.join(', ')} min reminders` : 'No reminders'}</span>
-                </div>
-              </div>
-
+              {/* Images */}
               {event.imageUrls.length > 0 && (
-                <div className="flex flex-wrap gap-3">
+                <div className="flex gap-2 px-4 pb-2 overflow-x-auto">
                   {event.imageUrls.map((image, index) => (
                     <a
                       key={`${event.id}-${index}`}
                       href={toAssetUrl(image)}
                       target="_blank"
                       rel="noreferrer"
-                      className="block h-24 w-24 overflow-hidden rounded-2xl border border-outline-variant/15"
+                      className="flex-shrink-0 h-20 w-20 overflow-hidden rounded-xl border border-outline-variant/10"
                     >
                       <img src={toAssetUrl(image)} alt={event.title} className="h-full w-full object-cover" />
                     </a>
                   ))}
+                </div>
+              )}
+
+              {/* Action bar */}
+              {canManage && (
+                <div className="flex items-center border-t border-outline-variant/10 px-2 py-1">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-on-surface-variant hover:bg-surface-container-low transition"
+                    onClick={() => setEditingEvent(event)}
+                  >
+                    <Pencil className="w-3.5 h-3.5" /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-error hover:bg-error-container/30 transition ml-auto"
+                    onClick={() => deleteMutation.mutate(event.id)}
+                    disabled={deleteMutation.isPending}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                  </button>
                 </div>
               )}
             </article>

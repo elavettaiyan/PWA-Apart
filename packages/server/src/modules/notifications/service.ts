@@ -458,8 +458,8 @@ export async function sendAnnouncementBroadcast(input: {
   const result = await sendPushToSocietyRoles(input.societyId, targetRoles as unknown as string[], {
     title: input.title,
     body: input.message,
-    path: input.path || '/announcements',
-    route: input.path || '/announcements',
+    path: input.path || '/community?tab=announcements',
+    route: input.path || '/community?tab=announcements',
     type: 'announcement.broadcast',
   });
 
@@ -491,8 +491,8 @@ export async function notifyEventCreated(eventId: string) {
   return sendPushToSocietyRoles(event.societyId, [...DEFAULT_COMMUNITY_AUDIENCE_ROLES], {
     title: 'New society event',
     body: `${event.title} at ${event.place} on ${formatEventDateTime(event.startAt)}.`,
-    path: '/events',
-    route: '/events',
+    path: '/community?tab=events',
+    route: '/community?tab=events',
     type: 'event.created',
     entityId: event.id,
   });
@@ -510,8 +510,8 @@ export async function notifyEventUpdated(eventId: string) {
   return sendPushToSocietyRoles(event.societyId, [...DEFAULT_COMMUNITY_AUDIENCE_ROLES], {
     title: 'Event updated',
     body: `${event.title} is updated. Check the latest schedule and place details.`,
-    path: '/events',
-    route: '/events',
+    path: '/community?tab=events',
+    route: '/community?tab=events',
     type: 'event.updated',
     entityId: event.id,
   });
@@ -529,8 +529,8 @@ export async function notifyEventCancelled(eventId: string) {
   return sendPushToSocietyRoles(event.societyId, [...DEFAULT_COMMUNITY_AUDIENCE_ROLES], {
     title: 'Event cancelled',
     body: `${event.title} scheduled for ${formatEventDateTime(event.startAt)} has been cancelled.`,
-    path: '/events',
-    route: '/events',
+    path: '/community?tab=events',
+    route: '/community?tab=events',
     type: 'event.cancelled',
     entityId: event.id,
   });
@@ -588,8 +588,8 @@ export async function sendDueEventReminders(societyId?: string) {
       const result = await sendPushToSocietyRoles(event.societyId, [...DEFAULT_COMMUNITY_AUDIENCE_ROLES], {
         title: 'Event reminder',
         body: `${event.title} starts at ${formatEventDateTime(event.startAt)} in ${event.place}.`,
-        path: '/events',
-        route: '/events',
+        path: '/community?tab=events',
+        route: '/community?tab=events',
         type: 'event.reminder',
         entityId: event.id,
       });

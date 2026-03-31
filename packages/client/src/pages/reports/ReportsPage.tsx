@@ -93,26 +93,25 @@ export default function ReportsPage() {
     <div>
       <div className="page-header">
         <div>
-          <p className="section-label mb-2">Analytics</p>
+          <p className="section-label mb-1">Analytics</p>
           <h1 className="page-title">Reports</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Financial reports and analytics</p>
         </div>
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex flex-wrap gap-2 mb-6">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 mb-5 -mx-1 px-1">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition',
+              'flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap',
               activeTab === tab.id
                 ? 'bg-primary text-white shadow-sm'
-                : 'bg-white text-on-surface-variant border border-outline-variant/15 hover:bg-surface-container-low',
+                : 'bg-surface-container-lowest text-on-surface-variant ghost-border hover:bg-surface-container-low',
             )}
           >
-            <tab.icon className="w-4 h-4" />
+            <tab.icon className="w-3.5 h-3.5" />
             {tab.label}
           </button>
         ))}
