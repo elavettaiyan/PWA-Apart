@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import prisma from '../../config/database';
 import logger from '../../config/logger';
 import { config } from '../../config';
+import { sendPendingPaymentReminderEmail } from '../../config/email';
 
 type PushPayload = {
   title: string;
@@ -360,7 +361,11 @@ export async function sendMaintenanceDueReminders(societyId: string, dueInDays =
     },
     include: {
       flat: {
-        include: { block: { select: { name: true } } },
+        include: {
+          block: { include: { society: { select: { name: true } } } },
+          owner: { select: { name: true, email: true, user: { select: { email: true, name: true } } } },
+          tenant: { select: { name: true, email: true, isActive: true, user: { select: { email: true, name: true } } } },
+        },
       },
     },
     orderBy: { dueDate: 'asc' },
@@ -375,10 +380,48 @@ export async function sendMaintenanceDueReminders(societyId: string, dueInDays =
 
   let sentCount = 0;
   let failedCount = 0;
+  let emailSentCount = 0;
+  let emailFailedCount = 0;
 
   for (const [flatId, flatBills] of grouped.entries()) {
     const firstBill = flatBills[0];
     const totalOutstanding = flatBills.reduce((sum, bill) => sum + Math.max(bill.totalAmount - bill.paidAmount, 0), 0);
+
+    const recipients = [
+      firstBill.flat.owner?.user?.email
+        ? { email: firstBill.flat.owner.user.email, name: firstBill.flat.owner.user.name || firstBill.flat.owner.name }
+        : firstBill.flat.owner?.email
+          ? { email: firstBill.flat.owner.email, name: firstBill.flat.owner.name }
+          : null,
+      firstBill.flat.tenant?.isActive && firstBill.flat.tenant.user?.email
+        ? { email: firstBill.flat.tenant.user.email, name: firstBill.flat.tenant.user.name || firstBill.flat.tenant.name }
+        : firstBill.flat.tenant?.isActive && firstBill.flat.tenant.email
+          ? { email: firstBill.flat.tenant.email, name: firstBill.flat.tenant.name }
+          : null,
+    ].filter((recipient): recipient is { email: string; name: string } => !!recipient && !!recipient.email);
+
+    const uniqueRecipients = [...new Map(recipients.map((recipient) => [recipient.email.toLowerCase(), recipient])).values()];
+
+    const emailResults = await Promise.all(uniqueRecipients.map((recipient) => (
+      sendPendingPaymentReminderEmail(recipient.email, {
+        userName: recipient.name,
+        societyName: firstBill.flat.block.society.name,
+        flatNumber: firstBill.flat.flatNumber,
+        blockName: firstBill.flat.block.name,
+        billCount: flatBills.length,
+        outstandingAmount: totalOutstanding,
+        dueBills: flatBills.map((bill) => ({
+          monthLabel: `${MONTH_NAMES[bill.month - 1]} ${bill.year}`,
+          dueDate: bill.dueDate,
+          outstandingAmount: Math.max(bill.totalAmount - bill.paidAmount, 0),
+          status: bill.status,
+        })),
+      })
+    )));
+
+    emailSentCount += emailResults.filter(Boolean).length;
+    emailFailedCount += emailResults.filter((result) => !result).length;
+
     const reminder = await sendPushToFlatResidents(societyId, flatId, {
       title: 'Maintenance due reminder',
       body: `${flatBills.length} unpaid maintenance bill(s) for ${firstBill.flat.block.name} ${firstBill.flat.flatNumber}. Outstanding: INR ${totalOutstanding.toFixed(0)}.`,
@@ -397,6 +440,8 @@ export async function sendMaintenanceDueReminders(societyId: string, dueInDays =
     flatCount: grouped.size,
     sentCount,
     failedCount,
+    emailSentCount,
+    emailFailedCount,
   };
 }
 

@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { query } from 'express-validator';
+import * as XLSX from 'xlsx';
 import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest, FINANCIAL_ROLES } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
@@ -69,6 +70,32 @@ function getAgingBucket(dueDate: Date, asOfDate: Date) {
   if (daysPastDue <= 60) return 'days31To60';
   if (daysPastDue <= 90) return 'days61To90';
   return 'days90Plus';
+}
+
+function formatExcelDate(value?: Date | string | null) {
+  if (!value) {
+    return '';
+  }
+
+  return new Date(value).toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function sendWorkbook(res: Response, filename: string, sheets: Array<{ name: string; rows: Array<Record<string, any>> }>) {
+  const workbook = XLSX.utils.book_new();
+
+  sheets.forEach((sheet) => {
+    const worksheet = XLSX.utils.json_to_sheet(sheet.rows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheet.name.slice(0, 31));
+  });
+
+  const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  return res.send(buffer);
 }
 
 // ── MY DASHBOARD (Owner/Tenant) ─────────────────────────
@@ -228,6 +255,80 @@ router.get(
   },
 );
 
+router.get(
+  '/collection/export',
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
+  [query('month').isInt({ min: 1, max: 12 }), query('year').isInt({ min: 2020 })],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const month = parseInt(req.query.month as string);
+      const year = parseInt(req.query.year as string);
+      const societyId = req.user!.role === 'SUPER_ADMIN'
+        ? (req.query.societyId as string) || req.user!.societyId
+        : req.user!.societyId;
+
+      const bills = await prisma.maintenanceBill.findMany({
+        where: {
+          month,
+          year,
+          flat: { block: { societyId: societyId! } },
+        },
+        include: {
+          flat: {
+            include: {
+              block: { select: { name: true } },
+              owner: { select: { name: true, phone: true } },
+            },
+          },
+          payments: { where: { status: 'SUCCESS' } },
+        },
+        orderBy: { flat: { flatNumber: 'asc' } },
+      });
+
+      const totalBilled = bills.reduce((sum, bill) => sum + bill.totalAmount, 0);
+      const totalCollected = bills.reduce((sum, bill) => sum + bill.paidAmount, 0);
+      const totalPending = totalBilled - totalCollected;
+
+      return sendWorkbook(res, `collection-report-${year}-${String(month).padStart(2, '0')}.xlsx`, [
+        {
+          name: 'Summary',
+          rows: [{
+            Month: month,
+            Year: year,
+            TotalBills: bills.length,
+            TotalBilled: totalBilled,
+            TotalCollected: totalCollected,
+            TotalPending: totalPending,
+            PaidCount: bills.filter((bill) => bill.status === 'PAID').length,
+            PendingCount: bills.filter((bill) => bill.status === 'PENDING' || bill.status === 'OVERDUE').length,
+            PartialCount: bills.filter((bill) => bill.status === 'PARTIAL').length,
+            CollectionRate: totalBilled > 0 ? Number(((totalCollected / totalBilled) * 100).toFixed(1)) : 0,
+          }],
+        },
+        {
+          name: 'Bills',
+          rows: bills.map((bill) => ({
+            Flat: bill.flat.flatNumber,
+            Block: bill.flat.block.name,
+            Owner: bill.flat.owner?.name || '',
+            Phone: bill.flat.owner?.phone || '',
+            Month: `${bill.month}/${bill.year}`,
+            TotalAmount: bill.totalAmount,
+            PaidAmount: bill.paidAmount,
+            OutstandingAmount: Math.max(bill.totalAmount - bill.paidAmount, 0),
+            DueDate: formatExcelDate(bill.dueDate),
+            Status: bill.status,
+            PaymentCount: bill.payments.length,
+          })),
+        },
+      ]);
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to export collection report' });
+    }
+  },
+);
+
 // ── DEFAULTERS REPORT ───────────────────────────────────
 router.get('/defaulters', authorize('SUPER_ADMIN', ...FINANCIAL_ROLES), async (req: AuthRequest, res: Response) => {
   try {
@@ -280,6 +381,85 @@ router.get('/defaulters', authorize('SUPER_ADMIN', ...FINANCIAL_ROLES), async (r
   }
 });
 
+router.get('/defaulters/export', authorize('SUPER_ADMIN', ...FINANCIAL_ROLES), async (req: AuthRequest, res: Response) => {
+  try {
+    const societyId = req.user!.role === 'SUPER_ADMIN'
+      ? (req.query.societyId as string) || req.user!.societyId
+      : req.user!.societyId;
+
+    const defaulters = await prisma.maintenanceBill.findMany({
+      where: {
+        flat: { block: { societyId: societyId! } },
+        status: { in: ['PENDING', 'OVERDUE', 'PARTIAL'] },
+      },
+      include: {
+        flat: {
+          include: {
+            block: { select: { name: true } },
+            owner: { select: { name: true, phone: true, email: true } },
+          },
+        },
+      },
+      orderBy: [{ year: 'desc' }, { month: 'desc' }],
+    });
+
+    const grouped = defaulters.reduce((acc: Record<string, any>, bill) => {
+      const key = bill.flatId;
+      if (!acc[key]) {
+        acc[key] = {
+          flat: bill.flat,
+          bills: [],
+          totalOutstanding: 0,
+        };
+      }
+      acc[key].bills.push(bill);
+      acc[key].totalOutstanding += bill.totalAmount - bill.paidAmount;
+      return acc;
+    }, {});
+
+    const result = Object.values(grouped).sort((a: any, b: any) => b.totalOutstanding - a.totalOutstanding);
+
+    return sendWorkbook(res, 'defaulters-report.xlsx', [
+      {
+        name: 'Summary',
+        rows: [{
+          TotalDefaulters: result.length,
+          TotalOutstanding: result.reduce((sum: number, item: any) => sum + item.totalOutstanding, 0),
+        }],
+      },
+      {
+        name: 'Defaulters',
+        rows: result.map((item: any) => ({
+          Flat: item.flat.flatNumber,
+          Block: item.flat.block?.name || '',
+          Owner: item.flat.owner?.name || '',
+          Phone: item.flat.owner?.phone || '',
+          Email: item.flat.owner?.email || '',
+          PendingBills: item.bills.length,
+          TotalOutstanding: item.totalOutstanding,
+          BillMonths: item.bills.map((bill: any) => `${bill.month}/${bill.year}`).join(', '),
+        })),
+      },
+      {
+        name: 'Bill Details',
+        rows: defaulters.map((bill) => ({
+          Flat: bill.flat.flatNumber,
+          Block: bill.flat.block?.name || '',
+          Owner: bill.flat.owner?.name || '',
+          Month: `${bill.month}/${bill.year}`,
+          DueDate: formatExcelDate(bill.dueDate),
+          TotalAmount: bill.totalAmount,
+          PaidAmount: bill.paidAmount,
+          OutstandingAmount: Math.max(bill.totalAmount - bill.paidAmount, 0),
+          Status: bill.status,
+        })),
+      },
+    ]);
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to export defaulters report' });
+  }
+});
+
 // ── EXPENSE SUMMARY REPORT ──────────────────────────────
 router.get(
   '/expense-summary',
@@ -326,6 +506,95 @@ router.get(
       return res.json({ byCategory, total, monthlyTrend });
     } catch (error) {
       return res.status(500).json({ error: 'Failed to fetch expense summary' });
+    }
+  },
+);
+
+router.get(
+  '/expense-summary/export',
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
+  [query('fromDate').optional().isISO8601(), query('toDate').optional().isISO8601()],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const societyId = req.user!.role === 'SUPER_ADMIN'
+        ? (req.query.societyId as string) || req.user!.societyId
+        : req.user!.societyId;
+      const where: any = { societyId };
+      const fromDate = req.query.fromDate ? new Date(req.query.fromDate as string) : undefined;
+      const toDate = req.query.toDate ? new Date(req.query.toDate as string) : undefined;
+
+      const accountingPeriodFilter = buildAccountingPeriodWhere(fromDate, toDate);
+      if (accountingPeriodFilter) {
+        Object.assign(where, accountingPeriodFilter);
+      }
+
+      const byCategory = await prisma.expense.groupBy({
+        by: ['category'],
+        where,
+        _sum: { amount: true },
+        _count: true,
+        orderBy: { _sum: { amount: 'desc' } },
+      });
+
+      const expenses = await prisma.expense.findMany({
+        where,
+        select: {
+          description: true,
+          category: true,
+          amount: true,
+          vendor: true,
+          expenseDate: true,
+          accountingMonth: true,
+          accountingYear: true,
+        },
+        orderBy: [{ accountingYear: 'asc' }, { accountingMonth: 'asc' }, { expenseDate: 'asc' }],
+      });
+
+      const monthlyTrend: Record<string, number> = {};
+      expenses.forEach((expense) => {
+        const key = getAccountingMonthKey(expense.accountingYear, expense.accountingMonth);
+        monthlyTrend[key] = (monthlyTrend[key] || 0) + expense.amount;
+      });
+
+      return sendWorkbook(res, 'expense-summary-report.xlsx', [
+        {
+          name: 'Summary',
+          rows: [{
+            FromDate: formatExcelDate(fromDate),
+            ToDate: formatExcelDate(toDate),
+            TotalExpense: byCategory.reduce((sum, item) => sum + (item._sum.amount || 0), 0),
+          }],
+        },
+        {
+          name: 'By Category',
+          rows: byCategory.map((item) => ({
+            Category: item.category,
+            TransactionCount: item._count,
+            TotalAmount: item._sum.amount || 0,
+          })),
+        },
+        {
+          name: 'Monthly Trend',
+          rows: Object.entries(monthlyTrend).map(([monthKey, amount]) => ({
+            Month: monthKey,
+            TotalAmount: amount,
+          })),
+        },
+        {
+          name: 'Expense Details',
+          rows: expenses.map((expense) => ({
+            Description: expense.description,
+            Category: expense.category,
+            Amount: expense.amount,
+            Vendor: expense.vendor || '',
+            ExpenseDate: formatExcelDate(expense.expenseDate),
+            AccountingMonth: `${expense.accountingMonth}/${expense.accountingYear}`,
+          })),
+        },
+      ]);
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to export expense summary report' });
     }
   },
 );
@@ -532,6 +801,156 @@ router.get(
       });
     } catch (error) {
       return res.status(500).json({ error: 'Failed to generate P&L report' });
+    }
+  },
+);
+
+router.get(
+  '/pnl/export',
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
+  [query('fromDate').isISO8601(), query('toDate').isISO8601()],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const societyId = req.user!.role === 'SUPER_ADMIN'
+        ? (req.query.societyId as string) || req.user!.societyId
+        : req.user!.societyId;
+      const fromDate = new Date(req.query.fromDate as string);
+      const toDate = new Date(req.query.toDate as string);
+      const periodEnd = new Date(toDate);
+      periodEnd.setHours(23, 59, 59, 999);
+
+      const billedBills = await prisma.maintenanceBill.findMany({
+        where: {
+          dueDate: { gte: fromDate, lte: periodEnd },
+          flat: { block: { societyId: societyId! } },
+        },
+        include: {
+          flat: {
+            include: {
+              block: { select: { name: true } },
+            },
+          },
+        },
+      });
+
+      const payments = await prisma.payment.findMany({
+        where: {
+          status: 'SUCCESS',
+          paidAt: { gte: fromDate, lte: periodEnd },
+          bill: { flat: { block: { societyId: societyId! } } },
+        },
+        include: {
+          bill: {
+            include: {
+              flat: {
+                include: {
+                  block: { select: { name: true } },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const expenses = await prisma.expense.findMany({
+        where: {
+          societyId: societyId!,
+          ...buildAccountingPeriodWhere(fromDate, toDate),
+        },
+        orderBy: [{ accountingYear: 'asc' }, { accountingMonth: 'asc' }, { expenseDate: 'asc' }],
+      });
+
+      const totalBilledIncome = billedBills.reduce((sum, bill) => sum + bill.totalAmount, 0);
+      const totalCollectedIncome = payments.reduce((sum, payment) => sum + payment.amount, 0);
+      const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+      const netProfitLoss = totalBilledIncome - totalExpenses;
+      const cashSurplus = totalCollectedIncome - totalExpenses;
+
+      const receivableBills = billedBills.filter((bill) => ['PENDING', 'OVERDUE', 'PARTIAL'].includes(bill.status));
+      const agingBuckets = {
+        Current: 0,
+        '1-30 Days': 0,
+        '31-60 Days': 0,
+        '61-90 Days': 0,
+        '90+ Days': 0,
+      } as Record<string, number>;
+
+      receivableBills.forEach((bill) => {
+        const outstanding = getOutstandingAmount(bill.totalAmount, bill.paidAmount);
+        if (outstanding <= 0) return;
+        const bucket = getAgingBucket(bill.dueDate, periodEnd);
+        if (bucket === 'current') agingBuckets.Current += outstanding;
+        if (bucket === 'days1To30') agingBuckets['1-30 Days'] += outstanding;
+        if (bucket === 'days31To60') agingBuckets['31-60 Days'] += outstanding;
+        if (bucket === 'days61To90') agingBuckets['61-90 Days'] += outstanding;
+        if (bucket === 'days90Plus') agingBuckets['90+ Days'] += outstanding;
+      });
+
+      return sendWorkbook(res, 'pnl-report.xlsx', [
+        {
+          name: 'Summary',
+          rows: [{
+            FromDate: formatExcelDate(fromDate),
+            ToDate: formatExcelDate(toDate),
+            BilledIncome: totalBilledIncome,
+            CollectedIncome: totalCollectedIncome,
+            TotalExpenses: totalExpenses,
+            NetProfitLoss: netProfitLoss,
+            CashSurplus: cashSurplus,
+            Receivables: receivableBills.reduce((sum, bill) => sum + getOutstandingAmount(bill.totalAmount, bill.paidAmount), 0),
+          }],
+        },
+        {
+          name: 'Billed Income',
+          rows: billedBills.map((bill) => ({
+            Flat: bill.flat.flatNumber,
+            Block: bill.flat.block.name,
+            DueDate: formatExcelDate(bill.dueDate),
+            TotalAmount: bill.totalAmount,
+            PaidAmount: bill.paidAmount,
+            OutstandingAmount: getOutstandingAmount(bill.totalAmount, bill.paidAmount),
+            BaseAmount: bill.baseAmount,
+            WaterCharge: bill.waterCharge,
+            ParkingCharge: bill.parkingCharge,
+            SinkingFund: bill.sinkingFund,
+            RepairFund: bill.repairFund,
+            OtherCharges: bill.otherCharges,
+            LateFee: bill.lateFee,
+            Status: bill.status,
+          })),
+        },
+        {
+          name: 'Collections',
+          rows: payments.map((payment) => ({
+            Flat: payment.bill.flat.flatNumber,
+            Block: payment.bill.flat.block.name,
+            Amount: payment.amount,
+            Method: payment.method,
+            PaidAt: payment.paidAt ? new Date(payment.paidAt).toLocaleString('en-IN') : '',
+            TransactionId: payment.transactionId || payment.receiptNo || '',
+          })),
+        },
+        {
+          name: 'Expenses',
+          rows: expenses.map((expense) => ({
+            Description: expense.description,
+            Category: expense.category,
+            Amount: expense.amount,
+            ExpenseDate: formatExcelDate(expense.expenseDate),
+            AccountingMonth: `${expense.accountingMonth}/${expense.accountingYear}`,
+          })),
+        },
+        {
+          name: 'Receivables Aging',
+          rows: Object.entries(agingBuckets).map(([bucket, amount]) => ({
+            Bucket: bucket,
+            OutstandingAmount: amount,
+          })),
+        },
+      ]);
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to export P&L report' });
     }
   },
 );

@@ -203,6 +203,100 @@ export async function sendPaymentReceiptEmail(to: string, data: PaymentReceiptDa
   }
 }
 
+export interface PendingPaymentReminderEmailData {
+  userName: string;
+  societyName: string;
+  flatNumber: string;
+  blockName: string;
+  billCount: number;
+  outstandingAmount: number;
+  dueBills: Array<{
+    monthLabel: string;
+    dueDate: Date;
+    outstandingAmount: number;
+    status: string;
+  }>;
+}
+
+export async function sendPendingPaymentReminderEmail(to: string, data: PendingPaymentReminderEmailData) {
+  const safeUserName = escapeHtml(data.userName);
+  const safeSocietyName = escapeHtml(data.societyName);
+  const safeFlat = escapeHtml(`${data.blockName} ${data.flatNumber}`.trim());
+  const formattedOutstanding = `₹${data.outstandingAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  const billingUrl = `${CLIENT_URL}/billing`;
+
+  try {
+    const { error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: `Pending maintenance payment reminder for ${data.flatNumber}`,
+      html: `
+        <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #ffffff;">
+          <div style="text-align: center; margin-bottom: 32px;">
+            <h1 style="color: #171C3F; font-size: 28px; margin: 0;">Dwell Hub</h1>
+            <p style="color: #6b7280; font-size: 14px; margin: 4px 0 0;">Management Portal</p>
+          </div>
+          <div style="background: #f9fafb; border-radius: 12px; padding: 32px; border: 1px solid #e5e7eb;">
+            <div style="display: inline-block; background: #fff7ed; color: #9a3412; padding: 6px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; margin-bottom: 16px;">Payment Reminder</div>
+            <h2 style="color: #111827; font-size: 20px; margin: 0 0 12px;">Pending maintenance dues</h2>
+            <p style="color: #4b5563; line-height: 1.6; margin: 0 0 8px;">Hi ${safeUserName},</p>
+            <p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">This is a reminder that ${data.billCount} maintenance bill(s) remain pending for <strong>${safeFlat}</strong> in <strong>${safeSocietyName}</strong>.</p>
+            <div style="background: #ffffff; border-radius: 8px; padding: 20px; border: 1px solid #e5e7eb; margin-bottom: 20px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                <tr>
+                  <td style="color: #6b7280; padding: 8px 0;">Outstanding Amount</td>
+                  <td style="color: #171C3F; padding: 8px 0; text-align: right; font-weight: 700; font-size: 18px;">${formattedOutstanding}</td>
+                </tr>
+                <tr>
+                  <td style="color: #6b7280; padding: 8px 0;">Flat</td>
+                  <td style="color: #111827; padding: 8px 0; text-align: right; font-weight: 500;">${safeFlat}</td>
+                </tr>
+              </table>
+            </div>
+            <div style="background: #ffffff; border-radius: 8px; padding: 20px; border: 1px solid #e5e7eb; margin-bottom: 24px;">
+              <p style="color: #6b7280; font-size: 13px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.08em;">Pending Bills</p>
+              ${data.dueBills.map((bill) => {
+                const dueDate = bill.dueDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+                const amount = `₹${bill.outstandingAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+                return `
+                  <div style="padding: 12px 0; border-top: 1px solid #f1f5f9;">
+                    <div style="display: flex; justify-content: space-between; gap: 12px;">
+                      <div>
+                        <p style="margin: 0; color: #111827; font-weight: 600;">${escapeHtml(bill.monthLabel)}</p>
+                        <p style="margin: 4px 0 0; color: #6b7280; font-size: 13px;">Due on ${dueDate} • ${escapeHtml(bill.status)}</p>
+                      </div>
+                      <p style="margin: 0; color: #111827; font-weight: 600; white-space: nowrap;">${amount}</p>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+            <div style="text-align: center; margin: 24px 0 0;">
+              <a href="${billingUrl}" style="background: #171C3F; color: #ffffff; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block;">View Billing</a>
+            </div>
+          </div>
+          <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 32px 0 0;">This is an automated reminder from Dwell Hub.</p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      logger.error('Resend: failed to send pending payment reminder email', { to, error: error.message });
+      return false;
+    }
+
+    logger.info('Resend: pending payment reminder email sent', {
+      to,
+      billCount: data.billCount,
+      outstandingAmount: data.outstandingAmount,
+    });
+    return true;
+  } catch (err: any) {
+    logger.error('Resend: failed to send pending payment reminder email', { to, error: err.message });
+    return false;
+  }
+}
+
 export async function sendRegistrationEmail(to: string, userName: string, societyName: string) {
   const loginUrl = `${CLIENT_URL}/login`;
 

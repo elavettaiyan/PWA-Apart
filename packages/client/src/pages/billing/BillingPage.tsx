@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Receipt, Plus, CreditCard, Banknote, Calendar } from 'lucide-react';
+import { Receipt, Plus, CreditCard, Banknote, Calendar, BellRing } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../lib/api';
@@ -158,6 +158,22 @@ export default function BillingPage() {
     },
   });
 
+  const reminderMutation = useMutation({
+    mutationFn: () => api.post('/notifications/maintenance-reminders/send', { dueInDays: 3 }),
+    onSuccess: (res) => {
+      const billCount = res.data?.billCount || 0;
+      const pushCount = res.data?.sentCount || 0;
+      const emailCount = res.data?.emailSentCount || 0;
+
+      toast.success(
+        billCount > 0
+          ? `Payment reminders sent: ${emailCount} email(s), ${pushCount} push notification(s)`
+          : 'No pending payment reminders were due'
+      );
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to send payment reminders'),
+  });
+
   const totalBilled = displayedBills.reduce((s, b) => s + b.totalAmount, 0);
   const totalCollected = displayedBills.reduce((s, b) => s + b.paidAmount, 0);
   const paidCount = displayedBills.filter((b) => b.status === 'PAID').length;
@@ -230,6 +246,9 @@ export default function BillingPage() {
         </div>
         {isAdmin && (
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
+            <button className="btn-secondary" onClick={() => reminderMutation.mutate()} disabled={reminderMutation.isPending}>
+              <BellRing className="w-4 h-4" /> {reminderMutation.isPending ? 'Sending...' : 'Send Payment Reminders'}
+            </button>
             <button className="btn-secondary" onClick={openConfigModal}>
               <Calendar className="w-4 h-4" /> Set Amount
             </button>

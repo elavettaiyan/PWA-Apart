@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3, TrendingUp, TrendingDown, Users, AlertTriangle,
-  FileText, DollarSign,
+  FileText, DollarSign, Download,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -12,6 +12,7 @@ import api from '../../lib/api';
 import { formatCurrency, getMonthName, cn } from '../../lib/utils';
 import { PageLoader } from '../../components/ui/Loader';
 import type { CollectionReport, PnLReport } from '../../types';
+import toast from 'react-hot-toast';
 
 const COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899', '#14b8a6', '#64748b'];
 
@@ -48,6 +49,30 @@ function getPresetRange(preset: PnlPreset) {
     from: formatDateInputValue(new Date(today.getFullYear(), 0, 1)),
     to: formatDateInputValue(new Date(today.getFullYear(), 11, 31)),
   };
+}
+
+function getFilenameFromDisposition(disposition?: string) {
+  if (!disposition) {
+    return null;
+  }
+
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  return match?.[1] || null;
+}
+
+async function downloadReportFile(endpoint: string, fallbackFilename: string) {
+  const response = await api.get(endpoint, { responseType: 'blob' });
+  const blob = new Blob([response.data], {
+    type: response.headers['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = getFilenameFromDisposition(response.headers['content-disposition']) || fallbackFilename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
 }
 
 export default function ReportsPage() {
@@ -104,6 +129,7 @@ export default function ReportsPage() {
 
 // ── COLLECTION REPORT ───────────────────────────────────
 function CollectionReportTab({ month, year, setMonth, setYear }: any) {
+  const [isExporting, setIsExporting] = useState(false);
   const { data, isLoading } = useQuery<CollectionReport>({
     queryKey: ['report-collection', month, year],
     queryFn: async () => (await api.get(`/reports/collection?month=${month}&year=${year}`)).data,
@@ -115,13 +141,30 @@ function CollectionReportTab({ month, year, setMonth, setYear }: any) {
 
   return (
     <div>
-      <div className="flex gap-3 mb-6">
+      <div className="mb-6 flex flex-wrap gap-3">
         <select className="select w-40" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
           {Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{getMonthName(i + 1)}</option>)}
         </select>
         <select className="select w-28" value={year} onChange={(e) => setYear(Number(e.target.value))}>
           {[2024, 2025, 2026, 2027].map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={isExporting}
+          onClick={async () => {
+            try {
+              setIsExporting(true);
+              await downloadReportFile(`/reports/collection/export?month=${month}&year=${year}`, `collection-report-${year}-${String(month).padStart(2, '0')}.xlsx`);
+            } catch (error: any) {
+              toast.error(error.response?.data?.error || 'Failed to export collection report');
+            } finally {
+              setIsExporting(false);
+            }
+          }}
+        >
+          <Download className="h-4 w-4" /> {isExporting ? 'Exporting...' : 'Export Excel'}
+        </button>
       </div>
 
       {summary && (
@@ -174,6 +217,7 @@ function CollectionReportTab({ month, year, setMonth, setYear }: any) {
 
 // ── DEFAULTERS ──────────────────────────────────────────
 function DefaultersTab() {
+  const [isExporting, setIsExporting] = useState(false);
   const { data, isLoading } = useQuery<{
     defaulters: any[];
     totalDefaulters: number;
@@ -187,15 +231,34 @@ function DefaultersTab() {
 
   return (
     <div>
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="stat-card">
-          <p className="stat-label">Total Defaulters</p>
-          <p className="text-2xl font-bold text-rose-900">{data?.totalDefaulters || 0}</p>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="stat-card">
+            <p className="stat-label">Total Defaulters</p>
+            <p className="text-2xl font-bold text-rose-900">{data?.totalDefaulters || 0}</p>
+          </div>
+          <div className="stat-card">
+            <p className="stat-label">Total Outstanding</p>
+            <p className="text-2xl font-bold text-rose-900">{formatCurrency(data?.totalOutstanding || 0)}</p>
+          </div>
         </div>
-        <div className="stat-card">
-          <p className="stat-label">Total Outstanding</p>
-          <p className="text-2xl font-bold text-rose-900">{formatCurrency(data?.totalOutstanding || 0)}</p>
-        </div>
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={isExporting}
+          onClick={async () => {
+            try {
+              setIsExporting(true);
+              await downloadReportFile('/reports/defaulters/export', 'defaulters-report.xlsx');
+            } catch (error: any) {
+              toast.error(error.response?.data?.error || 'Failed to export defaulters report');
+            } finally {
+              setIsExporting(false);
+            }
+          }}
+        >
+          <Download className="h-4 w-4" /> {isExporting ? 'Exporting...' : 'Export Excel'}
+        </button>
       </div>
 
       <div className="table-container">
@@ -231,6 +294,7 @@ function DefaultersTab() {
 
 // ── EXPENSE SUMMARY ─────────────────────────────────────
 function ExpenseSummaryTab() {
+  const [isExporting, setIsExporting] = useState(false);
   const { data, isLoading } = useQuery<{
     byCategory: any[];
     total: number;
@@ -254,9 +318,28 @@ function ExpenseSummaryTab() {
 
   return (
     <div>
-      <div className="stat-card mb-6">
-        <p className="stat-label">Total Expenses</p>
-        <p className="text-2xl font-bold text-rose-900">{formatCurrency(data?.total || 0)}</p>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="stat-card">
+          <p className="stat-label">Total Expenses</p>
+          <p className="text-2xl font-bold text-rose-900">{formatCurrency(data?.total || 0)}</p>
+        </div>
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={isExporting}
+          onClick={async () => {
+            try {
+              setIsExporting(true);
+              await downloadReportFile('/reports/expense-summary/export', 'expense-summary-report.xlsx');
+            } catch (error: any) {
+              toast.error(error.response?.data?.error || 'Failed to export expense summary');
+            } finally {
+              setIsExporting(false);
+            }
+          }}
+        >
+          <Download className="h-4 w-4" /> {isExporting ? 'Exporting...' : 'Export Excel'}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -293,6 +376,7 @@ function ExpenseSummaryTab() {
 
 // ── P&L REPORT ──────────────────────────────────────────
 function PnLTab({ from, to, setFrom, setTo }: { from: string; to: string; setFrom: (v: string) => void; setTo: (v: string) => void }) {
+  const [isExporting, setIsExporting] = useState(false);
   const { data, isLoading } = useQuery<PnLReport>({
     queryKey: ['report-pnl', from, to],
     queryFn: async () => (await api.get(`/reports/pnl?fromDate=${from}&toDate=${to}`)).data,
@@ -367,6 +451,23 @@ function PnLTab({ from, to, setFrom, setTo }: { from: string; to: string; setFro
             <label className="label">To</label>
             <input type="date" className="input" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
+          <button
+            type="button"
+            className="btn-secondary sm:mb-0"
+            disabled={isExporting}
+            onClick={async () => {
+              try {
+                setIsExporting(true);
+                await downloadReportFile(`/reports/pnl/export?fromDate=${from}&toDate=${to}`, `pnl-report-${from}-to-${to}.xlsx`);
+              } catch (error: any) {
+                toast.error(error.response?.data?.error || 'Failed to export P&L report');
+              } finally {
+                setIsExporting(false);
+              }
+            }}
+          >
+            <Download className="h-4 w-4" /> {isExporting ? 'Exporting...' : 'Export Excel'}
+          </button>
         </div>
       </div>
 
