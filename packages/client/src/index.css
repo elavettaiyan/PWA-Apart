@@ -3,84 +3,97 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --primary: 14 23 42;
+    --primary-container: 226 232 240;
+    --on-primary-container: 30 41 59;
+    --on-primary-fixed: 2 6 23;
+    --on-primary-fixed-variant: 15 23 42;
+    --primary-fixed: 241 245 249;
+    --primary-fixed-dim: 148 163 184;
+    --inverse-primary: 148 163 184;
+    --secondary: 51 65 85;
+    --secondary-container: 241 245 249;
+    --on-secondary-container: 30 41 59;
+  }
   * {
-    @apply border-outline-variant/15;
+    @apply border-outline-variant/20;
   }
   body {
     @apply bg-surface text-on-surface;
     font-family: 'Inter', sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   h1, h2, h3 {
     font-family: 'Manrope', sans-serif;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
   }
 }
 
 @layer components {
   /* Editorial shadow used on elevated elements */
   .editorial-shadow {
-    box-shadow: 0 2px 12px -2px rgba(23, 37, 84, 0.06), 0 1px 4px -1px rgba(23, 37, 84, 0.03);
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.04), 0 1px 2px -1px rgba(0,0,0,0.03);
   }
 
   /* Editorial title — Manrope tight tracking */
   .editorial-title {
     font-family: 'Manrope', sans-serif;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
   }
 
-  /* Buttons — editorial design system */
+  /* Buttons — modern clean design system */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.97];
   }
   .btn-primary {
-    @apply btn bg-primary text-on-primary hover:opacity-90 focus:ring-primary shadow-sm;
+    @apply btn bg-primary text-on-primary hover:bg-primary/90 focus-visible:ring-primary shadow-sm;
   }
   .btn-secondary {
-    @apply btn bg-secondary-container text-on-secondary-container hover:opacity-90 focus:ring-secondary;
+    @apply btn bg-secondary-container text-on-secondary-container hover:bg-secondary-container/80 focus-visible:ring-secondary;
   }
   .btn-danger {
-    @apply btn bg-error text-on-error hover:opacity-90 focus:ring-error;
+    @apply btn bg-error text-on-error hover:bg-error/90 focus-visible:ring-error;
   }
   .btn-success {
-    @apply btn bg-emerald-600 text-white hover:opacity-90 focus:ring-emerald-500;
+    @apply btn bg-emerald-500 text-white hover:bg-emerald-600 focus-visible:ring-emerald-500;
   }
   .btn-outline {
-    @apply btn bg-transparent text-primary border border-outline-variant hover:bg-surface-container-low;
+    @apply btn bg-white text-on-surface border border-outline-variant/40 hover:bg-surface-container-low hover:border-outline-variant/60;
   }
   .btn-sm {
-    @apply px-3 py-1.5 text-xs;
+    @apply px-3.5 py-1.5 text-xs rounded-xl;
   }
   .btn-lg {
-    @apply px-6 py-3 text-base;
+    @apply px-7 py-3.5 text-base rounded-2xl;
   }
 
-  /* Cards — soft shadows, borderless, airy  */
+  /* Cards — clean, modern, ultra-soft shadows */
   .card {
-    @apply bg-white rounded-2xl;
-    box-shadow: 0 1px 8px -2px rgba(23, 37, 84, 0.06);
+    @apply bg-white rounded-2xl shadow-card;
   }
   .card-elevated {
-    @apply bg-white rounded-2xl;
-    box-shadow: 0 2px 16px -3px rgba(23, 37, 84, 0.08), 0 1px 4px -1px rgba(23, 37, 84, 0.04);
+    @apply bg-white rounded-2xl shadow-elevated;
   }
 
-  /* Inputs — editorial form fields */
+  /* Inputs — clean form fields with subtle borders */
   .input {
-    @apply block w-full rounded-lg bg-surface-container-highest px-3.5 py-2.5 text-sm text-on-surface placeholder:text-outline focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors border-0;
+    @apply block w-full rounded-xl bg-white px-4 py-3 text-sm text-on-surface placeholder:text-outline/60 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all border border-outline-variant/30;
   }
   .label {
-    @apply block text-sm font-medium text-on-surface-variant mb-1.5;
+    @apply block text-xs font-semibold text-on-surface-variant mb-1.5 uppercase tracking-wide;
   }
   .select {
     @apply input appearance-none;
   }
 
   .event-date-field {
-    @apply grid gap-3 rounded-2xl border border-outline-variant/15 bg-surface-container-low px-3 py-3 sm:grid-cols-2;
+    @apply grid gap-3 rounded-2xl border border-outline-variant/20 bg-surface-container-low px-3 py-3 sm:grid-cols-2;
   }
   .event-date-summary {
-    @apply rounded-xl bg-white px-4 py-3 sm:col-span-2;
+    @apply rounded-xl bg-white px-4 py-3 sm:col-span-2 shadow-soft;
   }
   .event-date-summary-label {
     @apply mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-outline;
@@ -92,7 +105,7 @@
     @apply text-on-surface-variant;
   }
   .event-date-segment {
-    @apply flex items-center gap-3 rounded-xl bg-surface-container-lowest px-3 py-3;
+    @apply flex items-center gap-3 rounded-xl bg-white px-3 py-3 shadow-soft;
   }
   .event-date-icon-wrap {
     @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary;
@@ -109,39 +122,38 @@
     opacity: 0.7;
   }
 
-  /* Badges — design system chips */
+  /* Badges — modern pill badges */
   .badge {
-    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold;
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
   }
   .badge-success {
-    @apply badge bg-emerald-50 text-emerald-900;
+    @apply badge bg-emerald-50 text-emerald-700;
   }
   .badge-warning {
-    @apply badge bg-secondary-container text-on-secondary-container;
+    @apply badge bg-amber-50 text-amber-700;
   }
   .badge-danger {
-    @apply badge bg-rose-50 text-rose-900;
+    @apply badge bg-red-50 text-red-700;
   }
   .badge-info {
-    @apply badge bg-slate-100 text-slate-900;
+    @apply badge bg-blue-50 text-blue-700;
   }
   .badge-neutral {
-    @apply badge bg-surface-container-high text-on-surface-variant;
+    @apply badge bg-slate-100 text-slate-600;
   }
 
-  /* Tables — tonal separation, clean */
+  /* Tables — clean minimal tables */
   .table-container {
-    @apply bg-white rounded-2xl overflow-x-auto;
-    box-shadow: 0 1px 8px -2px rgba(23, 37, 84, 0.06);
+    @apply bg-white rounded-2xl overflow-x-auto shadow-card;
   }
   .table-container table {
     @apply w-full text-sm;
   }
   .table-container thead {
-    @apply bg-[#f5f7fa];
+    @apply bg-slate-50/80;
   }
   .table-container th {
-    @apply px-4 py-3 text-left text-[10px] font-bold text-outline uppercase tracking-widest;
+    @apply px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider;
   }
   .table-container td {
     @apply px-4 py-3.5 text-on-surface;
@@ -150,37 +162,36 @@
     @apply bg-white;
   }
   .table-container tbody tr:hover {
-    @apply bg-[#f8fafb] transition-colors;
+    @apply bg-slate-50/60 transition-colors;
   }
 
-  /* Stat cards — editorial metric blocks */
+  /* Stat cards — modern metric blocks */
   .stat-card {
-    @apply bg-white p-5 rounded-2xl flex flex-col gap-1;
-    box-shadow: 0 1px 8px -2px rgba(23, 37, 84, 0.06);
+    @apply bg-white p-5 rounded-2xl flex flex-col gap-1 shadow-card;
   }
   .stat-card .stat-label {
-    @apply text-[10px] font-bold text-[#8892a4] uppercase tracking-widest font-label;
+    @apply text-[11px] font-semibold text-slate-500 uppercase tracking-wider font-label;
   }
   .stat-card .stat-value {
-    @apply text-2xl font-bold text-[#1a1f36] font-headline;
+    @apply text-2xl font-bold text-on-surface font-headline;
   }
 
-  /* Page headers — editorial typography */
+  /* Page headers — clean typography */
   .page-header {
     @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6;
   }
   .page-title {
-    @apply text-3xl font-extrabold text-[#1a1f36] font-headline tracking-tight;
+    @apply text-2xl font-extrabold text-on-surface font-headline tracking-tight;
   }
 
-  /* Section label — editorial category header */
+  /* Section label — uppercase category header */
   .section-label {
-    @apply text-[10px] font-bold text-[#8892a4] uppercase tracking-widest font-label;
+    @apply text-[11px] font-semibold text-slate-500 uppercase tracking-wider font-label;
   }
 
   /* Operations card — summary list item style */
   .ops-card {
-    @apply bg-white border border-slate-100 rounded-3xl p-5 sm:p-6 flex items-center justify-between transition-all;
+    @apply bg-white border border-slate-100/60 rounded-2xl p-5 sm:p-6 flex items-center justify-between transition-all shadow-card hover:shadow-card-hover;
   }
 
   /* Utility: hide scrollbar while preserving scrolling */
@@ -194,22 +205,25 @@
 
   /* Ghost border — accessibility fallback */
   .ghost-border {
-    border: 1px solid rgba(200, 208, 220, 0.25);
+    border: 1px solid rgba(226, 232, 240, 0.4);
   }
 
-  /* Gradient primary button */
+  /* Gradient primary button — vibrant blue */
   .btn-gradient {
-    @apply btn text-white font-bold shadow-lg;
-    background: linear-gradient(135deg, #171C3F 0%, #2A3060 100%);
-    box-shadow: 0 8px 24px -4px rgba(23, 28, 63, 0.2);
+    @apply btn text-white font-bold;
+    background: linear-gradient(135deg, #4A6CF7 0%, #6366F1 100%);
+    box-shadow: 0 4px 14px -3px rgba(74, 108, 247, 0.4);
+  }
+  .btn-gradient:hover {
+    box-shadow: 0 6px 20px -3px rgba(74, 108, 247, 0.5);
   }
 }
 
-/* Custom scrollbar — subtle */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+/* Custom scrollbar — minimal */
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #c8d0dc; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #8892a4; }
+::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #CBD5E1; }
 
 /* Force Razorpay checkout into desktop layout */
 .razorpay-checkout-frame {

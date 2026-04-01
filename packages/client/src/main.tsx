@@ -7,6 +7,7 @@ import App from './App';
 import NavigationBridge from './components/routing/NavigationBridge';
 import PushNotificationsBootstrap from './components/routing/PushNotificationsBootstrap';
 import { shouldUseHashRouter } from './lib/platform';
+import './lib/theme'; // apply saved accent color before first paint
 import './index.css';
 
 const queryClient = new QueryClient({

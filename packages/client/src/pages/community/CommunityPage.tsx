@@ -29,7 +29,7 @@ export default function CommunityPage() {
       </div>
 
       {/* Pill-style segmented tabs */}
-      <div className="grid grid-cols-2 gap-1 rounded-2xl bg-white p-1" style={{ boxShadow: '0 1px 8px -2px rgba(23,37,84,0.06)' }}>
+      <div className="grid grid-cols-2 gap-1 rounded-2xl bg-white p-1" style={{ boxShadow: '0 1px 8px -2px rgba(0,0,0,0.04)' }}>
         {COMMUNITY_TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -42,7 +42,7 @@ export default function CommunityPage() {
                 'inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
                 isActive
                   ? 'bg-primary text-white shadow-sm'
-                  : 'text-[#8892a4] hover:text-[#1a1f36] hover:bg-[#f5f7fa]',
+                  : 'text-[#94A3B8] hover:text-[#0F172A] hover:bg-[#F8FAFC]',
               )}
               onClick={() => {
                 const nextSearchParams = new URLSearchParams(searchParams);

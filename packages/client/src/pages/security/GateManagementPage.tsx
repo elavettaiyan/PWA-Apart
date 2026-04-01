@@ -156,14 +156,14 @@ export default function GateManagementPage() {
           <h1 className="page-title">Gate Management</h1>
           <p className="text-sm text-on-surface-variant">Record visitors and deliveries from one workflow.</p>
         </div>
-        <div className="inline-flex rounded-2xl bg-white p-1 w-full max-w-sm" style={{ boxShadow: '0 1px 8px -2px rgba(23,37,84,0.06)' }}>
+        <div className="inline-flex rounded-2xl bg-white p-1 w-full max-w-sm" style={{ boxShadow: '0 1px 8px -2px rgba(0,0,0,0.04)' }}>
           {(['VISITOR', 'DELIVERY'] as EntryMode[]).map((value) => (
             <button
               key={value}
               type="button"
               className={cn(
                 'flex-1 rounded-xl px-4 py-2 text-sm font-semibold transition-colors',
-                mode === value ? 'bg-primary text-white' : 'text-[#5b6478]',
+                mode === value ? 'bg-primary text-white' : 'text-[#64748B]',
               )}
               onClick={() => setMode(value)}
             >
@@ -267,7 +267,7 @@ export default function GateManagementPage() {
             ) : (
               <div className="space-y-3">
                 {activeVisitors.map((visitor) => (
-                  <div key={visitor.id} className="rounded-2xl p-4 bg-white space-y-2" style={{ boxShadow: '0 1px 8px -2px rgba(23,37,84,0.06)' }}>
+                  <div key={visitor.id} className="rounded-2xl p-4 bg-white space-y-2" style={{ boxShadow: '0 1px 8px -2px rgba(0,0,0,0.04)' }}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold text-on-surface">{visitor.visitorName}</p>
@@ -408,7 +408,7 @@ function RecentVisitorList({ visitors }: { visitors: Visitor[] }) {
   return (
     <div className="space-y-3">
       {visitors.map((visitor) => (
-        <div key={visitor.id} className="rounded-2xl p-4 bg-white" style={{ boxShadow: '0 1px 8px -2px rgba(23,37,84,0.06)' }}>
+        <div key={visitor.id} className="rounded-2xl p-4 bg-white" style={{ boxShadow: '0 1px 8px -2px rgba(0,0,0,0.04)' }}>
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="font-semibold text-on-surface">{visitor.visitorName}</p>
@@ -435,7 +435,7 @@ function RecentDeliveryList({ deliveries }: { deliveries: Delivery[] }) {
   return (
     <div className="space-y-3">
       {deliveries.map((delivery) => (
-        <div key={delivery.id} className="rounded-2xl p-4 bg-white" style={{ boxShadow: '0 1px 8px -2px rgba(23,37,84,0.06)' }}>
+        <div key={delivery.id} className="rounded-2xl p-4 bg-white" style={{ boxShadow: '0 1px 8px -2px rgba(0,0,0,0.04)' }}>
           <p className="font-semibold text-on-surface">{getDeliveryTypeLabel(delivery.deliveryType)}</p>
           <p className="text-sm text-on-surface-variant">{delivery.deliveryPersonName}</p>
           <div className="mt-3 text-sm text-on-surface-variant space-y-1">

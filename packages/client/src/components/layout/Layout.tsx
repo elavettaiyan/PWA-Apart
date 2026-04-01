@@ -98,35 +98,35 @@ export default function Layout({ children }: LayoutProps) {
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-on-surface/30 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar — Editorial Design (desktop & mobile drawer) */}
+      {/* Sidebar — Clean white design (desktop & mobile drawer) */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-72 max-w-[88vw] bg-slate-900 flex flex-col transform transition-transform lg:static lg:z-0 lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 w-72 max-w-[88vw] bg-white border-r border-slate-100 flex flex-col transform transition-transform lg:static lg:z-0 lg:translate-x-0',
           sidebarOpen ? 'block translate-x-0' : 'hidden -translate-x-full lg:block',
         )}
       >
-        <div className="flex flex-col h-full p-6 space-y-2">
+        <div className="flex flex-col h-full p-5 space-y-1">
           {/* Logo */}
-          <div className="mb-8 px-2 flex items-center justify-between">
+          <div className="mb-6 px-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <BrandMark size={40} className="rounded-xl" />
+              <BrandMark size={36} className="rounded-xl text-primary" />
               <div>
-                <h1 className="font-headline font-extrabold text-white text-2xl tracking-tight">Dwell Hub</h1>
-                <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest mt-1">Apartment Console</p>
+                <h1 className="font-headline font-extrabold text-primary text-xl tracking-tight">Dwell Hub</h1>
+                <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-0.5">Apartment Console</p>
               </div>
             </div>
-            <button className="lg:hidden" onClick={() => setSidebarOpen(false)}>
-              <X className="w-5 h-5 text-white/60" />
+            <button className="lg:hidden p-1 rounded-lg hover:bg-slate-50" onClick={() => setSidebarOpen(false)}>
+              <X className="w-5 h-5 text-slate-400" />
             </button>
           </div>
 
           {/* Nav Links */}
-          <nav className="flex-1 space-y-1 overflow-y-auto hide-scrollbar">
+          <nav className="flex-1 space-y-0.5 overflow-y-auto hide-scrollbar">
             {visibleNavigationItems.map((item) => {
               const isActive = location.pathname === item.href ||
                 (item.href !== '/' && location.pathname.startsWith(item.href));
@@ -140,13 +140,18 @@ export default function Layout({ children }: LayoutProps) {
                     navigate(item.href);
                   }}
                   className={cn(
-                    'w-full text-left flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 touch-manipulation',
+                    'w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 touch-manipulation',
                     isActive
-                      ? 'bg-white/15 text-white font-semibold'
-                      : 'text-white/60 hover:bg-white/10 hover:translate-x-1',
+                      ? 'bg-primary/10 text-primary font-semibold'
+                      : 'text-slate-500 hover:bg-slate-50 hover:text-on-surface',
                   )}
                 >
-                  <Icon className={cn('w-5 h-5 pointer-events-none', isActive ? 'text-white' : 'text-white/40')} />
+                  <div className={cn(
+                    'w-8 h-8 rounded-lg flex items-center justify-center',
+                    isActive ? 'bg-primary text-white' : 'bg-slate-100 text-slate-400'
+                  )}>
+                    <Icon className="w-4 h-4 pointer-events-none" />
+                  </div>
                   <span className="pointer-events-none">{item.label}</span>
                 </button>
               );
@@ -154,12 +159,12 @@ export default function Layout({ children }: LayoutProps) {
           </nav>
 
           {/* Bottom Actions */}
-          <div className="pt-6 border-t border-white/10 space-y-1">
+          <div className="pt-4 border-t border-slate-100 space-y-1">
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-3 text-white/50 hover:text-rose-300 hover:bg-white/10 rounded-lg transition-colors text-sm"
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors text-sm"
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-4 h-4" />
               <span>Sign out</span>
             </button>
           </div>
@@ -169,24 +174,24 @@ export default function Layout({ children }: LayoutProps) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile Top App Bar */}
-        <header className="lg:hidden fixed top-0 z-30 w-full bg-white/90 backdrop-blur-xl" style={{ boxShadow: '0 1px 8px -2px rgba(23,37,84,0.06)' }}>
+        <header className="lg:hidden fixed top-0 z-30 w-full bg-white/95 backdrop-blur-xl shadow-card">
           <div className="flex justify-between items-center px-4 py-3">
           <div className="flex items-center gap-3">
             <button
-              className="p-1.5 -ml-1 rounded-lg hover:bg-[#f5f7fa]"
+              className="p-1.5 -ml-1 rounded-xl hover:bg-slate-50"
               onClick={() => setSidebarOpen(true)}
             >
-              <Menu className="w-5 h-5 text-[#5b6478]" />
+              <Menu className="w-5 h-5 text-slate-500" />
             </button>
             <div>
               <span className="font-headline text-lg font-bold tracking-tight text-primary block leading-none">Dwell Hub</span>
-              <span className="text-[10px] uppercase tracking-widest text-[#8892a4] font-bold">{user?.role?.replace('_', ' ')}</span>
+              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">{user?.role?.replace('_', ' ')}</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setProfileOpen(!profileOpen)}
-              className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center ring-2 ring-primary/5 touch-manipulation"
+              className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center ring-2 ring-primary/10 touch-manipulation"
             >
               <span className="text-xs font-bold text-primary">
                 {user?.name?.charAt(0).toUpperCase()}
@@ -212,13 +217,13 @@ export default function Layout({ children }: LayoutProps) {
           {profileOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
-              <div className="absolute right-4 top-14 w-64 z-50 bg-white rounded-2xl py-2" style={{ boxShadow: '0 4px 24px -4px rgba(23,37,84,0.12)' }}>
-                <div className="px-4 py-3 border-b border-[#edf1f6]">
-                  <p className="text-sm font-bold text-primary">{user?.name}</p>
-                  <p className="text-xs text-[#8892a4]">{user?.email}</p>
-                  <p className="text-[10px] text-[#8892a4] uppercase tracking-widest font-bold mt-1">{user?.role?.replace('_', ' ')}</p>
+              <div className="absolute right-4 top-14 w-64 z-50 bg-white rounded-2xl py-2 shadow-elevated">
+                <div className="px-4 py-3 border-b border-slate-100">
+                  <p className="text-sm font-bold text-on-surface">{user?.name}</p>
+                  <p className="text-xs text-slate-400">{user?.email}</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mt-1">{user?.role?.replace('_', ' ')}</p>
                   {societiesData?.societies?.length ? (
-                    <p className="text-xs text-on-surface-variant mt-1 truncate">
+                    <p className="text-xs text-slate-500 mt-1 truncate">
                       {societiesData.societies.find(s => s.id === user?.societyId)?.name}
                     </p>
                   ) : null}
@@ -228,14 +233,14 @@ export default function Layout({ children }: LayoutProps) {
                     setProfileOpen(false);
                     navigate('/settings/change-password');
                   }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container-low transition"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-slate-50 transition"
                 >
                   <KeyRound className="w-4 h-4" />
                   Change Password
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-error hover:bg-error-container/30 transition"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition"
                 >
                   <LogOut className="w-4 h-4" />
                   Sign out
@@ -245,13 +250,13 @@ export default function Layout({ children }: LayoutProps) {
           )}
         </header>
 
-        {/* Desktop Top App Bar — glassmorphism */}
-        <header className="hidden lg:block sticky top-0 z-30 bg-white/80 backdrop-blur-xl" style={{ boxShadow: '0 1px 4px -1px rgba(23,37,84,0.04)' }}>
-          <div className="flex items-center justify-end px-8 py-4">
+        {/* Desktop Top App Bar — clean & minimal */}
+        <header className="hidden lg:block sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-slate-100/60">
+          <div className="flex items-center justify-end px-8 py-3">
             <div className="flex items-center gap-4">
               {(societiesData?.societies?.length || 0) > 1 && (
                 <select
-                  className="select w-56"
+                  className="select w-56 py-2 text-sm"
                   value={user?.societyId || societiesData?.activeSocietyId || ''}
                   onChange={(e) => switchSocietyMutation.mutate(e.target.value)}
                   disabled={switchSocietyMutation.isPending}
@@ -266,7 +271,7 @@ export default function Layout({ children }: LayoutProps) {
               {visibleMenuIdSet.has('settings') && (
                 <button
                   onClick={() => navigate('/settings')}
-                  className="text-outline hover:text-primary transition-colors"
+                  className="p-2 rounded-xl text-slate-400 hover:text-primary hover:bg-primary/5 transition-colors"
                 >
                   <Settings className="w-5 h-5" />
                 </button>
@@ -276,13 +281,13 @@ export default function Layout({ children }: LayoutProps) {
               <div className="relative">
                 <button
                   onClick={() => setProfileOpen(!profileOpen)}
-                  className="min-h-10 min-w-10 flex items-center gap-3 pl-4 border-l border-outline-variant/30 hover:opacity-80 transition touch-manipulation"
+                  className="min-h-10 min-w-10 flex items-center gap-3 pl-4 border-l border-slate-100 hover:opacity-80 transition touch-manipulation"
                 >
                   <div className="text-right">
-                    <p className="text-sm font-bold text-primary">{user?.name}</p>
-                    <p className="text-[10px] text-outline uppercase tracking-widest font-bold">{user?.role?.replace('_', ' ')}</p>
+                    <p className="text-sm font-semibold text-on-surface">{user?.name}</p>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">{user?.role?.replace('_', ' ')}</p>
                   </div>
-                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center ring-2 ring-primary/5">
+                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center ring-2 ring-primary/10">
                     <span className="text-sm font-bold text-primary">
                       {user?.name?.charAt(0).toUpperCase()}
                     </span>
@@ -292,12 +297,12 @@ export default function Layout({ children }: LayoutProps) {
                 {profileOpen && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
-                    <div className="absolute right-0 mt-2 w-56 z-50 bg-white rounded-2xl py-2" style={{ boxShadow: '0 4px 24px -4px rgba(23,37,84,0.12)' }}>
-                      <div className="px-4 py-3 border-b border-[#edf1f6]">
-                        <p className="text-sm font-bold text-primary">{user?.name}</p>
-                        <p className="text-xs text-[#8892a4]">{user?.email}</p>
+                    <div className="absolute right-0 mt-2 w-56 z-50 bg-white rounded-2xl py-2 shadow-elevated">
+                      <div className="px-4 py-3 border-b border-slate-100">
+                        <p className="text-sm font-semibold text-on-surface">{user?.name}</p>
+                        <p className="text-xs text-slate-400">{user?.email}</p>
                         {societiesData?.societies?.length ? (
-                          <p className="text-xs text-on-surface-variant mt-1 truncate">
+                          <p className="text-xs text-slate-500 mt-1 truncate">
                             {societiesData.societies.find(s => s.id === user?.societyId)?.name}
                           </p>
                         ) : null}
@@ -307,14 +312,14 @@ export default function Layout({ children }: LayoutProps) {
                           setProfileOpen(false);
                           navigate('/settings/change-password');
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container-low transition"
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-slate-50 transition"
                       >
                         <KeyRound className="w-4 h-4" />
                         Change Password
                       </button>
                       <button
                         onClick={handleLogout}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-error hover:bg-error-container/30 transition"
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition"
                       >
                         <LogOut className="w-4 h-4" />
                         Sign out
@@ -327,7 +332,7 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </header>
 
-        {/* Page Content — mobile offset only for the fixed top bar */}
+        {/* Page Content */}
         <main className="flex-1 pt-20 pb-6 px-4 sm:px-6 lg:pt-0 lg:pb-0 lg:p-8 overflow-auto">{children}</main>
       </div>
     </div>

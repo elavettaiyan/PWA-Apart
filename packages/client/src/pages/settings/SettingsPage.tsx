@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Settings, CreditCard, Eye, EyeOff, CheckCircle2, XCircle,
   Loader2, Zap, ToggleLeft, ToggleRight, ShieldCheck, Globe, Clock,
-  Users, ChevronDown,
+  Users, ChevronDown, Palette,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -16,6 +16,7 @@ import { useAuthStore } from '../../store/authStore';
 import type { ConfigurableMenuRole, MenuVisibilityResponse, NavigationMenuId, PremiumStatusResponse } from '../../types';
 import { SOCIETY_ADMINS } from '../../types';
 import ManageStaffPanel from '../../components/settings/ManageStaffPanel';
+import { getAccentThemes, getSavedTheme, applyTheme, type AccentTheme } from '../../lib/theme';
 
 interface PhonePeConfig {
   id?: string;
@@ -64,6 +65,7 @@ export default function SettingsPage() {
     callbackUrl: '',
   });
   const [hasChanges, setHasChanges] = useState(false);
+  const [activeAccent, setActiveAccent] = useState<AccentTheme>(getSavedTheme);
 
   const isAdmin = user?.role === 'SUPER_ADMIN' || SOCIETY_ADMINS.includes(user?.role as any);
 
@@ -193,6 +195,42 @@ export default function SettingsPage() {
           <h1 className="page-title">Settings</h1>
         </div>
       </div>
+
+      <SettingsAccordion
+        title="Theme"
+        description="Choose your accent color"
+        icon={Palette}
+        iconWrapperClassName="group-open:bg-primary-container"
+        iconClassName="group-open:text-primary"
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-on-surface-variant">Pick an accent color for buttons, links, and highlights.</p>
+          <div className="flex flex-wrap gap-3">
+            {(Object.entries(getAccentThemes()) as [AccentTheme, ReturnType<typeof getAccentThemes>[AccentTheme]][]).map(([key, t]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => { applyTheme(key); setActiveAccent(key); }}
+                className={cn(
+                  'flex items-center gap-3 rounded-2xl border-2 px-4 py-3 transition-all',
+                  activeAccent === key
+                    ? 'border-on-surface shadow-card-hover'
+                    : 'border-outline-variant/30 hover:border-outline-variant',
+                )}
+              >
+                <span
+                  className="block h-7 w-7 rounded-full ring-2 ring-white shadow-sm"
+                  style={{ backgroundColor: t.swatch }}
+                />
+                <span className="text-sm font-medium text-on-surface">{t.label}</span>
+                {activeAccent === key && (
+                  <CheckCircle2 className="w-4 h-4 text-on-surface" />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </SettingsAccordion>
 
       {isAdmin && (
       <>

@@ -107,7 +107,7 @@ export default function AnnouncementsPage({ embedded = false }: { embedded?: boo
               <article
                 key={announcement.id}
                 className="bg-white rounded-2xl overflow-hidden transition-all"
-                style={{ boxShadow: '0 1px 8px -2px rgba(23,37,84,0.06)' }}
+                style={{ boxShadow: '0 1px 8px -2px rgba(0,0,0,0.04)' }}
               >
                 <div className="flex gap-3 p-4">
                   {/* Avatar */}
@@ -119,8 +119,8 @@ export default function AnnouncementsPage({ embedded = false }: { embedded?: boo
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <h2 className="text-[15px] font-semibold text-[#1a1f36] leading-snug truncate">{announcement.title}</h2>
-                        <p className="text-[12px] text-[#8892a4] mt-0.5">
+                        <h2 className="text-[15px] font-semibold text-[#0F172A] leading-snug truncate">{announcement.title}</h2>
+                        <p className="text-[12px] text-[#94A3B8] mt-0.5">
                           {announcement.createdBy?.name || 'Committee'} · {formatDateTime(announcement.createdAt)}
                         </p>
                       </div>
@@ -135,7 +135,7 @@ export default function AnnouncementsPage({ embedded = false }: { embedded?: boo
                         )}
                       </div>
                     </div>
-                    <p className="text-[13px] leading-relaxed text-[#5b6478] mt-1.5 line-clamp-2 whitespace-pre-wrap">{announcement.message}</p>
+                    <p className="text-[13px] leading-relaxed text-[#64748B] mt-1.5 line-clamp-2 whitespace-pre-wrap">{announcement.message}</p>
 
                     {/* Images */}
                     {announcement.images.length > 0 && (
@@ -160,7 +160,7 @@ export default function AnnouncementsPage({ embedded = false }: { embedded?: boo
                 <div className="flex items-center gap-1 px-3 pb-2.5">
                   <button
                     type="button"
-                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium text-[#5b6478] bg-[#f5f7fa] hover:bg-[#edf1f6] transition"
+                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium text-[#64748B] bg-[#F8FAFC] hover:bg-[#F1F5F9] transition"
                     onClick={() => readStateMutation.mutate({ announcementId: announcement.id, isRead: !announcement.isRead })}
                     disabled={readStateMutation.isPending}
                   >
@@ -175,7 +175,7 @@ export default function AnnouncementsPage({ embedded = false }: { embedded?: boo
                           'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium transition',
                           announcement.isPinned
                             ? 'text-primary bg-primary/8 hover:bg-primary/12'
-                            : 'text-[#5b6478] bg-[#f5f7fa] hover:bg-[#edf1f6]',
+                            : 'text-[#64748B] bg-[#F8FAFC] hover:bg-[#F1F5F9]',
                         )}
                         onClick={() => pinMutation.mutate({ announcementId: announcement.id, isPinned: !announcement.isPinned })}
                         disabled={pinMutation.isPending}

@@ -52,20 +52,20 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* Left: Form */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 bg-white">
         <div className="w-full max-w-md">
           <div className="flex items-center gap-3 mb-10">
-            <BrandMark size={48} className="rounded-2xl" />
+            <BrandMark size={44} className="rounded-2xl" />
             <div>
-              <h1 className="text-2xl font-extrabold text-primary font-headline tracking-tight">Dwell Hub</h1>
-              <p className="text-[10px] text-outline font-bold uppercase tracking-widest">Apartment Console</p>
+              <h1 className="text-xl font-extrabold text-on-surface font-headline tracking-tight">Dwell Hub</h1>
+              <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Apartment Console</p>
             </div>
           </div>
 
-          <h2 className="editorial-title text-3xl font-extrabold text-primary mb-1">Welcome back</h2>
-          <p className="text-sm text-on-surface-variant mb-8">Sign in to manage your apartment complex</p>
+          <h2 className="editorial-title text-3xl font-extrabold text-on-surface mb-1">Welcome back</h2>
+          <p className="text-sm text-slate-500 mb-8">Sign in to manage your apartment complex</p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="label">Email</label>
               <input
@@ -92,7 +92,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 p-2 text-outline hover:text-on-surface-variant touch-manipulation"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-slate-600 touch-manipulation"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -102,7 +102,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-gradient w-full py-3"
+              className="btn-gradient w-full py-3.5 rounded-2xl text-base"
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
@@ -110,17 +110,17 @@ export default function LoginPage() {
             <div className="text-right">
               <Link
                 to="/forgot-password"
-                className="text-sm text-primary hover:text-primary font-medium"
+                className="text-sm text-primary hover:text-primary/80 font-medium"
               >
                 Forgot Password?
               </Link>
             </div>
           </form>
           {showRegistrationLink && (
-            <div className="mt-4 text-center">
+            <div className="mt-6 text-center">
             <Link
               to="/register"
-              className="text-sm text-primary hover:text-primary font-medium"
+              className="text-sm text-primary hover:text-primary/80 font-medium"
             >
               Register a new apartment complex →
             </Link>
@@ -129,16 +129,17 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right: Editorial Decorative Panel */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-[#171C3F] to-[#2A3060] items-center justify-center p-12 relative overflow-hidden">
-        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-64 h-64 bg-tertiary-fixed/5 rounded-full blur-2xl"></div>
+      {/* Right: Decorative Panel — vibrant blue gradient */}
+      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-primary to-secondary items-center justify-center p-12 relative overflow-hidden">
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-64 h-64 bg-white/5 rounded-full blur-2xl"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-white/5 rounded-full blur-3xl"></div>
         <div className="relative z-10 text-center text-white max-w-md">
-          <div className="w-20 h-20 bg-white/10 backdrop-blur rounded-3xl flex items-center justify-center mx-auto mb-8">
+          <div className="w-20 h-20 bg-white/15 backdrop-blur-lg rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg">
             <BrandMark size={48} />
           </div>
-          <h2 className="editorial-title text-4xl font-extrabold mb-4 leading-tight">Apartment<br/>Management,<br/><em className="text-primary-fixed">Made Clearer.</em></h2>
-          <p className="text-primary-fixed/60 leading-relaxed mt-6">
+          <h2 className="editorial-title text-4xl font-extrabold mb-4 leading-tight">Apartment<br/>Management,<br/><em className="not-italic text-white/80">Made Clearer.</em></h2>
+          <p className="text-white/50 leading-relaxed mt-6">
             Complete solution for apartment management — billing,
             complaints, expenses, and reports all in one place.
           </p>

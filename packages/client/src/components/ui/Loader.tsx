@@ -4,10 +4,10 @@ export function PageLoader() {
   return (
     <div className="flex items-center justify-center min-h-[60vh]">
       <div className="text-center">
-        <div className="w-12 h-12 rounded-2xl bg-primary/8 flex items-center justify-center mx-auto">
-          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+          <Loader2 className="w-7 h-7 animate-spin text-primary" />
         </div>
-        <p className="mt-3 text-xs text-[#8892a4] font-bold uppercase tracking-widest">Loading...</p>
+        <p className="mt-4 text-xs text-slate-400 font-semibold uppercase tracking-wider">Loading...</p>
       </div>
     </div>
   );
@@ -26,11 +26,11 @@ export function EmptyState({
 }) {
   return (
     <div className="text-center py-16">
-      <div className="w-16 h-16 rounded-3xl bg-[#edf1f6] flex items-center justify-center mx-auto">
-        <Icon className="w-8 h-8 text-[#8892a4]" />
+      <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto">
+        <Icon className="w-8 h-8 text-slate-400" />
       </div>
-      <h3 className="mt-4 text-lg font-headline font-bold text-[#1a1f36]">{title}</h3>
-      <p className="mt-1 text-sm text-[#5b6478] max-w-sm mx-auto">{description}</p>
+      <h3 className="mt-5 text-lg font-headline font-bold text-on-surface">{title}</h3>
+      <p className="mt-2 text-sm text-slate-500 max-w-sm mx-auto leading-relaxed">{description}</p>
       {action && <div className="mt-6">{action}</div>}
     </div>
   );

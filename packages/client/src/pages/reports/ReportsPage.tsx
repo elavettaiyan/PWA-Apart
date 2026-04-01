@@ -108,9 +108,9 @@ export default function ReportsPage() {
               'flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap',
               activeTab === tab.id
                 ? 'bg-primary text-white shadow-sm'
-                : 'bg-white text-[#5b6478] hover:bg-[#f5f7fa]',
+                : 'bg-white text-[#64748B] hover:bg-[#F8FAFC]',
             )}
-            style={activeTab !== tab.id ? { boxShadow: '0 1px 4px -1px rgba(23,37,84,0.06)' } : undefined}
+            style={activeTab !== tab.id ? { boxShadow: '0 1px 4px -1px rgba(0,0,0,0.04)' } : undefined}
           >
             <tab.icon className="w-3.5 h-3.5" />
             {tab.label}
@@ -523,17 +523,17 @@ function PnLTab({ from, to, setFrom, setTo }: { from: string; to: string; setFro
         <div className="card p-6">
           <h3 className="font-semibold text-on-surface mb-4">Reserve Fund Position</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="rounded-xl bg-[#f5f7fa] p-4">
-              <p className="text-xs font-bold uppercase tracking-widest text-[#8892a4]">Sinking fund billed</p>
+            <div className="rounded-xl bg-[#F8FAFC] p-4">
+              <p className="text-xs font-bold uppercase tracking-widest text-[#94A3B8]">Sinking fund billed</p>
               <p className="mt-1 text-lg font-semibold text-on-surface">{formatCurrency(data?.reserveFunds?.sinkingFundBilled || 0)}</p>
-              <p className="mt-1 text-xs text-[#8892a4]">Collected {formatCurrency(data?.reserveFunds?.sinkingFundCollected || 0)}</p>
+              <p className="mt-1 text-xs text-[#94A3B8]">Collected {formatCurrency(data?.reserveFunds?.sinkingFundCollected || 0)}</p>
             </div>
-            <div className="rounded-xl bg-[#f5f7fa] p-4">
-              <p className="text-xs font-bold uppercase tracking-widest text-[#8892a4]">Repair fund billed</p>
+            <div className="rounded-xl bg-[#F8FAFC] p-4">
+              <p className="text-xs font-bold uppercase tracking-widest text-[#94A3B8]">Repair fund billed</p>
               <p className="mt-1 text-lg font-semibold text-on-surface">{formatCurrency(data?.reserveFunds?.repairFundBilled || 0)}</p>
-              <p className="mt-1 text-xs text-[#8892a4]">Collected {formatCurrency(data?.reserveFunds?.repairFundCollected || 0)}</p>
+              <p className="mt-1 text-xs text-[#94A3B8]">Collected {formatCurrency(data?.reserveFunds?.repairFundCollected || 0)}</p>
             </div>
-            <div className="rounded-xl bg-[#f5f7fa] px-4 py-3 sm:col-span-2">
+            <div className="rounded-xl bg-[#F8FAFC] px-4 py-3 sm:col-span-2">
               <p className="text-sm text-on-surface-variant">
                 Outstanding reserve collections: {formatCurrency((data?.reserveFunds?.sinkingFundOutstanding || 0) + (data?.reserveFunds?.repairFundOutstanding || 0))}
               </p>
