@@ -347,6 +347,51 @@ export async function sendRegistrationEmail(to: string, userName: string, societ
   }
 }
 
+export async function sendRegistrationOtpEmail(to: string, otp: string) {
+  if (!RESEND_API_KEY) {
+    logger.error('Resend: registration OTP email blocked — RESEND_API_KEY is missing', { to });
+    throw new Error('Email configuration error: RESEND_API_KEY is missing');
+  }
+
+  logger.info('Resend: attempting registration OTP email', { to, from: FROM_EMAIL });
+
+  try {
+    const { data, error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: `${otp} is your Dwell Hub verification code`,
+      html: `
+        <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #ffffff;">
+          <div style="text-align: center; margin-bottom: 32px;">
+            <h1 style="color: #0E172A; font-size: 28px; margin: 0;">Dwell Hub</h1>
+            <p style="color: #6b7280; font-size: 14px; margin: 4px 0 0;">Apartment Management</p>
+          </div>
+          <div style="background: #f9fafb; border-radius: 12px; padding: 32px; border: 1px solid #e5e7eb;">
+            <h2 style="color: #111827; font-size: 20px; margin: 0 0 16px;">Verify your email</h2>
+            <p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">Use the code below to complete your apartment registration. It expires in <strong>10 minutes</strong>.</p>
+            <div style="text-align: center; margin: 24px 0;">
+              <span style="font-family: monospace; font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #0E172A; background: #e0e7ff; padding: 16px 32px; border-radius: 12px; display: inline-block;">${escapeHtml(otp)}</span>
+            </div>
+            <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 24px 0 0;">If you didn't request this, you can safely ignore this email.</p>
+          </div>
+          <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 32px 0 0;">&copy; ${new Date().getFullYear()} Dwell Hub. All rights reserved.</p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      logger.error('Resend: failed to send registration OTP email', { to, error: error.message });
+      throw new Error(`Failed to send email: ${error.message}`);
+    }
+
+    logger.info('Resend: registration OTP email sent', { to, emailId: data?.id });
+  } catch (err: any) {
+    if (err.message?.startsWith('Failed to send email:')) throw err;
+    logger.error('Resend: failed to send registration OTP email', { to, error: err.message });
+    throw new Error(`Failed to send email: ${err.message}`);
+  }
+}
+
 interface PremiumLifecycleEmailData {
   userName: string;
   societyName: string;

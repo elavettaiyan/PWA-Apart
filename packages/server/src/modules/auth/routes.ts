@@ -8,7 +8,7 @@ import prisma from '../../config/database';
 import logger from '../../config/logger';
 import { validate } from '../../middleware/errorHandler';
 import { authenticate, AuthRequest, invalidateAuthCache } from '../../middleware/auth';
-import { sendPasswordResetEmail, sendRegistrationEmail } from '../../config/email';
+import { sendPasswordResetEmail, sendRegistrationEmail, sendRegistrationOtpEmail } from '../../config/email';
 import { buildPremiumLifecycleMessage, ensurePremiumLifecycleForSociety, shouldBlockPremiumRole, shouldWarnPremiumRole } from '../premium/lifecycle';
 
 const router = Router();
@@ -36,8 +36,162 @@ async function ensureMembership(tx: any, userId: string, societyId: string, role
   });
 }
 
-// ── REGISTER SOCIETY (Create new apartment) ─────────────
-// Public endpoint: creates a Society + ADMIN user in one step.
+// ── REGISTRATION OTP STORE ──────────────────────────────
+const registrationOtpStore = new Map<string, { otp: string; payload: any; expiresAt: number }>();
+
+function generateOtp(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function cleanupExpiredOtps() {
+  const now = Date.now();
+  for (const [key, entry] of registrationOtpStore) {
+    if (entry.expiresAt < now) registrationOtpStore.delete(key);
+  }
+}
+
+setInterval(cleanupExpiredOtps, 5 * 60 * 1000);
+
+// ── SEND REGISTRATION OTP ───────────────────────────────
+router.post(
+  '/register-society/send-otp',
+  [
+    body('societyName').trim().notEmpty().withMessage('Apartment / Society name is required'),
+    body('address').trim().notEmpty().withMessage('Address is required'),
+    body('city').trim().notEmpty().withMessage('City is required'),
+    body('state').trim().notEmpty().withMessage('State is required'),
+    body('pincode').trim().isLength({ min: 6, max: 6 }).withMessage('Valid 6-digit pincode is required'),
+    body('adminName').trim().notEmpty().withMessage('Admin name is required'),
+    body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }).withMessage('Valid email is required'),
+    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+      .matches(/[A-Z]/).withMessage('Password must contain an uppercase letter')
+      .matches(/[a-z]/).withMessage('Password must contain a lowercase letter')
+      .matches(/[0-9]/).withMessage('Password must contain a number'),
+    body('phone')
+      .optional({ values: 'falsy' })
+      .isMobilePhone('en-IN')
+      .withMessage('Phone must be a valid mobile number'),
+  ],
+  validate,
+  async (req: Request, res: Response) => {
+    try {
+      const { email } = req.body;
+      const emailKey = String(email).trim().toLowerCase();
+
+      logger.info('Registration OTP requested', { email: emailKey });
+
+      const existing = await findUserByEmailInsensitive(prisma, email, { select: { id: true } });
+      if (existing) {
+        return res.status(409).json({ error: 'Email already registered. Please login instead.' });
+      }
+
+      // Rate-limit: reject if OTP sent less than 60s ago
+      const prev = registrationOtpStore.get(emailKey);
+      if (prev && prev.expiresAt - 9 * 60 * 1000 > Date.now()) {
+        return res.status(429).json({ error: 'OTP already sent. Please wait before requesting a new one.' });
+      }
+
+      const otp = generateOtp();
+      registrationOtpStore.set(emailKey, {
+        otp,
+        payload: req.body,
+        expiresAt: Date.now() + 10 * 60 * 1000,
+      });
+
+      await sendRegistrationOtpEmail(emailKey, otp);
+
+      return res.json({ message: 'OTP sent to your email.' });
+    } catch (error: any) {
+      logger.error('Send registration OTP failed', { error: error.message });
+      return res.status(500).json({ error: 'Failed to send OTP. Please try again.' });
+    }
+  },
+);
+
+// ── VERIFY REGISTRATION OTP & CREATE SOCIETY ────────────
+router.post(
+  '/register-society/verify-otp',
+  [
+    body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }).withMessage('Valid email is required'),
+    body('otp').trim().isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits'),
+  ],
+  validate,
+  async (req: Request, res: Response) => {
+    try {
+      const emailKey = String(req.body.email).trim().toLowerCase();
+      const submittedOtp = String(req.body.otp).trim();
+
+      const entry = registrationOtpStore.get(emailKey);
+
+      if (!entry || entry.expiresAt < Date.now()) {
+        registrationOtpStore.delete(emailKey);
+        return res.status(400).json({ error: 'OTP expired or not found. Please request a new one.' });
+      }
+
+      if (entry.otp !== submittedOtp) {
+        return res.status(400).json({ error: 'Invalid OTP. Please check and try again.' });
+      }
+
+      const { societyName, address, city, state, pincode, adminName, email, password, phone } = entry.payload;
+
+      const result = await prisma.$transaction(async (tx) => {
+        const existingAgain = await findUserByEmailInsensitive(tx, email, { select: { id: true } });
+        if (existingAgain) throw new Error('EMAIL_TAKEN');
+
+        const society = await tx.society.create({
+          data: { name: societyName, address, city, state, pincode, totalBlocks: 0, totalFlats: 0 },
+        });
+
+        const passwordHash = await bcrypt.hash(password, 12);
+
+        const user = await tx.user.create({
+          data: {
+            email,
+            passwordHash,
+            name: adminName,
+            phone,
+            role: 'ADMIN',
+            societyId: society.id,
+            activeSocietyId: society.id,
+          },
+          select: { id: true, email: true, name: true, role: true, specialization: true, societyId: true },
+        });
+
+        await ensureMembership(tx, user.id, society.id, 'ADMIN');
+
+        return { society, user };
+      });
+
+      registrationOtpStore.delete(emailKey);
+
+      const tokens = generateTokens(result.user);
+
+      logger.info('Society registered via OTP', {
+        societyId: result.society.id,
+        userId: result.user.id,
+        email: result.user.email,
+      });
+
+      sendRegistrationEmail(result.user.email, result.user.name, result.society.name).catch((emailError: any) => {
+        logger.error('Failed to send registration email', { userId: result.user.id, error: emailError.message });
+      });
+
+      return res.status(201).json({
+        user: { ...result.user, flat: null },
+        society: { id: result.society.id, name: result.society.name },
+        ...tokens,
+      });
+    } catch (error: any) {
+      if (error.message === 'EMAIL_TAKEN') {
+        return res.status(409).json({ error: 'Email already registered. Please login instead.' });
+      }
+      logger.error('Verify registration OTP failed', { error: error.message });
+      return res.status(500).json({ error: 'Registration failed. Please try again.' });
+    }
+  },
+);
+
+// ── REGISTER SOCIETY (Legacy — kept for backward compatibility) ──
 router.post(
   '/register-society',
   [
