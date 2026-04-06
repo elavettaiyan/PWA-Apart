@@ -7,6 +7,18 @@ export function isResidentRole(role: string) {
   return role === 'OWNER' || role === 'TENANT';
 }
 
+/**
+ * Checks whether an admin/manager user is also linked to a flat as owner or tenant.
+ * If so, they should see only their own entries (like a resident).
+ */
+export async function isAdminWithFlat(userId: string, societyId: string, role: string): Promise<boolean> {
+  if (role !== 'ADMIN' && role !== 'SECRETARY' && role !== 'JOINT_SECRETARY' && role !== 'TREASURER') {
+    return false;
+  }
+  const flatIds = await getResidentFlatIds(userId, societyId);
+  return flatIds.length > 0;
+}
+
 export async function getResidentFlatIds(userId: string, societyId: string) {
   const [owners, tenants] = await Promise.all([
     prisma.owner.findMany({

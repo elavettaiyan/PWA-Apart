@@ -63,18 +63,18 @@ const DEFAULT_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, MenuId[]> = {
   ADMIN: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
   SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'reports', 'settings'],
   JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity'],
-  TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
-  OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
-  TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
+  TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'expenses', 'reports'],
+  OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints', 'entry-activity'],
+  TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints', 'entry-activity'],
 };
 
 const ALLOWED_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, MenuId[]> = {
   ADMIN: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
   SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
   JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports'],
-  TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
-  OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
-  TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
+  TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'expenses', 'reports'],
+  OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints', 'entry-activity'],
+  TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints', 'entry-activity'],
 };
 
 const LEGACY_MENU_ID_MAP: Record<string, MenuId> = {

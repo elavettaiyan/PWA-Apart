@@ -4,7 +4,7 @@ import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import { getFileUrl, upload } from '../../middleware/upload';
-import { ENTRY_ACCESS_ROLES, ENTRY_MANAGE_ROLES, findFlatInSociety, getFlatResidentName, getResidentFlatIds, isResidentRole } from '../entries/utils';
+import { ENTRY_ACCESS_ROLES, ENTRY_MANAGE_ROLES, findFlatInSociety, getFlatResidentName, getResidentFlatIds, isAdminWithFlat, isResidentRole } from '../entries/utils';
 import { notifyVisitorEntry } from '../notifications/service';
 
 const router = Router();
@@ -43,7 +43,9 @@ router.get(
       const where: any = { societyId };
       if (req.query.status) where.status = req.query.status;
 
-      if (isResidentRole(req.user!.role)) {
+      const shouldFilterByFlat = isResidentRole(req.user!.role) || await isAdminWithFlat(req.user!.id, societyId, req.user!.role);
+
+      if (shouldFilterByFlat) {
         const flatIds = await getResidentFlatIds(req.user!.id, societyId);
         if (flatIds.length === 0) return res.json([]);
 
@@ -60,7 +62,7 @@ router.get(
         return res.json([]);
       }
 
-      const take = Number(req.query.limit || (isResidentRole(req.user!.role) ? 5 : 20));
+      const take = Number(req.query.limit || (shouldFilterByFlat ? 5 : 20));
 
       const visitors = await prisma.visitor.findMany({
         where,

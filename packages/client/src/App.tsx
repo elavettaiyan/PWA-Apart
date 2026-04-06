@@ -110,7 +110,7 @@ export default function App() {
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
         <Route path="/staff" element={<RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_ADMINS]}><StaffPage /></RoleRoute>} />
         <Route path="/gate-management" element={user?.role === 'SERVICE_STAFF' ? <SecurityServiceStaffRoute><GateManagementPage /></SecurityServiceStaffRoute> : <RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_MANAGERS]}><GateManagementPage /></RoleRoute>} />
-        <Route path="/entry-activity" element={user?.role === 'SERVICE_STAFF' ? <SecurityServiceStaffRoute><EntryActivityPage /></SecurityServiceStaffRoute> : <RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_MANAGERS]}><EntryActivityPage /></RoleRoute>} />
+        <Route path="/entry-activity" element={user?.role === 'SERVICE_STAFF' ? <SecurityServiceStaffRoute><EntryActivityPage /></SecurityServiceStaffRoute> : <ProtectedRoute><EntryActivityPage /></ProtectedRoute>} />
         <Route path="/settings/change-password" element={<ProtectedRoute><ChangePasswordSettingsPage /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />

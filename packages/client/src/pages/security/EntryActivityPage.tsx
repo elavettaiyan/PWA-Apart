@@ -4,11 +4,16 @@ import { ClipboardList, Package, Search, ShieldCheck } from 'lucide-react';
 import api from '../../lib/api';
 import { PageLoader } from '../../components/ui/Loader';
 import { cn, formatDateTime, getStatusColor } from '../../lib/utils';
+import { useAuthStore } from '../../store/authStore';
 import type { Delivery, FlatOption, Visitor } from '../../types';
 
 type ActivityMode = 'VISITOR' | 'DELIVERY';
 
+const FULL_ACCESS_ROLES = ['SUPER_ADMIN', 'SERVICE_STAFF'];
+
 export default function EntryActivityPage() {
+  const { user } = useAuthStore();
+  const showFlatFilter = FULL_ACCESS_ROLES.includes(user?.role || '') || ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'].includes(user?.role || '');
   const [mode, setMode] = useState<ActivityMode>('VISITOR');
   const [search, setSearch] = useState('');
   const [flatId, setFlatId] = useState('');
@@ -16,6 +21,7 @@ export default function EntryActivityPage() {
   const { data: flats = [], isLoading: flatsLoading } = useQuery<FlatOption[]>({
     queryKey: ['flat-options', 'admin-activity'],
     queryFn: async () => (await api.get('/flats/options')).data,
+    enabled: showFlatFilter,
   });
 
   const { data: visitors = [], isLoading: visitorsLoading } = useQuery<Visitor[]>({
@@ -67,12 +73,14 @@ export default function EntryActivityPage() {
     [deliveries, flatId, normalizedSearch],
   );
 
-  if (flatsLoading || visitorsLoading || deliveriesLoading) return <PageLoader />;
+  if ((showFlatFilter && flatsLoading) || visitorsLoading || deliveriesLoading) return <PageLoader />;
+
+  const isResident = user?.role === 'OWNER' || user?.role === 'TENANT';
 
   return (
     <div className="space-y-6">
       <div>
-        <p className="section-label mb-1">Admin View</p>
+        <p className="section-label mb-1">{isResident ? 'My Visitors' : 'All Entries'}</p>
         <h1 className="page-title">Entry Activity</h1>
       </div>
 
@@ -96,12 +104,14 @@ export default function EntryActivityPage() {
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
           <input className="input pl-10" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, mobile, flat, resident" />
         </div>
-        <select className="select lg:w-72" value={flatId} onChange={(event) => setFlatId(event.target.value)}>
-          <option value="">All flats</option>
-          {flats.map((flat) => (
-            <option key={flat.id} value={flat.id}>{flat.blockName} - {flat.flatNumber}</option>
-          ))}
-        </select>
+        {showFlatFilter && (
+          <select className="select lg:w-72" value={flatId} onChange={(event) => setFlatId(event.target.value)}>
+            <option value="">All flats</option>
+            {flats.map((flat) => (
+              <option key={flat.id} value={flat.id}>{flat.blockName} - {flat.flatNumber}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
