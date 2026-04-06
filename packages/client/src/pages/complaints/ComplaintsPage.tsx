@@ -23,12 +23,9 @@ export default function ComplaintsPage() {
   const isSpecializedStaffView = isNonSecurityServiceStaff(user) && !!defaultCategory;
 
   const { data: complaints = [], isLoading } = useQuery<Complaint[]>({
-    queryKey: ['complaints', statusFilter, defaultCategory],
+    queryKey: ['complaints', defaultCategory],
     queryFn: async () => {
       const searchParams = new URLSearchParams();
-      if (statusFilter) {
-        searchParams.set('status', statusFilter);
-      }
       if (defaultCategory) {
         searchParams.set('category', defaultCategory);
       }
@@ -45,6 +42,10 @@ export default function ComplaintsPage() {
     RESOLVED: complaints.filter((c) => c.status === 'RESOLVED').length,
     CLOSED: complaints.filter((c) => c.status === 'CLOSED').length,
   };
+
+  const filteredComplaints = statusFilter
+    ? complaints.filter((c) => c.status === statusFilter)
+    : complaints;
 
   return (
     <div>
@@ -86,7 +87,7 @@ export default function ComplaintsPage() {
       </div>
 
       {/* Complaints List */}
-      {complaints.length === 0 ? (
+      {filteredComplaints.length === 0 ? (
         <EmptyState
           icon={MessageSquareWarning}
           title="No complaints"
@@ -94,7 +95,7 @@ export default function ComplaintsPage() {
         />
       ) : (
         <div className="space-y-3">
-          {complaints.map((complaint) => (
+          {filteredComplaints.map((complaint) => (
             <div
               key={complaint.id}
               className="card-elevated overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
