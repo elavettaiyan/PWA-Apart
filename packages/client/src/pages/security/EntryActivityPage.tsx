@@ -143,6 +143,13 @@ function VisitorActivityCard({ visitor }: { visitor: Visitor }) {
         <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold', getStatusColor(visitor.status))}>{visitor.status}</span>
       </div>
       <div className="px-4 pt-1.5 pb-3 text-xs text-on-surface-variant space-y-0.5">
+        {visitor.photoUrl && (
+          <img
+            src={visitor.photoUrl}
+            alt={visitor.visitorName}
+            className="w-full h-32 rounded-xl object-cover border border-outline-variant/20 mb-2"
+          />
+        )}
         <p>{visitor.flat?.block?.name}-{visitor.flat?.flatNumber} {visitor.flat?.residentName ? `· ${visitor.flat.residentName}` : ''}</p>
         <p>{visitor.purpose} · {visitor.mobile}</p>
         {visitor.vehicleNumber && <p>Vehicle: {visitor.vehicleNumber}</p>}
@@ -160,6 +167,13 @@ function DeliveryActivityCard({ delivery }: { delivery: Delivery }) {
         <h2 className="text-[13px] font-semibold text-on-surface">{delivery.deliveryType.replace('_', ' ')}</h2>
       </div>
       <div className="px-4 pt-1.5 pb-3 text-xs text-on-surface-variant space-y-0.5">
+        {delivery.photoUrl && (
+          <img
+            src={delivery.photoUrl}
+            alt={delivery.deliveryPersonName}
+            className="w-full h-32 rounded-xl object-cover border border-outline-variant/20 mb-2"
+          />
+        )}
         <p>{delivery.flat?.block?.name}-{delivery.flat?.flatNumber} {delivery.flat?.residentName ? `· ${delivery.flat.residentName}` : ''}</p>
         <p>{delivery.deliveryPersonName}{delivery.companyName ? ` · ${delivery.companyName}` : ''}</p>
         {delivery.mobile && <p>{delivery.mobile}</p>}
