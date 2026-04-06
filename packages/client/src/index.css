@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Safe area insets for devices with notches / display cutouts */
+html {
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+}
+
 @layer base {
   :root {
     --primary: 14 23 42;

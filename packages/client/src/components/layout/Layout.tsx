@@ -110,7 +110,7 @@ export default function Layout({ children }: LayoutProps) {
           sidebarOpen ? 'block translate-x-0' : 'hidden -translate-x-full lg:block',
         )}
       >
-        <div className="flex flex-col h-full p-5 space-y-1">
+        <div className="flex flex-col h-full p-5 space-y-1" style={{ paddingTop: 'calc(1.25rem + var(--sat))' }}>
           {/* Logo */}
           <div className="mb-6 px-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -174,7 +174,7 @@ export default function Layout({ children }: LayoutProps) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile Top App Bar */}
-        <header className="lg:hidden fixed top-0 z-30 w-full bg-white/95 backdrop-blur-xl shadow-card">
+        <header className="lg:hidden fixed top-0 z-30 w-full bg-white/95 backdrop-blur-xl shadow-card" style={{ paddingTop: 'var(--sat)' }}>
           <div className="flex justify-between items-center px-4 py-3">
           <div className="flex items-center gap-3">
             <button
@@ -333,7 +333,7 @@ export default function Layout({ children }: LayoutProps) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 pt-20 pb-6 px-4 sm:px-6 lg:pt-0 lg:pb-0 lg:p-8 overflow-auto">{children}</main>
+        <main className="flex-1 pb-6 px-4 sm:px-6 lg:pt-0 lg:pb-0 lg:p-8 overflow-auto" style={{ paddingTop: 'calc(5rem + var(--sat))' }}>{children}</main>
       </div>
     </div>
   );
