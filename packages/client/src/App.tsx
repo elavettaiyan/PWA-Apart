@@ -52,8 +52,18 @@ function SecurityServiceStaffRoute({ children }: { children: React.ReactNode }) 
 }
 
 export default function App() {
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, _hydrated } = useAuthStore();
   const nativePlatform = isNativePlatform();
+
+  // Only gate on _hydrated for native (Android/iOS) where Capacitor Preferences is async.
+  // On web, localStorage is synchronous — no hydration wait needed.
+  if (nativePlatform && !_hydrated) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-surface">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <Routes>

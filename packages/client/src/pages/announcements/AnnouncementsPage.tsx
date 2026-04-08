@@ -23,6 +23,7 @@ function toAssetUrl(value: string) {
 
 export default function AnnouncementsPage({ embedded = false }: { embedded?: boolean }) {
   const [showCreate, setShowCreate] = useState(false);
+  const [viewAnnouncement, setViewAnnouncement] = useState<Announcement | null>(null);
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const canManage = user?.role === 'SUPER_ADMIN' || SOCIETY_MANAGERS.includes((user?.role || '') as any);
@@ -106,8 +107,9 @@ export default function AnnouncementsPage({ embedded = false }: { embedded?: boo
             return (
               <article
                 key={announcement.id}
-                className="bg-white rounded-2xl overflow-hidden transition-all"
+                className="bg-white rounded-2xl overflow-hidden transition-all cursor-pointer active:scale-[0.99]"
                 style={{ boxShadow: '0 1px 8px -2px rgba(0,0,0,0.04)' }}
+                onClick={() => setViewAnnouncement(announcement)}
               >
                 <div className="flex gap-3 p-4">
                   {/* Avatar */}
@@ -139,17 +141,14 @@ export default function AnnouncementsPage({ embedded = false }: { embedded?: boo
 
                     {/* Images */}
                     {announcement.images.length > 0 && (
-                      <div className="flex gap-2 mt-2.5 overflow-x-auto">
+                      <div className="flex gap-2 mt-2.5 overflow-x-auto" onClick={(e) => e.stopPropagation()}>
                         {announcement.images.map((image, index) => (
-                          <a
+                          <div
                             key={`${announcement.id}-${index}`}
-                            href={toAssetUrl(image)}
-                            target="_blank"
-                            rel="noreferrer"
                             className="flex-shrink-0 h-16 w-16 overflow-hidden rounded-xl"
                           >
                             <img src={toAssetUrl(image)} alt={announcement.title} className="h-full w-full object-cover" />
-                          </a>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -157,7 +156,7 @@ export default function AnnouncementsPage({ embedded = false }: { embedded?: boo
                 </div>
 
                 {/* Action bar */}
-                <div className="flex items-center gap-1 px-3 pb-2.5">
+                <div className="flex items-center gap-1 px-3 pb-2.5" onClick={(e) => e.stopPropagation()}>
                   <button
                     type="button"
                     className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium text-[#64748B] bg-[#F8FAFC] hover:bg-[#F1F5F9] transition"
@@ -200,6 +199,40 @@ export default function AnnouncementsPage({ embedded = false }: { embedded?: boo
           })}
         </div>
       )}
+
+      {/* Detail view dialog */}
+      <Modal isOpen={!!viewAnnouncement} onClose={() => setViewAnnouncement(null)} title={viewAnnouncement?.title || 'Announcement'} size="lg">
+        {viewAnnouncement && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-xs text-[#94A3B8]">
+              <span>{viewAnnouncement.createdBy?.name || 'Committee'}</span>
+              <span>·</span>
+              <span>{formatDateTime(viewAnnouncement.createdAt)}</span>
+              {viewAnnouncement.isPinned && (
+                <span className="inline-flex items-center rounded-full bg-primary/8 px-2 py-0.5 text-[10px] font-semibold text-primary ml-1">
+                  <Pin className="w-3 h-3 mr-0.5" /> Pinned
+                </span>
+              )}
+            </div>
+            <p className="text-sm leading-relaxed text-[#334155] whitespace-pre-wrap">{viewAnnouncement.message}</p>
+            {viewAnnouncement.images.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {viewAnnouncement.images.map((image, index) => (
+                  <a
+                    key={`detail-${viewAnnouncement.id}-${index}`}
+                    href={toAssetUrl(image)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="overflow-hidden rounded-xl"
+                  >
+                    <img src={toAssetUrl(image)} alt={viewAnnouncement.title} className="w-full h-40 object-cover" />
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
 
       <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="New Announcement" size="lg">
         <AnnouncementForm

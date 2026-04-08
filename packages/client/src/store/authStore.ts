@@ -8,6 +8,7 @@ interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
   isAuthenticated: boolean;
+  _hydrated: boolean;
   setAuth: (user: User, accessToken: string, refreshToken: string) => void;
   setTokens: (accessToken: string, refreshToken: string) => void;
   setUser: (user: User) => void;
@@ -22,6 +23,7 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
+      _hydrated: false,
 
       setAuth: (user, accessToken, refreshToken) =>
         set({ user, accessToken, refreshToken, isAuthenticated: true }),
@@ -55,6 +57,28 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (_, error) => {
+        if (!error) {
+          useAuthStore.setState({ _hydrated: true });
+        }
+      },
     },
   ),
 );
+
+// Always mark hydrated: handles both sync (web/localStorage) and async (native/Preferences)
+if (useAuthStore.persist.hasHydrated()) {
+  useAuthStore.setState({ _hydrated: true });
+} else {
+  const unsub = useAuthStore.persist.onFinishHydration(() => {
+    useAuthStore.setState({ _hydrated: true });
+    unsub();
+  });
+}
+
+// Absolute safety net: if nothing worked after 2s, force hydration to unblock the UI
+setTimeout(() => {
+  if (!useAuthStore.getState()._hydrated) {
+    useAuthStore.setState({ _hydrated: true });
+  }
+}, 2000);

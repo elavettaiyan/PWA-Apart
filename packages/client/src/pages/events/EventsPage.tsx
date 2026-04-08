@@ -74,6 +74,7 @@ function formatSchedulePreview(dateValue: string, timeValue: string) {
 export default function EventsPage({ embedded = false }: { embedded?: boolean }) {
   const [showCreate, setShowCreate] = useState(false);
   const [editingEvent, setEditingEvent] = useState<SocietyEvent | null>(null);
+  const [viewEvent, setViewEvent] = useState<SocietyEvent | null>(null);
   const [filter, setFilter] = useState<'UPCOMING' | 'PAST' | 'CANCELLED'>('UPCOMING');
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
@@ -178,7 +179,7 @@ export default function EventsPage({ embedded = false }: { embedded?: boolean })
       ) : (
         <div className="space-y-3">
           {visibleEvents.map((event) => (
-            <article key={event.id} className="card-elevated overflow-hidden">
+            <article key={event.id} className="card-elevated overflow-hidden cursor-pointer active:scale-[0.99] transition-transform" onClick={() => setViewEvent(event)}>
               {/* Status badge */}
               <div className="flex items-center gap-2 px-4 pt-3">
                 <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', getStatusColor(event.status))}>{event.status}</span>
@@ -210,24 +211,21 @@ export default function EventsPage({ embedded = false }: { embedded?: boolean })
 
               {/* Images */}
               {event.imageUrls.length > 0 && (
-                <div className="flex gap-2 px-4 pb-2 overflow-x-auto">
+                <div className="flex gap-2 px-4 pb-2 overflow-x-auto" onClick={(e) => e.stopPropagation()}>
                   {event.imageUrls.map((image, index) => (
-                    <a
+                    <div
                       key={`${event.id}-${index}`}
-                      href={toAssetUrl(image)}
-                      target="_blank"
-                      rel="noreferrer"
                       className="flex-shrink-0 h-20 w-20 overflow-hidden rounded-xl border border-outline-variant/10"
                     >
                       <img src={toAssetUrl(image)} alt={event.title} className="h-full w-full object-cover" />
-                    </a>
+                    </div>
                   ))}
                 </div>
               )}
 
               {/* Action bar */}
               {canManage && (
-                <div className="flex items-center border-t border-outline-variant/10 px-2 py-1">
+                <div className="flex items-center border-t border-outline-variant/10 px-2 py-1" onClick={(e) => e.stopPropagation()}>
                   <button
                     type="button"
                     className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-on-surface-variant hover:bg-surface-container-low transition"
@@ -249,6 +247,50 @@ export default function EventsPage({ embedded = false }: { embedded?: boolean })
           ))}
         </div>
       )}
+
+      {/* Detail view dialog */}
+      <Modal isOpen={!!viewEvent} onClose={() => setViewEvent(null)} title={viewEvent?.title || 'Event'} size="lg">
+        {viewEvent && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', getStatusColor(viewEvent.status))}>{viewEvent.status}</span>
+              <span className="text-xs text-[#94A3B8]">{viewEvent.createdBy?.name || 'Committee'}</span>
+            </div>
+            <p className="text-sm leading-relaxed text-[#334155] whitespace-pre-wrap">{viewEvent.description}</p>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-on-surface-variant">
+                <Clock3 className="w-4 h-4 text-outline flex-shrink-0" />
+                <span>{formatDateTime(viewEvent.startAt)}{viewEvent.endAt ? ` – ${formatDateTime(viewEvent.endAt)}` : ''}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-on-surface-variant">
+                <MapPin className="w-4 h-4 text-outline flex-shrink-0" />
+                <span>{viewEvent.place}</span>
+              </div>
+              {viewEvent.reminderMinutes.length > 0 && (
+                <div className="flex items-center gap-2 text-sm text-on-surface-variant">
+                  <BellRing className="w-4 h-4 text-outline flex-shrink-0" />
+                  <span>{viewEvent.reminderMinutes.map((m) => m >= 1440 ? `${m / 1440}d` : m >= 60 ? `${m / 60}h` : `${m}m`).join(', ')} before</span>
+                </div>
+              )}
+            </div>
+            {viewEvent.imageUrls.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {viewEvent.imageUrls.map((image, index) => (
+                  <a
+                    key={`detail-${viewEvent.id}-${index}`}
+                    href={toAssetUrl(image)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="overflow-hidden rounded-xl"
+                  >
+                    <img src={toAssetUrl(image)} alt={viewEvent.title} className="w-full h-40 object-cover" />
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
 
       <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="New Event" size="lg">
         <EventForm
