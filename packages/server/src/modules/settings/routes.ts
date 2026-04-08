@@ -686,8 +686,37 @@ router.delete(
       ]);
 
       if (!membership) return res.status(404).json({ error: 'Member not found in this society' });
-      if (membership.role !== 'OWNER') {
-        return res.status(400).json({ error: 'Only owners can be removed from Members & Roles' });
+      if (membership.role !== 'OWNER' && membership.role !== 'SERVICE_STAFF') {
+        return res.status(400).json({ error: 'Only owners and service staff can be removed from Members & Roles' });
+      }
+
+      if (membership.role === 'SERVICE_STAFF') {
+        await runMemberRemoval({
+          societyId,
+          societyName: society?.name || 'your society',
+          targetUserId: membership.user.id,
+          targetRole: 'SERVICE_STAFF',
+          removedByUserId: req.user!.id,
+          removedByRole: req.user!.role as any,
+          reason,
+          source: 'MEMBERS_ROLES',
+          recipientEmail: membership.user.email,
+          recipientName: membership.user.name,
+          snapshot: {
+            name: membership.user.name,
+            email: membership.user.email,
+            phone: membership.user.phone,
+          },
+          removeData: async () => {},
+        });
+
+        logger.info('Service staff removed from society', {
+          removedBy: req.user!.id,
+          targetUser: userId,
+          societyId,
+        });
+
+        return res.json({ message: 'Service staff removed successfully' });
       }
 
       const ownerRecords = await prisma.owner.findMany({

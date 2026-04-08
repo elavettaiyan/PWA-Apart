@@ -994,12 +994,13 @@ function MembersRoles() {
     mutationFn: ({ userId, reason }: { userId: string; reason: string }) =>
       api.delete(`/settings/members/${userId}`, { data: { reason } }),
     onSuccess: () => {
-      toast.success('Owner removed');
+      toast.success('Member removed');
       setRemoveTarget(null);
       setRemovalReason('');
       queryClient.invalidateQueries({ queryKey: ['settings-members'] });
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
     },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to remove owner'),
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to remove member'),
   });
 
   const formatRole = (role: string) =>
@@ -1058,13 +1059,15 @@ function MembersRoles() {
                     <span className="text-xs text-outline">You</span>
                   ) : editingId !== m.id ? (
                     <div className="inline-flex items-center gap-3 flex-wrap">
-                      <button
-                        className="text-xs text-primary hover:text-primary font-medium"
-                        onClick={() => { setEditingId(m.id); setSelectedRole(m.role); }}
-                      >
-                        Change Role
-                      </button>
-                      {m.role === 'OWNER' && (
+                      {m.role !== 'SERVICE_STAFF' && (
+                        <button
+                          className="text-xs text-primary hover:text-primary font-medium"
+                          onClick={() => { setEditingId(m.id); setSelectedRole(m.role); }}
+                        >
+                          Change Role
+                        </button>
+                      )}
+                      {(m.role === 'OWNER' || m.role === 'SERVICE_STAFF') && (
                         <button
                           className="text-xs text-error hover:text-error font-medium"
                           onClick={() => {
@@ -1130,13 +1133,15 @@ function MembersRoles() {
                   <td className="px-6 py-3 text-right">
                     {editingId !== m.id && m.id !== user?.id && (
                       <div className="inline-flex items-center gap-3">
-                        <button
-                          className="text-xs text-primary hover:text-primary font-medium"
-                          onClick={() => { setEditingId(m.id); setSelectedRole(m.role); }}
-                        >
-                          Change Role
-                        </button>
-                        {m.role === 'OWNER' && (
+                        {m.role !== 'SERVICE_STAFF' && (
+                          <button
+                            className="text-xs text-primary hover:text-primary font-medium"
+                            onClick={() => { setEditingId(m.id); setSelectedRole(m.role); }}
+                          >
+                            Change Role
+                          </button>
+                        )}
+                        {(m.role === 'OWNER' || m.role === 'SERVICE_STAFF') && (
                           <button
                             className="text-xs text-error hover:text-error font-medium"
                             onClick={() => {
@@ -1168,7 +1173,7 @@ function MembersRoles() {
           setRemoveTarget(null);
           setRemovalReason('');
         }}
-        title="Remove Owner"
+        title={`Remove ${removeTarget?.role === 'SERVICE_STAFF' ? 'Service Staff' : 'Owner'}`}
         size="md"
       >
         {removeTarget && (
@@ -1184,7 +1189,7 @@ function MembersRoles() {
                 className="input min-h-[120px]"
                 value={removalReason}
                 onChange={(event) => setRemovalReason(event.target.value)}
-                placeholder="Explain why this owner is being removed from the society."
+                placeholder={`Explain why this ${removeTarget.role === 'SERVICE_STAFF' ? 'service staff' : 'owner'} is being removed from the society.`}
               />
             </div>
 
@@ -1206,7 +1211,7 @@ function MembersRoles() {
                 disabled={removeMutation.isPending || !removalReason.trim()}
                 onClick={() => removeMutation.mutate({ userId: removeTarget.id, reason: removalReason.trim() })}
               >
-                {removeMutation.isPending ? 'Removing...' : 'Remove Owner'}
+                {removeMutation.isPending ? 'Removing...' : `Remove ${removeTarget.role === 'SERVICE_STAFF' ? 'Staff' : 'Owner'}`}
               </button>
             </div>
           </div>
