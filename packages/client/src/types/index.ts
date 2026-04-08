@@ -20,7 +20,8 @@ export type NavigationMenuId =
   | 'entry-activity'
   | 'expenses'
   | 'reports'
-  | 'settings';
+  | 'settings'
+  | 'assets';
 
 export type ConfigurableMenuRole = 'ADMIN' | 'SECRETARY' | 'JOINT_SECRETARY' | 'TREASURER' | 'OWNER' | 'TENANT';
 
@@ -563,4 +564,84 @@ export interface PremiumStatusResponse {
   };
   activeSubscription?: PremiumSubscription | null;
   latestSubscription?: PremiumSubscription | null;
+}
+
+// ─── ASSET MANAGEMENT ───────────────────────────────────
+
+export type AssetType = 'LIFT' | 'WATER_TANK' | 'TOILET' | 'AUDITORIUM' | 'SEPTIC_TANK' | 'GARDEN' | 'GENERATOR' | 'PUMP' | 'FIRE_SAFETY' | 'OTHER';
+export type ServiceFrequency = 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY' | 'CUSTOM';
+export type ServiceJobStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'POSTPONED' | 'RESCHEDULED';
+export type ServiceJobPriority = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export interface Asset {
+  id: string;
+  societyId: string;
+  name: string;
+  type: AssetType;
+  location?: string | null;
+  blockId?: string | null;
+  description?: string | null;
+  installationDate?: string | null;
+  vendor?: string | null;
+  serviceContact?: string | null;
+  periodicServiceRequired: boolean;
+  serviceFrequency?: ServiceFrequency | null;
+  serviceIntervalDays?: number | null;
+  lastServiceDate?: string | null;
+  nextServiceDate?: string | null;
+  serviceVendor?: string | null;
+  serviceCost?: number | null;
+  serviceNotes?: string | null;
+  images: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  block?: { name: string } | null;
+  _count?: { serviceJobs: number; serviceHistory: number };
+  serviceJobs?: ServiceJob[];
+  serviceHistory?: ServiceHistoryEntry[];
+}
+
+export interface ServiceJob {
+  id: string;
+  assetId: string;
+  societyId: string;
+  jobType: string;
+  scheduledDate: string;
+  assignedTo?: string | null;
+  assignedToUserId?: string | null;
+  priority: ServiceJobPriority;
+  status: ServiceJobStatus;
+  remarks?: string | null;
+  completedDate?: string | null;
+  images: string[];
+  invoiceUrl?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  asset?: { name: string; type: AssetType; location?: string | null };
+  assignedUser?: { name: string } | null;
+}
+
+export interface ServiceHistoryEntry {
+  id: string;
+  assetId: string;
+  societyId: string;
+  serviceDate: string;
+  vendor?: string | null;
+  notes?: string | null;
+  cost?: number | null;
+  images: string[];
+  invoiceUrl?: string | null;
+  jobId?: string | null;
+  createdAt: string;
+  job?: { jobType: string; status: string } | null;
+}
+
+export interface AssetDashboard {
+  totalAssets: number;
+  activeAssets: number;
+  overdueJobs: number;
+  pendingJobs: number;
+  completedThisMonth: number;
+  upcomingJobs: ServiceJob[];
 }

@@ -31,6 +31,7 @@ const MENU_CATALOG = [
   { id: 'gate-management', label: 'Gate Management', href: '/gate-management' },
   { id: 'entry-activity', label: 'Entry Activity', href: '/entry-activity' },
   { id: 'expenses', label: 'Expenses', href: '/expenses' },
+  { id: 'assets', label: 'Assets', href: '/assets' },
   { id: 'reports', label: 'Reports', href: '/reports' },
   { id: 'settings', label: 'Settings', href: '/settings' },
 ] as const;
@@ -60,18 +61,18 @@ const BASELINE_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, MenuId[]> = {
 };
 
 const DEFAULT_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, MenuId[]> = {
-  ADMIN: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
-  SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'reports', 'settings'],
-  JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity'],
+  ADMIN: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'assets', 'reports', 'settings'],
+  SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'assets', 'reports', 'settings'],
+  JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'assets'],
   TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'expenses', 'reports'],
   OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints', 'entry-activity'],
   TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints', 'entry-activity'],
 };
 
 const ALLOWED_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, MenuId[]> = {
-  ADMIN: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
-  SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports', 'settings'],
-  JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'reports'],
+  ADMIN: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'assets', 'reports', 'settings'],
+  SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'assets', 'reports', 'settings'],
+  JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'assets', 'reports'],
   TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'expenses', 'reports'],
   OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints', 'entry-activity'],
   TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints', 'entry-activity'],

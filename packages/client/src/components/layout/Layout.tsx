@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   LayoutDashboard, Building2, Receipt, MessageSquareWarning,
   Wallet, BarChart3, LogOut, Menu, X, Settings, KeyRound, Megaphone,
-  ShieldCheck, ClipboardList,
+  ShieldCheck, ClipboardList, Box,
 } from 'lucide-react';
 import { isNonSecurityServiceStaff, isSecurityServiceStaff } from '@/lib/serviceStaff';
 import { useAuthStore } from '../../store/authStore';
@@ -24,6 +24,7 @@ const navigationIcons: Record<NavigationMenuId, typeof LayoutDashboard> = {
   'gate-management': ShieldCheck,
   'entry-activity': ClipboardList,
   expenses: Wallet,
+  assets: Box,
   reports: BarChart3,
   settings: Settings,
 };

@@ -23,6 +23,7 @@ import RegisterPage from './pages/auth/RegisterPage';
 import StaffPage from './pages/staff/StaffPage';
 import GateManagementPage from './pages/security/GateManagementPage';
 import EntryActivityPage from './pages/security/EntryActivityPage';
+import AssetsPage from './pages/assets/AssetsPage';
 import { getDefaultAuthenticatedRoute, getPostLoginRoute, isSecurityServiceStaff } from './lib/serviceStaff';
 import { isNativePlatform } from './lib/platform';
 import { SOCIETY_ADMINS, SOCIETY_MANAGERS, FINANCIAL_ROLES } from './types';
@@ -115,6 +116,7 @@ export default function App() {
         <Route path="/payments/status" element={<PaymentStatusRedirect />} />
         <Route path="/complaints" element={<ProtectedRoute><ComplaintsPage /></ProtectedRoute>} />
         <Route path="/expenses" element={<RoleRoute roles={['SUPER_ADMIN', ...FINANCIAL_ROLES]}><ExpensesPage /></RoleRoute>} />
+        <Route path="/assets" element={<RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_MANAGERS]}><AssetsPage /></RoleRoute>} />
         <Route path="/bylaws" element={<ProtectedRoute><BylawsPage /></ProtectedRoute>} />
         <Route path="/reports" element={<RoleRoute roles={['SUPER_ADMIN', ...FINANCIAL_ROLES]}><ReportsPage /></RoleRoute>} />
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />

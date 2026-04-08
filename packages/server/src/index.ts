@@ -26,6 +26,7 @@ import premiumRoutes, { premiumWebhookHandler } from './modules/premium/routes';
 import notificationRoutes from './modules/notifications/routes';
 import announcementRoutes from './modules/announcements/routes';
 import eventRoutes from './modules/events/routes';
+import assetRoutes, { sendServiceDueReminders } from './modules/assets/routes';
 
 const app = express();
 const processStartMs = Date.now();
@@ -213,6 +214,7 @@ app.use('/api/premium', premiumRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/events', eventRoutes);
+app.use('/api/assets', assetRoutes);
 
 // ── ERROR HANDLING ──────────────────────────────────────
 app.use(notFound);
@@ -236,5 +238,9 @@ if (process.env.VERCEL !== '1') {
   logger.info(`🗄️  Database URL: ${(process.env.DATABASE_URL || process.env.APART_EASE_POSTGRES_PRISMA_URL) ? '***set***' : '⚠️  NOT SET'}`);
   logger.info(`🔑 JWT Secret: ${config.jwt.secret === 'fallback-secret' ? '⚠️  USING FALLBACK' : '***set***'}`);
 }
+
+// ── SCHEDULED TASKS ─────────────────────────────────────
+// Check for asset service due reminders every 6 hours
+setInterval(() => { sendServiceDueReminders().catch(() => {}); }, 6 * 60 * 60 * 1000);
 
 export default app;

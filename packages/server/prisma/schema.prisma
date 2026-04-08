@@ -124,6 +124,41 @@ enum EventStatus {
   COMPLETED
 }
 
+enum AssetType {
+  LIFT
+  WATER_TANK
+  TOILET
+  AUDITORIUM
+  SEPTIC_TANK
+  GARDEN
+  GENERATOR
+  PUMP
+  FIRE_SAFETY
+  OTHER
+}
+
+enum ServiceFrequency {
+  MONTHLY
+  QUARTERLY
+  HALF_YEARLY
+  YEARLY
+  CUSTOM
+}
+
+enum ServiceJobStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  POSTPONED
+  RESCHEDULED
+}
+
+enum ServiceJobPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 // ─── SOCIETY / APARTMENT COMPLEX (TENANT) ───────────────
 // Each society is a separate tenant in the multi-tenant system.
 // When a new apartment registers, a new Society + Admin user is created.
@@ -163,6 +198,9 @@ model Society {
   maintenanceConfig  MaintenanceConfig[]
   paymentConfigs     PaymentGatewayConfig[]
   premiumSubscriptions PremiumSubscription[]
+  assets             Asset[]
+  serviceJobs        ServiceJob[]
+  serviceHistories   ServiceHistory[]
 
   @@map("societies")
 }
@@ -179,6 +217,7 @@ model Block {
 
   society   Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
   flats     Flat[]
+  assets    Asset[]
 
   @@index([societyId])
   @@index([societyId, name])
@@ -295,6 +334,7 @@ model User {
   announcementBroadcasts AnnouncementBroadcast[] @relation("AnnouncementBroadcastCreator")
   announcementReads AnnouncementReadState[]
   createdEvents     SocietyEvent[] @relation("SocietyEventCreator")
+  assignedServiceJobs ServiceJob[]
 
   @@index([societyId])
   @@index([activeSocietyId])
@@ -774,4 +814,95 @@ model PaymentGatewayConfig {
   @@unique([societyId, gateway])
   @@index([societyId])
   @@map("payment_gateway_configs")
+}
+
+// ─── ASSET MANAGEMENT ───────────────────────────────────
+
+model Asset {
+  id                       String            @id @default(uuid())
+  societyId                String
+  name                     String
+  type                     AssetType
+  location                 String?
+  blockId                  String?
+  description              String?
+  installationDate         DateTime?
+  vendor                   String?
+  serviceContact           String?
+  periodicServiceRequired  Boolean           @default(false)
+  serviceFrequency         ServiceFrequency?
+  serviceIntervalDays      Int?
+  lastServiceDate          DateTime?
+  nextServiceDate          DateTime?
+  serviceVendor            String?
+  serviceCost              Float?
+  serviceNotes             String?
+  images                   String            @default("[]")
+  isActive                 Boolean           @default(true)
+  lastReminderSentAt       DateTime?
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+
+  society        Society         @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  block          Block?          @relation(fields: [blockId], references: [id])
+  serviceJobs    ServiceJob[]
+  serviceHistory ServiceHistory[]
+
+  @@index([societyId])
+  @@index([societyId, type])
+  @@index([societyId, blockId])
+  @@index([societyId, nextServiceDate])
+  @@index([societyId, isActive])
+  @@map("assets")
+}
+
+model ServiceJob {
+  id                String             @id @default(uuid())
+  assetId           String
+  societyId         String
+  jobType           String             @default("Periodic Service")
+  scheduledDate     DateTime
+  assignedTo        String?
+  assignedToUserId  String?
+  priority          ServiceJobPriority @default(MEDIUM)
+  status            ServiceJobStatus   @default(PENDING)
+  remarks           String?
+  completedDate     DateTime?
+  images            String             @default("[]")
+  invoiceUrl        String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  asset        Asset   @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  society      Society @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  assignedUser User?   @relation(fields: [assignedToUserId], references: [id])
+  history      ServiceHistory[]
+
+  @@index([societyId])
+  @@index([assetId])
+  @@index([societyId, status])
+  @@index([societyId, scheduledDate])
+  @@map("service_jobs")
+}
+
+model ServiceHistory {
+  id          String   @id @default(uuid())
+  assetId     String
+  societyId   String
+  serviceDate DateTime
+  vendor      String?
+  notes       String?
+  cost        Float?
+  images      String   @default("[]")
+  invoiceUrl  String?
+  jobId       String?
+  createdAt   DateTime @default(now())
+
+  asset   Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  society Society     @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  job     ServiceJob? @relation(fields: [jobId], references: [id])
+
+  @@index([assetId])
+  @@index([assetId, serviceDate])
+  @@map("service_history")
 }
