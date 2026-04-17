@@ -5,7 +5,7 @@ import BrandMark from '../../components/ui/BrandMark';
 import toast from 'react-hot-toast';
 import { getPostLoginRoute } from '@/lib/serviceStaff';
 import api from '../../lib/api';
-import { isNativePlatform } from '../../lib/platform';
+import { getApiBaseUrl, isNativePlatform } from '../../lib/platform';
 import { useAuthStore } from '../../store/authStore';
 import type { AuthResponse } from '../../types';
 
@@ -22,9 +22,22 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
 
+    const normalizedEmail = email.trim().toLowerCase();
+    console.info('[login] submitting resident login', {
+      email: normalizedEmail,
+      apiBaseUrl: getApiBaseUrl(),
+      nativePlatform: isNativePlatform(),
+    });
+
     try {
       const { data } = await api.post<AuthResponse>('/auth/login', { email, password });
       const premiumLifecycleMessage = data.premiumLifecycle?.message;
+
+      console.info('[login] resident login succeeded', {
+        email: normalizedEmail,
+        role: data.user.role,
+        societyId: data.user.societyId,
+      });
 
       setAuth(data.user, data.accessToken, data.refreshToken);
       toast.success(`Welcome back, ${data.user.name}!`);
@@ -39,6 +52,20 @@ export default function LoginPage() {
       navigate(getPostLoginRoute(data.user), { replace: true });
     } catch (error: any) {
       const data = error.response?.data;
+      console.error('[login] resident login failed', {
+        email: normalizedEmail,
+        apiBaseUrl: getApiBaseUrl(),
+        nativePlatform: isNativePlatform(),
+        status: error.response?.status,
+        code: data?.code,
+        error: data?.error,
+        validationErrors: Array.isArray(data?.errors) ? data.errors : undefined,
+        axiosCode: error.code,
+        hasRequest: !!error.request,
+        hasResponse: !!error.response,
+        message: error.message,
+      });
+
       const message =
         data?.error ||
         (Array.isArray(data?.errors) ? data.errors.map((e: any) => e.msg).join(', ') : null) ||

@@ -22,6 +22,10 @@ interface PhonePeConfig {
   id?: string;
   gateway: string;
   merchantId: string;
+  clientId?: string;
+  clientSecret?: string;
+  clientSecretSet?: boolean;
+  clientVersion?: number;
   saltKey: string;
   saltKeySet?: boolean;
   saltIndex: number;
@@ -55,9 +59,13 @@ export default function SettingsPage() {
   const { user } = useAuthStore();
   const activeSocietyId = user?.activeSocietyId || user?.societyId || '';
   const [showSaltKey, setShowSaltKey] = useState(false);
+  const [showClientSecret, setShowClientSecret] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [form, setForm] = useState({
     merchantId: '',
+    clientId: '',
+    clientSecret: '',
+    clientVersion: '1',
     saltKey: '',
     saltIndex: '1',
     environment: 'UAT',
@@ -94,6 +102,9 @@ export default function SettingsPage() {
     if (data?.config) {
       setForm({
         merchantId: data.config.merchantId || '',
+        clientId: data.config.clientId || '',
+        clientSecret: '',
+        clientVersion: String(data.config.clientVersion || 1),
         saltKey: data.exists ? '' : '', // Don't pre-fill masked key
         saltIndex: String(data.config.saltIndex || 1),
         environment: data.config.environment || 'UAT',
@@ -163,11 +174,18 @@ export default function SettingsPage() {
   const handleSave = () => {
     if (!form.merchantId.trim()) return toast.error('Merchant ID is required');
     if (!form.saltKey.trim() && !data?.exists) return toast.error('Salt Key is required');
+    if ((form.clientId.trim() && !form.clientSecret.trim() && !cfg?.clientSecretSet) || (!form.clientId.trim() && form.clientSecret.trim())) {
+      return toast.error('Client ID and Client Secret must be provided together');
+    }
     const parsedSaltIndex = parseInt(form.saltIndex, 10);
     if (!Number.isFinite(parsedSaltIndex) || parsedSaltIndex < 1) return toast.error('Salt Index must be 1 or greater');
+    const parsedClientVersion = parseInt(form.clientVersion, 10);
+    if (!Number.isFinite(parsedClientVersion) || parsedClientVersion < 1) return toast.error('Client Version must be 1 or greater');
 
     const payload: any = {
       merchantId: form.merchantId,
+      clientId: form.clientId.trim(),
+      clientVersion: parsedClientVersion,
       saltIndex: parsedSaltIndex,
       environment: form.environment,
       redirectUrl: form.redirectUrl,
@@ -177,6 +195,9 @@ export default function SettingsPage() {
     // Keep existing stored salt key when editing and input is left blank.
     if (form.saltKey.trim()) {
       payload.saltKey = form.saltKey.trim();
+    }
+    if (form.clientSecret.trim()) {
+      payload.clientSecret = form.clientSecret.trim();
     }
 
     saveMutation.mutate(payload);
@@ -444,7 +465,7 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Merchant ID & Salt Key */}
+          {/* Merchant and SDK credentials */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="label">Merchant ID <span className="text-error">*</span></label>
@@ -455,6 +476,16 @@ export default function SettingsPage() {
                 placeholder="e.g., MERCHANTUAT"
               />
               <p className="text-xs text-outline mt-1">From your PhonePe merchant dashboard</p>
+            </div>
+            <div>
+              <label className="label">Client ID</label>
+              <input
+                className="input"
+                value={form.clientId}
+                onChange={(e) => handleChange('clientId', e.target.value)}
+                placeholder="Required for Android SDK auth token flow"
+              />
+              <p className="text-xs text-outline mt-1">Required for PhonePe Android SDK based checkout</p>
             </div>
             <div>
               <label className="label">Salt Key <span className="text-error">*</span></label>
@@ -480,18 +511,55 @@ export default function SettingsPage() {
                 </p>
               )}
             </div>
+            <div>
+              <label className="label">Client Secret</label>
+              <div className="relative">
+                <input
+                  className="input pr-10"
+                  type={showClientSecret ? 'text' : 'password'}
+                  value={form.clientSecret}
+                  onChange={(e) => handleChange('clientSecret', e.target.value)}
+                  placeholder={cfg?.clientSecretSet ? 'Leave blank to keep existing client secret' : 'Your PhonePe client secret'}
+                />
+                <button
+                  type="button"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 p-2 text-outline hover:text-on-surface-variant touch-manipulation"
+                  onClick={() => setShowClientSecret(!showClientSecret)}
+                >
+                  {showClientSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {cfg?.clientSecretSet && (
+                <p className="text-xs text-warning mt-1">
+                  Current client secret is already saved. Leave this blank to keep it, or enter a new value to rotate it.
+                </p>
+              )}
+            </div>
           </div>
 
-          <div>
-            <label className="label">Salt Index</label>
-            <input
-              className="input w-full sm:w-32"
-              type="number"
-              value={form.saltIndex}
-              onChange={(e) => handleChange('saltIndex', e.target.value)}
-              min={1}
-            />
-            <p className="text-xs text-outline mt-1">Usually 1 (check your PhonePe dashboard)</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Salt Index</label>
+              <input
+                className="input w-full sm:w-32"
+                type="number"
+                value={form.saltIndex}
+                onChange={(e) => handleChange('saltIndex', e.target.value)}
+                min={1}
+              />
+              <p className="text-xs text-outline mt-1">Usually 1 (check your PhonePe dashboard)</p>
+            </div>
+            <div>
+              <label className="label">Client Version</label>
+              <input
+                className="input w-full sm:w-32"
+                type="number"
+                value={form.clientVersion}
+                onChange={(e) => handleChange('clientVersion', e.target.value)}
+                min={1}
+              />
+              <p className="text-xs text-outline mt-1">Usually 1 unless PhonePe has assigned a different version</p>
+            </div>
           </div>
 
           {/* URLs (collapsible advanced) */}
@@ -644,12 +712,12 @@ export default function SettingsPage() {
           <li>Sign up on <a href="https://www.phonepe.com/business" target="_blank" rel="noopener noreferrer" className="underline font-medium">PhonePe Business</a></li>
           <li>Complete KYC and business verification</li>
           <li>Navigate to <strong>Developer Settings → API Keys</strong></li>
-          <li>Copy your <strong>Merchant ID</strong> and <strong>Salt Key</strong></li>
+          <li>Copy your <strong>Merchant ID</strong>, <strong>Salt Key</strong>, <strong>Client ID</strong>, and <strong>Client Secret</strong></li>
           <li>For testing, use the UAT sandbox credentials provided by PhonePe</li>
         </ol>
         <div className="mt-3 p-3 bg-white/60 rounded-lg text-xs font-mono text-slate-600">
             <p><strong>Sandbox note:</strong></p>
-            <p>Use the UAT Merchant ID, Salt Key, and Salt Index issued to your own PhonePe merchant account.</p>
+            <p>Use the UAT Merchant ID, Salt Key, Salt Index, Client ID, and Client Secret issued to your own PhonePe merchant account.</p>
             <p>Do not rely on shared sample credentials because they may be expired, disabled, or rate-limited.</p>
         </div>
       </div>

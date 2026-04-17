@@ -96,6 +96,12 @@ function getDefaultRedirectUrl() {
   return `${process.env.CLIENT_URL || 'http://localhost:5173'}/billing?payment=done`;
 }
 
+function getPhonePeAuthBaseUrl(environment: string) {
+  return environment === 'PRODUCTION'
+    ? 'https://api.phonepe.com/apis/identity-manager'
+    : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
+}
+
 function resolveSettingsSocietyId(req: AuthRequest, providedSocietyId?: string) {
   if (req.user?.role === 'SUPER_ADMIN') {
     return providedSocietyId || req.user.societyId || null;
@@ -288,6 +294,9 @@ router.get('/payment-gateway', async (req: AuthRequest, res: Response) => {
         config: {
           gateway: 'PHONEPE',
           merchantId: '',
+          clientId: '',
+          clientSecret: '',
+          clientVersion: 1,
           saltKey: '',
           saltIndex: 1,
           environment: 'UAT',
@@ -304,6 +313,8 @@ router.get('/payment-gateway', async (req: AuthRequest, res: Response) => {
       ...config,
       saltKey: config.saltKey ? `${'•'.repeat(Math.max(0, config.saltKey.length - 4))}${config.saltKey.slice(-4)}` : '',
       saltKeySet: !!config.saltKey,
+      clientSecret: config.clientSecret ? `${'•'.repeat(Math.max(0, config.clientSecret.length - 4))}${config.clientSecret.slice(-4)}` : '',
+      clientSecretSet: !!config.clientSecret,
     };
 
     return res.json({ exists: true, config: masked });
@@ -318,6 +329,9 @@ router.post(
   '/payment-gateway',
   [
     body('merchantId').isString().notEmpty().withMessage('Merchant ID is required'),
+    body('clientId').optional({ values: 'falsy' }).isString(),
+    body('clientSecret').optional({ values: 'falsy' }).isString(),
+    body('clientVersion').optional().isInt({ min: 1 }),
     body('saltKey').optional({ values: 'falsy' }).isString(),
     body('saltIndex').optional().isInt({ min: 1 }),
     body('environment').isIn(['UAT', 'PRODUCTION']).withMessage('Environment must be UAT or PRODUCTION'),
@@ -332,7 +346,7 @@ router.post(
         : req.user!.societyId;
       if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
-      const { merchantId, saltKey, saltIndex, environment, redirectUrl, callbackUrl } = req.body;
+      const { merchantId, clientId, clientSecret, clientVersion, saltKey, saltIndex, environment, redirectUrl, callbackUrl } = req.body;
       const requestOrigin = getRequestOrigin(req);
 
       const existing = await prisma.paymentGatewayConfig.findUnique({
@@ -344,6 +358,12 @@ router.post(
         return res.status(400).json({ error: 'Salt Key is required' });
       }
 
+      const normalizedClientId = typeof clientId === 'string' ? clientId.trim() : '';
+      const normalizedClientSecret = typeof clientSecret === 'string' ? clientSecret.trim() : '';
+      if ((normalizedClientId && !normalizedClientSecret && !existing?.clientSecret) || (!normalizedClientId && normalizedClientSecret)) {
+        return res.status(400).json({ error: 'Client ID and Client Secret must be provided together' });
+      }
+
       // Determine base URL from environment
       const baseUrl =
         environment === 'PRODUCTION'
@@ -352,12 +372,17 @@ router.post(
 
       const resolvedCallbackUrl = callbackUrl || (requestOrigin ? `${requestOrigin}/api/payments/phonepe/callback` : '');
       const resolvedSaltKey = saltKey || existing?.saltKey || '';
+      const resolvedClientId = normalizedClientId || existing?.clientId || '';
+      const resolvedClientSecret = normalizedClientSecret || existing?.clientSecret || '';
 
       const config = await prisma.paymentGatewayConfig.upsert({
         where: { societyId_gateway: { societyId, gateway: 'PHONEPE' } },
         update: {
           gateway: 'PHONEPE',
           merchantId,
+          clientId: resolvedClientId || null,
+          clientSecret: resolvedClientSecret || null,
+          clientVersion: Number(clientVersion) > 0 ? Number(clientVersion) : existing?.clientVersion || 1,
           saltKey: resolvedSaltKey,
           saltIndex: saltIndex || 1,
           environment,
@@ -370,6 +395,9 @@ router.post(
           societyId,
           gateway: 'PHONEPE',
           merchantId,
+          clientId: resolvedClientId || null,
+          clientSecret: resolvedClientSecret || null,
+          clientVersion: Number(clientVersion) > 0 ? Number(clientVersion) : 1,
           saltKey: resolvedSaltKey,
           saltIndex: saltIndex || 1,
           environment,
@@ -391,6 +419,8 @@ router.post(
           ...config,
           saltKey: `${'•'.repeat(Math.max(0, config.saltKey.length - 4))}${config.saltKey.slice(-4)}`,
           saltKeySet: !!config.saltKey,
+          clientSecret: config.clientSecret ? `${'•'.repeat(Math.max(0, config.clientSecret.length - 4))}${config.clientSecret.slice(-4)}` : '',
+          clientSecretSet: !!config.clientSecret,
         },
       });
     } catch (error) {
@@ -441,16 +471,53 @@ router.post('/payment-gateway/test', async (req: AuthRequest, res: Response) => 
       return res.status(404).json({ error: 'No config found. Please save configuration first.' });
     }
 
-    // Build a test payload - use PhonePe's status check API which validates credentials
-    // We check status of a non-existent transaction which proves the credentials are valid
-    // if we get a proper response (even "TRANSACTION_NOT_FOUND") vs auth error
+    const startTime = Date.now();
+
+    if (pgConfig.clientId && pgConfig.clientSecret) {
+      const requestBody = new URLSearchParams({
+        client_id: pgConfig.clientId,
+        client_version: String(pgConfig.clientVersion || 1),
+        client_secret: pgConfig.clientSecret,
+        grant_type: 'client_credentials',
+      });
+
+      const response = await fetch(`${getPhonePeAuthBaseUrl(pgConfig.environment)}/v1/oauth/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: requestBody.toString(),
+      });
+
+      const responseTime = Date.now() - startTime;
+      const responseData = await response.json() as { access_token?: string; token_type?: string; message?: string; error?: string };
+      const isCredentialsValid = response.ok && !!responseData.access_token;
+
+      await prisma.paymentGatewayConfig.update({
+        where: { id: pgConfig.id },
+        data: { lastTestedAt: new Date(), lastTestOk: isCredentialsValid },
+      });
+
+      return res.json({
+        success: isCredentialsValid,
+        message: isCredentialsValid
+          ? 'SDK auth token generated successfully. Client credentials are valid.'
+          : 'SDK auth token generation failed. Check Client ID and Client Secret.',
+        details: {
+          code: responseData.error || responseData.token_type || '',
+          httpStatus: response.status,
+          responseTime: `${responseTime}ms`,
+          environment: pgConfig.environment,
+          baseUrl: getPhonePeAuthBaseUrl(pgConfig.environment),
+          phonePeMessage: responseData.message || '',
+        },
+      });
+    }
+
+    // Fallback for legacy redirect credentials when SDK client credentials are not configured.
     const testMerchantTransId = `TEST_${Date.now()}`;
     const endpoint = `/pg/v1/status/${pgConfig.merchantId}/${testMerchantTransId}`;
     const data = '' + endpoint + pgConfig.saltKey;
     const sha256 = crypto.createHash('sha256').update(data).digest('hex');
     const checksum = `${sha256}###${pgConfig.saltIndex}`;
-
-    const startTime = Date.now();
 
     const response = await fetch(`${pgConfig.baseUrl}${endpoint}`, {
       method: 'GET',
@@ -464,11 +531,6 @@ router.post('/payment-gateway/test', async (req: AuthRequest, res: Response) => 
     const responseTime = Date.now() - startTime;
     const responseData = await response.json() as { code?: string; message?: string };
 
-    // Determine test result
-    // PhonePe returns specific codes:
-    //   - BAD_REQUEST / TRANSACTION_NOT_FOUND = credentials valid (just no txn)
-    //   - AUTHORIZATION_FAILED = invalid credentials
-    //   - INVALID_MERCHANT_ID = wrong merchant ID
     const code = responseData.code || '';
     const isCredentialsValid =
       code === 'TRANSACTION_NOT_FOUND' ||

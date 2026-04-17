@@ -4,6 +4,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import BrandMark from '../../components/ui/BrandMark';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
+import { getApiBaseUrl, isNativePlatform } from '../../lib/platform';
 import { useAuthStore } from '../../store/authStore';
 import type { AuthResponse } from '../../types';
 
@@ -19,10 +20,27 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setLoading(true);
 
+    const normalizedEmail = email.trim().toLowerCase();
+    console.info('[login] submitting admin login', {
+      email: normalizedEmail,
+      apiBaseUrl: getApiBaseUrl(),
+      nativePlatform: isNativePlatform(),
+    });
+
     try {
       const { data } = await api.post<AuthResponse>('/auth/login', { email, password });
 
+      console.info('[login] admin login response received', {
+        email: normalizedEmail,
+        role: data.user.role,
+        societyId: data.user.societyId,
+      });
+
       if (data.user.role !== 'SUPER_ADMIN' && data.user.role !== 'ADMIN') {
+        console.warn('[login] admin portal role rejected', {
+          email: normalizedEmail,
+          role: data.user.role,
+        });
         toast.error('This portal is only for admin accounts.');
         return;
       }
@@ -32,6 +50,20 @@ export default function AdminLoginPage() {
       navigate('/');
     } catch (error: any) {
       const data = error.response?.data;
+      console.error('[login] admin login failed', {
+        email: normalizedEmail,
+        apiBaseUrl: getApiBaseUrl(),
+        nativePlatform: isNativePlatform(),
+        status: error.response?.status,
+        code: data?.code,
+        error: data?.error,
+        validationErrors: Array.isArray(data?.errors) ? data.errors : undefined,
+        axiosCode: error.code,
+        hasRequest: !!error.request,
+        hasResponse: !!error.response,
+        message: error.message,
+      });
+
       const message =
         data?.error ||
         (Array.isArray(data?.errors) ? data.errors.map((entry: any) => entry.msg).join(', ') : null) ||
