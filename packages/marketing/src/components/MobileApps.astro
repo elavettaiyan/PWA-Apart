@@ -1,0 +1,93 @@
+---
+const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.resilynk.mobile&pcampaignid=web_share';
+const appUrl = 'https://app.dwellhub.in';
+---
+
+<section id="mobile-apps" class="py-24 px-8">
+  <div class="max-w-7xl mx-auto">
+    <div class="mb-20 text-center lg:text-left max-w-2xl">
+      <h2 class="text-4xl font-extrabold text-primary tracking-tight mb-4 font-headline uppercase">Available Everywhere</h2>
+      <p class="text-on-surface-variant font-body">Access Dwell Hub from your phone, tablet, or desktop. Choose the option that works best for you.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <!-- Android App -->
+      <div class="bg-surface-container-lowest p-10 rounded-xl transition-all duration-300 hover:translate-y-[-4px] flex flex-col">
+        <div class="w-12 h-12 bg-primary/5 rounded-xl flex items-center justify-center mb-6">
+          <span class="material-symbols-outlined text-primary text-3xl">android</span>
+        </div>
+        <h3 class="text-xl font-bold text-primary mb-3 font-headline">Android App</h3>
+        <p class="text-on-surface-variant text-sm leading-relaxed font-body mb-8 flex-1">
+          Get the full native experience on your Android phone. Fast, reliable, and built for on-the-go society management with push notifications.
+        </p>
+        <a
+          href={playStoreUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-3 bg-primary text-on-primary px-6 py-3.5 rounded-xl font-headline text-sm tracking-wide font-medium hover:opacity-90 transition-opacity self-start"
+        >
+          <span class="material-symbols-outlined text-xl">play_arrow</span>
+          Get it on Google Play
+        </a>
+      </div>
+
+      <!-- iOS App -->
+      <div class="bg-surface-container-lowest p-10 rounded-xl transition-all duration-300 hover:translate-y-[-4px] flex flex-col relative overflow-hidden">
+        <div class="absolute top-4 right-4 bg-tertiary/10 text-tertiary px-3 py-1 rounded-full text-xs font-bold font-label uppercase tracking-widest">
+          Coming Soon
+        </div>
+        <div class="w-12 h-12 bg-primary/5 rounded-xl flex items-center justify-center mb-6">
+          <span class="material-symbols-outlined text-primary text-3xl">phone_iphone</span>
+        </div>
+        <h3 class="text-xl font-bold text-primary mb-3 font-headline">iOS App</h3>
+        <p class="text-on-surface-variant text-sm leading-relaxed font-body mb-8 flex-1">
+          The iOS app for iPhone and iPad is on the way. In the meantime, use the PWA option below for a smooth mobile experience on Apple devices.
+        </p>
+        <span class="inline-flex items-center gap-3 bg-slate-100 text-slate-400 px-6 py-3.5 rounded-xl font-headline text-sm tracking-wide font-medium self-start cursor-default">
+          <span class="material-symbols-outlined text-xl">hourglass_top</span>
+          App Store — Soon
+        </span>
+      </div>
+
+      <!-- PWA -->
+      <div class="bg-surface-container-lowest p-10 rounded-xl transition-all duration-300 hover:translate-y-[-4px] flex flex-col">
+        <div class="w-12 h-12 bg-primary/5 rounded-xl flex items-center justify-center mb-6">
+          <span class="material-symbols-outlined text-primary text-3xl">devices</span>
+        </div>
+        <h3 class="text-xl font-bold text-primary mb-3 font-headline">PWA — Any Device</h3>
+        <p class="text-on-surface-variant text-sm leading-relaxed font-body mb-6 flex-1">
+          Install Dwell Hub directly from your browser on any device — no app store needed. Works on Android, iOS, Windows, and macOS.
+        </p>
+
+        <div class="space-y-3 mb-8">
+          <div class="flex items-start gap-3">
+            <span class="flex-shrink-0 w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center text-xs font-bold text-primary font-headline">1</span>
+            <p class="text-sm text-on-surface-variant font-body">Open <a href={appUrl} target="_blank" rel="noopener noreferrer" class="text-primary font-semibold hover:underline">app.dwellhub.in</a> in your browser</p>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="flex-shrink-0 w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center text-xs font-bold text-primary font-headline">2</span>
+            <p class="text-sm text-on-surface-variant font-body">Tap <strong class="text-primary">Share</strong> (iOS) or <strong class="text-primary">Menu ⋮</strong> (Android/Desktop)</p>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="flex-shrink-0 w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center text-xs font-bold text-primary font-headline">3</span>
+            <p class="text-sm text-on-surface-variant font-body">Select <strong class="text-primary">"Add to Home Screen"</strong></p>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="flex-shrink-0 w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center text-xs font-bold text-primary font-headline">4</span>
+            <p class="text-sm text-on-surface-variant font-body">Launch from your home screen — just like a native app</p>
+          </div>
+        </div>
+
+        <a
+          href={appUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-3 bg-primary text-on-primary px-6 py-3.5 rounded-xl font-headline text-sm tracking-wide font-medium hover:opacity-90 transition-opacity self-start"
+        >
+          <span class="material-symbols-outlined text-xl">open_in_browser</span>
+          Open Dwell Hub
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
