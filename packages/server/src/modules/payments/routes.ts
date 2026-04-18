@@ -402,11 +402,14 @@ router.post(
 
       // Get PhonePe config from DB or env
       const pgConfig = await getPhonePeConfig(req.user!.societyId ?? null);
-      if (!pgConfig.merchantId || !pgConfig.saltKey) {
-        return res.status(400).json({ error: 'PhonePe is not configured. Ask your admin to set up payment gateway.' });
+      if (!pgConfig.merchantId) {
+        return res.status(400).json({ error: 'PhonePe Merchant ID is not configured. Ask your admin to update payment gateway settings.' });
       }
       if (nativeSdk && (!pgConfig.clientId || !pgConfig.clientSecret)) {
         return res.status(400).json({ error: 'PhonePe Android SDK credentials are not configured. Add Client ID and Client Secret in settings.' });
+      }
+      if (!nativeSdk && !pgConfig.saltKey) {
+        return res.status(400).json({ error: 'PhonePe Salt Key is not configured for web redirect payments. Add it in settings or use the Android SDK flow.' });
       }
 
       // Create payment record
@@ -590,11 +593,14 @@ router.post(
       const totalAmount = payableBills.reduce((sum, row) => sum + row.dueAmount, 0);
 
       const pgConfig = await getPhonePeConfig(req.user!.societyId ?? targetSocietyId ?? null);
-      if (!pgConfig.merchantId || !pgConfig.saltKey) {
-        return res.status(400).json({ error: 'PhonePe is not configured. Ask your admin to set up payment gateway.' });
+      if (!pgConfig.merchantId) {
+        return res.status(400).json({ error: 'PhonePe Merchant ID is not configured. Ask your admin to update payment gateway settings.' });
       }
       if (nativeSdk && (!pgConfig.clientId || !pgConfig.clientSecret)) {
         return res.status(400).json({ error: 'PhonePe Android SDK credentials are not configured. Add Client ID and Client Secret in settings.' });
+      }
+      if (!nativeSdk && !pgConfig.saltKey) {
+        return res.status(400).json({ error: 'PhonePe Salt Key is not configured for web redirect payments. Add it in settings or use the Android SDK flow.' });
       }
 
       const paymentNotes = nativeSdk ? withSdkMarker(bulkReference) : bulkReference;

@@ -353,11 +353,6 @@ router.post(
         where: { societyId_gateway: { societyId, gateway: 'PHONEPE' } },
       });
 
-      // Salt key must be provided on first-time setup, but can be omitted on updates.
-      if (!existing && !saltKey) {
-        return res.status(400).json({ error: 'Salt Key is required' });
-      }
-
       const normalizedClientId = typeof clientId === 'string' ? clientId.trim() : '';
       const normalizedClientSecret = typeof clientSecret === 'string' ? clientSecret.trim() : '';
       if ((normalizedClientId && !normalizedClientSecret && !existing?.clientSecret) || (!normalizedClientId && normalizedClientSecret)) {
@@ -508,6 +503,17 @@ router.post('/payment-gateway/test', async (req: AuthRequest, res: Response) => 
           environment: pgConfig.environment,
           baseUrl: getPhonePeAuthBaseUrl(pgConfig.environment),
           phonePeMessage: responseData.message || '',
+        },
+      });
+    }
+
+    if (!pgConfig.merchantId || !pgConfig.saltKey) {
+      return res.json({
+        success: false,
+        message: 'Salt Key is optional for Android SDK, but required when testing legacy web redirect payments.',
+        details: {
+          environment: pgConfig.environment,
+          baseUrl: pgConfig.baseUrl,
         },
       });
     }
