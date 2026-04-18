@@ -13,14 +13,42 @@ import { notifyPaymentSuccess } from '../notifications/service';
 
 const router = Router();
 const BULK_REF_PREFIX = 'BULK:'; // Prefix in payment.notes to link bulk payments without merchantTransId on each record
+const PHONEPE_SDK_MARKER = '|SDK';
+const SINGLE_PHONEPE_SDK_NOTE = `PHONEPE${PHONEPE_SDK_MARKER}`;
+const phonePeAuthTokenCache = new Map<string, { accessToken: string; expiresAt: number }>();
 
 
 function bulkRef(merchantTransId: string) {
   return `${BULK_REF_PREFIX}${merchantTransId}`;
 }
 
+function withSdkMarker(note: string) {
+  return `${note}${PHONEPE_SDK_MARKER}`;
+}
+
 function isBulkPayment(notes?: string | null) {
   return typeof notes === 'string' && notes.startsWith(BULK_REF_PREFIX);
+}
+
+function isPhonePeSdkFlow(notes?: string | null) {
+  return typeof notes === 'string' && (notes === SINGLE_PHONEPE_SDK_NOTE || notes.endsWith(PHONEPE_SDK_MARKER));
+}
+
+function getBulkPaymentNotes(merchantTransId: string) {
+  const reference = bulkRef(merchantTransId);
+  return [reference, withSdkMarker(reference)];
+}
+
+function getPhonePeSdkBaseUrl(environment: string) {
+  return environment === 'PRODUCTION'
+    ? 'https://api.phonepe.com/apis/pg'
+    : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
+}
+
+function getPhonePeAuthBaseUrl(environment: string) {
+  return environment === 'PRODUCTION'
+    ? 'https://api.phonepe.com/apis/identity-manager'
+    : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
 }
 
 // Helper: get PhonePe config from DB for a society, fallback to env
@@ -32,8 +60,12 @@ async function getPhonePeConfig(societyId: string | null) {
     if (dbConfig && dbConfig.isActive) {
       return {
         merchantId: dbConfig.merchantId,
+        clientId: dbConfig.clientId,
+        clientSecret: dbConfig.clientSecret,
+        clientVersion: dbConfig.clientVersion,
         saltKey: dbConfig.saltKey,
         saltIndex: dbConfig.saltIndex,
+        environment: dbConfig.environment,
         baseUrl: dbConfig.baseUrl,
         redirectUrl: dbConfig.redirectUrl,
         callbackUrl: dbConfig.callbackUrl,
@@ -44,13 +76,101 @@ async function getPhonePeConfig(societyId: string | null) {
   // Fallback to env config
   return {
     merchantId: config.phonepe.merchantId,
+    clientId: config.phonepe.clientId,
+    clientSecret: config.phonepe.clientSecret,
+    clientVersion: config.phonepe.clientVersion,
     saltKey: config.phonepe.saltKey,
     saltIndex: config.phonepe.saltIndex,
+    environment: config.phonepe.env,
     baseUrl: config.phonepe.baseUrl,
     redirectUrl: config.phonepe.redirectUrl,
     callbackUrl: config.phonepe.callbackUrl,
     source: 'environment' as const,
   };
+}
+
+async function getPhonePeAuthToken(pgConfig: Awaited<ReturnType<typeof getPhonePeConfig>>) {
+  if (!pgConfig.clientId || !pgConfig.clientSecret) {
+    throw new Error('PhonePe SDK client credentials are not configured');
+  }
+
+  const cacheKey = `${pgConfig.environment}:${pgConfig.clientId}:${pgConfig.merchantId}`;
+  const cached = phonePeAuthTokenCache.get(cacheKey);
+  const now = Math.floor(Date.now() / 1000);
+  if (cached && cached.expiresAt - 60 > now) {
+    return cached.accessToken;
+  }
+
+  const requestBody = new URLSearchParams({
+    client_id: pgConfig.clientId,
+    client_version: String(pgConfig.clientVersion || 1),
+    client_secret: pgConfig.clientSecret,
+    grant_type: 'client_credentials',
+  });
+
+  const response = await fetch(`${getPhonePeAuthBaseUrl(pgConfig.environment)}/v1/oauth/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: requestBody.toString(),
+  });
+
+  const data = await response.json() as { access_token?: string; expires_at?: number; message?: string; error?: string };
+  if (!response.ok || !data.access_token) {
+    throw new Error(data.message || data.error || 'Failed to generate PhonePe auth token');
+  }
+
+  phonePeAuthTokenCache.set(cacheKey, {
+    accessToken: data.access_token,
+    expiresAt: data.expires_at || now + 300,
+  });
+
+  return data.access_token;
+}
+
+async function createPhonePeSdkOrder(
+  pgConfig: Awaited<ReturnType<typeof getPhonePeConfig>>,
+  payload: Record<string, unknown>,
+) {
+  const authToken = await getPhonePeAuthToken(pgConfig);
+  const response = await fetch(`${getPhonePeSdkBaseUrl(pgConfig.environment)}/checkout/v2/sdk/order`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `O-Bearer ${authToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json() as { orderId?: string; token?: string; message?: string; code?: string };
+  if (!response.ok || !data.orderId || !data.token) {
+    throw new Error(data.message || data.code || 'Failed to create PhonePe SDK order');
+  }
+
+  return data;
+}
+
+async function fetchPhonePeSdkOrderStatus(
+  pgConfig: Awaited<ReturnType<typeof getPhonePeConfig>>,
+  merchantOrderId: string,
+) {
+  const authToken = await getPhonePeAuthToken(pgConfig);
+  const response = await fetch(
+    `${getPhonePeSdkBaseUrl(pgConfig.environment)}/checkout/v2/order/${merchantOrderId}/status?details=false&errorContext=true`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `O-Bearer ${authToken}`,
+      },
+    },
+  );
+
+  return response.json() as Promise<{
+    state?: 'PENDING' | 'FAILED' | 'COMPLETED';
+    paymentDetails?: Array<{ transactionId?: string; state?: string }>;
+    message?: string;
+    code?: string;
+  }>;
 }
 
 async function markPaymentSuccess(paymentId: string, transactionId: string | undefined, phonepePayload: unknown) {
@@ -117,14 +237,14 @@ async function getUserFlatIds(userId: string, societyId: string | null) {
 }
 
 async function markBulkPaymentsSuccess(merchantTransId: string, transactionId: string | undefined, phonepePayload: unknown) {
-  const reference = bulkRef(merchantTransId);
+  const references = getBulkPaymentNotes(merchantTransId);
 
   return prisma.$transaction(async (tx) => {
     const linkedPayments = await tx.payment.findMany({
       where: {
         OR: [
           { merchantTransId },
-          { notes: reference },
+          { notes: { in: references } },
         ],
       },
       include: { bill: true },
@@ -138,16 +258,8 @@ async function markBulkPaymentsSuccess(merchantTransId: string, transactionId: s
     const processedPaymentIds: string[] = [];
 
     for (const payment of linkedPayments) {
-      if (payment.status === 'SUCCESS') continue;
-
-      const { newPaidAmount, newStatus } = calculateBillPaymentUpdate(
-        payment.bill.paidAmount,
-        payment.bill.totalAmount,
-        payment.amount,
-      );
-
-      await tx.payment.update({
-        where: { id: payment.id },
+      const updatedPayment = await tx.payment.updateMany({
+        where: { id: payment.id, status: { not: 'SUCCESS' } },
         data: {
           status: 'SUCCESS',
           transactionId: payment.merchantTransId === merchantTransId ? transactionId : undefined,
@@ -156,9 +268,23 @@ async function markBulkPaymentsSuccess(merchantTransId: string, transactionId: s
         },
       });
 
-      await tx.maintenanceBill.update({
+      if (updatedPayment.count === 0) {
+        continue;
+      }
+
+      const updatedBill = await tx.maintenanceBill.update({
         where: { id: payment.bill.id },
-        data: { paidAmount: newPaidAmount, status: newStatus },
+        data: {
+          paidAmount: { increment: payment.amount },
+        },
+        select: { id: true, paidAmount: true, totalAmount: true },
+      });
+
+      const newStatus = updatedBill.paidAmount >= updatedBill.totalAmount ? 'PAID' : 'PARTIAL';
+
+      await tx.maintenanceBill.update({
+        where: { id: updatedBill.id },
+        data: { status: newStatus },
       });
 
       processedCount++;
@@ -170,14 +296,14 @@ async function markBulkPaymentsSuccess(merchantTransId: string, transactionId: s
 }
 
 async function markBulkPaymentsFailed(merchantTransId: string, phonepePayload: unknown) {
-  const reference = bulkRef(merchantTransId);
+  const references = getBulkPaymentNotes(merchantTransId);
 
   await prisma.payment.updateMany({
     where: {
       status: 'INITIATED',
       OR: [
         { merchantTransId },
-        { notes: reference },
+        { notes: { in: references } },
       ],
     },
     data: {
@@ -252,7 +378,7 @@ async function sendReceiptForPayment(paymentId: string) {
 router.post(
   '/phonepe/initiate',
   authenticate,
-  [body('billId').isUUID()],
+  [body('billId').isUUID(), body('nativeSdk').optional().isBoolean()],
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -278,11 +404,18 @@ router.post(
 
       const amountToPay = bill.totalAmount - bill.paidAmount;
       const merchantTransId = `MT${Date.now()}${uuidv4().slice(0, 8).toUpperCase()}`;
+      const nativeSdk = req.body.nativeSdk === true;
 
       // Get PhonePe config from DB or env
       const pgConfig = await getPhonePeConfig(req.user!.societyId ?? null);
-      if (!pgConfig.merchantId || !pgConfig.saltKey) {
-        return res.status(400).json({ error: 'PhonePe is not configured. Ask your admin to set up payment gateway.' });
+      if (!pgConfig.merchantId) {
+        return res.status(400).json({ error: 'PhonePe Merchant ID is not configured. Ask your admin to update payment gateway settings.' });
+      }
+      if (nativeSdk && (!pgConfig.clientId || !pgConfig.clientSecret)) {
+        return res.status(400).json({ error: 'PhonePe Android SDK credentials are not configured. Add Client ID and Client Secret in settings.' });
+      }
+      if (!nativeSdk && !pgConfig.saltKey) {
+        return res.status(400).json({ error: 'PhonePe Salt Key is not configured for web redirect payments. Add it in settings or use the Android SDK flow.' });
       }
 
       // Create payment record
@@ -293,8 +426,56 @@ router.post(
           method: 'PHONEPE',
           status: 'INITIATED',
           merchantTransId,
+          notes: nativeSdk ? SINGLE_PHONEPE_SDK_NOTE : undefined,
         },
       });
+
+      if (nativeSdk) {
+        try {
+          const sdkOrder = await createPhonePeSdkOrder(pgConfig, {
+            merchantOrderId: merchantTransId,
+            amount: Math.round(amountToPay * 100),
+            expireAfter: 1200,
+            metaInfo: {
+              udf1: payment.id,
+              udf2: bill.id,
+              udf3: req.user!.id,
+              udf4: billSocietyId,
+            },
+            paymentFlow: {
+              type: 'PG_CHECKOUT',
+            },
+          });
+
+          await prisma.payment.update({
+            where: { id: payment.id },
+            data: { phonepeResponse: JSON.stringify(sdkOrder) },
+          });
+
+          return res.json({
+            success: true,
+            paymentId: payment.id,
+            merchantTransId,
+            nativeSdk: true,
+            orderId: sdkOrder.orderId,
+            token: sdkOrder.token,
+            sdkContext: {
+              merchantId: pgConfig.merchantId,
+              environment: pgConfig.environment,
+            },
+          });
+        } catch (error: any) {
+          await prisma.payment.update({
+            where: { id: payment.id },
+            data: { status: 'FAILED', phonepeResponse: JSON.stringify({ error: error.message }) },
+          });
+
+          logger.error('PhonePe SDK initiation failed:', error);
+          return res.status(400).json({
+            error: error.message || 'Payment initiation failed',
+          });
+        }
+      }
 
       // PhonePe Standard Checkout Payload
       const payload = {
@@ -359,7 +540,10 @@ router.post(
 router.post(
   '/phonepe/initiate-bulk',
   authenticate,
-  [body('billIds').isArray({ min: 2 }).withMessage('At least two bills are required for bulk payment')],
+  [
+    body('billIds').isArray({ min: 2 }).withMessage('At least two bills are required for bulk payment'),
+    body('nativeSdk').optional().isBoolean(),
+  ],
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -411,12 +595,21 @@ router.post(
 
       const merchantTransId = `MTB${Date.now()}${uuidv4().slice(0, 8).toUpperCase()}`;
       const bulkReference = bulkRef(merchantTransId);
+      const nativeSdk = req.body.nativeSdk === true;
       const totalAmount = payableBills.reduce((sum, row) => sum + row.dueAmount, 0);
 
       const pgConfig = await getPhonePeConfig(req.user!.societyId ?? targetSocietyId ?? null);
-      if (!pgConfig.merchantId || !pgConfig.saltKey) {
-        return res.status(400).json({ error: 'PhonePe is not configured. Ask your admin to set up payment gateway.' });
+      if (!pgConfig.merchantId) {
+        return res.status(400).json({ error: 'PhonePe Merchant ID is not configured. Ask your admin to update payment gateway settings.' });
       }
+      if (nativeSdk && (!pgConfig.clientId || !pgConfig.clientSecret)) {
+        return res.status(400).json({ error: 'PhonePe Android SDK credentials are not configured. Add Client ID and Client Secret in settings.' });
+      }
+      if (!nativeSdk && !pgConfig.saltKey) {
+        return res.status(400).json({ error: 'PhonePe Salt Key is not configured for web redirect payments. Add it in settings or use the Android SDK flow.' });
+      }
+
+      const paymentNotes = nativeSdk ? withSdkMarker(bulkReference) : bulkReference;
 
       await prisma.$transaction(async (tx) => {
         for (let index = 0; index < payableBills.length; index++) {
@@ -428,11 +621,48 @@ router.post(
               method: 'PHONEPE',
               status: 'INITIATED',
               merchantTransId: index === 0 ? merchantTransId : null,
-              notes: bulkReference,
+              notes: paymentNotes,
             },
           });
         }
       });
+
+      if (nativeSdk) {
+        try {
+          const sdkOrder = await createPhonePeSdkOrder(pgConfig, {
+            merchantOrderId: merchantTransId,
+            amount: Math.round(totalAmount * 100),
+            expireAfter: 1200,
+            metaInfo: {
+              udf1: merchantTransId,
+              udf2: String(payableBills.length),
+              udf3: req.user!.id,
+              udf4: targetSocietyId,
+            },
+            paymentFlow: {
+              type: 'PG_CHECKOUT',
+            },
+          });
+
+          return res.json({
+            success: true,
+            merchantTransId,
+            billCount: payableBills.length,
+            totalAmount,
+            nativeSdk: true,
+            orderId: sdkOrder.orderId,
+            token: sdkOrder.token,
+            sdkContext: {
+              merchantId: pgConfig.merchantId,
+              environment: pgConfig.environment,
+            },
+          });
+        } catch (error: any) {
+          await markBulkPaymentsFailed(merchantTransId, { error: error.message });
+          logger.error('PhonePe SDK bulk initiation failed:', error);
+          return res.status(400).json({ error: error.message || 'Bulk payment initiation failed' });
+        }
+      }
 
       const payload = {
         merchantId: pgConfig.merchantId,
@@ -519,10 +749,15 @@ router.post('/phonepe/callback', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Payment not found' });
     }
 
-    // SECURITY: Verify checksum with the society's PhonePe config
+    // SECURITY: Require a valid callback signature before any payment state change.
     const societyId = payment.bill?.flat?.block?.societyId;
     const pgConfig = await getPhonePeConfig(societyId ?? null);
-    if (receivedChecksum && !verifyCallbackChecksum(response, receivedChecksum, pgConfig.saltKey, pgConfig.saltIndex)) {
+    if (!receivedChecksum) {
+      logger.error('PhonePe callback missing checksum', { merchantTransId });
+      return res.status(400).json({ error: 'Checksum verification failed' });
+    }
+
+    if (!verifyCallbackChecksum(response, receivedChecksum, pgConfig.saltKey, pgConfig.saltIndex)) {
       logger.error('PhonePe callback checksum mismatch', { merchantTransId, received: receivedChecksum });
       return res.status(400).json({ error: 'Checksum verification failed' });
     }
@@ -610,44 +845,89 @@ router.get(
         const societyId = payment.bill?.flat?.block?.societyId || req.user!.societyId;
         const pgConfig = await getPhonePeConfig(societyId ?? null);
 
-        const checksum = generateChecksum(
-          '',
-          `/pg/v1/status/${pgConfig.merchantId}/${merchantTransId}`,
-          pgConfig.saltKey,
-          pgConfig.saltIndex,
-        );
+        if (isPhonePeSdkFlow(payment.notes)) {
+          try {
+            const statusData = await fetchPhonePeSdkOrderStatus(pgConfig, merchantTransId);
 
-        try {
-          const statusResponse = await fetch(
-            `${pgConfig.baseUrl}/pg/v1/status/${pgConfig.merchantId}/${merchantTransId}`,
-            {
-              method: 'GET',
-              headers: { 'X-VERIFY': checksum, 'X-MERCHANT-ID': pgConfig.merchantId },
-            },
+            if (statusData.state === 'COMPLETED') {
+              const transactionId = statusData.paymentDetails?.[0]?.transactionId;
+
+              if (isBulkPayment(payment.notes)) {
+                const result = await markBulkPaymentsSuccess(merchantTransId, transactionId, statusData);
+
+                for (const paymentId of result.processedPaymentIds) {
+                  sendReceiptForPayment(paymentId).catch(() => {});
+                  notifyPaymentSuccess(paymentId).catch(() => {});
+                }
+                return res.json({ ...payment, status: 'SUCCESS', bulkProcessedCount: result.processedCount });
+              }
+
+              const result = await markPaymentSuccess(payment.id, transactionId, statusData);
+              if (!result.alreadyProcessed) {
+                sendReceiptForPayment(payment.id).catch(() => {});
+                notifyPaymentSuccess(payment.id).catch(() => {});
+              }
+              return res.json({ ...payment, status: 'SUCCESS', alreadyProcessed: result.alreadyProcessed });
+            }
+
+            if (statusData.state === 'FAILED') {
+              if (isBulkPayment(payment.notes)) {
+                await markBulkPaymentsFailed(merchantTransId, statusData);
+              } else {
+                await prisma.payment.update({
+                  where: { id: payment.id },
+                  data: {
+                    status: 'FAILED',
+                    phonepeResponse: JSON.stringify(statusData),
+                  },
+                });
+              }
+
+              return res.json({ ...payment, status: 'FAILED' });
+            }
+          } catch (e) {
+            logger.warn('SDK status check to PhonePe failed:', e);
+          }
+        } else {
+          const checksum = generateChecksum(
+            '',
+            `/pg/v1/status/${pgConfig.merchantId}/${merchantTransId}`,
+            pgConfig.saltKey,
+            pgConfig.saltIndex,
           );
 
-          const statusData: any = await statusResponse.json();
+          try {
+            const statusResponse = await fetch(
+              `${pgConfig.baseUrl}/pg/v1/status/${pgConfig.merchantId}/${merchantTransId}`,
+              {
+                method: 'GET',
+                headers: { 'X-VERIFY': checksum, 'X-MERCHANT-ID': pgConfig.merchantId },
+              },
+            );
 
-          if (statusData.code === 'PAYMENT_SUCCESS') {
-            if (isBulkPayment(payment.notes)) {
-              const result = await markBulkPaymentsSuccess(merchantTransId, statusData.data?.transactionId, statusData);
+            const statusData: any = await statusResponse.json();
 
-              for (const paymentId of result.processedPaymentIds) {
-                sendReceiptForPayment(paymentId).catch(() => {});
-                notifyPaymentSuccess(paymentId).catch(() => {});
+            if (statusData.code === 'PAYMENT_SUCCESS') {
+              if (isBulkPayment(payment.notes)) {
+                const result = await markBulkPaymentsSuccess(merchantTransId, statusData.data?.transactionId, statusData);
+
+                for (const paymentId of result.processedPaymentIds) {
+                  sendReceiptForPayment(paymentId).catch(() => {});
+                  notifyPaymentSuccess(paymentId).catch(() => {});
+                }
+                return res.json({ ...payment, status: 'SUCCESS', bulkProcessedCount: result.processedCount });
               }
-              return res.json({ ...payment, status: 'SUCCESS', bulkProcessedCount: result.processedCount });
-            }
 
-            const result = await markPaymentSuccess(payment.id, statusData.data?.transactionId, statusData);
-            if (!result.alreadyProcessed) {
-              sendReceiptForPayment(payment.id).catch(() => {});
-              notifyPaymentSuccess(payment.id).catch(() => {});
+              const result = await markPaymentSuccess(payment.id, statusData.data?.transactionId, statusData);
+              if (!result.alreadyProcessed) {
+                sendReceiptForPayment(payment.id).catch(() => {});
+                notifyPaymentSuccess(payment.id).catch(() => {});
+              }
+              return res.json({ ...payment, status: 'SUCCESS', alreadyProcessed: result.alreadyProcessed });
             }
-            return res.json({ ...payment, status: 'SUCCESS', alreadyProcessed: result.alreadyProcessed });
+          } catch (e) {
+            logger.warn('Status check to PhonePe failed:', e);
           }
-        } catch (e) {
-          logger.warn('Status check to PhonePe failed:', e);
         }
       }
 

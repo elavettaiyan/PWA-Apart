@@ -797,6 +797,9 @@ model PaymentGatewayConfig {
   societyId     String
   gateway       PaymentGateway    @default(PHONEPE)
   merchantId    String
+  clientId      String?
+  clientSecret  String?
+  clientVersion Int               @default(1)
   saltKey       String
   saltIndex     Int               @default(1)
   environment   PaymentGatewayEnv @default(UAT)

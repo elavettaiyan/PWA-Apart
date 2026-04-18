@@ -4,6 +4,10 @@ export function isNativePlatform() {
   return Capacitor.isNativePlatform();
 }
 
+export function isNativeAndroid() {
+  return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+}
+
 export function shouldUseHashRouter() {
   return isNativePlatform();
 }

@@ -22,6 +22,10 @@ interface PhonePeConfig {
   id?: string;
   gateway: string;
   merchantId: string;
+  clientId?: string;
+  clientSecret?: string;
+  clientSecretSet?: boolean;
+  clientVersion?: number;
   saltKey: string;
   saltKeySet?: boolean;
   saltIndex: number;
@@ -55,9 +59,13 @@ export default function SettingsPage() {
   const { user } = useAuthStore();
   const activeSocietyId = user?.activeSocietyId || user?.societyId || '';
   const [showSaltKey, setShowSaltKey] = useState(false);
+  const [showClientSecret, setShowClientSecret] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [form, setForm] = useState({
     merchantId: '',
+    clientId: '',
+    clientSecret: '',
+    clientVersion: '1',
     saltKey: '',
     saltIndex: '1',
     environment: 'UAT',
@@ -94,6 +102,9 @@ export default function SettingsPage() {
     if (data?.config) {
       setForm({
         merchantId: data.config.merchantId || '',
+        clientId: data.config.clientId || '',
+        clientSecret: '',
+        clientVersion: String(data.config.clientVersion || 1),
         saltKey: data.exists ? '' : '', // Don't pre-fill masked key
         saltIndex: String(data.config.saltIndex || 1),
         environment: data.config.environment || 'UAT',
@@ -162,12 +173,18 @@ export default function SettingsPage() {
 
   const handleSave = () => {
     if (!form.merchantId.trim()) return toast.error('Merchant ID is required');
-    if (!form.saltKey.trim() && !data?.exists) return toast.error('Salt Key is required');
+    if ((form.clientId.trim() && !form.clientSecret.trim() && !cfg?.clientSecretSet) || (!form.clientId.trim() && form.clientSecret.trim())) {
+      return toast.error('Client ID and Client Secret must be provided together');
+    }
     const parsedSaltIndex = parseInt(form.saltIndex, 10);
     if (!Number.isFinite(parsedSaltIndex) || parsedSaltIndex < 1) return toast.error('Salt Index must be 1 or greater');
+    const parsedClientVersion = parseInt(form.clientVersion, 10);
+    if (!Number.isFinite(parsedClientVersion) || parsedClientVersion < 1) return toast.error('Client Version must be 1 or greater');
 
     const payload: any = {
       merchantId: form.merchantId,
+      clientId: form.clientId.trim(),
+      clientVersion: parsedClientVersion,
       saltIndex: parsedSaltIndex,
       environment: form.environment,
       redirectUrl: form.redirectUrl,
@@ -177,6 +194,9 @@ export default function SettingsPage() {
     // Keep existing stored salt key when editing and input is left blank.
     if (form.saltKey.trim()) {
       payload.saltKey = form.saltKey.trim();
+    }
+    if (form.clientSecret.trim()) {
+      payload.clientSecret = form.clientSecret.trim();
     }
 
     saveMutation.mutate(payload);
@@ -345,7 +365,7 @@ export default function SettingsPage() {
 
       <SettingsAccordion
         title="Payment Gateway"
-        description="Configure PhonePe, connection testing, and callback URL settings"
+        description="Configure PhonePe Android SDK credentials and optional legacy web redirect fields"
         icon={CreditCard}
         iconWrapperClassName="group-open:bg-rose-100"
         iconClassName="group-open:text-rose-800"
@@ -405,6 +425,13 @@ export default function SettingsPage() {
 
         {/* Form */}
         <div className="space-y-5">
+          <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant">
+            <p className="font-semibold text-on-surface">Required for Android SDK checkout</p>
+            <p className="mt-1">Merchant ID, Client ID, Client Secret, and Client Version.</p>
+            <p className="mt-2 font-semibold text-on-surface">Optional for legacy web redirect</p>
+            <p className="mt-1">Salt Key, Salt Index, Redirect URL, and Callback URL are only needed if you still want PhonePe web redirect payments outside the Android app.</p>
+          </div>
+
           {/* Environment Selector */}
           <div>
             <label className="label">Environment</label>
@@ -444,7 +471,7 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Merchant ID & Salt Key */}
+          {/* Merchant and SDK credentials */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="label">Merchant ID <span className="text-error">*</span></label>
@@ -454,17 +481,27 @@ export default function SettingsPage() {
                 onChange={(e) => handleChange('merchantId', e.target.value)}
                 placeholder="e.g., MERCHANTUAT"
               />
-              <p className="text-xs text-outline mt-1">From your PhonePe merchant dashboard</p>
+              <p className="text-xs text-outline mt-1">Required for Android SDK and legacy web redirect flows</p>
             </div>
             <div>
-              <label className="label">Salt Key <span className="text-error">*</span></label>
+              <label className="label">Client ID <span className="text-error">*</span></label>
+              <input
+                className="input"
+                value={form.clientId}
+                onChange={(e) => handleChange('clientId', e.target.value)}
+                placeholder="Required for Android SDK auth token flow"
+              />
+              <p className="text-xs text-outline mt-1">Required for PhonePe Android SDK auth token flow</p>
+            </div>
+            <div>
+              <label className="label">Salt Key</label>
               <div className="relative">
                 <input
                   className="input pr-10"
                   type={showSaltKey ? 'text' : 'password'}
                   value={form.saltKey}
                   onChange={(e) => handleChange('saltKey', e.target.value)}
-                  placeholder={isConfigured ? 'Leave blank to keep existing key' : 'Your PhonePe salt key'}
+                  placeholder={isConfigured ? 'Leave blank to keep existing key' : 'Optional for legacy web redirect'}
                 />
                 <button
                   type="button"
@@ -479,19 +516,62 @@ export default function SettingsPage() {
                   Current key is already saved. Leave this blank to keep it, or enter a new value to rotate it.
                 </p>
               )}
+              {!cfg?.saltKeySet && (
+                <p className="text-xs text-outline mt-1">Optional. Only needed for non-Android PhonePe redirect payments.</p>
+              )}
+            </div>
+            <div>
+              <label className="label">Client Secret <span className="text-error">*</span></label>
+              <div className="relative">
+                <input
+                  className="input pr-10"
+                  type={showClientSecret ? 'text' : 'password'}
+                  value={form.clientSecret}
+                  onChange={(e) => handleChange('clientSecret', e.target.value)}
+                  placeholder={cfg?.clientSecretSet ? 'Leave blank to keep existing client secret' : 'Your PhonePe client secret'}
+                />
+                <button
+                  type="button"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 p-2 text-outline hover:text-on-surface-variant touch-manipulation"
+                  onClick={() => setShowClientSecret(!showClientSecret)}
+                >
+                  {showClientSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {cfg?.clientSecretSet && (
+                <p className="text-xs text-warning mt-1">
+                  Current client secret is already saved. Leave this blank to keep it, or enter a new value to rotate it.
+                </p>
+              )}
+              {!cfg?.clientSecretSet && (
+                <p className="text-xs text-outline mt-1">Required together with Client ID for Android SDK checkout.</p>
+              )}
             </div>
           </div>
 
-          <div>
-            <label className="label">Salt Index</label>
-            <input
-              className="input w-full sm:w-32"
-              type="number"
-              value={form.saltIndex}
-              onChange={(e) => handleChange('saltIndex', e.target.value)}
-              min={1}
-            />
-            <p className="text-xs text-outline mt-1">Usually 1 (check your PhonePe dashboard)</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Salt Index</label>
+              <input
+                className="input w-full sm:w-32"
+                type="number"
+                value={form.saltIndex}
+                onChange={(e) => handleChange('saltIndex', e.target.value)}
+                min={1}
+              />
+              <p className="text-xs text-outline mt-1">Optional. Used only with Salt Key for legacy web redirect flow.</p>
+            </div>
+            <div>
+              <label className="label">Client Version <span className="text-error">*</span></label>
+              <input
+                className="input w-full sm:w-32"
+                type="number"
+                value={form.clientVersion}
+                onChange={(e) => handleChange('clientVersion', e.target.value)}
+                min={1}
+              />
+              <p className="text-xs text-outline mt-1">Required for SDK auth token generation. Usually 1 unless PhonePe assigned a different version.</p>
+            </div>
           </div>
 
           {/* URLs (collapsible advanced) */}
@@ -509,7 +589,7 @@ export default function SettingsPage() {
                   onChange={(e) => handleChange('redirectUrl', e.target.value)}
                   placeholder="Where users return after payment"
                 />
-                <p className="text-xs text-outline mt-1">User gets redirected here after payment on PhonePe</p>
+                <p className="text-xs text-outline mt-1">Optional. Used only for legacy web redirect payments.</p>
               </div>
               <div>
                 <label className="label">Callback URL (Server-to-Server)</label>
@@ -519,7 +599,7 @@ export default function SettingsPage() {
                   onChange={(e) => handleChange('callbackUrl', e.target.value)}
                   placeholder="Server callback endpoint"
                 />
-                <p className="text-xs text-outline mt-1">PhonePe sends payment status to this URL (must be publicly accessible). Recommended path: /api/payments/phonepe/callback</p>
+                <p className="text-xs text-outline mt-1">Optional for SDK-only Android use. Needed for legacy web redirect callback handling.</p>
               </div>
             </div>
           </details>
@@ -639,17 +719,19 @@ export default function SettingsPage() {
 
       {/* Info Card */}
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-        <h3 className="text-sm font-semibold text-slate-900 mb-2">📘 How to get PhonePe credentials</h3>
+        <h3 className="text-sm font-semibold text-slate-900 mb-2">📘 PhonePe credential guide</h3>
         <ol className="text-sm text-slate-700 space-y-1.5 list-decimal list-inside">
           <li>Sign up on <a href="https://www.phonepe.com/business" target="_blank" rel="noopener noreferrer" className="underline font-medium">PhonePe Business</a></li>
           <li>Complete KYC and business verification</li>
           <li>Navigate to <strong>Developer Settings → API Keys</strong></li>
-          <li>Copy your <strong>Merchant ID</strong> and <strong>Salt Key</strong></li>
+          <li>For Android SDK checkout, copy <strong>Merchant ID</strong>, <strong>Client ID</strong>, <strong>Client Secret</strong>, and <strong>Client Version</strong></li>
+          <li>Copy <strong>Salt Key</strong> and <strong>Salt Index</strong> only if you still want legacy web redirect payments</li>
           <li>For testing, use the UAT sandbox credentials provided by PhonePe</li>
         </ol>
         <div className="mt-3 p-3 bg-white/60 rounded-lg text-xs font-mono text-slate-600">
             <p><strong>Sandbox note:</strong></p>
-            <p>Use the UAT Merchant ID, Salt Key, and Salt Index issued to your own PhonePe merchant account.</p>
+            <p>Use the UAT Merchant ID, Client ID, Client Secret, and Client Version issued to your own PhonePe merchant account for Android SDK checkout.</p>
+            <p>Use Salt Key and Salt Index only when you need legacy web redirect support.</p>
             <p>Do not rely on shared sample credentials because they may be expired, disabled, or rate-limited.</p>
         </div>
       </div>

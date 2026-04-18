@@ -16,6 +16,19 @@ interface AuthState {
   logout: () => void;
 }
 
+function hasCompleteSession(state: Pick<AuthState, 'user' | 'accessToken' | 'refreshToken' | 'isAuthenticated'>) {
+  return Boolean(state.isAuthenticated && state.user && state.accessToken && state.refreshToken);
+}
+
+function getLoggedOutState() {
+  return {
+    user: null,
+    accessToken: null,
+    refreshToken: null,
+    isAuthenticated: false,
+  };
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -26,13 +39,25 @@ export const useAuthStore = create<AuthState>()(
       _hydrated: false,
 
       setAuth: (user, accessToken, refreshToken) =>
-        set({ user, accessToken, refreshToken, isAuthenticated: true }),
+        set({
+          user,
+          accessToken,
+          refreshToken,
+          isAuthenticated: Boolean(user && accessToken && refreshToken),
+        }),
 
       setTokens: (accessToken, refreshToken) =>
-        set({ accessToken, refreshToken }),
+        set((state) => ({
+          accessToken,
+          refreshToken,
+          isAuthenticated: Boolean(state.user && accessToken && refreshToken),
+        })),
 
       setUser: (user) =>
-        set({ user }),
+        set((state) => ({
+          user,
+          isAuthenticated: Boolean(user && state.accessToken && state.refreshToken),
+        })),
 
       setActiveSociety: (societyId) =>
         set((state) => ({
@@ -43,10 +68,11 @@ export const useAuthStore = create<AuthState>()(
                 activeSocietyId: societyId,
               }
             : null,
+          isAuthenticated: Boolean(state.user && state.accessToken && state.refreshToken),
         })),
 
       logout: () =>
-        set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false }),
+        set(getLoggedOutState()),
     }),
     {
       name: 'apart-auth',
@@ -59,6 +85,10 @@ export const useAuthStore = create<AuthState>()(
       }),
       onRehydrateStorage: () => (_, error) => {
         if (!error) {
+          const snapshot = useAuthStore.getState();
+          if (!hasCompleteSession(snapshot)) {
+            useAuthStore.setState(getLoggedOutState());
+          }
           useAuthStore.setState({ _hydrated: true });
         }
       },

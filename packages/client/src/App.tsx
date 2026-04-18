@@ -29,32 +29,36 @@ import { isNativePlatform } from './lib/platform';
 import { SOCIETY_ADMINS, SOCIETY_MANAGERS, FINANCIAL_ROLES } from './types';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user } = useAuthStore();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  const { isAuthenticated, user, accessToken, refreshToken } = useAuthStore();
+  const hasValidSession = Boolean(isAuthenticated && user && accessToken && refreshToken);
+  if (!hasValidSession) return <Navigate to="/login" replace />;
   // Force password change for users with mustChangePassword flag
   if (user?.mustChangePassword) return <Navigate to="/change-password" replace />;
   return <Layout>{children}</Layout>;
 }
 
 function RoleRoute({ children, roles }: { children: React.ReactNode; roles: string[] }) {
-  const { isAuthenticated, user } = useAuthStore();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  const { isAuthenticated, user, accessToken, refreshToken } = useAuthStore();
+  const hasValidSession = Boolean(isAuthenticated && user && accessToken && refreshToken);
+  if (!hasValidSession) return <Navigate to="/login" replace />;
   if (user?.mustChangePassword) return <Navigate to="/change-password" replace />;
   if (!roles.includes(user?.role || '')) return <Navigate to={getDefaultAuthenticatedRoute(user)} replace />;
   return <Layout>{children}</Layout>;
 }
 
 function SecurityServiceStaffRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user } = useAuthStore();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  const { isAuthenticated, user, accessToken, refreshToken } = useAuthStore();
+  const hasValidSession = Boolean(isAuthenticated && user && accessToken && refreshToken);
+  if (!hasValidSession) return <Navigate to="/login" replace />;
   if (user?.mustChangePassword) return <Navigate to="/change-password" replace />;
   if (!isSecurityServiceStaff(user)) return <Navigate to={getDefaultAuthenticatedRoute(user)} replace />;
   return <Layout>{children}</Layout>;
 }
 
 export default function App() {
-  const { isAuthenticated, user, _hydrated } = useAuthStore();
+  const { isAuthenticated, user, accessToken, refreshToken, _hydrated } = useAuthStore();
   const nativePlatform = isNativePlatform();
+  const hasValidSession = Boolean(isAuthenticated && user && accessToken && refreshToken);
 
   // Only gate on _hydrated for native (Android/iOS) where Capacitor Preferences is async.
   // On web, localStorage is synchronous — no hydration wait needed.
@@ -70,32 +74,32 @@ export default function App() {
     <Routes>
         <Route
           path="/login"
-          element={isAuthenticated ? <Navigate to={getPostLoginRoute(user)} replace /> : <LoginPage />}
+          element={hasValidSession ? <Navigate to={getPostLoginRoute(user)} replace /> : <LoginPage />}
         />
         <Route
           path="/admin/login"
-          element={isAuthenticated ? <Navigate to={getPostLoginRoute(user)} replace /> : <AdminLoginPage />}
+          element={hasValidSession ? <Navigate to={getPostLoginRoute(user)} replace /> : <AdminLoginPage />}
         />
         <Route
           path="/register"
           element={
-            isAuthenticated ? <Navigate to={getPostLoginRoute(user)} replace /> :
+            hasValidSession ? <Navigate to={getPostLoginRoute(user)} replace /> :
             nativePlatform ? <Navigate to="/login" replace /> :
             <RegisterPage />
           }
         />
         <Route
           path="/forgot-password"
-          element={isAuthenticated ? <Navigate to={getPostLoginRoute(user)} replace /> : <ForgotPasswordPage />}
+          element={hasValidSession ? <Navigate to={getPostLoginRoute(user)} replace /> : <ForgotPasswordPage />}
         />
         <Route
           path="/reset-password"
-          element={isAuthenticated ? <Navigate to={getPostLoginRoute(user)} replace /> : <ResetPasswordPage />}
+          element={hasValidSession ? <Navigate to={getPostLoginRoute(user)} replace /> : <ResetPasswordPage />}
         />
         <Route
           path="/change-password"
           element={
-            !isAuthenticated ? <Navigate to="/login" replace /> :
+            !hasValidSession ? <Navigate to="/login" replace /> :
             !user?.mustChangePassword ? <Navigate to={getPostLoginRoute(user)} replace /> :
             <ChangePasswordPage />
           }
@@ -103,7 +107,7 @@ export default function App() {
 
         <Route
           path="/select-society"
-          element={!isAuthenticated ? <Navigate to="/login" replace /> : <SelectSocietyPage />}
+          element={!hasValidSession ? <Navigate to="/login" replace /> : <SelectSocietyPage />}
         />
 
         <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />

@@ -355,8 +355,16 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const { email, password } = req.body;
+      const loginContext = {
+        email,
+        ip: req.ip,
+        forwardedFor: req.get('x-forwarded-for'),
+        origin: req.get('origin'),
+        referer: req.get('referer'),
+        userAgent: req.get('user-agent'),
+      };
 
-      logger.info('Login attempt', { email });
+      logger.info('Login attempt', loginContext);
 
       const user = await findUserByEmailInsensitive(prisma, email, {
         include: {
@@ -367,13 +375,17 @@ router.post(
       });
 
       if (!user || !user.isActive) {
-        logger.warn('Login failed: user not found or inactive', { email });
+        logger.warn('Login failed: user not found or inactive', loginContext);
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
       const isValid = await bcrypt.compare(password, user.passwordHash);
       if (!isValid) {
-        logger.warn('Login failed: invalid password', { email });
+        logger.warn('Login failed: invalid password', {
+          ...loginContext,
+          userId: user.id,
+          isActive: user.isActive,
+        });
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
@@ -451,6 +463,12 @@ router.post(
         const lifecycleMessage = buildPremiumLifecycleMessage(lifecycle);
 
         if (lifecycle.stage === 'ARCHIVED') {
+          logger.warn('Login blocked: society archived', {
+            ...loginContext,
+            userId: user.id,
+            role: effectiveRole,
+            societyId: activeSocietyId,
+          });
           return res.status(403).json({
             error: lifecycleMessage || 'This society account has been archived due to long overdue Premium renewal.',
             code: 'SOCIETY_ARCHIVED',
@@ -458,6 +476,13 @@ router.post(
         }
 
         if (shouldBlockPremiumRole(effectiveRole, lifecycle)) {
+          logger.warn('Login blocked: premium role restriction', {
+            ...loginContext,
+            userId: user.id,
+            role: effectiveRole,
+            societyId: activeSocietyId,
+            lifecycleStage: lifecycle.stage,
+          });
           return res.status(403).json({
             error: lifecycleMessage || 'Your role access is temporarily blocked until Premium renewal payment is completed by Admin.',
             code: 'PREMIUM_ROLE_LOGIN_BLOCKED',
@@ -475,6 +500,15 @@ router.post(
         }
       }
 
+      logger.info('Login succeeded', {
+        ...loginContext,
+        userId: user.id,
+        role: effectiveRole,
+        societyId: activeSocietyId,
+        societyCount: societies.length,
+        mustChangePassword: user.mustChangePassword,
+      });
+
       return res.json({
         user: {
           id: user.id,
@@ -491,7 +525,15 @@ router.post(
         ...tokens,
       });
     } catch (error: any) {
-      logger.error('Login failed', { error: error.message, stack: error.stack });
+      logger.error('Login failed', {
+        email: req.body?.email,
+        ip: req.ip,
+        origin: req.get('origin'),
+        referer: req.get('referer'),
+        userAgent: req.get('user-agent'),
+        error: error.message,
+        stack: error.stack,
+      });
       return res.status(500).json({ error: 'Login failed' });
     }
   },

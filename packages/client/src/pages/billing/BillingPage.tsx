@@ -7,6 +7,8 @@ import api from '../../lib/api';
 import { formatCurrency, getStatusColor, getMonthName, cn } from '../../lib/utils';
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
+import { initPhonePeSdk, startPhonePeCheckout } from '../../lib/phonePeNative';
+import { isNativeAndroid } from '../../lib/platform';
 import { useAuthStore } from '../../store/authStore';
 import type { BillingGenerationResult, MaintenanceBill, MaintenanceConfigSummary } from '../../types';
 
@@ -182,6 +184,130 @@ export default function BillingPage() {
 
   const txnId = searchParams.get('txnId');
 
+  const confirmPhonePeStatus = async (paymentRef: string, updateUrl: boolean) => {
+    const maxAttempts = 6;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const { data } = await api.get(`/payments/status/${paymentRef}`);
+        const status = data?.status;
+
+        if (status === 'SUCCESS') {
+          toast.success('Payment successful. Bill status updated.');
+          queryClient.invalidateQueries({ queryKey: billsBaseKey });
+
+          if (updateUrl) {
+            const nextParams = new URLSearchParams(window.location.search);
+            nextParams.delete('txnId');
+            nextParams.set('payment', 'success');
+            setSearchParams(nextParams, { replace: true });
+          }
+
+          return 'SUCCESS';
+        }
+
+        if (status === 'FAILED') {
+          toast.error('Payment failed. Please try again.');
+
+          if (updateUrl) {
+            const nextParams = new URLSearchParams(window.location.search);
+            nextParams.delete('txnId');
+            nextParams.set('payment', 'failed');
+            setSearchParams(nextParams, { replace: true });
+          }
+
+          return 'FAILED';
+        }
+      } catch (error: any) {
+        if (attempt === maxAttempts) {
+          toast.error(error.response?.data?.error || 'Unable to confirm payment status right now');
+        }
+      }
+
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+    }
+
+    return 'PENDING';
+  };
+
+  const handleNativePhonePeCheckout = async (payload: any) => {
+    const merchantId = payload?.sdkContext?.merchantId;
+    const environment = payload?.sdkContext?.environment === 'PRODUCTION' ? 'RELEASE' : 'SANDBOX';
+
+    if (!merchantId || !payload?.orderId || !payload?.token || !payload?.merchantTransId) {
+      toast.error('PhonePe SDK order details are incomplete');
+      return;
+    }
+
+    await initPhonePeSdk({
+      merchantId,
+      flowId: payload.merchantTransId,
+      environment,
+      enableLogging: environment !== 'RELEASE',
+      appId: null,
+    });
+
+    await startPhonePeCheckout({
+      orderId: payload.orderId,
+      token: payload.token,
+    });
+
+    await confirmPhonePeStatus(payload.merchantTransId, false);
+  };
+
+  const handlePhonePePay = async (billId: string) => {
+    try {
+      const { data } = await api.post('/payments/phonepe/initiate', {
+        billId,
+        nativeSdk: isNativeAndroid(),
+      });
+
+      if (data?.nativeSdk) {
+        await handleNativePhonePeCheckout(data);
+        return;
+      }
+
+      if (data?.redirectUrl) {
+        window.location.href = data.redirectUrl;
+        return;
+      }
+
+      toast.error('Failed to get payment URL');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Payment initiation failed');
+    }
+  };
+
+  const handlePhonePeBulkPay = async (billIds: string[]) => {
+    try {
+      if (billIds.length < 2) {
+        toast.error('Select at least 2 bills for bulk payment');
+        return;
+      }
+
+      const { data } = await api.post('/payments/phonepe/initiate-bulk', {
+        billIds,
+        nativeSdk: isNativeAndroid(),
+      });
+
+      if (data?.nativeSdk) {
+        await handleNativePhonePeCheckout(data);
+        return;
+      }
+
+      if (data?.redirectUrl) {
+        window.location.href = data.redirectUrl;
+        return;
+      }
+
+      toast.error('Failed to get bulk payment URL');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Bulk payment initiation failed');
+    }
+  };
+
   useEffect(() => {
     if (!txnId || txnStatusCheckRef.current === txnId) return;
 
@@ -189,41 +315,8 @@ export default function BillingPage() {
     let isCancelled = false;
 
     const checkStatus = async () => {
-      const maxAttempts = 6;
-
-      for (let attempt = 1; attempt <= maxAttempts && !isCancelled; attempt++) {
-        try {
-          const { data } = await api.get(`/payments/status/${txnId}`);
-          const status = data?.status;
-
-          if (status === 'SUCCESS') {
-            toast.success('Payment successful. Bill status updated.');
-            queryClient.invalidateQueries({ queryKey: billsBaseKey });
-
-            const nextParams = new URLSearchParams(window.location.search);
-            nextParams.delete('txnId');
-            nextParams.set('payment', 'success');
-            setSearchParams(nextParams, { replace: true });
-            return;
-          }
-
-          if (status === 'FAILED') {
-            toast.error('Payment failed. Please try again.');
-            const nextParams = new URLSearchParams(window.location.search);
-            nextParams.delete('txnId');
-            nextParams.set('payment', 'failed');
-            setSearchParams(nextParams, { replace: true });
-            return;
-          }
-        } catch (error: any) {
-          if (attempt === maxAttempts) {
-            toast.error(error.response?.data?.error || 'Unable to confirm payment status right now');
-          }
-        }
-
-        if (attempt < maxAttempts) {
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-        }
+      if (!isCancelled) {
+        await confirmPhonePeStatus(txnId, true);
       }
     };
 
@@ -756,33 +849,3 @@ function RecordPaymentForm({ bill, onSuccess }: { bill: MaintenanceBill; onSucce
   );
 }
 
-async function handlePhonePePay(billId: string) {
-  try {
-    const { data } = await api.post('/payments/phonepe/initiate', { billId });
-    if (data.redirectUrl) {
-      window.location.href = data.redirectUrl;
-    } else {
-      toast.error('Failed to get payment URL');
-    }
-  } catch (error: any) {
-    toast.error(error.response?.data?.error || 'Payment initiation failed');
-  }
-}
-
-async function handlePhonePeBulkPay(billIds: string[]) {
-  try {
-    if (billIds.length < 2) {
-      toast.error('Select at least 2 bills for bulk payment');
-      return;
-    }
-
-    const { data } = await api.post('/payments/phonepe/initiate-bulk', { billIds });
-    if (data.redirectUrl) {
-      window.location.href = data.redirectUrl;
-    } else {
-      toast.error('Failed to get bulk payment URL');
-    }
-  } catch (error: any) {
-    toast.error(error.response?.data?.error || 'Bulk payment initiation failed');
-  }
-}

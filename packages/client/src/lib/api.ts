@@ -3,6 +3,28 @@ import { redirectToLogin } from './navigation';
 import { getApiBaseUrl } from './platform';
 import { useAuthStore } from '../store/authStore';
 
+function logApiError(error: any, context: string) {
+  const response = error?.response;
+  const request = error?.request;
+  const requestConfig = error?.config || {};
+
+  console.error(`[api] ${context}`, {
+    method: requestConfig.method,
+    url: requestConfig.url,
+    baseURL: requestConfig.baseURL,
+    fullUrl: requestConfig.baseURL && requestConfig.url
+      ? `${requestConfig.baseURL}${requestConfig.url}`
+      : requestConfig.url,
+    status: response?.status,
+    responseCode: response?.data?.code,
+    responseError: response?.data?.error,
+    axiosCode: error?.code,
+    hasRequest: !!request,
+    hasResponse: !!response,
+    message: error?.message,
+  });
+}
+
 const api = axios.create({
   baseURL: getApiBaseUrl(),
   headers: { 'Content-Type': 'application/json' },
@@ -33,6 +55,8 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    logApiError(error, 'response interceptor');
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
@@ -43,7 +67,8 @@ api.interceptors.response.use(
           useAuthStore.getState().setTokens(data.accessToken, data.refreshToken);
           originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
           return api(originalRequest);
-        } catch {
+        } catch (refreshError) {
+          logApiError(refreshError, 'token refresh failed');
           useAuthStore.getState().logout();
           redirectToLogin();
         }
