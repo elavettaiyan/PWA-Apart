@@ -118,7 +118,7 @@ export default function Layout({ children }: LayoutProps) {
               <BrandMark size={36} className="rounded-xl text-primary" />
               <div>
                 <h1 className="font-headline font-extrabold text-primary text-xl tracking-tight">Dwell Hub</h1>
-                <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-0.5">Apartment Console</p>
+                <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-0.5">Community Console</p>
               </div>
             </div>
             <button className="lg:hidden p-1 rounded-lg hover:bg-slate-50" onClick={() => setSidebarOpen(false)}>

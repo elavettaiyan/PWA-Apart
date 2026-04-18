@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Settings, CreditCard, Eye, EyeOff, CheckCircle2, XCircle,
   Loader2, Zap, ToggleLeft, ToggleRight, ShieldCheck, Globe, Clock,
-  Users, ChevronDown, Palette,
+  Users, ChevronDown, Palette, Building2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -165,6 +165,70 @@ export default function SettingsPage() {
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to update menu visibility'),
   });
 
+  // ─── Community Profile ───────────────────────────────────
+  interface CommunityProfile { name: string; communityType: string; address: string; city: string; state: string; pincode: string; totalUnits: number | null; }
+
+  const { data: communityProfile } = useQuery<CommunityProfile>({
+    queryKey: ['community-profile'],
+    queryFn: async () => (await api.get('/settings/community-profile')).data,
+    enabled: isAdmin,
+  });
+
+  const [cpForm, setCpForm] = useState({
+    name: '', communityType: 'APARTMENT', address: '', city: '', state: '', pincode: '', totalUnits: '',
+  });
+  const [cpDirty, setCpDirty] = useState(false);
+
+  useEffect(() => {
+    if (communityProfile) {
+      setCpForm({
+        name: communityProfile.name || '',
+        communityType: communityProfile.communityType || 'APARTMENT',
+        address: communityProfile.address || '',
+        city: communityProfile.city || '',
+        state: communityProfile.state || '',
+        pincode: communityProfile.pincode || '',
+        totalUnits: communityProfile.totalUnits != null ? String(communityProfile.totalUnits) : '',
+      });
+    }
+  }, [communityProfile]);
+
+  const cpMutation = useMutation({
+    mutationFn: (payload: any) => api.put('/settings/community-profile', payload),
+    onSuccess: (res) => {
+      toast.success('Community profile updated');
+      queryClient.invalidateQueries({ queryKey: ['community-profile'] });
+      setCpDirty(false);
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to update'),
+  });
+
+  const handleCpChange = (field: string, value: string) => {
+    setCpForm((prev) => ({ ...prev, [field]: value }));
+    setCpDirty(true);
+  };
+
+  const handleCpSave = () => {
+    if (!cpForm.name.trim()) return toast.error('Community name is required');
+    if (!cpForm.address.trim()) return toast.error('Address is required');
+    if (!cpForm.city.trim()) return toast.error('City is required');
+    if (!cpForm.state.trim()) return toast.error('State is required');
+    if (cpForm.pincode && !/^\d{6}$/.test(cpForm.pincode)) return toast.error('Pincode must be 6 digits');
+
+    const payload: any = {
+      name: cpForm.name.trim(),
+      communityType: cpForm.communityType,
+      address: cpForm.address.trim(),
+      city: cpForm.city.trim(),
+      state: cpForm.state.trim(),
+      pincode: cpForm.pincode.trim(),
+    };
+    if (cpForm.totalUnits.trim()) payload.totalUnits = parseInt(cpForm.totalUnits, 10);
+    else payload.totalUnits = null;
+
+    cpMutation.mutate(payload);
+  };
+
   const handleChange = (field: string, value: string | number) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setHasChanges(true);
@@ -216,44 +280,109 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {isAdmin && (
+      <>
       <SettingsAccordion
-        title="Theme"
-        description="Choose your accent color"
-        icon={Palette}
-        iconWrapperClassName="group-open:bg-primary-container"
-        iconClassName="group-open:text-primary"
+        title="Community Profile"
+        description="Community name, type, address, and unit details"
+        icon={Building2}
+        iconWrapperClassName="group-open:bg-blue-100"
+        iconClassName="group-open:text-blue-800"
       >
-        <div className="space-y-3">
-          <p className="text-sm text-on-surface-variant">Pick an accent color for buttons, links, and highlights.</p>
-          <div className="flex flex-wrap gap-3">
-            {(Object.entries(getAccentThemes()) as [AccentTheme, ReturnType<typeof getAccentThemes>[AccentTheme]][]).map(([key, t]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => { applyTheme(key); setActiveAccent(key); }}
-                className={cn(
-                  'flex items-center gap-3 rounded-2xl border-2 px-4 py-3 transition-all',
-                  activeAccent === key
-                    ? 'border-on-surface shadow-card-hover'
-                    : 'border-outline-variant/30 hover:border-outline-variant',
-                )}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Community Name</label>
+              <input
+                className="input"
+                value={cpForm.name}
+                onChange={(e) => handleCpChange('name', e.target.value)}
+                placeholder="e.g., Green Valley Residences"
+              />
+            </div>
+            <div>
+              <label className="label">Community Type</label>
+              <select
+                className="input"
+                value={cpForm.communityType}
+                onChange={(e) => handleCpChange('communityType', e.target.value)}
               >
-                <span
-                  className="block h-7 w-7 rounded-full ring-2 ring-white shadow-sm"
-                  style={{ backgroundColor: t.swatch }}
-                />
-                <span className="text-sm font-medium text-on-surface">{t.label}</span>
-                {activeAccent === key && (
-                  <CheckCircle2 className="w-4 h-4 text-on-surface" />
-                )}
-              </button>
-            ))}
+                <option value="APARTMENT">Apartment / Society</option>
+                <option value="VILLA">Villa Community</option>
+                <option value="GATED_COMMUNITY">Gated Community</option>
+                <option value="TOWNSHIP">Township</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="label">Address</label>
+            <input
+              className="input"
+              value={cpForm.address}
+              onChange={(e) => handleCpChange('address', e.target.value)}
+              placeholder="Full street address"
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="label">City</label>
+              <input
+                className="input"
+                value={cpForm.city}
+                onChange={(e) => handleCpChange('city', e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">State</label>
+              <input
+                className="input"
+                value={cpForm.state}
+                onChange={(e) => handleCpChange('state', e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">Pincode</label>
+              <input
+                className="input"
+                value={cpForm.pincode}
+                onChange={(e) => handleCpChange('pincode', e.target.value)}
+                maxLength={6}
+              />
+            </div>
+          </div>
+          <div className="md:w-1/3">
+            <label className="label">Total Units</label>
+            <input
+              className="input"
+              type="number"
+              min={0}
+              value={cpForm.totalUnits}
+              onChange={(e) => handleCpChange('totalUnits', e.target.value)}
+              placeholder="e.g., 120"
+            />
+            <p className="text-xs text-on-surface-variant mt-1">Total flats, villas, or units in this community</p>
+          </div>
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              onClick={handleCpSave}
+              disabled={cpMutation.isPending || !cpDirty}
+              className="btn-primary"
+            >
+              {cpMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+              ) : (
+                'Save Profile'
+              )}
+            </button>
+            {cpDirty && (
+              <span className="text-xs text-warning flex items-center gap-1">
+                <Clock className="w-3 h-3" /> Unsaved changes
+              </span>
+            )}
           </div>
         </div>
       </SettingsAccordion>
 
-      {isAdmin && (
-      <>
       <SettingsAccordion
         title="Society Administration"
         description="Manage staff accounts and administration access"
@@ -771,6 +900,42 @@ export default function SettingsPage() {
           </a>
         </div>
       </div>
+      </SettingsAccordion>
+
+      <SettingsAccordion
+        title="Theme"
+        description="Choose your accent color"
+        icon={Palette}
+        iconWrapperClassName="group-open:bg-primary-container"
+        iconClassName="group-open:text-primary"
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-on-surface-variant">Pick an accent color for buttons, links, and highlights.</p>
+          <div className="flex flex-wrap gap-3">
+            {(Object.entries(getAccentThemes()) as [AccentTheme, ReturnType<typeof getAccentThemes>[AccentTheme]][]).map(([key, t]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => { applyTheme(key); setActiveAccent(key); }}
+                className={cn(
+                  'flex items-center gap-3 rounded-2xl border-2 px-4 py-3 transition-all',
+                  activeAccent === key
+                    ? 'border-on-surface shadow-card-hover'
+                    : 'border-outline-variant/30 hover:border-outline-variant',
+                )}
+              >
+                <span
+                  className="block h-7 w-7 rounded-full ring-2 ring-white shadow-sm"
+                  style={{ backgroundColor: t.swatch }}
+                />
+                <span className="text-sm font-medium text-on-surface">{t.label}</span>
+                {activeAccent === key && (
+                  <CheckCircle2 className="w-4 h-4 text-on-surface" />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
       </SettingsAccordion>
     </div>
   );

@@ -130,7 +130,7 @@ export default function ForgotPasswordPage() {
           </div>
           <h2 className="font-manrope text-4xl font-extrabold tracking-tight mb-3">Don't <span className="italic text-primary-fixed">Worry</span></h2>
           <p className="text-on-primary/50 text-sm leading-relaxed">
-            We'll help you reset your password and get back to managing your apartment community.
+            We'll help you reset your password and get back to managing your community.
           </p>
         </div>
       </div>

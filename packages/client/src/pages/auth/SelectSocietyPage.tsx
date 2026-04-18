@@ -75,10 +75,10 @@ export default function SelectSocietyPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-2xl rounded-3xl bg-surface shadow-sm border border-outline-variant/30 p-6 sm:p-8">
         <div className="mb-8">
-          <p className="section-label mb-2">Choose Apartment</p>
-          <h1 className="page-title">Select a society to continue</h1>
+          <p className="section-label mb-2">Choose Community</p>
+          <h1 className="page-title">Select a community to continue</h1>
           <p className="text-sm text-on-surface-variant mt-2">
-            This account is mapped to multiple apartments. Choose the society you want to work in for this session.
+            This account is mapped to multiple communities. Choose the one you want to work in for this session.
           </p>
         </div>
 

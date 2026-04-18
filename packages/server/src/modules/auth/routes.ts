@@ -56,7 +56,8 @@ setInterval(cleanupExpiredOtps, 5 * 60 * 1000);
 router.post(
   '/register-society/send-otp',
   [
-    body('societyName').trim().notEmpty().withMessage('Apartment / Society name is required'),
+    body('societyName').trim().notEmpty().withMessage('Community name is required'),
+    body('communityType').optional().isIn(['APARTMENT', 'VILLA', 'GATED_COMMUNITY', 'TOWNSHIP']).withMessage('Invalid community type'),
     body('address').trim().notEmpty().withMessage('Address is required'),
     body('city').trim().notEmpty().withMessage('City is required'),
     body('state').trim().notEmpty().withMessage('State is required'),
@@ -132,14 +133,14 @@ router.post(
         return res.status(400).json({ error: 'Invalid OTP. Please check and try again.' });
       }
 
-      const { societyName, address, city, state, pincode, adminName, email, password, phone } = entry.payload;
+      const { societyName, communityType, address, city, state, pincode, adminName, email, password, phone } = entry.payload;
 
       const result = await prisma.$transaction(async (tx) => {
         const existingAgain = await findUserByEmailInsensitive(tx, email, { select: { id: true } });
         if (existingAgain) throw new Error('EMAIL_TAKEN');
 
         const society = await tx.society.create({
-          data: { name: societyName, address, city, state, pincode, totalBlocks: 0, totalFlats: 0 },
+          data: { name: societyName, communityType: communityType || 'APARTMENT', address, city, state, pincode, totalBlocks: 0, totalFlats: 0 },
         });
 
         const passwordHash = await bcrypt.hash(password, 12);
@@ -195,7 +196,8 @@ router.post(
 router.post(
   '/register-society',
   [
-    body('societyName').trim().notEmpty().withMessage('Apartment / Society name is required'),
+    body('societyName').trim().notEmpty().withMessage('Community name is required'),
+    body('communityType').optional().isIn(['APARTMENT', 'VILLA', 'GATED_COMMUNITY', 'TOWNSHIP']).withMessage('Invalid community type'),
     body('address').trim().notEmpty().withMessage('Address is required'),
     body('city').trim().notEmpty().withMessage('City is required'),
     body('state').trim().notEmpty().withMessage('State is required'),
@@ -214,7 +216,7 @@ router.post(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
-      const { societyName, address, city, state, pincode, adminName, email, password, phone } = req.body;
+      const { societyName, communityType, address, city, state, pincode, adminName, email, password, phone } = req.body;
 
       logger.info('Register society attempt', { email, societyName });
 
@@ -232,6 +234,7 @@ router.post(
         const society = await tx.society.create({
           data: {
             name: societyName,
+            communityType: communityType || 'APARTMENT',
             address,
             city,
             state,

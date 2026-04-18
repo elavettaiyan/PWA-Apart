@@ -169,7 +169,7 @@ export default function ResetPasswordPage() {
           </div>
           <h2 className="font-manrope text-4xl font-extrabold tracking-tight mb-3">Almost <span className="italic text-primary-fixed">There</span></h2>
           <p className="text-on-primary/50 text-sm leading-relaxed">
-            Set your new password and get back to managing your apartment community.
+            Set your new password and get back to managing your community.
           </p>
         </div>
       </div>

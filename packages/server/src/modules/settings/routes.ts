@@ -853,4 +853,89 @@ router.delete(
   },
 );
 
+// ─── Community Profile ──────────────────────────────────────────────
+
+router.get(
+  '/community-profile',
+  authenticate,
+  authorize(...SOCIETY_ADMINS),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const societyId = req.user!.societyId!;
+      const society = await prisma.society.findUnique({
+        where: { id: societyId },
+        select: {
+          name: true,
+          communityType: true,
+          address: true,
+          city: true,
+          state: true,
+          pincode: true,
+          totalUnits: true,
+        },
+      });
+      if (!society) return res.status(404).json({ error: 'Society not found' });
+      return res.json(society);
+    } catch (error: any) {
+      logger.error('Failed to fetch community profile', { error: error.message });
+      return res.status(500).json({ error: 'Failed to fetch community profile' });
+    }
+  },
+);
+
+router.put(
+  '/community-profile',
+  authenticate,
+  authorize(...SOCIETY_ADMINS),
+  [
+    body('name').optional().trim().notEmpty().withMessage('Community name cannot be empty'),
+    body('communityType').optional().isIn(['APARTMENT', 'VILLA', 'GATED_COMMUNITY', 'TOWNSHIP']).withMessage('Invalid community type'),
+    body('address').optional().trim().notEmpty().withMessage('Address cannot be empty'),
+    body('city').optional().trim().notEmpty().withMessage('City cannot be empty'),
+    body('state').optional().trim().notEmpty().withMessage('State cannot be empty'),
+    body('pincode').optional().trim().matches(/^\d{6}$/).withMessage('Pincode must be 6 digits'),
+    body('totalUnits').optional({ nullable: true }).isInt({ min: 0 }).withMessage('Total units must be a non-negative integer'),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const societyId = req.user!.societyId!;
+      const { name, communityType, address, city, state, pincode, totalUnits } = req.body;
+
+      const data: Record<string, any> = {};
+      if (name !== undefined) data.name = name;
+      if (communityType !== undefined) data.communityType = communityType;
+      if (address !== undefined) data.address = address;
+      if (city !== undefined) data.city = city;
+      if (state !== undefined) data.state = state;
+      if (pincode !== undefined) data.pincode = pincode;
+      if (totalUnits !== undefined) data.totalUnits = totalUnits === null ? null : Number(totalUnits);
+
+      if (Object.keys(data).length === 0) {
+        return res.status(400).json({ error: 'No fields to update' });
+      }
+
+      const updated = await prisma.society.update({
+        where: { id: societyId },
+        data,
+        select: {
+          name: true,
+          communityType: true,
+          address: true,
+          city: true,
+          state: true,
+          pincode: true,
+          totalUnits: true,
+        },
+      });
+
+      logger.info('Community profile updated', { societyId, fields: Object.keys(data) });
+      return res.json(updated);
+    } catch (error: any) {
+      logger.error('Failed to update community profile', { error: error.message });
+      return res.status(500).json({ error: 'Failed to update community profile' });
+    }
+  },
+);
+
 export default router;

@@ -168,7 +168,7 @@ export default function ChangePasswordPage() {
           </div>
           <h2 className="font-manrope text-4xl font-extrabold tracking-tight mb-3">Stay <span className="italic text-primary-fixed">Secure</span></h2>
           <p className="text-on-primary/50 text-sm leading-relaxed">
-            Choose a strong password that only you know. This keeps your apartment account safe.
+            Choose a strong password that only you know. This keeps your account safe.
           </p>
         </div>
       </div>

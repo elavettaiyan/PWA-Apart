@@ -85,12 +85,12 @@ export default function LoginPage() {
             <BrandMark size={44} className="rounded-2xl" />
             <div>
               <h1 className="text-xl font-extrabold text-on-surface font-headline tracking-tight">Dwell Hub</h1>
-              <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Apartment Console</p>
+              <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Community Console</p>
             </div>
           </div>
 
           <h2 className="editorial-title text-3xl font-extrabold text-on-surface mb-1">Welcome back</h2>
-          <p className="text-sm text-slate-500 mb-8">Sign in to manage your apartment complex</p>
+          <p className="text-sm text-slate-500 mb-8">Sign in to manage your community</p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
@@ -149,7 +149,7 @@ export default function LoginPage() {
               to="/register"
               className="text-sm text-primary hover:text-primary/80 font-medium"
             >
-              Register a new apartment complex →
+              Register a new community →
             </Link>
             </div>
           )}
@@ -165,9 +165,9 @@ export default function LoginPage() {
           <div className="w-20 h-20 bg-white/15 backdrop-blur-lg rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg">
             <BrandMark size={48} />
           </div>
-          <h2 className="editorial-title text-4xl font-extrabold mb-4 leading-tight">Apartment<br/>Management,<br/><em className="not-italic text-white/80">Made Clearer.</em></h2>
+          <h2 className="editorial-title text-4xl font-extrabold mb-4 leading-tight">Community<br/>Management,<br/><em className="not-italic text-white/80">Made Clearer.</em></h2>
           <p className="text-white/50 leading-relaxed mt-6">
-            Complete solution for apartment management — billing,
+            Complete solution for community management — billing,
             complaints, expenses, and reports all in one place.
           </p>
         </div>

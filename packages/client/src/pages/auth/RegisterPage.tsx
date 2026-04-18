@@ -13,6 +13,7 @@ export default function RegisterPage() {
   const [step, setStep] = useState<Step>('form');
   const [form, setForm] = useState({
     societyName: '',
+    communityType: 'APARTMENT',
     address: '',
     city: '',
     state: '',
@@ -173,31 +174,45 @@ export default function RegisterPage() {
             <BrandMark size={48} className="rounded-2xl" />
             <div>
               <h1 className="text-2xl font-extrabold text-primary font-headline tracking-tight">Dwell Hub</h1>
-              <p className="text-[10px] text-outline font-bold uppercase tracking-widest">Register Apartment</p>
+              <p className="text-[10px] text-outline font-bold uppercase tracking-widest">Register Community</p>
             </div>
           </div>
 
-          <h2 className="editorial-title text-3xl font-extrabold text-primary mb-1">Create New Apartment</h2>
+          <h2 className="editorial-title text-3xl font-extrabold text-primary mb-1">Create New Community</h2>
           <p className="text-sm text-on-surface-variant mb-8">
-            Set up your apartment complex and get started with management
+            Set up your community and get started with management
           </p>
 
           {step === 'form' ? (
           <form onSubmit={handleSendOtp} className="space-y-4">
             {/* Society Details */}
             <div className="p-4 bg-surface-container-low rounded-xl space-y-3">
-              <p className="text-sm font-semibold text-on-surface-variant">Apartment / Society Details</p>
+              <p className="text-sm font-semibold text-on-surface-variant">Community Details</p>
               <div>
-                <label className="label">Apartment / Society Name *</label>
+                <label className="label">Community Name *</label>
                 <input
                   type="text"
                   name="societyName"
                   className="input"
-                  placeholder="e.g., Green Valley Apartments"
+                  placeholder="e.g., Green Valley Residences"
                   value={form.societyName}
                   onChange={handleChange}
                   required
                 />
+              </div>
+              <div>
+                <label className="label">Community Type</label>
+                <select
+                  name="communityType"
+                  className="input"
+                  value={form.communityType}
+                  onChange={(e) => setForm((prev) => ({ ...prev, communityType: e.target.value }))}
+                >
+                  <option value="APARTMENT">Apartment / Society</option>
+                  <option value="VILLA">Villa Community</option>
+                  <option value="GATED_COMMUNITY">Gated Community</option>
+                  <option value="TOWNSHIP">Township</option>
+                </select>
               </div>
               <div>
                 <label className="label">Address *</label>
@@ -386,7 +401,7 @@ export default function RegisterPage() {
                 </div>
 
                 <button type="submit" disabled={loading || otp.join('').length !== 6} className="btn-gradient w-full py-3 mb-4">
-                  {loading ? 'Verifying...' : 'Verify & Create Apartment'}
+                  {loading ? 'Verifying...' : 'Verify & Create Community'}
                 </button>
 
                 <div className="text-center">
@@ -425,15 +440,15 @@ export default function RegisterPage() {
           <div className="w-20 h-20 bg-white/10 backdrop-blur rounded-3xl flex items-center justify-center mx-auto mb-8">
             <BrandMark size={48} />
           </div>
-          <h2 className="editorial-title text-4xl font-extrabold mb-4 leading-tight">Your Apartment,<br/><em className="text-primary-fixed">Your Way.</em></h2>
+          <h2 className="editorial-title text-4xl font-extrabold mb-4 leading-tight">Your Community,<br/><em className="text-primary-fixed">Your Way.</em></h2>
           <p className="text-primary-fixed/60 leading-relaxed mb-8">
-            Each apartment gets its own dedicated space. Register your society
+            Each community gets its own dedicated space. Register your society
             to start managing everything.
           </p>
           <div className="text-left bg-white/10 backdrop-blur rounded-2xl p-6 space-y-3">
             <p className="text-sm font-bold text-primary-fixed">What you get:</p>
             <ul className="text-sm text-primary-fixed/60 space-y-2">
-              <li>✓ Separate dashboard for your apartment</li>
+              <li>✓ Separate dashboard for your community</li>
               <li>✓ Manage blocks, flats, owners & tenants</li>
               <li>✓ Monthly maintenance billing</li>
               <li>✓ Online payment collection (PhonePe)</li>

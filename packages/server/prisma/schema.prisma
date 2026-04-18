@@ -159,20 +159,29 @@ enum ServiceJobPriority {
   HIGH
 }
 
+enum CommunityType {
+  APARTMENT
+  VILLA
+  GATED_COMMUNITY
+  TOWNSHIP
+}
+
 // ─── SOCIETY / APARTMENT COMPLEX (TENANT) ───────────────
 // Each society is a separate tenant in the multi-tenant system.
 // When a new apartment registers, a new Society + Admin user is created.
 
 model Society {
-  id              String   @id @default(uuid())
+  id              String        @id @default(uuid())
   name            String
+  communityType   CommunityType @default(APARTMENT)
   address         String
   city            String
   state           String
   pincode         String
-  registrationNo  String?  @unique
-  totalBlocks     Int      @default(1)
-  totalFlats      Int      @default(0)
+  registrationNo  String?       @unique
+  totalBlocks     Int           @default(1)
+  totalFlats      Int           @default(0)
+  totalUnits      Int?
   logo            String?
   isActive        Boolean  @default(true)
   isPremium       Boolean  @default(false)
