@@ -258,16 +258,8 @@ async function markBulkPaymentsSuccess(merchantTransId: string, transactionId: s
     const processedPaymentIds: string[] = [];
 
     for (const payment of linkedPayments) {
-      if (payment.status === 'SUCCESS') continue;
-
-      const { newPaidAmount, newStatus } = calculateBillPaymentUpdate(
-        payment.bill.paidAmount,
-        payment.bill.totalAmount,
-        payment.amount,
-      );
-
-      await tx.payment.update({
-        where: { id: payment.id },
+      const updatedPayment = await tx.payment.updateMany({
+        where: { id: payment.id, status: { not: 'SUCCESS' } },
         data: {
           status: 'SUCCESS',
           transactionId: payment.merchantTransId === merchantTransId ? transactionId : undefined,
@@ -276,9 +268,23 @@ async function markBulkPaymentsSuccess(merchantTransId: string, transactionId: s
         },
       });
 
-      await tx.maintenanceBill.update({
+      if (updatedPayment.count === 0) {
+        continue;
+      }
+
+      const updatedBill = await tx.maintenanceBill.update({
         where: { id: payment.bill.id },
-        data: { paidAmount: newPaidAmount, status: newStatus },
+        data: {
+          paidAmount: { increment: payment.amount },
+        },
+        select: { id: true, paidAmount: true, totalAmount: true },
+      });
+
+      const newStatus = updatedBill.paidAmount >= updatedBill.totalAmount ? 'PAID' : 'PARTIAL';
+
+      await tx.maintenanceBill.update({
+        where: { id: updatedBill.id },
+        data: { status: newStatus },
       });
 
       processedCount++;
