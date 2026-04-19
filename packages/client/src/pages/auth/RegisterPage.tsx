@@ -276,7 +276,7 @@ export default function RegisterPage() {
                   type="text"
                   name="adminName"
                   className="input"
-                  placeholder="e.g., Rajesh Kumar"
+                  placeholder="e.g., Abishek Kumar"
                   value={form.adminName}
                   onChange={handleChange}
                   required

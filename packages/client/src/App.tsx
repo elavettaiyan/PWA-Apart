@@ -84,7 +84,6 @@ export default function App() {
           path="/register"
           element={
             hasValidSession ? <Navigate to={getPostLoginRoute(user)} replace /> :
-            nativePlatform ? <Navigate to="/login" replace /> :
             <RegisterPage />
           }
         />

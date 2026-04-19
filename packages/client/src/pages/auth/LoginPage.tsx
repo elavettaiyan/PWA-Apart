@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Smartphone } from 'lucide-react';
 import BrandMark from '../../components/ui/BrandMark';
 import toast from 'react-hot-toast';
 import { getPostLoginRoute } from '@/lib/serviceStaff';
@@ -10,7 +10,6 @@ import { useAuthStore } from '../../store/authStore';
 import type { AuthResponse } from '../../types';
 
 export default function LoginPage() {
-  const showRegistrationLink = !isNativePlatform();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -143,14 +142,38 @@ export default function LoginPage() {
               </Link>
             </div>
           </form>
-          {showRegistrationLink && (
-            <div className="mt-6 text-center">
+          <div className="mt-6 text-center">
             <Link
               to="/register"
               className="text-sm text-primary hover:text-primary/80 font-medium"
             >
               Register a new community →
             </Link>
+          </div>
+
+          {!isNativePlatform() && (
+            <div className="mt-8 rounded-2xl border border-primary/15 bg-primary/[0.03] p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <Smartphone className="w-4.5 h-4.5 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-on-surface">Get the mobile app</p>
+                  <p className="text-xs text-on-surface-variant mt-0.5">Faster access with push notifications and offline support.</p>
+                  <div className="flex flex-wrap items-center gap-3 mt-3">
+                    <a
+                      href="https://play.google.com/store/apps/details?id=com.resilynk.dwellhub"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-on-surface px-3.5 py-2 text-xs font-semibold text-white hover:bg-on-surface/85 transition-colors"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M3.609 1.814 13.792 12 3.61 22.186a.996.996 0 0 1-.61-.92V2.734a1 1 0 0 1 .609-.92ZM14.852 13.06l2.29 2.29-11.678 6.57 9.388-8.86ZM20.166 10.834l-2.57 1.445-2.537-2.28 2.536-2.278 2.57 1.445a1.25 1.25 0 0 1 0 1.668ZM5.464 2.08l11.678 6.57-2.29 2.29L5.464 2.08Z"/></svg>
+                      Google Play
+                    </a>
+                    <span className="text-[11px] text-on-surface-variant">iOS coming soon</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
