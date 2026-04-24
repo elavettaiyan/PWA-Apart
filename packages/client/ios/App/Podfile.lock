@@ -10,6 +10,7 @@ PODS:
     - Capacitor
   - CapacitorPushNotifications (7.0.6):
     - Capacitor
+  - PhonePePayment (5.3.2)
 
 DEPENDENCIES:
   - "Capacitor (from `../../../../node_modules/@capacitor/ios`)"
@@ -18,6 +19,11 @@ DEPENDENCIES:
   - "CapacitorCordova (from `../../../../node_modules/@capacitor/ios`)"
   - "CapacitorPreferences (from `../../../../node_modules/@capacitor/preferences`)"
   - "CapacitorPushNotifications (from `../../../../node_modules/@capacitor/push-notifications`)"
+  - PhonePePayment
+
+SPEC REPOS:
+  trunk:
+    - PhonePePayment
 
 EXTERNAL SOURCES:
   Capacitor:
@@ -40,7 +46,8 @@ SPEC CHECKSUMS:
   CapacitorCordova: 8214697bed435f6e7c5e3ed86d1632a8c42f7d77
   CapacitorPreferences: 69d9991307507aeab8ef8019c10b9babfda0e9ca
   CapacitorPushNotifications: b8e30637549ce91468b8c4dddbef2657be831f4c
+  PhonePePayment: 9516849183e00c77a2d64bb85e2c9942a5e618b7
 
-PODFILE CHECKSUM: 57b528c7f519acaf4ce007ce8a63b99a6f46a5fa
+PODFILE CHECKSUM: 014edbd5d55586e6fa04c12c42061a774f1754f4
 
 COCOAPODS: 1.16.2

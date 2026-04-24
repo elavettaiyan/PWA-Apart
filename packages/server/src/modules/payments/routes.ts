@@ -412,10 +412,10 @@ router.post(
         return res.status(400).json({ error: 'PhonePe Merchant ID is not configured. Ask your admin to update payment gateway settings.' });
       }
       if (nativeSdk && (!pgConfig.clientId || !pgConfig.clientSecret)) {
-        return res.status(400).json({ error: 'PhonePe Android SDK credentials are not configured. Add Client ID and Client Secret in settings.' });
+        return res.status(400).json({ error: 'PhonePe SDK credentials (Client ID and Client Secret) are not configured. Ask your admin to add them in payment gateway settings.' });
       }
       if (!nativeSdk && !pgConfig.saltKey) {
-        return res.status(400).json({ error: 'PhonePe Salt Key is not configured for web redirect payments. Add it in settings or use the Android SDK flow.' });
+        return res.status(400).json({ error: 'PhonePe Salt Key is not configured for web redirect payments. Add it in settings.' });
       }
 
       // Create payment record
@@ -525,8 +525,8 @@ router.post(
 
         logger.error('PhonePe initiation failed:', phonePeData);
         return res.status(400).json({
-          error: 'Payment initiation failed',
-          details: phonePeData.message,
+          error: phonePeData.message || 'Payment initiation failed',
+          code: phonePeData.code,
         });
       }
     } catch (error) {
@@ -603,10 +603,10 @@ router.post(
         return res.status(400).json({ error: 'PhonePe Merchant ID is not configured. Ask your admin to update payment gateway settings.' });
       }
       if (nativeSdk && (!pgConfig.clientId || !pgConfig.clientSecret)) {
-        return res.status(400).json({ error: 'PhonePe Android SDK credentials are not configured. Add Client ID and Client Secret in settings.' });
+        return res.status(400).json({ error: 'PhonePe SDK credentials (Client ID and Client Secret) are not configured. Ask your admin to add them in payment gateway settings.' });
       }
       if (!nativeSdk && !pgConfig.saltKey) {
-        return res.status(400).json({ error: 'PhonePe Salt Key is not configured for web redirect payments. Add it in settings or use the Android SDK flow.' });
+        return res.status(400).json({ error: 'PhonePe Salt Key is not configured for web redirect payments. Add it in settings.' });
       }
 
       const paymentNotes = nativeSdk ? withSdkMarker(bulkReference) : bulkReference;
@@ -704,8 +704,8 @@ router.post(
       await markBulkPaymentsFailed(merchantTransId, phonePeData);
       logger.error('PhonePe bulk initiation failed:', phonePeData);
       return res.status(400).json({
-        error: 'Bulk payment initiation failed',
-        details: phonePeData.message,
+        error: phonePeData.message || 'Bulk payment initiation failed',
+        code: phonePeData.code,
       });
     } catch (error) {
       logger.error('PhonePe bulk payment error:', error);

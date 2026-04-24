@@ -8,7 +8,7 @@ import { formatCurrency, getStatusColor, getMonthName, cn } from '../../lib/util
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
 import { initPhonePeSdk, startPhonePeCheckout } from '../../lib/phonePeNative';
-import { isNativeAndroid } from '../../lib/platform';
+import { isNativeAndroid, isNativeIos } from '../../lib/platform';
 import { useAuthStore } from '../../store/authStore';
 import type { BillingGenerationResult, MaintenanceBill, MaintenanceConfigSummary } from '../../types';
 
@@ -241,30 +241,48 @@ export default function BillingPage() {
       return;
     }
 
-    await initPhonePeSdk({
-      merchantId,
-      flowId: payload.merchantTransId,
-      environment,
-      enableLogging: environment !== 'RELEASE',
-      appId: null,
-    });
+    try {
+      console.info('[PhonePe] init SDK', { merchantId, environment, orderId: payload.orderId });
 
-    await startPhonePeCheckout({
-      orderId: payload.orderId,
-      token: payload.token,
-    });
+      await initPhonePeSdk({
+        merchantId,
+        flowId: payload.merchantTransId,
+        environment,
+        enableLogging: environment !== 'RELEASE',
+        appId: null,
+      });
 
-    await confirmPhonePeStatus(payload.merchantTransId, false);
+      console.info('[PhonePe] starting checkout', { orderId: payload.orderId });
+
+      const result = await startPhonePeCheckout({
+        orderId: payload.orderId,
+        token: payload.token,
+      });
+
+      console.info('[PhonePe] checkout result', result);
+
+      if (!result?.ok) {
+        // User cancelled or payment failed in the PhonePe UI
+        toast.error('Payment was not completed. Please try again.');
+        return;
+      }
+
+      await confirmPhonePeStatus(payload.merchantTransId, false);
+    } catch (err: any) {
+      console.error('[PhonePe] native checkout error', err);
+      toast.error(err?.message || 'PhonePe payment failed. Please try again.');
+    }
   };
 
   const handlePhonePePay = async (billId: string) => {
     try {
       const { data } = await api.post('/payments/phonepe/initiate', {
         billId,
-        nativeSdk: isNativeAndroid(),
+        nativeSdk: isNativeAndroid() || isNativeIos(),
       });
 
       if (data?.nativeSdk) {
+        // Native checkout handles its own errors and toasts internally
         await handleNativePhonePeCheckout(data);
         return;
       }
@@ -276,7 +294,10 @@ export default function BillingPage() {
 
       toast.error('Failed to get payment URL');
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Payment initiation failed');
+      // Only catches server-side initiation errors, not native plugin errors
+      const msg = error.response?.data?.error;
+      console.error('[PhonePe] initiate error', { status: error.response?.status, msg, raw: error.message });
+      toast.error(msg || error.message || 'Payment initiation failed');
     }
   };
 
@@ -289,10 +310,11 @@ export default function BillingPage() {
 
       const { data } = await api.post('/payments/phonepe/initiate-bulk', {
         billIds,
-        nativeSdk: isNativeAndroid(),
+        nativeSdk: isNativeAndroid() || isNativeIos(),
       });
 
       if (data?.nativeSdk) {
+        // Native checkout handles its own errors and toasts internally
         await handleNativePhonePeCheckout(data);
         return;
       }
@@ -304,7 +326,10 @@ export default function BillingPage() {
 
       toast.error('Failed to get bulk payment URL');
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Bulk payment initiation failed');
+      // Only catches server-side initiation errors, not native plugin errors
+      const msg = error.response?.data?.error;
+      console.error('[PhonePe] bulk initiate error', { status: error.response?.status, msg, raw: error.message });
+      toast.error(msg || error.message || 'Bulk payment initiation failed');
     }
   };
 
