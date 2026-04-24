@@ -10,10 +10,13 @@
     "mobile:build:live": "MOBILE_BUILD=1 tsc -b && MOBILE_BUILD=1 vite build --mode mobile.live",
     "mobile:build:local": "MOBILE_BUILD=1 tsc -b && MOBILE_BUILD=1 vite build --mode mobile.local",
     "mobile:add:android": "cap add android",
+    "mobile:add:ios": "cap add ios",
     "mobile:sync": "npm run mobile:sync:live",
     "mobile:sync:live": "npm run mobile:build:live && cap sync android",
     "mobile:sync:local": "npm run mobile:build:local && cap sync android",
     "mobile:open:android": "cap open android",
+    "mobile:build:ios": "npm run mobile:build:live && cap sync ios",
+    "mobile:open:ios": "cap open ios",
     "preview": "vite preview",
     "lint": "eslint ."
   },
@@ -39,6 +42,7 @@
   "devDependencies": {
     "@capacitor/android": "^7.0.1",
     "@capacitor/cli": "^7.0.1",
+    "@capacitor/ios": "^7.6.2",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.2",

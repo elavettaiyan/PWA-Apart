@@ -133,4 +133,69 @@ const backgroundDrawableXml = `<?xml version="1.0" encoding="utf-8"?>
 writeFileSync(join(androidResDir, 'values', 'ic_launcher_background.xml'), backgroundColorXml);
 writeFileSync(join(androidResDir, 'drawable', 'ic_launcher_background.xml'), backgroundDrawableXml);
 
+// --- iOS AppIcon ---
+const iosAssetCatalogDir = join(rootDir, 'ios', 'App', 'App', 'Assets.xcassets', 'AppIcon.appiconset');
+
+if (existsSync(join(rootDir, 'ios'))) {
+  mkdirSync(iosAssetCatalogDir, { recursive: true });
+
+  // iOS icon entries: { size (logical pt), scale, idiom }
+  const iosIconEntries = [
+    { size: 20, scale: 1, idiom: 'iphone' },
+    { size: 20, scale: 2, idiom: 'iphone' },
+    { size: 20, scale: 3, idiom: 'iphone' },
+    { size: 29, scale: 1, idiom: 'iphone' },
+    { size: 29, scale: 2, idiom: 'iphone' },
+    { size: 29, scale: 3, idiom: 'iphone' },
+    { size: 40, scale: 2, idiom: 'iphone' },
+    { size: 40, scale: 3, idiom: 'iphone' },
+    { size: 60, scale: 2, idiom: 'iphone' },
+    { size: 60, scale: 3, idiom: 'iphone' },
+    { size: 20, scale: 1, idiom: 'ipad' },
+    { size: 20, scale: 2, idiom: 'ipad' },
+    { size: 29, scale: 1, idiom: 'ipad' },
+    { size: 29, scale: 2, idiom: 'ipad' },
+    { size: 40, scale: 1, idiom: 'ipad' },
+    { size: 40, scale: 2, idiom: 'ipad' },
+    { size: 76, scale: 1, idiom: 'ipad' },
+    { size: 76, scale: 2, idiom: 'ipad' },
+    { size: 83.5, scale: 2, idiom: 'ipad' },
+    { size: 1024, scale: 1, idiom: 'ios-marketing' },
+  ];
+
+  const contentsImages = [];
+
+  for (const entry of iosIconEntries) {
+    const px = Math.round(entry.size * entry.scale);
+    const filename = `Icon-${entry.size}@${entry.scale}x-${entry.idiom}.png`;
+
+    await sharp(sourceBuffer)
+      .resize(px, px)
+      .png()
+      .toFile(join(iosAssetCatalogDir, filename));
+
+    contentsImages.push({
+      filename,
+      idiom: entry.idiom,
+      scale: `${entry.scale}x`,
+      size: `${entry.size}x${entry.size}`,
+    });
+
+    console.log(`  ✓ iOS AppIcon/${filename} (${px}px)`);
+  }
+
+  const contentsJson = {
+    images: contentsImages,
+    info: { author: 'xcode', version: 1 },
+  };
+
+  writeFileSync(
+    join(iosAssetCatalogDir, 'Contents.json'),
+    JSON.stringify(contentsJson, null, 2),
+  );
+  console.log('  ✓ iOS AppIcon/Contents.json');
+} else {
+  console.log('  ⚠ Skipping iOS icons — ios/ folder not found (run: npm run mobile:add:ios first)');
+}
+
 console.log('\n✅ All icons generated successfully!');

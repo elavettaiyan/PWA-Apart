@@ -8,7 +8,7 @@ import {
 import { Preferences } from '@capacitor/preferences';
 import toast from 'react-hot-toast';
 import { navigateTo } from './navigation';
-import { getApiBaseUrl } from './platform';
+import { getApiBaseUrl, isNativeIos } from './platform';
 import api from './api';
 import { useAuthStore } from '../store/authStore';
 import type { User } from '../types';
@@ -20,8 +20,8 @@ const PENDING_PUSH_TARGET_KEY = 'push.notification.target.pending';
 let listenersReady = false;
 let initPromise: Promise<void> | null = null;
 
-function isAndroidPushSupported() {
-  return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+function isNativePushSupported() {
+  return Capacitor.isNativePlatform();
 }
 
 function buildSocietyIds(user: User) {
@@ -163,7 +163,7 @@ export async function openPendingPushNotificationTarget() {
 }
 
 export async function initializePushNotifications() {
-  if (!isAndroidPushSupported()) {
+  if (!isNativePushSupported()) {
     return;
   }
 
@@ -208,7 +208,7 @@ export async function initializePushNotifications() {
 }
 
 export async function syncStoredPushTokenWithServer(accessToken: string, user: User) {
-  if (!isAndroidPushSupported()) {
+  if (!isNativePushSupported()) {
     return;
   }
 
@@ -233,7 +233,7 @@ export async function syncStoredPushTokenWithServer(accessToken: string, user: U
     '/auth/push-tokens',
     {
       token,
-      platform: 'android',
+      platform: isNativeIos() ? 'ios' : 'android',
       societyIds,
     },
     {
@@ -247,7 +247,7 @@ export async function syncStoredPushTokenWithServer(accessToken: string, user: U
 }
 
 export async function unregisterStoredPushToken(accessToken: string) {
-  if (!isAndroidPushSupported()) {
+  if (!isNativePushSupported()) {
     return;
   }
 
