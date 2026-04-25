@@ -41,7 +41,7 @@ public class PhonePePaymentPlugin: CAPPlugin, CAPBridgedPlugin {
         let environmentString = call.getString("environment") ?? "SANDBOX"
         let enableLogging = call.getBool("enableLogging") ?? false
 
-        let environment: PPEnvironment = environmentString == "RELEASE" ? .production : .sandbox
+        let environment: Environment = environmentString == "RELEASE" ? .production : .sandbox
 
         if enableLogging {
             PPPayment.enableDebugLogs = true
