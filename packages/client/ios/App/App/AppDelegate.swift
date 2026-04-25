@@ -2,19 +2,57 @@ import UIKit
 import Capacitor
 import PhonePePayment
 import UserNotifications
+import FirebaseCore
+import FirebaseMessaging
 
 @UIApplicationMain
-class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
 
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Set UNUserNotificationCenter delegate so foreground notifications are delivered.
+        // Initialise Firebase — must be before Capacitor so FCM swizzles APNs registration
+        // and Capacitor Push returns an FCM token (not a raw APNs token).
+        FirebaseApp.configure()
+        // Set delegates — swizzling is disabled in Info.plist so we forward tokens manually.
+        Messaging.messaging().delegate = self
         UNUserNotificationCenter.current().delegate = self
         return true
     }
 
-    // Show notifications when app is in foreground.
+    // MARK: – APNs → Firebase token forwarding (required when swizzling is disabled)
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        // Forward raw APNs token to Firebase so it can exchange it for an FCM token.
+        Messaging.messaging().apnsToken = deviceToken
+        // Also let Capacitor know so its push plugin can emit the 'registration' event.
+        NotificationCenter.default.post(
+            name: Notification.Name(rawValue: "CAPNotificationsDidRegisterForRemoteNotifications"),
+            object: deviceToken
+        )
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(
+            name: Notification.Name(rawValue: "CAPNotificationsDidFailToRegisterForRemoteNotifications"),
+            object: error
+        )
+    }
+
+    // MARK: – MessagingDelegate — fires when Firebase issues/refreshes an FCM token
+
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        guard let fcmToken else { return }
+        // Post FCM token via Capacitor's push plugin notification name so
+        // the JS 'registration' listener receives the proper FCM token.
+        NotificationCenter.default.post(
+            name: Notification.Name(rawValue: "CAPNotificationsDidRegisterForRemoteNotifications"),
+            object: fcmToken.data(using: .utf8)
+        )
+    }
+
+    // MARK: – Foreground notification display
+
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                  willPresent notification: UNNotification,
                                  withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {

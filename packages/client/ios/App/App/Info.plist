@@ -56,6 +56,10 @@
 		<string>fetch</string>
 		<string>remote-notification</string>
 	</array>
+	<!-- Disable Firebase method swizzling so Capacitor can receive the APNs token directly.
+	     We manually forward the token to Firebase Messaging in AppDelegate. -->
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<false/>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>ppemerchantsdkv1</string>

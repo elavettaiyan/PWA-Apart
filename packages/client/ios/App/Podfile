@@ -20,6 +20,8 @@ end
 target 'App' do
   capacitor_pods
   pod 'PhonePePayment'
+  # Firebase Messaging — required so Capacitor Push returns FCM tokens (not raw APNs tokens)
+  pod 'Firebase/Messaging'
 end
 
 post_install do |installer|
