@@ -116,11 +116,14 @@ async function clearPendingNotificationTarget() {
 }
 
 async function handleRegistration(token: Token) {
+  console.log('[Push] Token received from OS:', token.value.slice(0, 20) + '…');
   await storePushToken(token.value);
 
   const { isAuthenticated, accessToken, user } = useAuthStore.getState();
   if (isAuthenticated && accessToken && user) {
     await syncStoredPushTokenWithServer(accessToken, user);
+  } else {
+    console.warn('[Push] Token stored but user not authenticated yet — will sync on login');
   }
 }
 
@@ -178,14 +181,16 @@ export async function initializePushNotifications() {
       });
 
       await PushNotifications.addListener('registrationError', (error) => {
-        console.error('Push registration failed', error);
+        console.error('[Push] Registration error from OS:', JSON.stringify(error));
       });
 
       await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+        console.log('[Push] Foreground notification received:', notification.title, '|', notification.body);
         void handleNotificationReceived(notification);
       });
 
       await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+        console.log('[Push] Notification tapped, action:', action.actionId, 'data:', JSON.stringify(action.notification.data));
         void handleNotificationAction(action);
       });
 
@@ -193,14 +198,18 @@ export async function initializePushNotifications() {
     }
 
     const permissionStatus = await PushNotifications.checkPermissions();
+    console.log('[Push] Permission status:', permissionStatus.receive);
     const finalStatus = permissionStatus.receive === 'prompt'
       ? await PushNotifications.requestPermissions()
       : permissionStatus;
 
+    console.log('[Push] Final permission:', finalStatus.receive);
     if (finalStatus.receive !== 'granted') {
+      console.warn('[Push] Permission not granted — push disabled');
       return;
     }
 
+    console.log('[Push] Calling PushNotifications.register()');
     await PushNotifications.register();
   })();
 
@@ -229,19 +238,20 @@ export async function syncStoredPushTokenWithServer(accessToken: string, user: U
     return;
   }
 
-  await api.post(
-    '/auth/push-tokens',
-    {
-      token,
-      platform: isNativeIos() ? 'ios' : 'android',
-      societyIds,
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    },
-  );
+  const platform = isNativeIos() ? 'ios' : 'android';
+  console.log('[Push] Syncing token to server — platform:', platform, 'token prefix:', token.slice(0, 20) + '…', 'societies:', societyIds);
+
+  try {
+    const result = await api.post(
+      '/auth/push-tokens',
+      { token, platform, societyIds },
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    console.log('[Push] Token sync success:', result.data);
+  } catch (err: any) {
+    console.error('[Push] Token sync failed:', err?.response?.status, err?.response?.data || err?.message);
+    return;
+  }
 
   await writeStoredSyncKey(syncKey);
 }

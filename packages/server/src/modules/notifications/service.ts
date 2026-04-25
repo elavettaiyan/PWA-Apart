@@ -118,13 +118,17 @@ function getAudienceRoles(roles?: string[]) {
 
 export async function sendPushToTokens(tokens: string[], payload: PushPayload) {
   if (tokens.length === 0) {
+    logger.warn('[Push] sendPushToTokens called with 0 tokens', { type: payload.type });
     return { configured: !!getFirebaseApp(), sentCount: 0, failedCount: 0, skipped: true };
   }
 
   const app = getFirebaseApp();
   if (!app) {
+    logger.error('[Push] Firebase not initialised — check FIREBASE_SERVICE_ACCOUNT_JSON / FIREBASE_PROJECT_ID env vars');
     return { configured: false, sentCount: 0, failedCount: tokens.length, skipped: true };
   }
+
+  logger.info('[Push] Sending to tokens', { count: tokens.length, type: payload.type, title: payload.title });
 
   const response = await admin.messaging(app).sendEachForMulticast({
     tokens,
@@ -140,13 +144,40 @@ export async function sendPushToTokens(tokens: string[], payload: PushPayload) {
         channelId: 'default',
       },
     },
+    apns: {
+      payload: {
+        aps: {
+          sound: 'default',
+          badge: 1,
+          contentAvailable: true,
+        },
+      },
+    },
   });
+
+  // Log every per-token result so we can see exact FCM error codes.
+  response.responses.forEach((item, index) => {
+    if (item.success) {
+      logger.info('[Push] Token OK', { tokenPrefix: tokens[index].slice(0, 20) });
+    } else {
+      logger.error('[Push] Token FAILED', {
+        tokenPrefix: tokens[index].slice(0, 20),
+        errorCode: item.error?.code,
+        errorMessage: item.error?.message,
+      });
+    }
+  });
+
+  logger.info('[Push] Batch result', { sent: response.successCount, failed: response.failureCount });
 
   const invalidTokens = response.responses
     .map((item, index) => ({ item, token: tokens[index] }))
     .filter(({ item }) => item.error?.code === 'messaging/registration-token-not-registered' || item.error?.code === 'messaging/invalid-registration-token')
     .map(({ token }) => token);
 
+  if (invalidTokens.length > 0) {
+    logger.warn('[Push] Removing invalid tokens', { count: invalidTokens.length });
+  }
   await cleanupInvalidTokens(invalidTokens);
 
   return {
