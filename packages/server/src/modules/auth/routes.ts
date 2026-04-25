@@ -681,7 +681,7 @@ router.post(
   authenticate,
   [
     body('token').isString().trim().notEmpty().withMessage('Push token is required'),
-    body('platform').isIn(['android']).withMessage('Only android push registration is supported'),
+    body('platform').isIn(['android', 'ios']).withMessage('Supported push platforms are android and ios'),
     body('societyIds').optional().isArray().withMessage('societyIds must be an array'),
     body('societyIds.*').optional().isUUID().withMessage('Each societyId must be a valid UUID'),
   ],
@@ -690,7 +690,7 @@ router.post(
     try {
       const { token, platform, societyIds } = req.body as {
         token: string;
-        platform: 'android';
+        platform: 'android' | 'ios';
         societyIds?: string[];
       };
 
