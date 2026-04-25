@@ -145,8 +145,16 @@ export async function sendPushToTokens(tokens: string[], payload: PushPayload) {
       },
     },
     apns: {
+      headers: {
+        'apns-priority': '10',
+        'apns-push-type': 'alert',
+      },
       payload: {
         aps: {
+          alert: {
+            title: payload.title,
+            body: payload.body,
+          },
           sound: 'default',
           badge: 1,
           contentAvailable: true,

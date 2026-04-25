@@ -23,18 +23,41 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     // MARK: – APNs → Firebase token forwarding (required when swizzling is disabled)
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        // Forward raw APNs token to Firebase so it can exchange it for an FCM token.
+        let hexToken = deviceToken.map { String(format: "%02x", $0) }.joined()
+        print("[Push-Native] APNs token (\(deviceToken.count) bytes): \(hexToken.prefix(20))…")
+        // Pass raw APNs token to Firebase so it can exchange it for an FCM token.
         Messaging.messaging().apnsToken = deviceToken
-        // Also let Capacitor know so its push plugin can emit the 'registration' event.
-        NotificationCenter.default.post(
-            name: Notification.Name(rawValue: "CAPNotificationsDidRegisterForRemoteNotifications"),
-            object: deviceToken
-        )
+        Messaging.messaging().token { token, error in
+            if let error {
+                print("[Push-Native] Failed to fetch FCM token after APNs registration: \(error)")
+                return
+            }
+
+            guard let token else {
+                print("[Push-Native] Firebase returned nil FCM token after APNs registration")
+                return
+            }
+
+            print("[Push-Native] Immediate FCM token fetch (\(token.count) chars): \(token.prefix(20))…")
+            NotificationCenter.default.post(
+                name: .capacitorDidRegisterForRemoteNotifications,
+                object: token
+            )
+        }
+    }
+
+    func application(_ application: UIApplication,
+                     didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+                     fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        print("[Push-Native] didReceiveRemoteNotification: \(userInfo)")
+        // Capacitor handles notification display via UNUserNotificationCenterDelegate (notificationRouter).
+        completionHandler(.newData)
     }
 
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("[Push-Native] Failed to register: \(error)")
         NotificationCenter.default.post(
-            name: Notification.Name(rawValue: "CAPNotificationsDidFailToRegisterForRemoteNotifications"),
+            name: .capacitorDidFailToRegisterForRemoteNotifications,
             object: error
         )
     }
@@ -43,11 +66,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
 
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
         guard let fcmToken else { return }
-        // Post FCM token via Capacitor's push plugin notification name so
-        // the JS 'registration' listener receives the proper FCM token.
+        print("[Push-Native] FCM token (\(fcmToken.count) chars): \(fcmToken.prefix(20))…")
+        // Forward the FCM token string to Capacitor's push plugin using the correct notification name.
         NotificationCenter.default.post(
-            name: Notification.Name(rawValue: "CAPNotificationsDidRegisterForRemoteNotifications"),
-            object: fcmToken.data(using: .utf8)
+            name: .capacitorDidRegisterForRemoteNotifications,
+            object: fcmToken
         )
     }
 
