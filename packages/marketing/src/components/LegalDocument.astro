@@ -66,7 +66,7 @@ const { eyebrow, title, intro, effectiveDate, sections } = Astro.props;
             <ul class="space-y-3 mt-4">
               {section.bullets.map((bullet) => (
                 <li class="flex items-start gap-3 text-on-surface-variant font-body leading-7">
-                  <span class="material-symbols-outlined text-primary text-lg mt-1">subdirectory_arrow_right</span>
+                  <span aria-hidden="true" class="mt-3 h-2 w-2 flex-shrink-0 rounded-full bg-primary"></span>
                   <span>{bullet}</span>
                 </li>
               ))}
