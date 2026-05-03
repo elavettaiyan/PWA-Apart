@@ -162,7 +162,7 @@ export default function LoginPage() {
                   <p className="text-xs text-on-surface-variant mt-0.5">Faster access with push notifications and offline support.</p>
                   <div className="flex flex-wrap items-center gap-3 mt-3">
                     <a
-                      href="https://play.google.com/store/apps/details?id=com.resilynk.dwellhub"
+                      href="https://play.google.com/store/apps/details?id=com.resilynk.mobile&pcampaignid=web_share"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 rounded-xl bg-on-surface px-3.5 py-2 text-xs font-semibold text-white hover:bg-on-surface/85 transition-colors"
