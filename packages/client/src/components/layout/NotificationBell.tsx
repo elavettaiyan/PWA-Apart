@@ -55,13 +55,6 @@ export default function NotificationBell({ compact = false }: { compact?: boolea
                 : 'absolute right-0 mt-2',
             )}
           >
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-              <div>
-                <p className="text-sm font-semibold text-on-surface">Recent notifications</p>
-                <p className="text-[11px] text-slate-400">Latest notifications for this society</p>
-              </div>
-            </div>
-
             {notifications.length === 0 ? (
               <div className="px-4 py-8 text-center">
                 <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">

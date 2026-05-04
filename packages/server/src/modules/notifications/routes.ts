@@ -2,6 +2,7 @@ import { Response, Router } from 'express';
 import { body, query } from 'express-validator';
 import { authenticate, authorize, AuthRequest, FINANCIAL_ROLES, SOCIETY_MANAGERS } from '../../middleware/auth';
 import prisma from '../../config/database';
+import logger from '../../config/logger';
 import { validate } from '../../middleware/errorHandler';
 import { sendAnnouncementBroadcast, sendMaintenanceDueReminders } from './service';
 
@@ -51,40 +52,49 @@ router.get(
   ],
   validate,
   async (req: AuthRequest, res: Response) => {
-    const societyId = req.user?.societyId;
-    if (!societyId) {
+    try {
+      const societyId = req.user?.societyId;
+      if (!societyId) {
+        return res.json([]);
+      }
+
+      const limit = Math.min(Math.max(Number(req.query.limit || 20), 1), 100);
+      const fetchLimit = Math.min(limit * 5, 250);
+
+      const notifications = await prisma.userNotification.findMany({
+        where: {
+          societyId,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: fetchLimit,
+      });
+
+      const uniqueNotifications = [] as typeof notifications;
+      const seenKeys = new Set<string>();
+
+      for (const notification of notifications) {
+        const key = buildNotificationKey(notification);
+        if (seenKeys.has(key)) {
+          continue;
+        }
+
+        seenKeys.add(key);
+        uniqueNotifications.push(notification);
+
+        if (uniqueNotifications.length >= limit) {
+          break;
+        }
+      }
+
+      return res.json(uniqueNotifications.map(serializeNotification));
+    } catch (error: any) {
+      logger.error('Failed to fetch recent notifications', {
+        error: error?.message,
+        societyId: req.user?.societyId,
+        userId: req.user?.id,
+      });
       return res.json([]);
     }
-
-    const limit = Math.min(Math.max(Number(req.query.limit || 20), 1), 100);
-    const fetchLimit = Math.min(limit * 5, 250);
-
-    const notifications = await prisma.userNotification.findMany({
-      where: {
-        societyId,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: fetchLimit,
-    });
-
-    const uniqueNotifications = [] as typeof notifications;
-    const seenKeys = new Set<string>();
-
-    for (const notification of notifications) {
-      const key = buildNotificationKey(notification);
-      if (seenKeys.has(key)) {
-        continue;
-      }
-
-      seenKeys.add(key);
-      uniqueNotifications.push(notification);
-
-      if (uniqueNotifications.length >= limit) {
-        break;
-      }
-    }
-
-    return res.json(uniqueNotifications.map(serializeNotification));
   },
 );
 
