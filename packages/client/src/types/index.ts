@@ -290,6 +290,18 @@ export interface Announcement {
   createdBy?: { id: string; name: string; role: Role };
 }
 
+export interface UserNotification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  path?: string | null;
+  route?: string | null;
+  entityId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type EventStatus = 'SCHEDULED' | 'CANCELLED' | 'COMPLETED';
 
 export interface SocietyEvent {

@@ -10,6 +10,7 @@ import { isNonSecurityServiceStaff, isSecurityServiceStaff } from '@/lib/service
 import { useAuthStore } from '../../store/authStore';
 import { cn } from '../../lib/utils';
 import BrandMark from '../ui/BrandMark';
+import NotificationBell from './NotificationBell';
 import api from '../../lib/api';
 import { MenuVisibilityResponse, NavigationMenuId, SOCIETY_ADMINS } from '../../types';
 import { getFallbackMenuVisibility, getVisibleMenuIdsForUser, getVisibleNavigationItemsForUser } from '../../lib/menuConfig';
@@ -190,6 +191,7 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <NotificationBell compact />
             <button
               onClick={() => setProfileOpen(!profileOpen)}
               className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center ring-2 ring-primary/10 touch-manipulation"
@@ -277,6 +279,8 @@ export default function Layout({ children }: LayoutProps) {
                   <Settings className="w-5 h-5" />
                 </button>
               )}
+
+              <NotificationBell />
 
               {/* Profile Dropdown */}
               <div className="relative">

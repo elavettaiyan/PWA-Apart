@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import {
   initializePushNotifications,
-  openPendingPushNotificationTarget,
   syncStoredPushTokenWithServer,
   unregisterStoredPushToken,
 } from '../../lib/pushNotifications';
@@ -41,7 +40,6 @@ export default function PushNotificationsBootstrap() {
       return;
     }
 
-    void openPendingPushNotificationTarget();
     void syncStoredPushTokenWithServer(accessToken, user);
   }, [accessToken, isAuthenticated, societyKey, user]);
 

@@ -82,6 +82,32 @@ function toData(payload: PushPayload) {
   return Object.fromEntries(entries) as Record<string, string>;
 }
 
+function normalizeUserIds(userIds: string[]) {
+  return [...new Set(userIds.filter((userId): userId is string => typeof userId === 'string' && userId.length > 0))];
+}
+
+async function persistNotificationsForUsers(societyId: string, userIds: string[], payload: PushPayload) {
+  const uniqueUserIds = normalizeUserIds(userIds);
+  if (uniqueUserIds.length === 0) {
+    return 0;
+  }
+
+  await prisma.userNotification.createMany({
+    data: uniqueUserIds.map((userId) => ({
+      userId,
+      societyId,
+      type: payload.type || 'general',
+      title: payload.title,
+      body: payload.body,
+      path: payload.path || null,
+      route: payload.route || null,
+      entityId: payload.entityId || null,
+    })),
+  });
+
+  return uniqueUserIds.length;
+}
+
 async function collectTokens(where: Prisma.PushNotificationDeviceWhereInput) {
   const devices = await prisma.pushNotificationDevice.findMany({
     where,
@@ -197,9 +223,13 @@ export async function sendPushToTokens(tokens: string[], payload: PushPayload) {
 }
 
 export async function sendPushToSocietyUsers(societyId: string, userIds: string[], payload: PushPayload) {
+  const uniqueUserIds = normalizeUserIds(userIds);
+
+  await persistNotificationsForUsers(societyId, uniqueUserIds, payload);
+
   const tokens = await collectTokens({
     societyId,
-    userId: { in: userIds },
+    userId: { in: uniqueUserIds },
     user: { isActive: true },
   });
 
@@ -216,7 +246,7 @@ export async function sendPushToSocietyRoles(societyId: string, roles: string[],
     select: { userId: true },
   });
 
-  const userIds = [...new Set(memberships.map((membership) => membership.userId))];
+  const userIds = normalizeUserIds(memberships.map((membership) => membership.userId));
   return sendPushToSocietyUsers(societyId, userIds, payload);
 }
 
@@ -232,7 +262,7 @@ export async function sendPushToFlatResidents(societyId: string, flatId: string,
     }),
   ]);
 
-  const userIds = [...new Set([...owners, ...tenants].map((row) => row.userId).filter((id): id is string => !!id))];
+  const userIds = normalizeUserIds([...owners, ...tenants].map((row) => row.userId).filter((id): id is string => !!id));
   return sendPushToSocietyUsers(societyId, userIds, payload);
 }
 

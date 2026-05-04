@@ -3,19 +3,18 @@ import {
   PushNotifications,
   type PushNotificationSchema,
   type Token,
-  type ActionPerformed,
 } from '@capacitor/push-notifications';
 import { Preferences } from '@capacitor/preferences';
 import toast from 'react-hot-toast';
-import { navigateTo } from './navigation';
+import { notificationInboxKeys } from './notificationInbox';
 import { getApiBaseUrl, isNativeIos } from './platform';
+import { queryClient } from './queryClient';
 import api from './api';
 import { useAuthStore } from '../store/authStore';
 import type { User } from '../types';
 
 const PUSH_TOKEN_KEY = 'push.notification.token';
 const PUSH_TOKEN_SYNC_KEY = 'push.notification.token.sync';
-const PENDING_PUSH_TARGET_KEY = 'push.notification.target.pending';
 
 let listenersReady = false;
 let initPromise: Promise<void> | null = null;
@@ -50,36 +49,6 @@ function buildSyncKey(token: string, user: User) {
   });
 }
 
-function resolveNotificationTarget(notification: PushNotificationSchema | ActionPerformed['notification']) {
-  const route = notification.data?.route;
-  const path = notification.data?.path;
-  const type = notification.data?.type;
-  const defaultTarget = typeof route === 'string' && route ? route : typeof path === 'string' && path ? path : null;
-
-  if (type === 'visitor.entry' || type === 'delivery.alert') {
-    const role = useAuthStore.getState().user?.role;
-    if (role === 'OWNER' || role === 'TENANT') {
-      return '/my-flat';
-    }
-  }
-
-  if ((typeof type === 'string' && type.startsWith('announcement.')) || defaultTarget === '/announcements') {
-    return '/community?tab=announcements';
-  }
-
-  if ((typeof type === 'string' && type.startsWith('event.')) || defaultTarget === '/events') {
-    return '/community?tab=events';
-  }
-
-  const target = defaultTarget;
-
-  if (!target) {
-    return null;
-  }
-
-  return target.startsWith('/') ? target : `/${target}`;
-}
-
 async function storePushToken(token: string) {
   await Preferences.set({ key: PUSH_TOKEN_KEY, value: token });
 }
@@ -102,19 +71,6 @@ async function clearStoredSyncKey() {
   await Preferences.remove({ key: PUSH_TOKEN_SYNC_KEY });
 }
 
-async function storePendingNotificationTarget(target: string) {
-  await Preferences.set({ key: PENDING_PUSH_TARGET_KEY, value: target });
-}
-
-async function readPendingNotificationTarget() {
-  const { value } = await Preferences.get({ key: PENDING_PUSH_TARGET_KEY });
-  return value;
-}
-
-async function clearPendingNotificationTarget() {
-  await Preferences.remove({ key: PENDING_PUSH_TARGET_KEY });
-}
-
 async function handleRegistration(token: Token) {
   console.log('[Push] Token received from OS:', token.value.slice(0, 20) + '…');
   await storePushToken(token.value);
@@ -132,37 +88,11 @@ async function handleNotificationReceived(notification: PushNotificationSchema) 
     return;
   }
 
+  await queryClient.invalidateQueries({ queryKey: notificationInboxKeys.all });
+
   toast(notification.body || notification.title || 'New notification', {
     icon: 'i',
   });
-}
-
-async function handleNotificationAction(action: ActionPerformed) {
-  const target = resolveNotificationTarget(action.notification);
-
-  if (target) {
-    await storePendingNotificationTarget(target);
-
-    if (useAuthStore.getState().isAuthenticated) {
-      await clearPendingNotificationTarget();
-      navigateTo(target, false);
-    }
-  }
-}
-
-export async function openPendingPushNotificationTarget() {
-  const target = await readPendingNotificationTarget();
-  if (!target) {
-    return false;
-  }
-
-  if (!useAuthStore.getState().isAuthenticated) {
-    return false;
-  }
-
-  await clearPendingNotificationTarget();
-  navigateTo(target, false);
-  return true;
 }
 
 export async function initializePushNotifications() {
@@ -187,11 +117,6 @@ export async function initializePushNotifications() {
       await PushNotifications.addListener('pushNotificationReceived', (notification) => {
         console.log('[Push] Foreground notification received:', notification.title, '|', notification.body);
         void handleNotificationReceived(notification);
-      });
-
-      await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-        console.log('[Push] Notification tapped, action:', action.actionId, 'data:', JSON.stringify(action.notification.data));
-        void handleNotificationAction(action);
       });
 
       listenersReady = true;

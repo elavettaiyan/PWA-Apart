@@ -1,24 +1,15 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, HashRouter } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import App from './App';
 import NavigationBridge from './components/routing/NavigationBridge';
 import PushNotificationsBootstrap from './components/routing/PushNotificationsBootstrap';
 import { shouldUseHashRouter } from './lib/platform';
+import { queryClient } from './lib/queryClient';
 import './lib/theme'; // apply saved accent color before first paint
 import './index.css';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000,
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
 
 const Router = shouldUseHashRouter() ? HashRouter : BrowserRouter;
 
