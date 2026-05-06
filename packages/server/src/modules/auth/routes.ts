@@ -8,10 +8,11 @@ import prisma from '../../config/database';
 import logger from '../../config/logger';
 import { validate } from '../../middleware/errorHandler';
 import { authenticate, AuthRequest, invalidateAuthCache } from '../../middleware/auth';
-import { sendPasswordResetEmail, sendRegistrationEmail, sendRegistrationOtpEmail } from '../../config/email';
+import { sendDeleteAccountOtpEmail, sendPasswordResetEmail, sendRegistrationEmail, sendRegistrationOtpEmail } from '../../config/email';
 import { buildPremiumLifecycleMessage, ensurePremiumLifecycleForSociety, shouldBlockPremiumRole, shouldWarnPremiumRole } from '../premium/lifecycle';
 
 const router = Router();
+const ACCOUNT_DELETION_ALLOWED_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SECRETARY'] as const;
 
 async function findUserByEmailInsensitive(tx: any, email: string, options: Record<string, any> = {}) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
@@ -36,8 +37,40 @@ async function ensureMembership(tx: any, userId: string, societyId: string, role
   });
 }
 
-// ── REGISTRATION OTP STORE ──────────────────────────────
-const registrationOtpStore = new Map<string, { otp: string; payload: any; expiresAt: number }>();
+// ── OTP STORE ───────────────────────────────────────────
+type OtpFlowType = 'REGISTRATION' | 'DELETE_ACCOUNT';
+
+type OtpEntry = {
+  otp: string;
+  payload: any;
+  expiresAt: number;
+  flowType: OtpFlowType;
+};
+
+const otpStore = new Map<string, OtpEntry>();
+const OTP_TTL_MS = 10 * 60 * 1000;
+const OTP_RESEND_WINDOW_MS = 60 * 1000;
+
+function buildOtpKey(flowType: OtpFlowType, subject: string) {
+  return `${flowType}:${String(subject || '').trim().toLowerCase()}`;
+}
+
+function getOtpEntry(flowType: OtpFlowType, subject: string) {
+  return otpStore.get(buildOtpKey(flowType, subject));
+}
+
+function setOtpEntry(flowType: OtpFlowType, subject: string, payload: any, otp: string) {
+  otpStore.set(buildOtpKey(flowType, subject), {
+    otp,
+    payload,
+    expiresAt: Date.now() + OTP_TTL_MS,
+    flowType,
+  });
+}
+
+function deleteOtpEntry(flowType: OtpFlowType, subject: string) {
+  otpStore.delete(buildOtpKey(flowType, subject));
+}
 
 function generateOtp(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -45,8 +78,8 @@ function generateOtp(): string {
 
 function cleanupExpiredOtps() {
   const now = Date.now();
-  for (const [key, entry] of registrationOtpStore) {
-    if (entry.expiresAt < now) registrationOtpStore.delete(key);
+  for (const [key, entry] of otpStore) {
+    if (entry.expiresAt < now) otpStore.delete(key);
   }
 }
 
@@ -87,17 +120,13 @@ router.post(
       }
 
       // Rate-limit: reject if OTP sent less than 60s ago
-      const prev = registrationOtpStore.get(emailKey);
-      if (prev && prev.expiresAt - 9 * 60 * 1000 > Date.now()) {
+      const prev = getOtpEntry('REGISTRATION', emailKey);
+      if (prev && prev.expiresAt - (OTP_TTL_MS - OTP_RESEND_WINDOW_MS) > Date.now()) {
         return res.status(429).json({ error: 'OTP already sent. Please wait before requesting a new one.' });
       }
 
       const otp = generateOtp();
-      registrationOtpStore.set(emailKey, {
-        otp,
-        payload: req.body,
-        expiresAt: Date.now() + 10 * 60 * 1000,
-      });
+      setOtpEntry('REGISTRATION', emailKey, req.body, otp);
 
       await sendRegistrationOtpEmail(emailKey, otp);
 
@@ -122,10 +151,10 @@ router.post(
       const emailKey = String(req.body.email).trim().toLowerCase();
       const submittedOtp = String(req.body.otp).trim();
 
-      const entry = registrationOtpStore.get(emailKey);
+      const entry = getOtpEntry('REGISTRATION', emailKey);
 
       if (!entry || entry.expiresAt < Date.now()) {
-        registrationOtpStore.delete(emailKey);
+        deleteOtpEntry('REGISTRATION', emailKey);
         return res.status(400).json({ error: 'OTP expired or not found. Please request a new one.' });
       }
 
@@ -163,7 +192,7 @@ router.post(
         return { society, user };
       });
 
-      registrationOtpStore.delete(emailKey);
+      deleteOtpEntry('REGISTRATION', emailKey);
 
       const tokens = generateTokens(result.user);
 
@@ -785,6 +814,166 @@ router.delete(
 );
 
 // ── CHANGE PASSWORD (authenticated) ─────────────────────
+router.post(
+  '/delete-account/send-otp',
+  authenticate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { id: true, email: true, name: true, role: true, isActive: true, societyId: true },
+      });
+
+      if (!user || !user.isActive) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      if (!ACCOUNT_DELETION_ALLOWED_ROLES.includes(user.role as typeof ACCOUNT_DELETION_ALLOWED_ROLES[number])) {
+        return res.status(403).json({ error: 'Account deletion is available only for admin accounts.' });
+      }
+
+      const prev = getOtpEntry('DELETE_ACCOUNT', user.email);
+      if (prev && prev.expiresAt - (OTP_TTL_MS - OTP_RESEND_WINDOW_MS) > Date.now()) {
+        return res.status(429).json({ error: 'OTP already sent. Please wait before requesting a new one.' });
+      }
+
+      const otp = generateOtp();
+      setOtpEntry('DELETE_ACCOUNT', user.email, {
+        userId: user.id,
+        email: user.email,
+      }, otp);
+
+      await sendDeleteAccountOtpEmail(user.email, otp, user.name);
+
+      return res.json({ message: 'Deletion verification code sent to your email.' });
+    } catch (error: any) {
+      logger.error('Delete account OTP send failed', { userId: req.user?.id, error: error.message });
+      return res.status(500).json({ error: 'Failed to send deletion verification code' });
+    }
+  },
+);
+
+router.post(
+  '/delete-account/verify-otp',
+  authenticate,
+  [body('otp').trim().isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits')],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const currentUser = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { id: true, email: true, role: true, isActive: true, societyId: true },
+      });
+
+      if (!currentUser || !currentUser.isActive) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      if (!ACCOUNT_DELETION_ALLOWED_ROLES.includes(currentUser.role as typeof ACCOUNT_DELETION_ALLOWED_ROLES[number])) {
+        return res.status(403).json({ error: 'Account deletion is available only for admin accounts.' });
+      }
+
+      const entry = getOtpEntry('DELETE_ACCOUNT', currentUser.email);
+      if (!entry || entry.expiresAt < Date.now()) {
+        deleteOtpEntry('DELETE_ACCOUNT', currentUser.email);
+        return res.status(400).json({ error: 'OTP expired or not found. Please request a new one.' });
+      }
+
+      if (entry.payload?.userId !== currentUser.id) {
+        deleteOtpEntry('DELETE_ACCOUNT', currentUser.email);
+        return res.status(400).json({ error: 'Deletion verification is no longer valid. Please request a new code.' });
+      }
+
+      if (entry.otp !== String(req.body.otp).trim()) {
+        return res.status(400).json({ error: 'Invalid OTP. Please check and try again.' });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        const userWithMemberships = await tx.user.findUnique({
+          where: { id: currentUser.id },
+          include: {
+            societyMemberships: {
+              select: { societyId: true, role: true },
+            },
+          },
+        });
+
+        if (!userWithMemberships) {
+          throw new Error('USER_NOT_FOUND');
+        }
+
+        const isAdminRole = ['SUPER_ADMIN', 'ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'].includes(userWithMemberships.role);
+        if (isAdminRole) {
+          const activeAdminCount = await tx.userSocietyMembership.count({
+            where: {
+              societyId: { in: userWithMemberships.societyMemberships.map((membership) => membership.societyId) },
+              role: { in: ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'] as any },
+              user: { isActive: true, id: { not: userWithMemberships.id } },
+            },
+          });
+
+          if (userWithMemberships.societyMemberships.length > 0 && activeAdminCount === 0) {
+            throw new Error('LAST_ACTIVE_ADMIN');
+          }
+        }
+
+        const anonymizedEmail = `deleted-${userWithMemberships.id}@deleted.dwellhub.local`;
+        const anonymizedPhone = userWithMemberships.phone ? `deleted-${userWithMemberships.id.slice(0, 8)}` : null;
+        const deletedName = 'Deleted User';
+
+        await tx.owner.updateMany({
+          where: { userId: userWithMemberships.id },
+          data: { userId: null },
+        });
+
+        await tx.tenant.updateMany({
+          where: { userId: userWithMemberships.id },
+          data: { userId: null },
+        });
+
+        await tx.userSocietyMembership.deleteMany({
+          where: { userId: userWithMemberships.id },
+        });
+
+        await tx.pushNotificationDevice.deleteMany({ where: { userId: userWithMemberships.id } });
+        await tx.userNotification.deleteMany({ where: { userId: userWithMemberships.id } });
+
+        await tx.user.update({
+          where: { id: userWithMemberships.id },
+          data: {
+            email: anonymizedEmail,
+            name: deletedName,
+            phone: anonymizedPhone,
+            passwordHash: await bcrypt.hash(crypto.randomUUID(), 12),
+            isActive: false,
+            mustChangePassword: false,
+            passwordResetToken: null,
+            passwordResetExpiry: null,
+            societyId: null,
+            activeSocietyId: null,
+            specialization: null,
+          },
+        });
+      });
+
+      deleteOtpEntry('DELETE_ACCOUNT', currentUser.email);
+      invalidateAuthCache(currentUser.id);
+
+      return res.json({ message: 'Account deleted successfully' });
+    } catch (error: any) {
+      if (error.message === 'LAST_ACTIVE_ADMIN') {
+        return res.status(400).json({ error: 'Add another active admin before deleting this account.' });
+      }
+      if (error.message === 'USER_NOT_FOUND') {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      logger.error('Delete account verification failed', { userId: req.user?.id, error: error.message });
+      return res.status(500).json({ error: 'Failed to delete account' });
+    }
+  },
+);
+
 router.post(
   '/change-password',
   authenticate,

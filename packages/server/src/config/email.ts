@@ -392,6 +392,54 @@ export async function sendRegistrationOtpEmail(to: string, otp: string) {
   }
 }
 
+export async function sendDeleteAccountOtpEmail(to: string, otp: string, userName: string) {
+  if (!RESEND_API_KEY) {
+    logger.error('Resend: delete-account OTP email blocked — RESEND_API_KEY is missing', { to });
+    throw new Error('Email configuration error: RESEND_API_KEY is missing');
+  }
+
+  const safeUserName = escapeHtml(userName);
+
+  logger.info('Resend: attempting delete-account OTP email', { to, from: FROM_EMAIL });
+
+  try {
+    const { data, error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: `${otp} is your Dwell Hub account deletion code`,
+      html: `
+        <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #ffffff;">
+          <div style="text-align: center; margin-bottom: 32px;">
+            <h1 style="color: #0E172A; font-size: 28px; margin: 0;">Dwell Hub</h1>
+            <p style="color: #6b7280; font-size: 14px; margin: 4px 0 0;">Apartment Management</p>
+          </div>
+          <div style="background: #f9fafb; border-radius: 12px; padding: 32px; border: 1px solid #e5e7eb;">
+            <h2 style="color: #111827; font-size: 20px; margin: 0 0 16px;">Confirm account deletion</h2>
+            <p style="color: #4b5563; line-height: 1.6; margin: 0 0 8px;">Hi ${safeUserName},</p>
+            <p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">Use the code below to permanently delete your account. It expires in <strong>10 minutes</strong>.</p>
+            <div style="text-align: center; margin: 24px 0;">
+              <span style="font-family: monospace; font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #7f1d1d; background: #fee2e2; padding: 16px 32px; border-radius: 12px; display: inline-block;">${escapeHtml(otp)}</span>
+            </div>
+            <p style="color: #b91c1c; font-size: 14px; line-height: 1.6; margin: 24px 0 0;">If you did not request account deletion, ignore this email and keep your account signed in.</p>
+          </div>
+          <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 32px 0 0;">&copy; ${new Date().getFullYear()} Dwell Hub. All rights reserved.</p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      logger.error('Resend: failed to send delete-account OTP email', { to, error: error.message });
+      throw new Error(`Failed to send email: ${error.message}`);
+    }
+
+    logger.info('Resend: delete-account OTP email sent', { to, emailId: data?.id });
+  } catch (err: any) {
+    if (err.message?.startsWith('Failed to send email:')) throw err;
+    logger.error('Resend: failed to send delete-account OTP email', { to, error: err.message });
+    throw new Error(`Failed to send email: ${err.message}`);
+  }
+}
+
 interface PremiumLifecycleEmailData {
   userName: string;
   societyName: string;

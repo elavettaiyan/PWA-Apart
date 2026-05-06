@@ -4,6 +4,7 @@ import { Plus, Search, Building2, User, Phone, Layers, Trash2, Upload, Download,
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { openRazorpaySubscriptionCheckout } from '../../lib/razorpay';
+import { isNativeIos } from '../../lib/platform';
 import { useAuthStore } from '../../store/authStore';
 import { getFlatTypeLabel, cn, isValidEmailAddress, isValidIndianMobileNumber, normalizeEmail, normalizeIndianMobileNumber } from '../../lib/utils';
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
@@ -19,6 +20,7 @@ export default function FlatsPage() {
   const [selectedFlatId, setSelectedFlatId] = useState<string | null>(null);
   const [showDeleteFlat, setShowDeleteFlat] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showIosUpgradeInfo, setShowIosUpgradeInfo] = useState(false);
   const [search, setSearch] = useState('');
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
@@ -75,6 +77,15 @@ export default function FlatsPage() {
       f.owner?.name?.toLowerCase().includes(search.toLowerCase()) ||
       f.tenant?.name?.toLowerCase().includes(search.toLowerCase()),
   );
+
+  const handleLimitReached = () => {
+    if (isNativeIos()) {
+      setShowIosUpgradeInfo(true);
+      return;
+    }
+
+    setShowUpgradeModal(true);
+  };
 
   if (isLoading) return <PageLoader />;
 
@@ -264,7 +275,7 @@ export default function FlatsPage() {
         <AddFlatForm 
           blocks={blocks} 
           onSuccess={() => { setShowAddFlat(false); queryClient.invalidateQueries({ queryKey: ['flats'] }); }} 
-          onLimitReached={() => { setShowAddFlat(false); setShowUpgradeModal(true); }}
+          onLimitReached={() => { setShowAddFlat(false); handleLimitReached(); }}
         />
       </Modal>
 
@@ -299,13 +310,32 @@ export default function FlatsPage() {
       <Modal isOpen={showBulkUpload} onClose={() => setShowBulkUpload(false)} title="Bulk Upload Flats from Excel" size="lg">
         <BulkUploadForm
           onSuccess={() => { setShowBulkUpload(false); queryClient.invalidateQueries({ queryKey: ['flats'] }); queryClient.invalidateQueries({ queryKey: ['blocks'] }); }}
-          onLimitReached={() => { setShowBulkUpload(false); setShowUpgradeModal(true); }}
+          onLimitReached={() => { setShowBulkUpload(false); handleLimitReached(); }}
         />
       </Modal>
 
       {/* Upgrade Modal */}
       <Modal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} title="Upgrade to Premium" size="lg">
         <UpgradePrompt onClose={() => setShowUpgradeModal(false)} />
+      </Modal>
+
+      <Modal isOpen={showIosUpgradeInfo} onClose={() => setShowIosUpgradeInfo(false)} title="Premium upgrade unavailable on iOS" size="md">
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-warning/20 bg-warning-container px-4 py-4">
+            <p className="text-sm font-semibold text-on-warning-container">Flat limit reached</p>
+            <p className="mt-2 text-sm text-on-surface-variant">
+              Your society has reached its current flat capacity. Premium upgrades are not available inside the iOS app.
+            </p>
+          </div>
+          <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant">
+            To add more flats, complete the Premium upgrade on the web app or Android app, then return to iOS.
+          </div>
+          <div className="flex justify-end">
+            <button type="button" className="btn-primary" onClick={() => setShowIosUpgradeInfo(false)}>
+              Close
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Settings, CreditCard, Eye, EyeOff, CheckCircle2, XCircle,
   Loader2, Zap, ToggleLeft, ToggleRight, ShieldCheck, Globe, Clock,
-  Users, ChevronDown, Palette, Building2,
+  Users, ChevronDown, Palette, Building2, AlertTriangle, Mail, Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -17,6 +17,7 @@ import type { ConfigurableMenuRole, MenuVisibilityResponse, NavigationMenuId, Pr
 import { SOCIETY_ADMINS } from '../../types';
 import ManageStaffPanel from '../../components/settings/ManageStaffPanel';
 import { getAccentThemes, getSavedTheme, applyTheme, type AccentTheme } from '../../lib/theme';
+import { isNativeIos } from '../../lib/platform';
 
 interface PhonePeConfig {
   id?: string;
@@ -56,7 +57,7 @@ export default function SettingsPage() {
   const legalBaseUrl = 'https://dwellhub.in';
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const activeSocietyId = user?.activeSocietyId || user?.societyId || '';
   const [showSaltKey, setShowSaltKey] = useState(false);
   const [showClientSecret, setShowClientSecret] = useState(false);
@@ -74,8 +75,18 @@ export default function SettingsPage() {
   });
   const [hasChanges, setHasChanges] = useState(false);
   const [activeAccent, setActiveAccent] = useState<AccentTheme>(getSavedTheme);
+  const [deleteOtp, setDeleteOtp] = useState(['', '', '', '', '', '']);
+  const [deleteAccountStep, setDeleteAccountStep] = useState<'idle' | 'otp'>('idle');
+  const [deleteAccountResendCooldown, setDeleteAccountResendCooldown] = useState(0);
+  const deleteOtpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const isAdmin = user?.role === 'SUPER_ADMIN' || SOCIETY_ADMINS.includes(user?.role as any);
+
+  useEffect(() => {
+    if (deleteAccountResendCooldown <= 0) return;
+    const timer = setTimeout(() => setDeleteAccountResendCooldown((value) => value - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [deleteAccountResendCooldown]);
 
   const { data, isLoading } = useQuery<{ exists: boolean; config: PhonePeConfig }>({
     queryKey: ['payment-gateway-config'],
@@ -233,6 +244,68 @@ export default function SettingsPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
     setHasChanges(true);
     setTestResult(null);
+  };
+
+  const sendDeleteAccountOtpMutation = useMutation({
+    mutationFn: async () => (await api.post('/auth/delete-account/send-otp')).data,
+    onSuccess: (response) => {
+      toast.success(response.message || 'Verification code sent to your email');
+      setDeleteAccountStep('otp');
+      setDeleteAccountResendCooldown(60);
+      setDeleteOtp(['', '', '', '', '', '']);
+      setTimeout(() => deleteOtpRefs.current[0]?.focus(), 100);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to send deletion verification code');
+    },
+  });
+
+  const verifyDeleteAccountMutation = useMutation({
+    mutationFn: async (otp: string) => (await api.post('/auth/delete-account/verify-otp', { otp })).data,
+    onSuccess: (response) => {
+      toast.success(response.message || 'Account deleted successfully');
+      queryClient.clear();
+      logout();
+      navigate('/login', { replace: true });
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to delete account');
+    },
+  });
+
+  const handleDeleteOtpChange = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return;
+    const next = [...deleteOtp];
+    next[index] = value.slice(-1);
+    setDeleteOtp(next);
+    if (value && index < 5) {
+      deleteOtpRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleDeleteOtpKeyDown = (index: number, event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Backspace' && !deleteOtp[index] && index > 0) {
+      deleteOtpRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleDeleteOtpPaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const pasted = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pasted.length === 6) {
+      setDeleteOtp(pasted.split(''));
+      deleteOtpRefs.current[5]?.focus();
+    }
+  };
+
+  const handleVerifyDeleteAccount = () => {
+    const otp = deleteOtp.join('');
+    if (otp.length !== 6) {
+      toast.error('Enter the 6-digit verification code');
+      return;
+    }
+
+    verifyDeleteAccountMutation.mutate(otp);
   };
 
   const handleSave = () => {
@@ -482,7 +555,9 @@ export default function SettingsPage() {
 
             {!premiumStatus.isPremium && (
               <div className="rounded-xl bg-warning-container px-4 py-3 text-sm text-on-warning-container">
-                Upgrade to Premium from the flat-creation flow when you need more than 5 flats. Razorpay checkout will lock the billable flat count at the moment the subscription starts.
+                {isNativeIos()
+                  ? 'Premium upgrade is not available in the iOS app. Use the web app or Android app when you need more than 5 flats.'
+                  : 'Upgrade to Premium from the flat-creation flow when you need more than 5 flats. Razorpay checkout will lock the billable flat count at the moment the subscription starts.'}
               </div>
             )}
           </div>
@@ -867,6 +942,112 @@ export default function SettingsPage() {
       </SettingsAccordion>
       </>
       )}
+
+      <SettingsAccordion
+        title="Account"
+        description="Security actions and permanent account deletion"
+        icon={AlertTriangle}
+        iconWrapperClassName="group-open:bg-error-container"
+        iconClassName="group-open:text-error"
+      >
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-error/15 bg-error-container/40 p-5">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 rounded-xl bg-white/80 p-2 text-error">
+                <Trash2 className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-on-error-container">Delete account</h3>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  This permanently removes your sign-in access from Dwell Hub. Financial and audit records required by the society are retained without keeping your active account.
+                </p>
+                <p className="mt-2 text-xs text-error">
+                  This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            {!isAdmin ? (
+              <div className="mt-4 rounded-xl border border-outline-variant/15 bg-white/70 px-4 py-3 text-sm text-on-surface-variant">
+                Account deletion is currently available only for admin accounts.
+              </div>
+            ) : (
+              <div className="mt-4 space-y-4">
+                <div className="rounded-xl border border-outline-variant/15 bg-white/70 px-4 py-3 text-sm text-on-surface-variant">
+                  <div className="flex items-center gap-2 text-on-surface">
+                    <Mail className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Verification email</span>
+                  </div>
+                  <p className="mt-1 break-all">{user?.email}</p>
+                </div>
+
+                {deleteAccountStep === 'otp' ? (
+                  <div className="space-y-4">
+                    <div onPaste={handleDeleteOtpPaste}>
+                      <label className="label">Enter 6-digit code</label>
+                      <div className="flex gap-2">
+                        {deleteOtp.map((digit, index) => (
+                          <input
+                            key={index}
+                            ref={(element) => { deleteOtpRefs.current[index] = element; }}
+                            inputMode="numeric"
+                            maxLength={1}
+                            className="h-12 w-12 rounded-xl border border-outline-variant/30 bg-white text-center text-lg font-semibold text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                            value={digit}
+                            onChange={(event) => handleDeleteOtpChange(index, event.target.value)}
+                            onKeyDown={(event) => handleDeleteOtpKeyDown(index, event)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        className="btn-primary bg-error hover:bg-error/90 focus:ring-error"
+                        onClick={handleVerifyDeleteAccount}
+                        disabled={verifyDeleteAccountMutation.isPending}
+                      >
+                        {verifyDeleteAccountMutation.isPending ? 'Deleting account...' : 'Verify and delete'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => sendDeleteAccountOtpMutation.mutate()}
+                        disabled={sendDeleteAccountOtpMutation.isPending || deleteAccountResendCooldown > 0}
+                      >
+                        {deleteAccountResendCooldown > 0 ? `Resend in ${deleteAccountResendCooldown}s` : 'Resend code'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => {
+                          setDeleteAccountStep('idle');
+                          setDeleteOtp(['', '', '', '', '', '']);
+                          setDeleteAccountResendCooldown(0);
+                        }}
+                        disabled={verifyDeleteAccountMutation.isPending}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      className="btn-primary bg-error hover:bg-error/90 focus:ring-error"
+                      onClick={() => sendDeleteAccountOtpMutation.mutate()}
+                      disabled={sendDeleteAccountOtpMutation.isPending}
+                    >
+                      {sendDeleteAccountOtpMutation.isPending ? 'Sending code...' : 'Delete account'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </SettingsAccordion>
 
       <SettingsAccordion
         title="Legal"
