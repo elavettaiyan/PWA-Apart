@@ -83,6 +83,80 @@ function cleanupExpiredOtps() {
   }
 }
 
+async function deleteUserAccount(currentUser: { id: string; email: string; role: string; isActive: boolean; societyId?: string | null }) {
+  await prisma.$transaction(async (tx) => {
+    const userWithMemberships = await tx.user.findUnique({
+      where: { id: currentUser.id },
+      include: {
+        societyMemberships: {
+          select: { societyId: true, role: true },
+        },
+      },
+    });
+
+    if (!userWithMemberships) {
+      throw new Error('USER_NOT_FOUND');
+    }
+
+    const isAdminRole = ['SUPER_ADMIN', 'ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'].includes(userWithMemberships.role);
+    if (isAdminRole) {
+      const activeAdminCount = await tx.userSocietyMembership.count({
+        where: {
+          societyId: { in: userWithMemberships.societyMemberships.map((membership) => membership.societyId) },
+          role: { in: ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'] as any },
+          user: { isActive: true, id: { not: userWithMemberships.id } },
+        },
+      });
+
+      if (userWithMemberships.societyMemberships.length > 0 && activeAdminCount === 0) {
+        throw new Error('LAST_ACTIVE_ADMIN');
+      }
+    }
+
+    const anonymizedEmail = `deleted-${userWithMemberships.id}@deleted.dwellhub.local`;
+    const anonymizedPhone = userWithMemberships.phone ? `deleted-${userWithMemberships.id.slice(0, 8)}` : null;
+    const deletedName = 'Deleted User';
+
+    await tx.owner.updateMany({
+      where: { userId: userWithMemberships.id },
+      data: { userId: null },
+    });
+
+    await tx.tenant.updateMany({
+      where: { userId: userWithMemberships.id },
+      data: { userId: null },
+    });
+
+    await tx.userSocietyMembership.deleteMany({
+      where: { userId: userWithMemberships.id },
+    });
+
+    await tx.pushNotificationDevice.deleteMany({ where: { userId: userWithMemberships.id } });
+    await tx.userNotification.deleteMany({ where: { userId: userWithMemberships.id } });
+
+    await tx.user.update({
+      where: { id: userWithMemberships.id },
+      data: {
+        email: anonymizedEmail,
+        name: deletedName,
+        phone: anonymizedPhone,
+        passwordHash: await bcrypt.hash(crypto.randomUUID(), 12),
+        isActive: false,
+        mustChangePassword: false,
+        skipAccountDeletionVerification: false,
+        passwordResetToken: null,
+        passwordResetExpiry: null,
+        societyId: null,
+        activeSocietyId: null,
+        specialization: null,
+      },
+    });
+  });
+
+  deleteOtpEntry('DELETE_ACCOUNT', currentUser.email);
+  invalidateAuthCache(currentUser.id);
+}
+
 setInterval(cleanupExpiredOtps, 5 * 60 * 1000);
 
 // ── SEND REGISTRATION OTP ───────────────────────────────
@@ -539,6 +613,7 @@ router.post(
         societyId: activeSocietyId,
         societyCount: societies.length,
         mustChangePassword: user.mustChangePassword,
+        skipAccountDeletionVerification: user.skipAccountDeletionVerification,
       });
 
       return res.json({
@@ -551,6 +626,7 @@ router.post(
           societyId: activeSocietyId,
           flat: flatFromOwners || flatFromTenants || null,
           mustChangePassword: user.mustChangePassword,
+          skipAccountDeletionVerification: user.skipAccountDeletionVerification,
           societies: societies.map((membership) => ({ id: membership.society.id, name: membership.society.name, role: membership.role })),
         },
         premiumLifecycle,
@@ -629,6 +705,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
         specialization: true,
         societyId: true,
         activeSocietyId: true,
+        skipAccountDeletionVerification: true,
         lastLogin: true,
         createdAt: true,
         owners: { include: { flat: { include: { block: true } } } },
@@ -683,7 +760,7 @@ router.post(
           activeSocietyId: societyId,
           societyId,
         },
-        select: { id: true, email: true, name: true, role: true, specialization: true, societyId: true, mustChangePassword: true },
+        select: { id: true, email: true, name: true, role: true, specialization: true, societyId: true, mustChangePassword: true, skipAccountDeletionVerification: true },
       });
 
       const effectiveRole = membership.role;
@@ -821,7 +898,7 @@ router.post(
     try {
       const user = await prisma.user.findUnique({
         where: { id: req.user!.id },
-        select: { id: true, email: true, name: true, role: true, isActive: true, societyId: true },
+        select: { id: true, email: true, name: true, role: true, isActive: true, societyId: true, skipAccountDeletionVerification: true },
       });
 
       if (!user || !user.isActive) {
@@ -830,6 +907,11 @@ router.post(
 
       if (!ACCOUNT_DELETION_ALLOWED_ROLES.includes(user.role as typeof ACCOUNT_DELETION_ALLOWED_ROLES[number])) {
         return res.status(403).json({ error: 'Account deletion is available only for admin accounts.' });
+      }
+
+      if (user.skipAccountDeletionVerification) {
+        deleteOtpEntry('DELETE_ACCOUNT', user.email);
+        return res.json({ message: 'Deletion confirmation is enabled for this account. No verification code is required.' });
       }
 
       const prev = getOtpEntry('DELETE_ACCOUNT', user.email);
@@ -854,15 +936,13 @@ router.post(
 );
 
 router.post(
-  '/delete-account/verify-otp',
+  '/delete-account/confirm',
   authenticate,
-  [body('otp').trim().isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits')],
-  validate,
   async (req: AuthRequest, res: Response) => {
     try {
       const currentUser = await prisma.user.findUnique({
         where: { id: req.user!.id },
-        select: { id: true, email: true, role: true, isActive: true, societyId: true },
+        select: { id: true, email: true, role: true, isActive: true, societyId: true, skipAccountDeletionVerification: true },
       });
 
       if (!currentUser || !currentUser.isActive) {
@@ -871,6 +951,51 @@ router.post(
 
       if (!ACCOUNT_DELETION_ALLOWED_ROLES.includes(currentUser.role as typeof ACCOUNT_DELETION_ALLOWED_ROLES[number])) {
         return res.status(403).json({ error: 'Account deletion is available only for admin accounts.' });
+      }
+
+      if (!currentUser.skipAccountDeletionVerification) {
+        return res.status(400).json({ error: 'Deletion verification is required for this account.' });
+      }
+
+      await deleteUserAccount(currentUser);
+
+      return res.json({ message: 'Account deleted successfully' });
+    } catch (error: any) {
+      if (error.message === 'LAST_ACTIVE_ADMIN') {
+        return res.status(400).json({ error: 'Add another active admin before deleting this account.' });
+      }
+      if (error.message === 'USER_NOT_FOUND') {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      logger.error('Delete account confirmation failed', { userId: req.user?.id, error: error.message });
+      return res.status(500).json({ error: 'Failed to delete account' });
+    }
+  },
+);
+
+router.post(
+  '/delete-account/verify-otp',
+  authenticate,
+  [body('otp').trim().isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits')],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const currentUser = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { id: true, email: true, role: true, isActive: true, societyId: true, skipAccountDeletionVerification: true },
+      });
+
+      if (!currentUser || !currentUser.isActive) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      if (!ACCOUNT_DELETION_ALLOWED_ROLES.includes(currentUser.role as typeof ACCOUNT_DELETION_ALLOWED_ROLES[number])) {
+        return res.status(403).json({ error: 'Account deletion is available only for admin accounts.' });
+      }
+
+      if (currentUser.skipAccountDeletionVerification) {
+        return res.status(400).json({ error: 'Deletion verification is skipped for this account. Use confirmation instead.' });
       }
 
       const entry = getOtpEntry('DELETE_ACCOUNT', currentUser.email);
@@ -888,76 +1013,7 @@ router.post(
         return res.status(400).json({ error: 'Invalid OTP. Please check and try again.' });
       }
 
-      await prisma.$transaction(async (tx) => {
-        const userWithMemberships = await tx.user.findUnique({
-          where: { id: currentUser.id },
-          include: {
-            societyMemberships: {
-              select: { societyId: true, role: true },
-            },
-          },
-        });
-
-        if (!userWithMemberships) {
-          throw new Error('USER_NOT_FOUND');
-        }
-
-        const isAdminRole = ['SUPER_ADMIN', 'ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'].includes(userWithMemberships.role);
-        if (isAdminRole) {
-          const activeAdminCount = await tx.userSocietyMembership.count({
-            where: {
-              societyId: { in: userWithMemberships.societyMemberships.map((membership) => membership.societyId) },
-              role: { in: ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'] as any },
-              user: { isActive: true, id: { not: userWithMemberships.id } },
-            },
-          });
-
-          if (userWithMemberships.societyMemberships.length > 0 && activeAdminCount === 0) {
-            throw new Error('LAST_ACTIVE_ADMIN');
-          }
-        }
-
-        const anonymizedEmail = `deleted-${userWithMemberships.id}@deleted.dwellhub.local`;
-        const anonymizedPhone = userWithMemberships.phone ? `deleted-${userWithMemberships.id.slice(0, 8)}` : null;
-        const deletedName = 'Deleted User';
-
-        await tx.owner.updateMany({
-          where: { userId: userWithMemberships.id },
-          data: { userId: null },
-        });
-
-        await tx.tenant.updateMany({
-          where: { userId: userWithMemberships.id },
-          data: { userId: null },
-        });
-
-        await tx.userSocietyMembership.deleteMany({
-          where: { userId: userWithMemberships.id },
-        });
-
-        await tx.pushNotificationDevice.deleteMany({ where: { userId: userWithMemberships.id } });
-        await tx.userNotification.deleteMany({ where: { userId: userWithMemberships.id } });
-
-        await tx.user.update({
-          where: { id: userWithMemberships.id },
-          data: {
-            email: anonymizedEmail,
-            name: deletedName,
-            phone: anonymizedPhone,
-            passwordHash: await bcrypt.hash(crypto.randomUUID(), 12),
-            isActive: false,
-            mustChangePassword: false,
-            passwordResetToken: null,
-            passwordResetExpiry: null,
-            societyId: null,
-            activeSocietyId: null,
-            specialization: null,
-          },
-        });
-      });
-
-      deleteOtpEntry('DELETE_ACCOUNT', currentUser.email);
-      invalidateAuthCache(currentUser.id);
+      await deleteUserAccount(currentUser);
 
       return res.json({ message: 'Account deleted successfully' });
     } catch (error: any) {

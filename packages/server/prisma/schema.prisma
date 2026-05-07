@@ -326,6 +326,7 @@ model User {
   activeSocietyId      String?
   isActive             Boolean   @default(true)
   mustChangePassword   Boolean   @default(false)
+  skipAccountDeletionVerification Boolean @default(false)
   passwordResetToken   String?   @unique
   passwordResetExpiry  DateTime?
   lastLogin            DateTime?

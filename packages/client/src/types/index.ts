@@ -62,6 +62,7 @@ export interface User {
   societies?: Array<{ id: string; name: string; role?: Role }>;
   flat?: Flat;
   mustChangePassword?: boolean;
+  skipAccountDeletionVerification?: boolean;
 }
 
 export interface AuthResponse {

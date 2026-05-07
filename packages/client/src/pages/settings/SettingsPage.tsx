@@ -78,6 +78,7 @@ export default function SettingsPage() {
   const [deleteOtp, setDeleteOtp] = useState(['', '', '', '', '', '']);
   const [deleteAccountStep, setDeleteAccountStep] = useState<'idle' | 'otp'>('idle');
   const [deleteAccountResendCooldown, setDeleteAccountResendCooldown] = useState(0);
+  const [showDeleteAccountConfirmModal, setShowDeleteAccountConfirmModal] = useState(false);
   const deleteOtpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const isAdmin = user?.role === 'SUPER_ADMIN' || SOCIETY_ADMINS.includes(user?.role as any);
@@ -273,6 +274,20 @@ export default function SettingsPage() {
     },
   });
 
+  const confirmDeleteAccountMutation = useMutation({
+    mutationFn: async () => (await api.post('/auth/delete-account/confirm')).data,
+    onSuccess: (response) => {
+      toast.success(response.message || 'Account deleted successfully');
+      setShowDeleteAccountConfirmModal(false);
+      queryClient.clear();
+      logout();
+      navigate('/login', { replace: true });
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to delete account');
+    },
+  });
+
   const handleDeleteOtpChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
     const next = [...deleteOtp];
@@ -306,6 +321,10 @@ export default function SettingsPage() {
     }
 
     verifyDeleteAccountMutation.mutate(otp);
+  };
+
+  const handleConfirmDeleteAccount = () => {
+    confirmDeleteAccountMutation.mutate();
   };
 
   const handleSave = () => {
@@ -974,14 +993,37 @@ export default function SettingsPage() {
             ) : (
               <div className="mt-4 space-y-4">
                 <div className="rounded-xl border border-outline-variant/15 bg-white/70 px-4 py-3 text-sm text-on-surface-variant">
-                  <div className="flex items-center gap-2 text-on-surface">
-                    <Mail className="h-4 w-4 text-primary" />
-                    <span className="font-medium">Verification email</span>
-                  </div>
-                  <p className="mt-1 break-all">{user?.email}</p>
+                  {user?.skipAccountDeletionVerification ? (
+                    <>
+                      <div className="flex items-center gap-2 text-on-surface">
+                        <Trash2 className="h-4 w-4 text-error" />
+                        <span className="font-medium">Direct confirmation</span>
+                      </div>
+                      <p className="mt-1">This account is configured to delete immediately after your final confirmation. No verification code will be sent.</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 text-on-surface">
+                        <Mail className="h-4 w-4 text-primary" />
+                        <span className="font-medium">Verification email</span>
+                      </div>
+                      <p className="mt-1 break-all">{user?.email}</p>
+                    </>
+                  )}
                 </div>
 
-                {deleteAccountStep === 'otp' ? (
+                {user?.skipAccountDeletionVerification ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      className="btn-primary bg-error hover:bg-error/90 focus:ring-error"
+                      onClick={() => setShowDeleteAccountConfirmModal(true)}
+                      disabled={confirmDeleteAccountMutation.isPending}
+                    >
+                      {confirmDeleteAccountMutation.isPending ? 'Deleting account...' : 'Delete account'}
+                    </button>
+                  </div>
+                ) : deleteAccountStep === 'otp' ? (
                   <div className="space-y-4">
                     <div onPaste={handleDeleteOtpPaste}>
                       <label className="label">Enter 6-digit code</label>
@@ -1118,6 +1160,43 @@ export default function SettingsPage() {
           </div>
         </div>
       </SettingsAccordion>
+
+      <Modal
+        isOpen={showDeleteAccountConfirmModal}
+        onClose={() => {
+          if (confirmDeleteAccountMutation.isPending) return;
+          setShowDeleteAccountConfirmModal(false);
+        }}
+        title="Confirm account deletion"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-on-surface-variant">
+            This permanently removes your sign-in access from Dwell Hub. Financial and audit records required by the society will still be retained.
+          </p>
+          <p className="text-sm font-semibold text-error">
+            This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setShowDeleteAccountConfirmModal(false)}
+              disabled={confirmDeleteAccountMutation.isPending}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary bg-error hover:bg-error/90 focus:ring-error"
+              onClick={handleConfirmDeleteAccount}
+              disabled={confirmDeleteAccountMutation.isPending}
+            >
+              {confirmDeleteAccountMutation.isPending ? 'Deleting...' : 'Confirm delete'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -1645,6 +1724,7 @@ function MembersRoles() {
           </div>
         )}
       </Modal>
+
     </div>
   );
 }
