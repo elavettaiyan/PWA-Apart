@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { PageLoader } from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
+import { isSectionRestricted } from '../../lib/appRestrictions';
 import { cn } from '../../lib/utils';
 import { getFallbackMenuVisibility } from '../../lib/menuConfig';
 import { useNavigate } from 'react-router-dom';
@@ -17,7 +18,6 @@ import type { ConfigurableMenuRole, MenuVisibilityResponse, NavigationMenuId, Pr
 import { SOCIETY_ADMINS } from '../../types';
 import ManageStaffPanel from '../../components/settings/ManageStaffPanel';
 import { getAccentThemes, getSavedTheme, applyTheme, type AccentTheme } from '../../lib/theme';
-import { isNativeIos } from '../../lib/platform';
 
 interface PhonePeConfig {
   id?: string;
@@ -492,6 +492,7 @@ export default function SettingsPage() {
         />
       </SettingsAccordion>
 
+      {!isSectionRestricted('settings-premium-plan') && (
       <SettingsAccordion
         title="Premium Plan"
         description="Review subscription status, limits, and billing impact"
@@ -555,9 +556,7 @@ export default function SettingsPage() {
 
             {!premiumStatus.isPremium && (
               <div className="rounded-xl bg-warning-container px-4 py-3 text-sm text-on-warning-container">
-                {isNativeIos()
-                   ? 'Subscription changes are not available in the iOS app. If your account needs support for more than 5 flats, please manage your plan from the web app and then return to the iOS app.'
-                  : 'Upgrade to Premium from the flat-creation flow when you need more than 5 flats. Razorpay checkout will lock the billable flat count at the moment the subscription starts.'}
+                Upgrade to Premium from the flat-creation flow when you need more than 5 flats. Razorpay checkout will lock the billable flat count at the moment the subscription starts.
               </div>
             )}
           </div>
@@ -566,6 +565,7 @@ export default function SettingsPage() {
         )}
       </div>
       </SettingsAccordion>
+      )}
 
       <SettingsAccordion
         title="Payment Gateway"

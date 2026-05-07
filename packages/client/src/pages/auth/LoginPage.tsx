@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, Smartphone } from 'lucide-react';
 import BrandMark from '../../components/ui/BrandMark';
+import { WebOnlyRestrictionDialog } from '../../components/restrictions/WebOnlyRestriction';
 import toast from 'react-hot-toast';
+import { getActionRestriction } from '../../lib/appRestrictions';
 import { getPostLoginRoute } from '@/lib/serviceStaff';
 import api from '../../lib/api';
 import { getApiBaseUrl, isNativePlatform } from '../../lib/platform';
@@ -14,8 +16,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showRegisterRestriction, setShowRegisterRestriction] = useState(false);
   const navigate = useNavigate();
   const { setAuth } = useAuthStore();
+  const registerCommunityRestriction = getActionRestriction('register-community');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,13 +147,31 @@ export default function LoginPage() {
             </div>
           </form>
           <div className="mt-6 text-center">
-            <Link
-              to="/register"
-              className="text-sm text-primary hover:text-primary/80 font-medium"
-            >
-              Register a new community →
-            </Link>
+            {registerCommunityRestriction ? (
+              <button
+                type="button"
+                onClick={() => setShowRegisterRestriction(true)}
+                className="text-sm text-primary hover:text-primary/80 font-medium"
+              >
+                Register a new community →
+              </button>
+            ) : (
+              <Link
+                to="/register"
+                className="text-sm text-primary hover:text-primary/80 font-medium"
+              >
+                Register a new community →
+              </Link>
+            )}
           </div>
+
+          {registerCommunityRestriction ? (
+            <WebOnlyRestrictionDialog
+              restriction={registerCommunityRestriction}
+              isOpen={showRegisterRestriction}
+              onClose={() => setShowRegisterRestriction(false)}
+            />
+          ) : null}
 
           {!isNativePlatform() && (
             <div className="mt-8 rounded-2xl border border-primary/15 bg-primary/[0.03] p-4">

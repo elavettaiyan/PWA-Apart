@@ -24,6 +24,8 @@ import StaffPage from './pages/staff/StaffPage';
 import GateManagementPage from './pages/security/GateManagementPage';
 import EntryActivityPage from './pages/security/EntryActivityPage';
 import AssetsPage from './pages/assets/AssetsPage';
+import { WebOnlyRestrictionPage } from './components/restrictions/WebOnlyRestriction';
+import { getRouteRestriction, type RestrictedRoutePath } from './lib/appRestrictions';
 import { getDefaultAuthenticatedRoute, getPostLoginRoute, isSecurityServiceStaff } from './lib/serviceStaff';
 import { isNativePlatform } from './lib/platform';
 import { SOCIETY_ADMINS, SOCIETY_MANAGERS, FINANCIAL_ROLES } from './types';
@@ -55,6 +57,24 @@ function SecurityServiceStaffRoute({ children }: { children: React.ReactNode }) 
   return <Layout>{children}</Layout>;
 }
 
+function RestrictionAwareContent({
+  path,
+  children,
+  fullScreen = false,
+}: {
+  path: RestrictedRoutePath;
+  children: React.ReactNode;
+  fullScreen?: boolean;
+}) {
+  const restriction = getRouteRestriction(path);
+
+  if (restriction) {
+    return <WebOnlyRestrictionPage restriction={restriction} fullScreen={fullScreen} />;
+  }
+
+  return <>{children}</>;
+}
+
 export default function App() {
   const { isAuthenticated, user, accessToken, refreshToken, _hydrated } = useAuthStore();
   const nativePlatform = isNativePlatform();
@@ -84,7 +104,7 @@ export default function App() {
           path="/register"
           element={
             hasValidSession ? <Navigate to={getPostLoginRoute(user)} replace /> :
-            <RegisterPage />
+            <RestrictionAwareContent path="/register" fullScreen><RegisterPage /></RestrictionAwareContent>
           }
         />
         <Route
@@ -113,13 +133,13 @@ export default function App() {
         <Route path="/community" element={<ProtectedRoute><CommunityPage /></ProtectedRoute>} />
         <Route path="/announcements" element={<Navigate to="/community?tab=announcements" replace />} />
         <Route path="/events" element={<Navigate to="/community?tab=events" replace />} />
-        <Route path="/flats" element={<RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_MANAGERS]}><FlatsPage /></RoleRoute>} />
+        <Route path="/flats" element={<RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_MANAGERS]}><RestrictionAwareContent path="/flats"><FlatsPage /></RestrictionAwareContent></RoleRoute>} />
         <Route path="/my-flat" element={<ProtectedRoute><MyFlatPage /></ProtectedRoute>} />
         <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
         <Route path="/payments/status" element={<PaymentStatusRedirect />} />
         <Route path="/complaints" element={<ProtectedRoute><ComplaintsPage /></ProtectedRoute>} />
         <Route path="/expenses" element={<RoleRoute roles={['SUPER_ADMIN', ...FINANCIAL_ROLES]}><ExpensesPage /></RoleRoute>} />
-        <Route path="/assets" element={<RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_MANAGERS]}><AssetsPage /></RoleRoute>} />
+        <Route path="/assets" element={<RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_MANAGERS]}><RestrictionAwareContent path="/assets"><AssetsPage /></RestrictionAwareContent></RoleRoute>} />
         <Route path="/bylaws" element={<ProtectedRoute><BylawsPage /></ProtectedRoute>} />
         <Route path="/reports" element={<RoleRoute roles={['SUPER_ADMIN', ...FINANCIAL_ROLES]}><ReportsPage /></RoleRoute>} />
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />

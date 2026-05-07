@@ -6,6 +6,7 @@ import type {
   RoleMenuVisibilityConfig,
   User,
 } from '../types';
+import { isMenuRestricted } from './appRestrictions';
 import { isNonSecurityServiceStaff, isSecurityServiceStaff } from './serviceStaff';
 
 export const NAVIGATION_MENU_CATALOG = [
@@ -166,20 +167,22 @@ export function getVisibleMenuIdsForUser(user?: User | null, menuVisibility?: Me
     return [];
   }
 
+  const filterRestrictedMenus = (menuIds: NavigationMenuId[]) => menuIds.filter((menuId) => !isMenuRestricted(menuId));
+
   if (user.role === 'SUPER_ADMIN') {
-    return NAVIGATION_MENU_CATALOG.map((item) => item.id);
+    return filterRestrictedMenus(NAVIGATION_MENU_CATALOG.map((item) => item.id));
   }
 
   if (isSecurityServiceStaff(user)) {
-    return ['gate-management', 'entry-activity'];
+    return filterRestrictedMenus(['gate-management', 'entry-activity']);
   }
 
   if (isNonSecurityServiceStaff(user)) {
-    return ['complaints'];
+    return filterRestrictedMenus(['complaints']);
   }
 
   const roleConfig = getRoleMenuVisibilityConfig(user.role, menuVisibility);
-  return roleConfig?.visibleMenuIds || [];
+  return filterRestrictedMenus(roleConfig?.visibleMenuIds || []);
 }
 
 export function getVisibleNavigationItemsForUser(user?: User | null, menuVisibility?: MenuVisibilityResponse | null) {
