@@ -13,6 +13,7 @@ import { buildPremiumLifecycleMessage, ensurePremiumLifecycleForSociety, shouldB
 
 const router = Router();
 const ACCOUNT_DELETION_ALLOWED_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SECRETARY'] as const;
+const REVIEW_DELETE_ACCOUNT_OTP = '123456';
 
 async function findUserByEmailInsensitive(tx: any, email: string, options: Record<string, any> = {}) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
@@ -911,7 +912,7 @@ router.post(
 
       if (user.skipAccountDeletionVerification) {
         deleteOtpEntry('DELETE_ACCOUNT', user.email);
-        return res.json({ message: 'Deletion confirmation is enabled for this account. No verification code is required.' });
+        return res.json({ message: 'Use the review OTP to complete account deletion.' });
       }
 
       const prev = getOtpEntry('DELETE_ACCOUNT', user.email);
@@ -931,45 +932,6 @@ router.post(
     } catch (error: any) {
       logger.error('Delete account OTP send failed', { userId: req.user?.id, error: error.message });
       return res.status(500).json({ error: 'Failed to send deletion verification code' });
-    }
-  },
-);
-
-router.post(
-  '/delete-account/confirm',
-  authenticate,
-  async (req: AuthRequest, res: Response) => {
-    try {
-      const currentUser = await prisma.user.findUnique({
-        where: { id: req.user!.id },
-        select: { id: true, email: true, role: true, isActive: true, societyId: true, skipAccountDeletionVerification: true },
-      });
-
-      if (!currentUser || !currentUser.isActive) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-
-      if (!ACCOUNT_DELETION_ALLOWED_ROLES.includes(currentUser.role as typeof ACCOUNT_DELETION_ALLOWED_ROLES[number])) {
-        return res.status(403).json({ error: 'Account deletion is available only for admin accounts.' });
-      }
-
-      if (!currentUser.skipAccountDeletionVerification) {
-        return res.status(400).json({ error: 'Deletion verification is required for this account.' });
-      }
-
-      await deleteUserAccount(currentUser);
-
-      return res.json({ message: 'Account deleted successfully' });
-    } catch (error: any) {
-      if (error.message === 'LAST_ACTIVE_ADMIN') {
-        return res.status(400).json({ error: 'Add another active admin before deleting this account.' });
-      }
-      if (error.message === 'USER_NOT_FOUND') {
-        return res.status(404).json({ error: 'User not found' });
-      }
-
-      logger.error('Delete account confirmation failed', { userId: req.user?.id, error: error.message });
-      return res.status(500).json({ error: 'Failed to delete account' });
     }
   },
 );
@@ -995,7 +957,12 @@ router.post(
       }
 
       if (currentUser.skipAccountDeletionVerification) {
-        return res.status(400).json({ error: 'Deletion verification is skipped for this account. Use confirmation instead.' });
+        if (String(req.body.otp).trim() !== REVIEW_DELETE_ACCOUNT_OTP) {
+          return res.status(400).json({ error: 'Invalid OTP. Please check and try again.' });
+        }
+
+        await deleteUserAccount(currentUser);
+        return res.json({ message: 'Account deleted successfully' });
       }
 
       const entry = getOtpEntry('DELETE_ACCOUNT', currentUser.email);
