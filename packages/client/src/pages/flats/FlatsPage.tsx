@@ -319,16 +319,16 @@ export default function FlatsPage() {
         <UpgradePrompt onClose={() => setShowUpgradeModal(false)} />
       </Modal>
 
-      <Modal isOpen={showIosUpgradeInfo} onClose={() => setShowIosUpgradeInfo(false)} title="Premium upgrade unavailable on iOS" size="md">
+      <Modal isOpen={showIosUpgradeInfo} onClose={() => setShowIosUpgradeInfo(false)} title="Plan changes unavailable on iOS" size="md">
         <div className="space-y-4">
           <div className="rounded-2xl border border-warning/20 bg-warning-container px-4 py-4">
             <p className="text-sm font-semibold text-on-warning-container">Flat limit reached</p>
             <p className="mt-2 text-sm text-on-surface-variant">
-              Your society has reached its current flat capacity. Premium upgrades are not available inside the iOS app.
+              Your society has reached its current flat capacity. Subscription changes are not available in the iOS app.
             </p>
           </div>
           <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant">
-            To add more flats, complete the Premium upgrade on the web app or Android app, then return to iOS.
+            If your account needs support for more flats, please manage your plan from the web app and then return to the iOS app.
           </div>
           <div className="flex justify-end">
             <button type="button" className="btn-primary" onClick={() => setShowIosUpgradeInfo(false)}>

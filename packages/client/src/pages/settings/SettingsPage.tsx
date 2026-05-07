@@ -556,7 +556,7 @@ export default function SettingsPage() {
             {!premiumStatus.isPremium && (
               <div className="rounded-xl bg-warning-container px-4 py-3 text-sm text-on-warning-container">
                 {isNativeIos()
-                  ? 'Premium upgrade is not available in the iOS app. Use the web app or Android app when you need more than 5 flats.'
+                   ? 'Subscription changes are not available in the iOS app. If your account needs support for more than 5 flats, please manage your plan from the web app and then return to the iOS app.'
                   : 'Upgrade to Premium from the flat-creation flow when you need more than 5 flats. Razorpay checkout will lock the billable flat count at the moment the subscription starts.'}
               </div>
             )}
