@@ -997,14 +997,14 @@ export default function SettingsPage() {
                   <div className="space-y-4">
                     <div onPaste={handleDeleteOtpPaste}>
                       <label className="label">Enter 6-digit code</label>
-                      <div className="flex gap-2">
+                      <div className="grid grid-cols-6 gap-2">
                         {deleteOtp.map((digit, index) => (
                           <input
                             key={index}
                             ref={(element) => { deleteOtpRefs.current[index] = element; }}
                             inputMode="numeric"
                             maxLength={1}
-                            className="h-12 w-12 rounded-xl border border-outline-variant/30 bg-white text-center text-lg font-semibold text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                            className="h-12 w-full min-w-0 rounded-xl border border-outline-variant/30 bg-white text-center text-lg font-semibold text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 sm:w-12"
                             value={digit}
                             onChange={(event) => handleDeleteOtpChange(index, event.target.value)}
                             onKeyDown={(event) => handleDeleteOtpKeyDown(index, event)}
