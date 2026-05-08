@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { redirectToLogin } from './navigation';
-import { getApiBaseUrl } from './platform';
+import { getApiBaseUrl, isNativePlatform } from './platform';
 import { useAuthStore } from '../store/authStore';
 
 function logApiError(error: any, context: string) {
@@ -28,6 +28,12 @@ function logApiError(error: any, context: string) {
 const api = axios.create({
   baseURL: getApiBaseUrl(),
   headers: { 'Content-Type': 'application/json' },
+  // On native iOS/Android, force Axios to use the fetch adapter.
+  // CapacitorHttp patches window.fetch (more reliable than XHR patching on WKWebView),
+  // so this ensures every request is intercepted by the native HTTP layer and
+  // CORS/WKWebView restrictions are bypassed.
+  ...(isNativePlatform() && { adapter: 'fetch' }),
+  timeout: 30000,
 });
 
 // Request interceptor — attach JWT
