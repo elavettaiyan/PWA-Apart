@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import {
   PushNotifications,
+  type ActionPerformed,
   type PushNotificationSchema,
   type Token,
 } from '@capacitor/push-notifications';
@@ -83,12 +84,45 @@ async function handleRegistration(token: Token) {
   }
 }
 
+async function handleNotificationAction(action: ActionPerformed) {
+  const notification = action.notification;
+  const type = notification.data?.type as string | undefined;
+
+  const invalidations: Promise<unknown>[] = [
+    queryClient.invalidateQueries({ queryKey: notificationInboxKeys.all }),
+  ];
+
+  if (type === 'announcement.broadcast') {
+    invalidations.push(queryClient.invalidateQueries({ queryKey: ['announcements'] }));
+  } else if (type === 'visitor.entry') {
+    invalidations.push(queryClient.invalidateQueries({ queryKey: ['visitors'] }));
+  } else if (type === 'delivery.alert') {
+    invalidations.push(queryClient.invalidateQueries({ queryKey: ['deliveries'] }));
+  }
+
+  await Promise.all(invalidations);
+}
+
 async function handleNotificationReceived(notification: PushNotificationSchema) {
   if (!notification.title && !notification.body) {
     return;
   }
 
-  await queryClient.invalidateQueries({ queryKey: notificationInboxKeys.all });
+  const type = notification.data?.type as string | undefined;
+
+  const invalidations: Promise<unknown>[] = [
+    queryClient.invalidateQueries({ queryKey: notificationInboxKeys.all }),
+  ];
+
+  if (type === 'announcement.broadcast') {
+    invalidations.push(queryClient.invalidateQueries({ queryKey: ['announcements'] }));
+  } else if (type === 'visitor.entry') {
+    invalidations.push(queryClient.invalidateQueries({ queryKey: ['visitors'] }));
+  } else if (type === 'delivery.alert') {
+    invalidations.push(queryClient.invalidateQueries({ queryKey: ['deliveries'] }));
+  }
+
+  await Promise.all(invalidations);
 
   toast(notification.body || notification.title || 'New notification', {
     icon: 'i',
@@ -117,6 +151,11 @@ export async function initializePushNotifications() {
       await PushNotifications.addListener('pushNotificationReceived', (notification) => {
         console.log('[Push] Foreground notification received:', notification.title, '|', notification.body);
         void handleNotificationReceived(notification);
+      });
+
+      await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+        console.log('[Push] Notification tapped:', action.notification.title, '|', action.notification.data?.type);
+        void handleNotificationAction(action);
       });
 
       listenersReady = true;

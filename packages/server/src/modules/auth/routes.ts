@@ -12,7 +12,7 @@ import { sendDeleteAccountOtpEmail, sendPasswordResetEmail, sendRegistrationEmai
 import { buildPremiumLifecycleMessage, ensurePremiumLifecycleForSociety, shouldBlockPremiumRole, shouldWarnPremiumRole } from '../premium/lifecycle';
 
 const router = Router();
-const ACCOUNT_DELETION_ALLOWED_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SECRETARY'] as const;
+const ACCOUNT_DELETION_ALLOWED_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT', 'SERVICE_STAFF'] as const;
 const REVIEW_DELETE_ACCOUNT_OTP = '123456';
 
 async function findUserByEmailInsensitive(tx: any, email: string, options: Record<string, any> = {}) {

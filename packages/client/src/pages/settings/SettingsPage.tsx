@@ -967,12 +967,7 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {!isAdmin ? (
-              <div className="mt-4 rounded-xl border border-outline-variant/15 bg-white/70 px-4 py-3 text-sm text-on-surface-variant">
-                Account deletion is currently available only for admin accounts.
-              </div>
-            ) : (
-              <div className="mt-4 space-y-4">
+            <div className="mt-4 space-y-4">
                 <div className="rounded-xl border border-outline-variant/15 bg-white/70 px-4 py-3 text-sm text-on-surface-variant">
                   {user?.skipAccountDeletionVerification ? (
                     <>
@@ -1055,8 +1050,7 @@ export default function SettingsPage() {
                     </button>
                   </div>
                 )}
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </SettingsAccordion>

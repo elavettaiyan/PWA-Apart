@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   LayoutDashboard, Building2, Receipt, MessageSquareWarning,
   Wallet, BarChart3, LogOut, Menu, X, Settings, KeyRound, Megaphone,
-  ShieldCheck, ClipboardList, Box,
+  ShieldCheck, ClipboardList, Box, UserCircle2,
 } from 'lucide-react';
 import { isNonSecurityServiceStaff, isSecurityServiceStaff } from '@/lib/serviceStaff';
 import { useAuthStore } from '../../store/authStore';
@@ -242,6 +242,13 @@ export default function Layout({ children }: LayoutProps) {
                   Change Password
                 </button>
                 <button
+                  onClick={() => { setProfileOpen(false); navigate('/settings'); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-slate-50 transition"
+                >
+                  <UserCircle2 className="w-4 h-4" />
+                  Account &amp; Theme
+                </button>
+                <button
                   onClick={handleLogout}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition"
                 >
@@ -321,6 +328,13 @@ export default function Layout({ children }: LayoutProps) {
                       >
                         <KeyRound className="w-4 h-4" />
                         Change Password
+                      </button>
+                      <button
+                        onClick={() => { setProfileOpen(false); navigate('/settings'); }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-slate-50 transition"
+                      >
+                        <UserCircle2 className="w-4 h-4" />
+                        Account &amp; Theme
                       </button>
                       <button
                         onClick={handleLogout}
