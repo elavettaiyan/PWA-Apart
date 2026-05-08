@@ -246,7 +246,7 @@ export default function Layout({ children }: LayoutProps) {
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-slate-50 transition"
                 >
                   <UserCircle2 className="w-4 h-4" />
-                  Account &amp; Theme
+                  Account
                 </button>
                 <button
                   onClick={handleLogout}
@@ -334,7 +334,7 @@ export default function Layout({ children }: LayoutProps) {
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-slate-50 transition"
                       >
                         <UserCircle2 className="w-4 h-4" />
-                        Account &amp; Theme
+                        Account
                       </button>
                       <button
                         onClick={handleLogout}
