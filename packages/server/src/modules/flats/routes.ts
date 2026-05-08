@@ -707,10 +707,11 @@ router.put(
       const societyId = existing.flat.block.societyId;
       const normalizedEmail = req.body.email ? String(req.body.email).trim().toLowerCase() : null;
 
-      // Re-link userId when email changes
+      // Re-link userId when email changes OR when userId is null (e.g. after account deletion)
       let userId: string | undefined;
-      if (normalizedEmail && normalizedEmail !== existing.email) {
-        const matchedUser = await findUserByEmailInsensitive(prisma, normalizedEmail, {
+      const emailToLookup = normalizedEmail || existing.email;
+      if (emailToLookup && (normalizedEmail !== existing.email || !existing.userId)) {
+        const matchedUser = await findUserByEmailInsensitive(prisma, emailToLookup, {
           id: true,
           role: true,
           societyId: true,
@@ -897,8 +898,9 @@ router.put(
       const normalizedEmail = req.body.email ? String(req.body.email).trim().toLowerCase() : undefined;
       let userId: string | undefined;
 
-      if (normalizedEmail && normalizedEmail !== existing.email) {
-        const matchedUser = await findUserByEmailInsensitive(prisma, normalizedEmail, {
+      const emailToLookup = normalizedEmail || existing.email || undefined;
+      if (emailToLookup && (normalizedEmail !== existing.email || !existing.userId)) {
+        const matchedUser = await findUserByEmailInsensitive(prisma, emailToLookup, {
           id: true,
           role: true,
           societyId: true,
