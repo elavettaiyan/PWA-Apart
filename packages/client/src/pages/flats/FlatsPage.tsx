@@ -851,6 +851,12 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
     onError: (e: any) => toast.error(getApiErrorMessage(e, 'Failed to save owner details')),
   });
 
+  const resetOwnerLoginMutation = useMutation({
+    mutationFn: () => api.post(`/flats/owners/${flat.owner!.id}/reset-login`),
+    onSuccess: () => toast.success('Login reset. Owner can log in with their phone number as password.'),
+    onError: (e: any) => toast.error(getApiErrorMessage(e, 'Failed to reset owner login')),
+  });
+
   const tenantMutation = useMutation({
     mutationFn: (data: any) => {
       if (activeTenant?.id) {
@@ -991,6 +997,16 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
             <button type="submit" className="btn-primary" disabled={ownerMutation.isPending}>
               {ownerMutation.isPending ? 'Saving...' : flat.owner ? 'Update Owner' : 'Add Owner'}
             </button>
+            {flat.owner?.id && flat.owner?.email && flat.owner?.phone && (
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={resetOwnerLoginMutation.isPending}
+                onClick={() => resetOwnerLoginMutation.mutate()}
+              >
+                {resetOwnerLoginMutation.isPending ? 'Resetting...' : 'Reset Login'}
+              </button>
+            )}
           </div>
         </form>
 

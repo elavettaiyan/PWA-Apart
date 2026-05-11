@@ -755,6 +755,95 @@ router.put(
   },
 );
 
+// Reset owner login — reactivates or creates a user account with phone as password
+router.post(
+  '/owners/:id/reset-login',
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
+  [param('id').isUUID()],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const owner = await prisma.owner.findUnique({
+        where: { id: req.params.id },
+        include: { flat: { include: { block: { select: { societyId: true } } } } },
+      });
+      if (!owner) return res.status(404).json({ error: 'Owner not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && owner.flat.block.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      if (!owner.email || !owner.phone) {
+        return res.status(400).json({ error: 'Owner must have both email and phone to reset login.' });
+      }
+
+      const societyId = owner.flat.block.societyId;
+      const passwordHash = await bcrypt.hash(owner.phone, 12);
+
+      let userId = owner.userId;
+
+      if (userId) {
+        // Reactivate existing linked user and reset password
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            passwordHash,
+            isActive: true,
+            mustChangePassword: true,
+            email: owner.email,
+            name: owner.name,
+            phone: owner.phone,
+            societyId,
+            activeSocietyId: societyId,
+          },
+        });
+      } else {
+        // Find any existing active user with this email or create a new one
+        const existingUser = await findUserByEmailInsensitive(prisma, owner.email, {
+          id: true, role: true, societyId: true, activeSocietyId: true,
+        });
+
+        if (existingUser) {
+          userId = existingUser.id;
+          await prisma.user.update({
+            where: { id: userId },
+            data: { passwordHash, isActive: true, mustChangePassword: true },
+          });
+        } else {
+          const newUser = await prisma.user.create({
+            data: {
+              email: owner.email,
+              passwordHash,
+              name: owner.name,
+              phone: owner.phone,
+              role: 'OWNER',
+              societyId,
+              activeSocietyId: societyId,
+              mustChangePassword: true,
+            },
+          });
+          userId = newUser.id;
+        }
+
+        await prisma.owner.update({ where: { id: owner.id }, data: { userId } });
+      }
+
+      // Ensure society membership exists
+      const membership = await prisma.userSocietyMembership.findUnique({
+        where: { userId_societyId: { userId: userId!, societyId } },
+      });
+      if (!membership) {
+        await prisma.userSocietyMembership.create({
+          data: { userId: userId!, societyId, role: 'OWNER' },
+        });
+      }
+
+      return res.json({ message: 'Login reset. Owner can now log in with their phone number as password.' });
+    } catch (error: any) {
+      logger.error('Owner login reset failed', { ownerId: req.params.id, error: error.message });
+      return res.status(500).json({ error: 'Failed to reset owner login' });
+    }
+  },
+);
+
 // ── TENANT CRUD ─────────────────────────────────────────
 router.post(
   '/tenants',
