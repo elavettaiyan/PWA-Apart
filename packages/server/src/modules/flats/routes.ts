@@ -778,7 +778,7 @@ router.post(
       const societyId = owner.flat.block.societyId;
       const passwordHash = await bcrypt.hash(owner.phone, 12);
 
-      let userId = owner.userId;
+      let userId: string | null = owner.userId;
 
       if (userId) {
         // Reactivate existing linked user and reset password
@@ -797,14 +797,14 @@ router.post(
         });
       } else {
         // Find any existing active user with this email or create a new one
-        const existingUser = await findUserByEmailInsensitive(prisma, owner.email, {
+        const existingUser = await findUserByEmailInsensitive(prisma, owner.email!, {
           id: true, role: true, societyId: true, activeSocietyId: true,
         });
 
         if (existingUser) {
           userId = existingUser.id;
           await prisma.user.update({
-            where: { id: userId },
+            where: { id: userId as string },
             data: { passwordHash, isActive: true, mustChangePassword: true },
           });
         } else {
@@ -828,11 +828,11 @@ router.post(
 
       // Ensure society membership exists
       const membership = await prisma.userSocietyMembership.findUnique({
-        where: { userId_societyId: { userId: userId!, societyId } },
+        where: { userId_societyId: { userId: userId as string, societyId } },
       });
       if (!membership) {
         await prisma.userSocietyMembership.create({
-          data: { userId: userId!, societyId, role: 'OWNER' },
+          data: { userId: userId as string, societyId, role: 'OWNER' },
         });
       }
 
