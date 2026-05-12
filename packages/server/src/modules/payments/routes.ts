@@ -149,28 +149,57 @@ async function createPhonePeSdkOrder(
   return data;
 }
 
+type PhonePeSdkOrderStatus = {
+  state?: 'PENDING' | 'FAILED' | 'COMPLETED';
+  paymentDetails?: Array<{ transactionId?: string; state?: string }>;
+  message?: string;
+  code?: string;
+};
+
 async function fetchPhonePeSdkOrderStatus(
   pgConfig: Awaited<ReturnType<typeof getPhonePeConfig>>,
   merchantOrderId: string,
-) {
+): Promise<PhonePeSdkOrderStatus> {
   const authToken = await getPhonePeAuthToken(pgConfig);
-  const response = await fetch(
-    `${getPhonePeSdkBaseUrl(pgConfig.environment)}/checkout/v2/order/${merchantOrderId}/status?details=false&errorContext=true`,
-    {
+  const url = `${getPhonePeSdkBaseUrl(pgConfig.environment)}/checkout/v2/order/${merchantOrderId}/status?details=true&errorContext=true`;
+
+  // Retry up to 3 times (total ~6 s) to handle sandbox/production latency where
+  // PhonePe's status API may still return PENDING shortly after the SDK callback fires.
+  const MAX_ATTEMPTS = 3;
+  const RETRY_DELAY_MS = 2000;
+
+  let lastData: PhonePeSdkOrderStatus = {};
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `O-Bearer ${authToken}`,
       },
-    },
-  );
+    });
 
-  return response.json() as Promise<{
-    state?: 'PENDING' | 'FAILED' | 'COMPLETED';
-    paymentDetails?: Array<{ transactionId?: string; state?: string }>;
-    message?: string;
-    code?: string;
-  }>;
+    const data = await response.json() as PhonePeSdkOrderStatus;
+    logger.info('PhonePe SDK order status response:', {
+      merchantOrderId,
+      attempt,
+      httpStatus: response.status,
+      state: data.state,
+      code: data.code,
+      message: data.message,
+    });
+
+    lastData = data;
+
+    if (data.state === 'COMPLETED' || data.state === 'FAILED') {
+      return data;
+    }
+
+    if (attempt < MAX_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    }
+  }
+
+  return lastData;
 }
 
 async function markPaymentSuccess(paymentId: string, transactionId: string | undefined, phonepePayload: unknown) {

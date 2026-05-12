@@ -185,7 +185,7 @@ export default function BillingPage() {
   const txnId = searchParams.get('txnId');
 
   const confirmPhonePeStatus = async (paymentRef: string, updateUrl: boolean) => {
-    const maxAttempts = 6;
+    const maxAttempts = 10;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
