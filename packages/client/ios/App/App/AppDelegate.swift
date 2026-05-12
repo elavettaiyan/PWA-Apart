@@ -104,8 +104,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate {
     }
 
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        NSLog("[PhonePe] application:open:url — scheme: %@, url: %@", url.scheme ?? "nil", url.absoluteString)
         // Let PhonePe SDK handle its own deep-link callback first.
-        if PPPayment.checkDeeplink(url) {
+        let handled = PPPayment.checkDeeplink(url)
+        NSLog("[PhonePe] PPPayment.checkDeeplink — handled: %@", handled ? "YES" : "NO")
+        if handled {
             return true
         }
         // Called when the app was launched with a url. Feel free to add additional processing here,

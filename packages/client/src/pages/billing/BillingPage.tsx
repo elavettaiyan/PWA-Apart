@@ -242,7 +242,7 @@ export default function BillingPage() {
     }
 
     try {
-      console.info('[PhonePe] init SDK', { merchantId, environment, orderId: payload.orderId });
+      console.info('[PhonePe] init SDK', { merchantId, environment, orderId: payload.orderId, merchantTransId: payload.merchantTransId });
 
       await initPhonePeSdk({
         merchantId,
@@ -259,14 +259,48 @@ export default function BillingPage() {
         token: payload.token,
       });
 
-      console.info('[PhonePe] checkout result', result);
+      console.info('[PhonePe] checkout result', {
+        ok: result?.ok,
+        state: result?.state,
+        resultCode: result?.resultCode,
+        transactionId: result?.transactionId,
+      });
 
       if (!result?.ok) {
-        // User cancelled or payment failed in the PhonePe UI
+        console.warn('[PhonePe] checkout not ok — state:', result?.state);
         toast.error('Payment was not completed. Please try again.');
         return;
       }
 
+      // Primary path: call sdk-confirm which trusts the SDK result and handles sandbox delays
+      console.info('[PhonePe] calling sdk-confirm', { merchantTransId: payload.merchantTransId, transactionId: result.transactionId, state: result.state });
+      try {
+        const { data: confirmData } = await api.post('/payments/phonepe/sdk-confirm', {
+          merchantTransId: payload.merchantTransId,
+          transactionId: result.transactionId,
+          state: result.state,
+        });
+        console.info('[PhonePe] sdk-confirm response', confirmData);
+
+        if (confirmData?.status === 'SUCCESS') {
+          toast.success('Payment successful. Bill status updated.');
+          queryClient.invalidateQueries({ queryKey: billsBaseKey });
+          return;
+        }
+      } catch (confirmErr: any) {
+        const errStatus = confirmErr?.response?.status;
+        const errData = confirmErr?.response?.data;
+        console.error('[PhonePe] sdk-confirm error', { status: errStatus, data: errData });
+
+        // If PhonePe explicitly said FAILED, don't fall through to polling
+        if (errStatus === 400 && errData?.status === 'FAILED') {
+          toast.error('Payment failed according to PhonePe. Please contact support.');
+          return;
+        }
+      }
+
+      // Fallback: poll status endpoint if sdk-confirm had a network/server error
+      console.info('[PhonePe] falling back to status polling');
       await confirmPhonePeStatus(payload.merchantTransId, false);
     } catch (err: any) {
       console.error('[PhonePe] native checkout error', err);

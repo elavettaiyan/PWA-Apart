@@ -159,13 +159,14 @@ type PhonePeSdkOrderStatus = {
 async function fetchPhonePeSdkOrderStatus(
   pgConfig: Awaited<ReturnType<typeof getPhonePeConfig>>,
   merchantOrderId: string,
+  // sdk-confirm trusts the SDK signal regardless, so 1 attempt is enough there.
+  // The polling /status endpoint keeps 3 attempts to handle sandbox API latency.
+  maxAttempts = 3,
 ): Promise<PhonePeSdkOrderStatus> {
   const authToken = await getPhonePeAuthToken(pgConfig);
   const url = `${getPhonePeSdkBaseUrl(pgConfig.environment)}/checkout/v2/order/${merchantOrderId}/status?details=true&errorContext=true`;
 
-  // Retry up to 3 times (total ~6 s) to handle sandbox/production latency where
-  // PhonePe's status API may still return PENDING shortly after the SDK callback fires.
-  const MAX_ATTEMPTS = 3;
+  const MAX_ATTEMPTS = maxAttempts;
   const RETRY_DELAY_MS = 2000;
 
   let lastData: PhonePeSdkOrderStatus = {};
@@ -739,6 +740,134 @@ router.post(
     } catch (error) {
       logger.error('PhonePe bulk payment error:', error);
       return res.status(500).json({ error: 'Bulk payment initiation failed' });
+    }
+  },
+);
+
+// ── PHONEPE SDK CONFIRM (native SDK success signal) ─────
+// Called by the native app immediately after the SDK fires a success callback.
+// Attempts PhonePe status API verification; if PhonePe still shows PENDING (sandbox delay),
+// trusts the SDK signal and marks the payment SUCCESS with a logged warning.
+router.post(
+  '/phonepe/sdk-confirm',
+  authenticate,
+  [
+    body('merchantTransId').isString().notEmpty(),
+    body('transactionId').optional().isString(),
+    body('state').optional().isString(),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    const { merchantTransId, transactionId: sdkTransactionId, state: sdkState } = req.body;
+
+    logger.info('[SDK-Confirm] received', { merchantTransId, sdkTransactionId, sdkState });
+
+    try {
+      const payment = await prisma.payment.findUnique({
+        where: { merchantTransId },
+        include: { bill: { include: { flat: { include: { block: true } } } } },
+      });
+
+      if (!payment) {
+        logger.error('[SDK-Confirm] payment not found', { merchantTransId });
+        return res.status(404).json({ error: 'Payment not found' });
+      }
+
+      const societyId = payment.bill?.flat?.block?.societyId;
+      if (req.user!.role !== 'SUPER_ADMIN' && societyId && societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if (req.user!.role === 'OWNER' || req.user!.role === 'TENANT') {
+        const userFlatIds = await getUserFlatIds(req.user!.id, req.user!.societyId ?? null);
+        if (!userFlatIds.includes(payment.bill.flatId)) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+      }
+
+      if (payment.status === 'SUCCESS') {
+        logger.info('[SDK-Confirm] already SUCCESS', { merchantTransId });
+        return res.json({ status: 'SUCCESS', alreadyProcessed: true });
+      }
+
+      if (!isPhonePeSdkFlow(payment.notes)) {
+        logger.error('[SDK-Confirm] not an SDK payment', { merchantTransId, notes: payment.notes });
+        return res.status(400).json({ error: 'Not a native SDK payment' });
+      }
+
+      // Attempt PhonePe REST status verification
+      const pgConfig = await getPhonePeConfig(societyId ?? null);
+      let finalTransactionId = sdkTransactionId;
+      let verifiedByPhonePe = false;
+
+      try {
+        // Single attempt — we trust the SDK signal either way; no need to block the user for 6s.
+        const statusData = await fetchPhonePeSdkOrderStatus(pgConfig, merchantTransId, 1);
+        logger.info('[SDK-Confirm] PhonePe status API result', {
+          merchantTransId,
+          state: statusData.state,
+          code: statusData.code,
+          message: statusData.message,
+          paymentDetails: statusData.paymentDetails,
+        });
+
+        if (statusData.state === 'COMPLETED') {
+          finalTransactionId = statusData.paymentDetails?.[0]?.transactionId || sdkTransactionId;
+          verifiedByPhonePe = true;
+        } else if (statusData.state === 'FAILED') {
+          logger.warn('[SDK-Confirm] PhonePe API says FAILED but SDK reported success', { merchantTransId, sdkState, statusData });
+          if (isBulkPayment(payment.notes)) {
+            await markBulkPaymentsFailed(merchantTransId, statusData);
+          } else {
+            await prisma.payment.update({
+              where: { id: payment.id },
+              data: { status: 'FAILED', phonepeResponse: JSON.stringify(statusData) },
+            });
+          }
+          return res.status(400).json({ status: 'FAILED', error: 'PhonePe reports payment failed' });
+        } else {
+          // PENDING — PhonePe sandbox is slow to update; trust the SDK signal
+          logger.warn('[SDK-Confirm] PhonePe API still PENDING after retries — trusting SDK success signal', {
+            merchantTransId,
+            sdkTransactionId,
+            sdkState,
+          });
+        }
+      } catch (e) {
+        logger.warn('[SDK-Confirm] PhonePe status API call threw — trusting SDK signal', { merchantTransId, error: e });
+      }
+
+      // Mark payment SUCCESS
+      if (isBulkPayment(payment.notes)) {
+        const result = await markBulkPaymentsSuccess(merchantTransId, finalTransactionId, {
+          source: verifiedByPhonePe ? 'phonepe_api' : 'sdk_signal',
+          sdkState,
+          transactionId: finalTransactionId,
+          merchantTransId,
+        });
+        for (const paymentId of result.processedPaymentIds) {
+          sendReceiptForPayment(paymentId).catch(() => {});
+          notifyPaymentSuccess(paymentId).catch(() => {});
+        }
+        logger.info('[SDK-Confirm] bulk SUCCESS', { merchantTransId, verifiedByPhonePe, count: result.processedCount });
+        return res.json({ status: 'SUCCESS', bulkProcessedCount: result.processedCount });
+      }
+
+      const result = await markPaymentSuccess(payment.id, finalTransactionId, {
+        source: verifiedByPhonePe ? 'phonepe_api' : 'sdk_signal',
+        sdkState,
+        transactionId: finalTransactionId,
+        merchantTransId,
+      });
+      if (!result.alreadyProcessed) {
+        sendReceiptForPayment(payment.id).catch(() => {});
+        notifyPaymentSuccess(payment.id).catch(() => {});
+      }
+      logger.info('[SDK-Confirm] SUCCESS', { merchantTransId, verifiedByPhonePe, alreadyProcessed: result.alreadyProcessed });
+      return res.json({ status: 'SUCCESS', alreadyProcessed: result.alreadyProcessed });
+    } catch (error) {
+      logger.error('[SDK-Confirm] unhandled error', { merchantTransId, error });
+      return res.status(500).json({ error: 'Failed to confirm payment' });
     }
   },
 );

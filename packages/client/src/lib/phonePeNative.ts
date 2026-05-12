@@ -18,6 +18,10 @@ type PhonePeCheckoutOptions = {
 type PhonePeCheckoutResult = {
   resultCode: number;
   ok: boolean;
+  /** SDK state name — 'success', 'userCancelled', 'failed', etc. */
+  state?: string;
+  /** PhonePe's own transaction ID from the SDK payload (e.g. OMO...) */
+  transactionId?: string;
   extras?: Record<string, string | null>;
 };
 
