@@ -504,9 +504,9 @@ export default function SettingsPage() {
         <div className="flex items-center justify-end gap-4 mb-6">
           <span className={cn(
             'badge',
-            premiumStatus?.isPremium ? 'badge-success' : 'badge-neutral'
+            premiumStatus?.isPremium ? 'badge-success' : premiumStatus?.trial?.isOnTrial ? 'badge-warning' : 'badge-neutral'
           )}>
-            {premiumStatus?.isPremium ? 'Premium Active' : 'Free Tier'}
+            {premiumStatus?.isPremium ? 'Premium Active' : premiumStatus?.trial?.isOnTrial ? `Free Trial · ${premiumStatus.trial.daysRemaining}d left` : 'Free Tier'}
           </span>
         </div>
 
@@ -535,14 +535,24 @@ export default function SettingsPage() {
                 <p className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Current flats</p>
                 <p className="mt-1 text-lg font-semibold text-on-surface">{premiumStatus.currentFlatCount}</p>
               </div>
-              <div className="rounded-xl bg-surface-container-low p-4">
-                <p className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Locked billing count</p>
-                <p className="mt-1 text-lg font-semibold text-on-surface">{premiumStatus.preview.lockedFlatCount}</p>
-              </div>
-              <div className="rounded-xl bg-surface-container-low p-4">
-                <p className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Monthly amount</p>
-                <p className="mt-1 text-lg font-semibold text-on-surface">₹{premiumStatus.preview.amount}</p>
-              </div>
+              {premiumStatus.isPremium && (
+                <>
+                  <div className="rounded-xl bg-surface-container-low p-4">
+                    <p className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Locked billing count</p>
+                    <p className="mt-1 text-lg font-semibold text-on-surface">{premiumStatus.preview.lockedFlatCount}</p>
+                  </div>
+                  <div className="rounded-xl bg-surface-container-low p-4">
+                    <p className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Monthly amount</p>
+                    <p className="mt-1 text-lg font-semibold text-on-surface">₹{premiumStatus.preview.amount}</p>
+                  </div>
+                </>
+              )}
+              {!premiumStatus.isPremium && (
+                <div className="rounded-xl bg-surface-container-low p-4">
+                  <p className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Flat limit</p>
+                  <p className="mt-1 text-lg font-semibold text-on-surface">{premiumStatus.trial?.isOnTrial ? `${premiumStatus.trial.flatLimit} (trial)` : `${premiumStatus.trial?.flatLimit ?? 5} (free tier)`}</p>
+                </div>
+              )}
             </div>
 
             <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-3">
@@ -554,9 +564,15 @@ export default function SettingsPage() {
               )}
             </div>
 
-            {!premiumStatus.isPremium && (
+            {!premiumStatus.isPremium && premiumStatus.trial?.isOnTrial && (
+              <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-800">
+                <p className="font-semibold">Free trial active — {premiumStatus.trial.daysRemaining} day{premiumStatus.trial.daysRemaining !== 1 ? 's' : ''} remaining</p>
+                <p className="mt-1 text-amber-700">You can add up to {premiumStatus.trial.flatLimit} flats during the trial. Upgrade to Premium from the flat-creation flow before your trial ends to avoid interruption.</p>
+              </div>
+            )}
+            {!premiumStatus.isPremium && !premiumStatus.trial?.isOnTrial && (
               <div className="rounded-xl bg-warning-container px-4 py-3 text-sm text-on-warning-container">
-                Upgrade to Premium from the flat-creation flow when you need more than 5 flats. Razorpay checkout will lock the billable flat count at the moment the subscription starts.
+                Your free trial has ended. Upgrade to Premium from the flat-creation flow to unlock more than {premiumStatus.trial?.flatLimit ?? 5} flats. Razorpay checkout will lock the billable flat count at the moment the subscription starts.
               </div>
             )}
           </div>

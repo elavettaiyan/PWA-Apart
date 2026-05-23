@@ -450,14 +450,18 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
             ? isLimitReached
               ? 'Purchased Premium capacity reached'
               : 'Premium is active'
-            : 'Free tier limit reached'}
+            : premiumStatus.trial?.isOnTrial
+              ? 'Trial flat limit reached'
+              : 'Free tier limit reached'}
         </p>
         <p className="mt-1 text-sm text-on-surface-variant">
           {premiumStatus.isPremium
             ? isLimitReached
               ? 'Your society has used all currently purchased flat capacity. Increase the flat count now to unlock more flats immediately and move the higher recurring amount to the next renewal.'
               : 'Your society already has Premium access. You can increase the purchased flat count any time before you hit the current capacity.'
-            : 'Your society can use up to 5 flats for free. Choose how many flats you want to cover before starting Premium.'}
+            : premiumStatus.trial?.isOnTrial
+              ? `Your free trial includes up to ${premiumStatus.trial.flatLimit} flats (${premiumStatus.trial.daysRemaining} day${premiumStatus.trial.daysRemaining !== 1 ? 's' : ''} remaining). Subscribe to Premium to add more flats now and continue after the trial.`
+              : 'Your free trial has ended. Subscribe to Premium to add more flats.'}
         </p>
       </div>
 
@@ -529,33 +533,40 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
         <button type="button" className="btn-secondary" onClick={onClose}>
           Close
         </button>
-        <button
-          type="button"
-          className="btn-primary text-center"
-          onClick={() => {
-            if (isCapacityUpgrade) {
-              upgradeMutation.mutate(effectiveRequestedFlatCount);
-              return;
+        {!premiumStatus.isDemo && (
+          <button
+            type="button"
+            className="btn-primary text-center"
+            onClick={() => {
+              if (isCapacityUpgrade) {
+                upgradeMutation.mutate(effectiveRequestedFlatCount);
+                return;
+              }
+              subscribeMutation.mutate(effectiveRequestedFlatCount);
+            }}
+            disabled={
+              subscribeMutation.isPending ||
+              upgradeMutation.isPending ||
+              verifyMutation.isPending ||
+              effectiveRequestedFlatCount < minimumRequiredFlatCount
             }
-            subscribeMutation.mutate(effectiveRequestedFlatCount);
-          }}
-          disabled={
-            subscribeMutation.isPending ||
-            upgradeMutation.isPending ||
-            verifyMutation.isPending ||
-            effectiveRequestedFlatCount < minimumRequiredFlatCount
-          }
-        >
-          {verifyMutation.isPending
-            ? 'Verifying...'
-            : upgradeMutation.isPending
-              ? 'Scheduling renewal update...'
-            : subscribeMutation.isPending
-              ? 'Starting checkout...'
-              : isCapacityUpgrade
-                ? 'Increase flat capacity'
-                : 'Pay with Razorpay'}
-        </button>
+          >
+            {verifyMutation.isPending
+              ? 'Verifying...'
+              : upgradeMutation.isPending
+                ? 'Scheduling renewal update...'
+              : subscribeMutation.isPending
+                ? 'Starting checkout...'
+                : isCapacityUpgrade
+                  ? 'Increase flat capacity'
+                  : 'Pay with Razorpay'}
+          </button>
+        )}
+        {premiumStatus.isDemo && (
+          <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-400">
+            Demo account — billing disabled
+          </span>
+        )}
       </div>
     </div>
   );

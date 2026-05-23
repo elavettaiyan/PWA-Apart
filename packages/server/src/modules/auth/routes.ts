@@ -10,8 +10,10 @@ import { validate } from '../../middleware/errorHandler';
 import { authenticate, AuthRequest, invalidateAuthCache } from '../../middleware/auth';
 import { sendDeleteAccountOtpEmail, sendPasswordResetEmail, sendRegistrationEmail, sendRegistrationOtpEmail } from '../../config/email';
 import { buildPremiumLifecycleMessage, ensurePremiumLifecycleForSociety, shouldBlockPremiumRole, shouldWarnPremiumRole } from '../premium/lifecycle';
+import { TRIAL_DAYS } from '../premium/routes';
 
 const router = Router();
+const TRIAL_DURATION_MS = TRIAL_DAYS * 24 * 60 * 60 * 1000;
 const ACCOUNT_DELETION_ALLOWED_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT', 'SERVICE_STAFF'] as const;
 const REVIEW_DELETE_ACCOUNT_OTP = '123456';
 
@@ -243,8 +245,10 @@ router.post(
         const existingAgain = await findUserByEmailInsensitive(tx, email, { select: { id: true } });
         if (existingAgain) throw new Error('EMAIL_TAKEN');
 
+        const trialStartedAt = new Date();
+        const trialEndsAt = new Date(trialStartedAt.getTime() + TRIAL_DURATION_MS);
         const society = await tx.society.create({
-          data: { name: societyName, communityType: communityType || 'APARTMENT', address, city, state, pincode, totalBlocks: 0, totalFlats: 0 },
+          data: { name: societyName, communityType: communityType || 'APARTMENT', address, city, state, pincode, totalBlocks: 0, totalFlats: 0, trialStartedAt, trialEndsAt },
         });
 
         const passwordHash = await bcrypt.hash(password, 12);
@@ -335,6 +339,8 @@ router.post(
 
       // Create society + admin user in a transaction
       const result = await prisma.$transaction(async (tx) => {
+        const trialStartedAt = new Date();
+        const trialEndsAt = new Date(trialStartedAt.getTime() + TRIAL_DURATION_MS);
         const society = await tx.society.create({
           data: {
             name: societyName,
@@ -345,6 +351,8 @@ router.post(
             pincode,
             totalBlocks: 0,
             totalFlats: 0,
+            trialStartedAt,
+            trialEndsAt,
           },
         });
 

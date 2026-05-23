@@ -18,6 +18,8 @@ const router = Router();
 const PRICE_PER_FLAT_PAISE = 2000;
 const CURRENCY = 'INR';
 const FREE_TIER_FLAT_LIMIT = 5;
+export const TRIAL_DAYS = 30;
+export const TRIAL_FLAT_LIMIT = 50;
 const ACTIVE_STATUSES = new Set<PremiumSubscriptionStatus>(['ACTIVE']);
 const REUSABLE_PENDING_STATUSES = new Set<PremiumSubscriptionStatus>(['PENDING']);
 const SUCCESSFUL_PAYMENT_EVENTS = new Set(['payment.captured']);
@@ -102,6 +104,34 @@ export function getMinimumRequiredFlatCount(currentFlatCount: number, includedFl
   }
 
   return Math.max(currentFlatCount, 1);
+}
+
+export type TrialStatus = {
+  isOnTrial: boolean;
+  trialStartedAt: Date | null;
+  trialEndsAt: Date | null;
+  daysRemaining: number;
+  isExpired: boolean;
+  flatLimit: number;
+};
+
+export function computeTrialStatus(trialStartedAt?: Date | null, trialEndsAt?: Date | null, now = new Date()): TrialStatus {
+  if (!trialStartedAt || !trialEndsAt) {
+    return { isOnTrial: false, trialStartedAt: null, trialEndsAt: null, daysRemaining: 0, isExpired: false, flatLimit: FREE_TIER_FLAT_LIMIT };
+  }
+
+  const isExpired = now >= trialEndsAt;
+  const msRemaining = Math.max(trialEndsAt.getTime() - now.getTime(), 0);
+  const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
+
+  return {
+    isOnTrial: !isExpired,
+    trialStartedAt,
+    trialEndsAt,
+    daysRemaining,
+    isExpired,
+    flatLimit: isExpired ? FREE_TIER_FLAT_LIMIT : TRIAL_FLAT_LIMIT,
+  };
 }
 
 function getScheduledChangeDate(entity?: RazorpaySubscriptionEntity | null) {
@@ -374,7 +404,7 @@ async function getStatusPayload(societyId: string) {
   const [society, currentFlatCount, activeSubscription, latestSubscription] = await Promise.all([
     prisma.society.findUnique({
       where: { id: societyId },
-      select: { id: true, isPremium: true, isActive: true, hadPremiumSubscription: true, name: true },
+      select: { id: true, isPremium: true, isActive: true, isDemo: true, hadPremiumSubscription: true, name: true, trialStartedAt: true, trialEndsAt: true },
     }),
     getCurrentFlatCount(societyId),
     prisma.premiumSubscription.findFirst({
@@ -389,18 +419,21 @@ async function getStatusPayload(societyId: string) {
     }),
   ]);
 
-  const includedFlatCount = activeSubscription?.includedFlatCount || FREE_TIER_FLAT_LIMIT;
-  const minimumRequiredFlatCount = getMinimumRequiredFlatCount(currentFlatCount, includedFlatCount, !!activeSubscription);
-  const limitReached = !!activeSubscription
+  const isDemo = society?.isDemo ?? false;
+  const trial = isDemo ? { isOnTrial: false, isExpired: false, trialStartedAt: null, trialEndsAt: null, daysRemaining: 0, flatLimit: 0 } : computeTrialStatus(society?.trialStartedAt, society?.trialEndsAt);
+  const effectiveFreeCap = trial.flatLimit;
+  const includedFlatCount = isDemo ? Number.MAX_SAFE_INTEGER : (activeSubscription?.includedFlatCount || effectiveFreeCap);
+  const minimumRequiredFlatCount = isDemo ? currentFlatCount + 1 : getMinimumRequiredFlatCount(currentFlatCount, includedFlatCount, !!activeSubscription);
+  const limitReached = isDemo ? false : (!!activeSubscription
     ? currentFlatCount >= includedFlatCount
-    : currentFlatCount >= FREE_TIER_FLAT_LIMIT;
-  const limitReason = !!activeSubscription
+    : currentFlatCount >= effectiveFreeCap);
+  const limitReason = isDemo ? 'NONE' : (!!activeSubscription
     ? limitReached
       ? 'PREMIUM_CAPACITY'
       : 'NONE'
     : limitReached
-      ? 'FREE_TIER'
-      : 'NONE';
+      ? (trial.isOnTrial ? 'TRIAL_FLAT_LIMIT' : 'FREE_TIER')
+      : 'NONE');
   const previewLockedFlatCount = activeSubscription?.scheduledFlatCount || activeSubscription?.lockedFlatCount || minimumRequiredFlatCount;
   const previewAmountPaise = previewLockedFlatCount * PRICE_PER_FLAT_PAISE;
   const lifecycle = !activeSubscription && latestSubscription && society?.hadPremiumSubscription
@@ -411,6 +444,15 @@ async function getStatusPayload(societyId: string) {
   return {
     isPremium: society?.isPremium ?? false,
     isArchived: !society?.isActive,
+    isDemo,
+    trial: {
+      isOnTrial: trial.isOnTrial,
+      isExpired: trial.isExpired,
+      trialStartedAt: trial.trialStartedAt,
+      trialEndsAt: trial.trialEndsAt,
+      daysRemaining: trial.daysRemaining,
+      flatLimit: trial.flatLimit,
+    },
     currentFlatCount,
     includedFlatCount,
     scheduledFlatCount: activeSubscription?.scheduledFlatCount ?? null,

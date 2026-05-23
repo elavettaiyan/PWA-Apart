@@ -8,6 +8,7 @@ import { authenticate, authorize, AuthRequest, SOCIETY_MANAGERS } from '../../mi
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 import { runMemberRemoval } from '../members/removal';
+import { computeTrialStatus, TRIAL_FLAT_LIMIT } from '../premium/routes';
 
 const router = Router();
 const FREE_TIER_FLAT_LIMIT = 5;
@@ -90,23 +91,50 @@ function buildMyFlatInclude(year?: number): Prisma.FlatInclude {
 }
 
 async function getFlatLimitStatus(societyId: string) {
-  const [flatCount, activeSubscription] = await Promise.all([
+  const [flatCount, activeSubscription, society] = await Promise.all([
     prisma.flat.count({ where: { block: { societyId } } }),
     prisma.premiumSubscription.findFirst({
       where: { societyId, status: 'ACTIVE' },
       orderBy: { createdAt: 'desc' },
       select: { includedFlatCount: true },
     }),
+    prisma.society.findUnique({
+      where: { id: societyId },
+      select: { isDemo: true, trialStartedAt: true, trialEndsAt: true },
+    }),
   ]);
 
-  if (!activeSubscription) {
+  if (society?.isDemo) {
     return {
       flatCount,
-      reached: flatCount >= FREE_TIER_FLAT_LIMIT,
+      reached: false,
+      code: 'NONE',
+      message: '',
+      minimumRequiredFlatCount: flatCount + 1,
+      includedFlatCount: Number.MAX_SAFE_INTEGER,
+    };
+  }
+
+  if (!activeSubscription) {
+    const trial = computeTrialStatus(society?.trialStartedAt, society?.trialEndsAt);
+    const cap = trial.flatLimit;
+    if (trial.isOnTrial) {
+      return {
+        flatCount,
+        reached: flatCount >= cap,
+        code: 'TRIAL_FLAT_LIMIT_REACHED',
+        message: `You have reached the trial limit of ${cap} flats. Upgrade to Premium to add more.`,
+        minimumRequiredFlatCount: flatCount + 1,
+        includedFlatCount: cap,
+      };
+    }
+    return {
+      flatCount,
+      reached: flatCount >= cap,
       code: 'FREE_TIER_LIMIT_REACHED',
       message: `You have reached the maximum of ${FREE_TIER_FLAT_LIMIT} flats on the free tier. Please upgrade to Premium to add more.`,
       minimumRequiredFlatCount: flatCount + 1,
-      includedFlatCount: FREE_TIER_FLAT_LIMIT,
+      includedFlatCount: cap,
     };
   }
 

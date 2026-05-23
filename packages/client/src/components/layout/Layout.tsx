@@ -11,6 +11,7 @@ import { useAuthStore } from '../../store/authStore';
 import { cn } from '../../lib/utils';
 import BrandMark from '../ui/BrandMark';
 import NotificationBell from './NotificationBell';
+import TrialBanner from './TrialBanner';
 import api from '../../lib/api';
 import { MenuVisibilityResponse, NavigationMenuId, SOCIETY_ADMINS } from '../../types';
 import { getFallbackMenuVisibility, getVisibleMenuIdsForUser, getVisibleNavigationItemsForUser } from '../../lib/menuConfig';
@@ -352,7 +353,10 @@ export default function Layout({ children }: LayoutProps) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 pb-6 px-4 sm:px-6 lg:pt-0 lg:pb-0 lg:p-8 overflow-auto" style={{ paddingTop: 'calc(5rem + var(--sat))' }}>{children}</main>
+        {/* Mobile spacer: pushes content below the fixed mobile header (which is out of document flow) */}
+        <div className="lg:hidden shrink-0" style={{ height: 'calc(5rem + var(--sat))' }} aria-hidden="true" />
+        <TrialBanner />
+        <main className="flex-1 pb-6 px-4 sm:px-6 lg:pb-0 lg:p-8 overflow-auto">{children}</main>
       </div>
     </div>
   );

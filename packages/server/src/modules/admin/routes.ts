@@ -61,9 +61,31 @@ router.get('/societies', async (_req: AuthRequest, res: Response) => {
   }
 });
 
+// ── TOGGLE DEMO FLAG (SUPER_ADMIN) ─────────────────────
+router.patch(
+  '/societies/:id/demo',
+  [param('id').isUUID(), body('isDemo').isBoolean()],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const society = await prisma.society.findUnique({ where: { id: req.params.id } });
+      if (!society) return res.status(404).json({ error: 'Society not found' });
+
+      const updated = await prisma.society.update({
+        where: { id: req.params.id },
+        data: { isDemo: req.body.isDemo },
+        select: { id: true, name: true, isDemo: true },
+      });
+
+      return res.json(updated);
+    } catch (_error) {
+      return res.status(500).json({ error: 'Failed to update demo flag' });
+    }
+  },
+);
+
 // ── DELETE ENTIRE SOCIETY (SUPER_ADMIN) ────────────────
-router.delete(
-  '/societies/:id',
+router.delete(  '/societies/:id',
   [param('id').isUUID(), body('confirmationName').trim().notEmpty()],
   validate,
   async (req: AuthRequest, res: Response) => {

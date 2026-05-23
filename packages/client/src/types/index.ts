@@ -541,6 +541,15 @@ export interface PremiumSubscription {
 export interface PremiumStatusResponse {
   isPremium: boolean;
   isArchived?: boolean;
+  isDemo?: boolean;
+  trial: {
+    isOnTrial: boolean;
+    isExpired: boolean;
+    trialStartedAt: string | null;
+    trialEndsAt: string | null;
+    daysRemaining: number;
+    flatLimit: number;
+  };
   currentFlatCount: number;
   includedFlatCount: number;
   scheduledFlatCount?: number | null;
@@ -548,7 +557,7 @@ export interface PremiumStatusResponse {
   scheduledChangeAt?: string | null;
   limit: {
     reached: boolean;
-    reason: 'NONE' | 'FREE_TIER' | 'PREMIUM_CAPACITY';
+    reason: 'NONE' | 'FREE_TIER' | 'TRIAL_FLAT_LIMIT' | 'PREMIUM_CAPACITY';
     minimumRequiredFlatCount: number;
     remainingFlatSlots: number;
   };
