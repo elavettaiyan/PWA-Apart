@@ -4,6 +4,7 @@ import {
   Building2, Users, MessageSquareWarning, Receipt,
   Shield, Trash2,
   ChevronRight,
+  DatabaseZap,
 } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -67,6 +68,7 @@ type SocietyRecord = {
 /* ─── Super Admin Dashboard ────────────────────────────────── */
 function SuperAdminDashboard() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [societyToDelete, setSocietyToDelete] = useState<string | null>(null);
   const [confirmationName, setConfirmationName] = useState('');
 
@@ -139,6 +141,26 @@ function SuperAdminDashboard() {
           </p>
         </div>
       </div>
+
+      {/* CRM Quick Access */}
+      <button
+        type="button"
+        onClick={() => navigate('/crm')}
+        className="w-full bg-white rounded-2xl p-5 shadow-card hover:shadow-card-hover transition-shadow text-left flex items-center justify-between gap-4"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center shrink-0">
+            <DatabaseZap className="w-6 h-6 text-indigo-500" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-on-surface">CRM — Society Management</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              View contacts, manage subscriptions, extend trials, deactivate societies, export data
+            </p>
+          </div>
+        </div>
+        <ChevronRight className="w-5 h-5 text-slate-300 shrink-0" />
+      </button>
 
       {/* Users Table */}
       <div className="bg-white rounded-2xl p-6 shadow-card">

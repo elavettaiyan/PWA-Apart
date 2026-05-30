@@ -24,6 +24,8 @@ import StaffPage from './pages/staff/StaffPage';
 import GateManagementPage from './pages/security/GateManagementPage';
 import EntryActivityPage from './pages/security/EntryActivityPage';
 import AssetsPage from './pages/assets/AssetsPage';
+import CrmSocietiesPage from './pages/crm/CrmSocietiesPage';
+import CrmSocietyDetailPage from './pages/crm/CrmSocietyDetailPage';
 import { WebOnlyRestrictionPage } from './components/restrictions/WebOnlyRestriction';
 import { getRouteRestriction, type RestrictedRoutePath } from './lib/appRestrictions';
 import { getDefaultAuthenticatedRoute, getPostLoginRoute, isSecurityServiceStaff } from './lib/serviceStaff';
@@ -147,6 +149,8 @@ export default function App() {
         <Route path="/gate-management" element={user?.role === 'SERVICE_STAFF' ? <SecurityServiceStaffRoute><GateManagementPage /></SecurityServiceStaffRoute> : <RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_MANAGERS]}><GateManagementPage /></RoleRoute>} />
         <Route path="/entry-activity" element={user?.role === 'SERVICE_STAFF' ? <SecurityServiceStaffRoute><EntryActivityPage /></SecurityServiceStaffRoute> : <ProtectedRoute><EntryActivityPage /></ProtectedRoute>} />
         <Route path="/settings/change-password" element={<ProtectedRoute><ChangePasswordSettingsPage /></ProtectedRoute>} />
+        <Route path="/crm" element={<RoleRoute roles={['SUPER_ADMIN']}><CrmSocietiesPage /></RoleRoute>} />
+        <Route path="/crm/:id" element={<RoleRoute roles={['SUPER_ADMIN']}><CrmSocietyDetailPage /></RoleRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

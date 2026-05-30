@@ -190,6 +190,9 @@ model Society {
   premiumArchiveReason String?
   trialStartedAt  DateTime?
   trialEndsAt     DateTime?
+  premiumOverrideUntil DateTime?
+  crmNotes        String?
+  crmTags         String[]  @default([])
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -213,6 +216,7 @@ model Society {
   assets             Asset[]
   serviceJobs        ServiceJob[]
   serviceHistories   ServiceHistory[]
+  crmActionLogs      CrmActionLog[]
 
   @@map("societies")
 }
@@ -349,6 +353,7 @@ model User {
   announcementReads AnnouncementReadState[]
   createdEvents     SocietyEvent[] @relation("SocietyEventCreator")
   assignedServiceJobs ServiceJob[]
+  performedCrmActions CrmActionLog[] @relation("CrmLogPerformer")
 
   @@index([societyId])
   @@index([activeSocietyId])
@@ -944,4 +949,23 @@ model ServiceHistory {
   @@index([assetId])
   @@index([assetId, serviceDate])
   @@map("service_history")
+}
+
+// ─── CRM ACTION LOG ─────────────────────────────────────
+
+model CrmActionLog {
+  id            String   @id @default(uuid())
+  societyId     String
+  performedById String
+  action        String
+  description   String?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  society       Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  performedBy   User     @relation("CrmLogPerformer", fields: [performedById], references: [id])
+
+  @@index([societyId])
+  @@index([performedById])
+  @@map("crm_action_logs")
 }

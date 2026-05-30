@@ -404,7 +404,7 @@ async function getStatusPayload(societyId: string) {
   const [society, currentFlatCount, activeSubscription, latestSubscription] = await Promise.all([
     prisma.society.findUnique({
       where: { id: societyId },
-      select: { id: true, isPremium: true, isActive: true, hadPremiumSubscription: true, name: true, trialStartedAt: true, trialEndsAt: true },
+      select: { id: true, isPremium: true, isActive: true, hadPremiumSubscription: true, name: true, trialStartedAt: true, trialEndsAt: true, premiumOverrideUntil: true },
     }),
     getCurrentFlatCount(societyId),
     prisma.premiumSubscription.findFirst({
@@ -420,29 +420,42 @@ async function getStatusPayload(societyId: string) {
   ]);
 
   const trial = computeTrialStatus(society?.trialStartedAt, society?.trialEndsAt);
+
+  // Check if super admin has manually granted premium via override.
+  // Override takes precedence over both Razorpay subscription and trial status.
+  const now = new Date();
+  const isPremiumOverrideActive = society?.premiumOverrideUntil ? society.premiumOverrideUntil > now : false;
+
+  const effectiveIsPremium = isPremiumOverrideActive || (society?.isPremium ?? false);
+  const effectiveActiveSubscription = isPremiumOverrideActive ? null : activeSubscription;
+
   const effectiveFreeCap = trial.flatLimit;
-  const includedFlatCount = activeSubscription?.includedFlatCount || effectiveFreeCap;
-  const minimumRequiredFlatCount = getMinimumRequiredFlatCount(currentFlatCount, includedFlatCount, !!activeSubscription);
-  const limitReached = !!activeSubscription
+  const includedFlatCount = effectiveActiveSubscription?.includedFlatCount || effectiveFreeCap;
+  const minimumRequiredFlatCount = getMinimumRequiredFlatCount(currentFlatCount, includedFlatCount, !!effectiveActiveSubscription);
+  const limitReached = !!effectiveActiveSubscription
     ? currentFlatCount >= includedFlatCount
     : currentFlatCount >= effectiveFreeCap;
-  const limitReason = !!activeSubscription
+  const limitReason = !!effectiveActiveSubscription
     ? limitReached
       ? 'PREMIUM_CAPACITY'
       : 'NONE'
     : limitReached
-      ? (trial.isOnTrial ? 'TRIAL_FLAT_LIMIT' : 'FREE_TIER')
+      ? (trial.isOnTrial ? 'TRIAL_FLAT_LIMIT' : (isPremiumOverrideActive ? 'NONE' : 'FREE_TIER'))
       : 'NONE';
-  const previewLockedFlatCount = activeSubscription?.scheduledFlatCount || activeSubscription?.lockedFlatCount || minimumRequiredFlatCount;
+  const previewLockedFlatCount = effectiveActiveSubscription?.scheduledFlatCount || effectiveActiveSubscription?.lockedFlatCount || minimumRequiredFlatCount;
   const previewAmountPaise = previewLockedFlatCount * PRICE_PER_FLAT_PAISE;
-  const lifecycle = !activeSubscription && latestSubscription && society?.hadPremiumSubscription
+  const lifecycle = !effectiveActiveSubscription && latestSubscription && society?.hadPremiumSubscription
     ? calculatePremiumLifecycle(latestSubscription.overdueStartedAt)
     : calculatePremiumLifecycle(null);
   const lifecycleMessage = buildPremiumLifecycleMessage(lifecycle);
 
   return {
-    isPremium: society?.isPremium ?? false,
+    isPremium: effectiveIsPremium,
     isArchived: !society?.isActive,
+    premiumOverride: {
+      isActive: isPremiumOverrideActive,
+      until: society?.premiumOverrideUntil ?? null,
+    },
     trial: {
       isOnTrial: trial.isOnTrial,
       isExpired: trial.isExpired,
@@ -473,9 +486,9 @@ async function getStatusPayload(societyId: string) {
       amount: previewAmountPaise / 100,
       currency: CURRENCY,
       message: buildSubscriptionMessage(
-        activeSubscription?.lockedFlatCount || previewLockedFlatCount,
-        activeSubscription?.includedFlatCount || includedFlatCount,
-        activeSubscription?.scheduledFlatCount,
+        effectiveActiveSubscription?.lockedFlatCount || previewLockedFlatCount,
+        effectiveActiveSubscription?.includedFlatCount || includedFlatCount,
+        effectiveActiveSubscription?.scheduledFlatCount,
       ),
     },
     overdue: {
@@ -489,7 +502,7 @@ async function getStatusPayload(societyId: string) {
       adminCanRecover: lifecycle.adminCanRecover,
       message: lifecycleMessage,
     },
-    activeSubscription,
+    activeSubscription: effectiveActiveSubscription,
     latestSubscription,
   };
 }
