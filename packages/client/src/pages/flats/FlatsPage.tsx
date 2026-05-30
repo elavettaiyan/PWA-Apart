@@ -533,40 +533,33 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
         <button type="button" className="btn-secondary" onClick={onClose}>
           Close
         </button>
-        {!premiumStatus.isDemo && (
-          <button
-            type="button"
-            className="btn-primary text-center"
-            onClick={() => {
-              if (isCapacityUpgrade) {
-                upgradeMutation.mutate(effectiveRequestedFlatCount);
-                return;
-              }
-              subscribeMutation.mutate(effectiveRequestedFlatCount);
-            }}
-            disabled={
-              subscribeMutation.isPending ||
-              upgradeMutation.isPending ||
-              verifyMutation.isPending ||
-              effectiveRequestedFlatCount < minimumRequiredFlatCount
+        <button
+          type="button"
+          className="btn-primary text-center"
+          onClick={() => {
+            if (isCapacityUpgrade) {
+              upgradeMutation.mutate(effectiveRequestedFlatCount);
+              return;
             }
-          >
-            {verifyMutation.isPending
-              ? 'Verifying...'
-              : upgradeMutation.isPending
-                ? 'Scheduling renewal update...'
-              : subscribeMutation.isPending
-                ? 'Starting checkout...'
-                : isCapacityUpgrade
-                  ? 'Increase flat capacity'
-                  : 'Pay with Razorpay'}
-          </button>
-        )}
-        {premiumStatus.isDemo && (
-          <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-400">
-            Demo account — billing disabled
-          </span>
-        )}
+            subscribeMutation.mutate(effectiveRequestedFlatCount);
+          }}
+          disabled={
+            subscribeMutation.isPending ||
+            upgradeMutation.isPending ||
+            verifyMutation.isPending ||
+            effectiveRequestedFlatCount < minimumRequiredFlatCount
+          }
+        >
+          {verifyMutation.isPending
+            ? 'Verifying...'
+            : upgradeMutation.isPending
+              ? 'Scheduling renewal update...'
+            : subscribeMutation.isPending
+              ? 'Starting checkout...'
+              : isCapacityUpgrade
+                ? 'Increase flat capacity'
+                : 'Pay with Razorpay'}
+        </button>
       </div>
     </div>
   );

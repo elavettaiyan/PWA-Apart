@@ -404,7 +404,7 @@ async function getStatusPayload(societyId: string) {
   const [society, currentFlatCount, activeSubscription, latestSubscription] = await Promise.all([
     prisma.society.findUnique({
       where: { id: societyId },
-      select: { id: true, isPremium: true, isActive: true, isDemo: true, hadPremiumSubscription: true, name: true, trialStartedAt: true, trialEndsAt: true },
+      select: { id: true, isPremium: true, isActive: true, hadPremiumSubscription: true, name: true, trialStartedAt: true, trialEndsAt: true },
     }),
     getCurrentFlatCount(societyId),
     prisma.premiumSubscription.findFirst({
@@ -419,21 +419,20 @@ async function getStatusPayload(societyId: string) {
     }),
   ]);
 
-  const isDemo = society?.isDemo ?? false;
-  const trial = isDemo ? { isOnTrial: false, isExpired: false, trialStartedAt: null, trialEndsAt: null, daysRemaining: 0, flatLimit: 0 } : computeTrialStatus(society?.trialStartedAt, society?.trialEndsAt);
+  const trial = computeTrialStatus(society?.trialStartedAt, society?.trialEndsAt);
   const effectiveFreeCap = trial.flatLimit;
-  const includedFlatCount = isDemo ? Number.MAX_SAFE_INTEGER : (activeSubscription?.includedFlatCount || effectiveFreeCap);
-  const minimumRequiredFlatCount = isDemo ? currentFlatCount + 1 : getMinimumRequiredFlatCount(currentFlatCount, includedFlatCount, !!activeSubscription);
-  const limitReached = isDemo ? false : (!!activeSubscription
+  const includedFlatCount = activeSubscription?.includedFlatCount || effectiveFreeCap;
+  const minimumRequiredFlatCount = getMinimumRequiredFlatCount(currentFlatCount, includedFlatCount, !!activeSubscription);
+  const limitReached = !!activeSubscription
     ? currentFlatCount >= includedFlatCount
-    : currentFlatCount >= effectiveFreeCap);
-  const limitReason = isDemo ? 'NONE' : (!!activeSubscription
+    : currentFlatCount >= effectiveFreeCap;
+  const limitReason = !!activeSubscription
     ? limitReached
       ? 'PREMIUM_CAPACITY'
       : 'NONE'
     : limitReached
       ? (trial.isOnTrial ? 'TRIAL_FLAT_LIMIT' : 'FREE_TIER')
-      : 'NONE');
+      : 'NONE';
   const previewLockedFlatCount = activeSubscription?.scheduledFlatCount || activeSubscription?.lockedFlatCount || minimumRequiredFlatCount;
   const previewAmountPaise = previewLockedFlatCount * PRICE_PER_FLAT_PAISE;
   const lifecycle = !activeSubscription && latestSubscription && society?.hadPremiumSubscription
@@ -444,7 +443,6 @@ async function getStatusPayload(societyId: string) {
   return {
     isPremium: society?.isPremium ?? false,
     isArchived: !society?.isActive,
-    isDemo,
     trial: {
       isOnTrial: trial.isOnTrial,
       isExpired: trial.isExpired,

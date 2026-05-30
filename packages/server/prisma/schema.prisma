@@ -184,7 +184,6 @@ model Society {
   totalUnits      Int?
   logo            String?
   isActive        Boolean  @default(true)
-  isDemo          Boolean  @default(false)
   isPremium       Boolean  @default(false)
   hadPremiumSubscription Boolean @default(false)
   premiumArchivedAt DateTime?

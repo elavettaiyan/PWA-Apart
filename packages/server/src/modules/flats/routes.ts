@@ -100,20 +100,9 @@ async function getFlatLimitStatus(societyId: string) {
     }),
     prisma.society.findUnique({
       where: { id: societyId },
-      select: { isDemo: true, trialStartedAt: true, trialEndsAt: true },
+      select: { trialStartedAt: true, trialEndsAt: true },
     }),
   ]);
-
-  if (society?.isDemo) {
-    return {
-      flatCount,
-      reached: false,
-      code: 'NONE',
-      message: '',
-      minimumRequiredFlatCount: flatCount + 1,
-      includedFlatCount: Number.MAX_SAFE_INTEGER,
-    };
-  }
 
   if (!activeSubscription) {
     const trial = computeTrialStatus(society?.trialStartedAt, society?.trialEndsAt);

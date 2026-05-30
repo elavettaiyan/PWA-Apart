@@ -541,7 +541,6 @@ export interface PremiumSubscription {
 export interface PremiumStatusResponse {
   isPremium: boolean;
   isArchived?: boolean;
-  isDemo?: boolean;
   trial: {
     isOnTrial: boolean;
     isExpired: boolean;

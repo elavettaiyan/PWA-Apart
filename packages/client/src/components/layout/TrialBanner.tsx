@@ -22,7 +22,6 @@ export default function TrialBanner() {
   if (!canSeeBanner) return null;
   if (!premiumStatus) return null;
   if (premiumStatus.isPremium) return null;
-  if (premiumStatus.isDemo) return null;
   if (!premiumStatus.trial?.trialEndsAt) return null;
   if (premiumStatus.trial.isExpired) return null;
 
