@@ -65,6 +65,65 @@ export default function FlatsPage() {
     }
   }, [activeFlat, flats]);
 
+  const [pendingRazorpayPayload, setPendingRazorpayPayload] = useState<any>(null);
+
+  // Verify Razorpay payment after checkout — lives at page level so it runs
+  // outside the modal DOM context.
+  const verifyMutation = useMutation({
+    mutationFn: (payload: { razorpay_payment_id: string; razorpay_subscription_id: string; razorpay_signature: string }) =>
+      api.post('/premium/verify', payload),
+    onSuccess: () => {
+      toast.success('Premium activated successfully');
+      queryClient.invalidateQueries({ queryKey: ['premium-status'] });
+      queryClient.invalidateQueries({ queryKey: ['flats'] });
+      queryClient.invalidateQueries({ queryKey: ['blocks'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to verify Premium activation');
+    },
+  });
+
+  // Subscribe mutation — lives at page level. On success it closes the modal
+  // and stores the payload; a separate useEffect then opens Razorpay once the
+  // modal is fully gone from the DOM (avoids backdrop-filter stacking context
+  // that repositions Razorpay's fixed overlay to the bottom-left corner).
+  const subscribeMutation = useMutation({
+    mutationFn: async (flatCount: number) => (await api.post('/premium/subscribe', { requestedFlatCount: flatCount })).data,
+    onSuccess: (payload) => {
+      setShowUpgradeModal(false);
+      setPendingRazorpayPayload(payload);
+    },
+    onError: (error: any) => {
+      if (error.response?.data?.code === 'PREMIUM_ALREADY_ACTIVE') {
+        queryClient.invalidateQueries({ queryKey: ['premium-status'] });
+        toast.success('Premium is already active for this society');
+        setShowUpgradeModal(false);
+        return;
+      }
+      toast.error(error.response?.data?.error || 'Failed to start Premium checkout');
+    },
+  });
+
+  // Open Razorpay only after modal has unmounted (showUpgradeModal === false)
+  // so no backdrop-filter exists in the DOM when Razorpay positions itself.
+  useEffect(() => {
+    if (!pendingRazorpayPayload || showUpgradeModal) return;
+    const payload = pendingRazorpayPayload;
+    setPendingRazorpayPayload(null);
+    requestAnimationFrame(() => {
+      openRazorpaySubscriptionCheckout({
+        key: payload.keyId,
+        subscriptionId: payload.subscriptionId,
+        name: 'Dwell Hub Premium',
+        description: `Premium plan locked at ${payload.lockedFlatCount} flats`,
+        prefill: { name: user?.name, email: user?.email, contact: user?.phone },
+        notes: { lockedFlatCount: String(payload.lockedFlatCount) },
+        onSuccess: (response) => verifyMutation.mutate(response),
+        onDismiss: () => toast('Premium checkout was closed before completion.'),
+      }).catch((error: any) => toast.error(error.message || 'Failed to open Razorpay checkout'));
+    });
+  }, [pendingRazorpayPayload, showUpgradeModal]);
+
   const deleteMutation = useMutation({
     mutationFn: ({ id, confirmation }: { id: string; confirmation: string }) =>
       api.delete(`/flats/flats/${id}`, { data: { confirmation } }),
@@ -325,7 +384,12 @@ export default function FlatsPage() {
 
       {/* Upgrade Modal */}
       <Modal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} title="Upgrade to Premium" size="lg">
-        <UpgradePrompt onClose={() => setShowUpgradeModal(false)} />
+        <UpgradePrompt
+          onClose={() => setShowUpgradeModal(false)}
+          onSubscribeRequest={(flatCount) => subscribeMutation.mutate(flatCount)}
+          isSubscribePending={subscribeMutation.isPending}
+          isVerifyPending={verifyMutation.isPending}
+        />
       </Modal>
 
       <Modal isOpen={showIosUpgradeInfo} onClose={() => setShowIosUpgradeInfo(false)} title="Plan changes unavailable on iOS" size="md">
@@ -350,9 +414,18 @@ export default function FlatsPage() {
   );
 }
 
-function UpgradePrompt({ onClose }: { onClose: () => void }) {
+function UpgradePrompt({
+  onClose,
+  onSubscribeRequest,
+  isSubscribePending,
+  isVerifyPending,
+}: {
+  onClose: () => void;
+  onSubscribeRequest: (flatCount: number) => void;
+  isSubscribePending: boolean;
+  isVerifyPending: boolean;
+}) {
   const queryClient = useQueryClient();
-  const user = useAuthStore((s) => s.user);
   const [requestedFlatCount, setRequestedFlatCount] = useState('6');
 
   const { data: premiumStatus, isLoading } = useQuery<PremiumStatusResponse>({
@@ -365,65 +438,6 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
       setRequestedFlatCount(String(premiumStatus.limit.minimumRequiredFlatCount));
     }
   }, [premiumStatus]);
-
-  const verifyMutation = useMutation({
-    mutationFn: (payload: { razorpay_payment_id: string; razorpay_subscription_id: string; razorpay_signature: string }) =>
-      api.post('/premium/verify', payload),
-    onSuccess: () => {
-      toast.success('Premium activated successfully');
-      queryClient.invalidateQueries({ queryKey: ['premium-status'] });
-      queryClient.invalidateQueries({ queryKey: ['flats'] });
-      queryClient.invalidateQueries({ queryKey: ['blocks'] });
-      onClose();
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to verify Premium activation');
-    },
-  });
-
-  const subscribeMutation = useMutation({
-    mutationFn: async (flatCount: number) => (await api.post('/premium/subscribe', { requestedFlatCount: flatCount })).data,
-    onSuccess: async (payload) => {
-      // Close the modal and wait two animation frames so React re-renders and the
-      // backdrop-filter is fully removed from the DOM before Razorpay reads the
-      // viewport. Without this, Razorpay's position:fixed overlay gets trapped
-      // inside the filter's containing block and renders in the bottom-left corner.
-      onClose();
-      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-      try {
-        await openRazorpaySubscriptionCheckout({
-          key: payload.keyId,
-          subscriptionId: payload.subscriptionId,
-          name: 'Dwell Hub Premium',
-          description: `Premium plan locked at ${payload.lockedFlatCount} flats`,
-          prefill: {
-            name: user?.name,
-            email: user?.email,
-            contact: user?.phone,
-          },
-          notes: {
-            lockedFlatCount: String(payload.lockedFlatCount),
-          },
-          onSuccess: (response) => verifyMutation.mutate(response),
-          onDismiss: () => {
-            toast('Premium checkout was closed before completion.');
-          },
-        });
-      } catch (error: any) {
-        toast.error(error.message || 'Failed to open Razorpay checkout');
-      }
-    },
-    onError: (error: any) => {
-      if (error.response?.data?.code === 'PREMIUM_ALREADY_ACTIVE') {
-        queryClient.invalidateQueries({ queryKey: ['premium-status'] });
-        toast.success('Premium is already active for this society');
-        onClose();
-        return;
-      }
-
-      toast.error(error.response?.data?.error || 'Failed to start Premium checkout');
-    },
-  });
 
   const upgradeMutation = useMutation({
     mutationFn: async (flatCount: number) => (await api.post('/premium/upgrade', { requestedFlatCount: flatCount })).data,
@@ -554,20 +568,20 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
               upgradeMutation.mutate(effectiveRequestedFlatCount);
               return;
             }
-            subscribeMutation.mutate(effectiveRequestedFlatCount);
+            onSubscribeRequest(effectiveRequestedFlatCount);
           }}
           disabled={
-            subscribeMutation.isPending ||
+            isSubscribePending ||
             upgradeMutation.isPending ||
-            verifyMutation.isPending ||
+            isVerifyPending ||
             effectiveRequestedFlatCount < minimumRequiredFlatCount
           }
         >
-          {verifyMutation.isPending
+          {isVerifyPending
             ? 'Verifying...'
             : upgradeMutation.isPending
               ? 'Scheduling renewal update...'
-            : subscribeMutation.isPending
+            : isSubscribePending
               ? 'Starting checkout...'
               : isCapacityUpgrade
                 ? 'Increase flat capacity'
