@@ -170,7 +170,7 @@ export function getVisibleMenuIdsForUser(user?: User | null, menuVisibility?: Me
   const filterRestrictedMenus = (menuIds: NavigationMenuId[]) => menuIds.filter((menuId) => !isMenuRestricted(menuId));
 
   if (user.role === 'SUPER_ADMIN') {
-    return filterRestrictedMenus(NAVIGATION_MENU_CATALOG.map((item) => item.id));
+    return ['dashboard'];
   }
 
   if (isSecurityServiceStaff(user)) {

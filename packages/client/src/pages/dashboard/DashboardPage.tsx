@@ -1,13 +1,11 @@
-import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   Building2, Users, MessageSquareWarning, Receipt,
-  Shield, Trash2,
+  Shield,
   ChevronRight,
   DatabaseZap,
 } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
 import { PageLoader } from '../../components/ui/Loader';
@@ -67,10 +65,7 @@ type SocietyRecord = {
 
 /* ─── Super Admin Dashboard ────────────────────────────────── */
 function SuperAdminDashboard() {
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [societyToDelete, setSocietyToDelete] = useState<string | null>(null);
-  const [confirmationName, setConfirmationName] = useState('');
 
   const { data: users = [], isLoading: usersLoading } = useQuery<RegisteredUser[]>({
     queryKey: ['admin-registrations'],
@@ -82,24 +77,7 @@ function SuperAdminDashboard() {
     queryFn: async () => (await api.get('/admin/societies')).data,
   });
 
-  const deleteSociety = useMutation({
-    mutationFn: ({ id, name }: { id: string; name: string }) =>
-      api.delete(`/admin/societies/${id}`, { data: { confirmationName: name } }),
-    onSuccess: () => {
-      toast.success('Apartment and all linked data deleted');
-      setSocietyToDelete(null);
-      setConfirmationName('');
-      queryClient.invalidateQueries({ queryKey: ['admin-societies'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-registrations'] });
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to delete apartment');
-    },
-  });
-
   if (usersLoading || societiesLoading) return <PageLoader />;
-
-  const resolvedSociety = societies.find((society) => society.id === societyToDelete);
 
   return (
     <div className="space-y-8">
@@ -195,59 +173,6 @@ function SuperAdminDashboard() {
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* Societies */}
-      <div className="bg-white rounded-2xl p-6 shadow-card">
-        <h2 className="text-lg font-headline font-bold text-on-surface mb-1">Apartment Registrations</h2>
-        <p className="text-sm text-slate-500 mb-5">Delete removes the society and all linked blocks, flats, users, bills, complaints, and expenses.</p>
-
-        <div className="space-y-3">
-          {societies.map((society) => (
-            <div key={society.id} className="bg-slate-50 rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-on-surface">{society.name}</p>
-                <p className="text-xs text-slate-500 mt-1">{society.city}, {society.state}</p>
-                <p className="text-xs text-slate-400 mt-1">
-                  Users: {society._count.users} · Blocks: {society._count.blocks} · Complaints: {society._count.complaints} · Expenses: {society._count.expenses}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="btn-outline text-red-500 border-red-200 hover:bg-red-50"
-                onClick={() => {
-                  setSocietyToDelete(society.id);
-                  setConfirmationName('');
-                }}
-              >
-                <Trash2 className="w-4 h-4" /> Delete Entire Apartment
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {resolvedSociety && (
-          <div className="mt-5 rounded-xl bg-red-50 border border-red-100 p-4">
-            <p className="text-sm font-bold text-red-700">Confirm full deletion: {resolvedSociety.name}</p>
-            <p className="text-xs text-red-600/80 mt-1">Type the apartment name exactly to continue.</p>
-            <div className="mt-3 flex flex-col sm:flex-row gap-2">
-              <input
-                className="input"
-                value={confirmationName}
-                onChange={(event) => setConfirmationName(event.target.value)}
-                placeholder={`Type ${resolvedSociety.name}`}
-              />
-              <button
-                type="button"
-                className="btn-danger disabled:opacity-40"
-                disabled={deleteSociety.isPending || confirmationName.trim() !== resolvedSociety.name}
-                onClick={() => deleteSociety.mutate({ id: resolvedSociety.id, name: confirmationName.trim() })}
-              >
-                {deleteSociety.isPending ? 'Deleting...' : 'Confirm Delete'}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
