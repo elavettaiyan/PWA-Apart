@@ -48,7 +48,7 @@ export default function FlatsPage() {
       setShowUpgradeModal(true);
       setSearchParams((prev) => { prev.delete('upgrade'); return prev; }, { replace: true });
     }
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!activeFlat) return;
