@@ -452,49 +452,84 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
     : previewAmount;
 
   return (
-    <div className="space-y-5 pb-2 sm:pb-4">
-      <div className="rounded-2xl bg-primary/[0.04] border border-primary/10 p-4">
-        <p className="text-sm font-semibold text-primary">
+    <div className="space-y-4 pb-2 sm:pb-4">
+
+      {/* ── 1. Flat count input – top ── */}
+      <div className="rounded-2xl border border-primary/15 bg-primary/[0.04] px-4 py-4">
+        <label className="text-xs font-bold uppercase tracking-widest text-primary">
+          {isCapacityUpgrade ? 'Increase flat capacity to' : 'Subscribe for flat capacity'}
+        </label>
+        <input
+          type="number"
+          min={minimumRequiredFlatCount}
+          className="input mt-2"
+          value={requestedFlatCount}
+          onChange={(event) => setRequestedFlatCount(event.target.value)}
+        />
+        <p className="mt-2 text-xs text-on-surface-variant">
+          Minimum: {minimumRequiredFlatCount} flats
+          {' · '}
+          {isCapacityUpgrade
+            ? `Current cycle billed at ${activeSubscription?.lockedFlatCount || premiumStatus.includedFlatCount} flats — renewal moves to ₹${nextRenewalAmount}/month.`
+            : 'This becomes your starting Premium capacity and monthly billing amount.'}
+        </p>
+      </div>
+
+      {/* ── 2. Status / context message ── */}
+      <div className={`rounded-xl border px-4 py-3 text-sm ${
+        premiumStatus.isPremium
+          ? 'border-violet-100 bg-violet-50 text-violet-800'
+          : premiumStatus.trial?.isOnTrial
+            ? 'border-amber-100 bg-amber-50 text-amber-800'
+            : 'border-warning/20 bg-warning-container text-on-warning-container'
+      }`}>
+        <p className="font-semibold">
           {premiumStatus.isPremium
             ? isLimitReached
               ? 'Purchased Premium capacity reached'
               : 'Premium is active'
             : premiumStatus.trial?.isOnTrial
               ? 'Trial flat limit reached'
-              : 'Free tier limit reached'}
+              : 'Free trial has ended'}
         </p>
-        <p className="mt-1 text-sm text-on-surface-variant">
+        <p className="mt-1">
           {premiumStatus.isPremium
             ? isLimitReached
-              ? 'Your society has used all currently purchased flat capacity. Increase the flat count now to unlock more flats immediately and move the higher recurring amount to the next renewal.'
-              : 'Your society already has Premium access. You can increase the purchased flat count any time before you hit the current capacity.'
+              ? 'Your society has used all purchased flat capacity. Increase the count now — new flats unlock immediately and the higher amount kicks in at the next renewal.'
+              : 'You can increase your purchased flat count any time before hitting the current capacity.'
             : premiumStatus.trial?.isOnTrial
-              ? `Your free trial includes up to ${premiumStatus.trial.flatLimit} flats (${premiumStatus.trial.daysRemaining} day${premiumStatus.trial.daysRemaining !== 1 ? 's' : ''} remaining). Subscribe to Premium to add more flats now and continue after the trial.`
-              : 'Your free trial has ended. Subscribe to Premium to add more flats.'}
+              ? `Your 1-month free trial allows up to ${premiumStatus.trial.flatLimit} flats. Subscribe to Premium to go beyond the trial limit and keep full access once the trial ends.`
+              : 'Your free trial has ended. Subscribe to Premium to continue adding flats.'}
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl bg-surface-container-low p-4">
-          <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Current flats</p>
-          <p className="mt-1 text-sm font-semibold text-on-surface">{premiumStatus.currentFlatCount}</p>
+      {/* ── 3. Key numbers ── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-xl bg-surface-container-low p-3">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Current flats</p>
+          <p className="mt-1 text-lg font-bold text-on-surface">{premiumStatus.currentFlatCount}</p>
         </div>
-        <div className="rounded-xl bg-surface-container-low p-4">
-          <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Included now</p>
-          <p className="mt-1 text-sm font-semibold text-on-surface">{premiumStatus.includedFlatCount} flats</p>
+        <div className="rounded-xl bg-surface-container-low p-3">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Limit now</p>
+          <p className="mt-1 text-lg font-bold text-on-surface">{premiumStatus.includedFlatCount}</p>
         </div>
-        <div className="rounded-xl bg-surface-container-low p-4">
-          <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Pricing</p>
-          <p className="mt-1 text-sm font-semibold text-on-surface">₹20 per flat / month</p>
+        <div className="rounded-xl bg-surface-container-low p-3">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Rate</p>
+          <p className="mt-1 text-lg font-bold text-on-surface">₹{premiumStatus.pricing.amountPerFlat}<span className="text-xs font-normal">/flat</span></p>
+        </div>
+        <div className="rounded-xl bg-surface-container-low p-3">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Monthly total</p>
+          <p className="mt-1 text-lg font-bold text-on-surface">₹{previewAmount}</p>
         </div>
       </div>
 
+      {/* ── 4. Billing preview ── */}
       <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-3">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
             <p className="text-xs uppercase tracking-widest text-on-surface-variant">Billing preview</p>
             <p className="mt-1 text-base font-semibold text-on-surface">
-              {effectiveRequestedFlatCount} flats x ₹{premiumStatus.pricing.amountPerFlat} = ₹{previewAmount}/month
+              {effectiveRequestedFlatCount} flats × ₹{premiumStatus.pricing.amountPerFlat} = ₹{previewAmount}/month
             </p>
           </div>
           {activeSubscription?.currentPeriodEnd && (
@@ -504,43 +539,30 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
             </div>
           )}
         </div>
-        <p className="mt-3 text-sm text-on-surface-variant">{premiumStatus.preview.message}</p>
+        <p className="mt-2 text-xs text-on-surface-variant">{premiumStatus.preview.message}</p>
         {premiumStatus.scheduledFlatCount && premiumStatus.scheduledChangeAt && (
           <p className="mt-2 text-xs text-primary">
-            Next renewal is already scheduled for {premiumStatus.scheduledFlatCount} flats on {new Date(premiumStatus.scheduledChangeAt).toLocaleDateString()}.
+            Next renewal already scheduled for {premiumStatus.scheduledFlatCount} flats on {new Date(premiumStatus.scheduledChangeAt).toLocaleDateString()}.
           </p>
         )}
       </div>
 
-      <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-3">
-        <label className="label">Required flat count</label>
-        <input
-          type="number"
-          min={minimumRequiredFlatCount}
-          className="input mt-1"
-          value={requestedFlatCount}
-          onChange={(event) => setRequestedFlatCount(event.target.value)}
-        />
-        <p className="mt-2 text-xs text-on-surface-variant">
-          Minimum required now: {minimumRequiredFlatCount} flats.
-          {isCapacityUpgrade
-            ? ` Your current cycle stays billed at ${activeSubscription?.lockedFlatCount || premiumStatus.includedFlatCount} flats, and the renewal will move to ₹${nextRenewalAmount}/month.`
-            : ' This becomes your starting Premium capacity and monthly subscription amount.'}
-        </p>
-      </div>
+      {/* ── 5. What you unlock ── */}
+      {!isCapacityUpgrade && (
+        <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-3">
+          <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">What you unlock</p>
+          <ul className="mt-2 space-y-1 text-sm text-on-surface-variant list-disc list-inside">
+            <li>Flat creation up to the capacity you choose</li>
+            <li>Bulk imports for large societies</li>
+            <li>All billing, complaints, reports, and resident tools — uninterrupted</li>
+          </ul>
+        </div>
+      )}
 
-      <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-3">
-        <p className="text-xs uppercase tracking-widest text-on-surface-variant">What you unlock</p>
-        <ul className="mt-2 space-y-1 text-sm text-on-surface-variant">
-          <li>Flat creation up to the purchased capacity you choose</li>
-          <li>Bulk imports for large societies</li>
-          <li>All existing billing, complaints, reports, and resident tools</li>
-        </ul>
-      </div>
-
-      <div className="flex flex-col-reverse gap-3 pt-2 pb-1 sm:flex-row sm:justify-end">
+      {/* ── 6. Actions ── */}
+      <div className="flex flex-col-reverse gap-3 pt-1 pb-1 sm:flex-row sm:justify-end">
         <button type="button" className="btn-secondary" onClick={onClose}>
-          Close
+          Cancel
         </button>
         <button
           type="button"
@@ -567,7 +589,7 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
               ? 'Starting checkout...'
               : isCapacityUpgrade
                 ? 'Increase flat capacity'
-                : 'Pay with Razorpay'}
+                : 'Subscribe — Pay with Razorpay'}
         </button>
       </div>
     </div>
