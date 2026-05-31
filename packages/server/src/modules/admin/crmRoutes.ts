@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { body, param, query } from 'express-validator';
 import { Prisma } from '@prisma/client';
 import prisma from '../../config/database';
-import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
+import { authenticate, authorize, AuthRequest, invalidateAuthCache } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import { computeTrialStatus } from '../premium/routes';
 
@@ -490,6 +490,113 @@ router.get(
       return res.json(logs);
     } catch (_error) {
       return res.status(500).json({ error: 'Failed to fetch audit log' });
+    }
+  },
+);
+
+// ── GET /admin/crm/societies/:id/users ─────────────────────────
+// List all active users belonging to a society.
+router.get(
+  '/societies/:id/users',
+  [param('id').isUUID()],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const societyId = req.params.id;
+      const society = await prisma.society.findUnique({ where: { id: societyId }, select: { id: true } });
+      if (!society) return res.status(404).json({ error: 'Society not found' });
+
+      const memberships = await prisma.userSocietyMembership.findMany({
+        where: { societyId },
+        include: {
+          user: {
+            select: { id: true, name: true, email: true, phone: true, role: true, isActive: true, createdAt: true, lastLogin: true },
+          },
+        },
+        orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+      });
+
+      return res.json(
+        memberships.map((m) => ({
+          ...m.user,
+          membershipRole: m.role,
+        })),
+      );
+    } catch (_error) {
+      return res.status(500).json({ error: 'Failed to fetch society users' });
+    }
+  },
+);
+
+// ── DELETE /admin/crm/users/:userId ────────────────────────────
+// Anonymise and deactivate a user (same logic as self-deletion).
+// Cannot delete another SUPER_ADMIN.
+router.delete(
+  '/users/:userId',
+  [param('userId').isUUID()],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const targetId = req.params.userId;
+      if (targetId === req.user!.id) {
+        return res.status(400).json({ error: 'Cannot delete your own account via this endpoint' });
+      }
+
+      const target = await prisma.user.findUnique({
+        where: { id: targetId },
+        include: { societyMemberships: { select: { societyId: true, role: true } } },
+      });
+      if (!target) return res.status(404).json({ error: 'User not found' });
+      if (!target.isActive) return res.status(400).json({ error: 'User is already deleted' });
+      if (target.role === 'SUPER_ADMIN') {
+        return res.status(403).json({ error: 'Cannot delete another SUPER_ADMIN account' });
+      }
+
+      const anonymizedEmail = `deleted-${target.id}@deleted.dwellhub.local`;
+      const anonymizedPhone = target.phone ? `deleted-${target.id.slice(0, 8)}` : null;
+
+      await prisma.$transaction(async (tx) => {
+        await tx.owner.updateMany({ where: { userId: target.id }, data: { userId: null } });
+        await tx.tenant.updateMany({ where: { userId: target.id }, data: { userId: null } });
+        await tx.userSocietyMembership.deleteMany({ where: { userId: target.id } });
+        await tx.pushNotificationDevice.deleteMany({ where: { userId: target.id } });
+        await tx.userNotification.deleteMany({ where: { userId: target.id } });
+
+        await tx.user.update({
+          where: { id: target.id },
+          data: {
+            email: anonymizedEmail,
+            name: 'Deleted User',
+            phone: anonymizedPhone,
+            passwordHash: 'DELETED',
+            isActive: false,
+            mustChangePassword: false,
+            skipAccountDeletionVerification: false,
+            passwordResetToken: null,
+            passwordResetExpiry: null,
+            societyId: null,
+            activeSocietyId: null,
+            specialization: null,
+          },
+        });
+      });
+
+      // Log to CRM audit if we know which society this is for
+      if (target.societyMemberships.length > 0) {
+        await logCrmAction(
+          req.user!.id,
+          target.societyMemberships[0].societyId,
+          'DELETE_USER',
+          `User deleted by SUPER_ADMIN: ${target.email}`,
+          { deletedUserId: target.id, role: target.role },
+        );
+      }
+
+      invalidateAuthCache(target.id);
+
+      return res.json({ success: true });
+    } catch (_error) {
+      return res.status(500).json({ error: 'Failed to delete user' });
     }
   },
 );

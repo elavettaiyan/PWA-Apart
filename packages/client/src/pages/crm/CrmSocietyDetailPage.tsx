@@ -7,6 +7,7 @@ import {
   Mail,
   Phone,
   User,
+  Users,
   CheckCircle2,
   XCircle,
   CreditCard,
@@ -16,6 +17,7 @@ import {
   X,
   ShieldCheck,
   Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -146,7 +148,7 @@ const SUGGESTED_TAGS = ['VIP', 'at-risk', 'churned', 'demo', 'paying', 'onboardi
 
 // ── Tabs ───────────────────────────────────────────────────────
 
-const TABS = ['Overview', 'Subscription & Trial', 'Payments', 'Notes & Tags', 'Audit Log'] as const;
+const TABS = ['Overview', 'Subscription & Trial', 'Payments', 'Notes & Tags', 'Members', 'Audit Log'] as const;
 type Tab = (typeof TABS)[number];
 
 // ── Main Page ──────────────────────────────────────────────────
@@ -226,6 +228,7 @@ export default function CrmSocietyDetailPage() {
       {tab === 'Subscription & Trial' && <SubscriptionTab society={society} queryClient={queryClient} societyId={id!} />}
       {tab === 'Payments' && <PaymentsTab societyId={id!} />}
       {tab === 'Notes & Tags' && <NotesTagsTab society={society} queryClient={queryClient} societyId={id!} />}
+      {tab === 'Members' && <MembersTab societyId={id!} queryClient={queryClient} />}
       {tab === 'Audit Log' && <AuditLogTab societyId={id!} />}
     </div>
   );
@@ -868,6 +871,116 @@ function AuditLogTab({ societyId }: { societyId: string }) {
                   By {log.performedBy.name} ({log.performedBy.email})
                 </p>
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Members Tab ────────────────────────────────────────────────
+
+type SocietyUser = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  membershipRole: string;
+  isActive: boolean;
+  createdAt: string;
+  lastLogin: string | null;
+};
+
+function MembersTab({
+  societyId,
+  queryClient,
+}: {
+  societyId: string;
+  queryClient: ReturnType<typeof useQueryClient>;
+}) {
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  const { data: users = [], isLoading } = useQuery<SocietyUser[]>({
+    queryKey: ['crm-society-users', societyId],
+    queryFn: async () => (await api.get(`/admin/crm/societies/${societyId}/users`)).data,
+    enabled: !!societyId,
+  });
+
+  const deleteUser = useMutation({
+    mutationFn: (userId: string) => api.delete(`/admin/crm/users/${userId}`),
+    onSuccess: () => {
+      toast.success('User deleted successfully');
+      setConfirmId(null);
+      queryClient.invalidateQueries({ queryKey: ['crm-society-users', societyId] });
+      queryClient.invalidateQueries({ queryKey: ['crm-society', societyId] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to delete user'),
+  });
+
+  if (isLoading) return <PageLoader />;
+
+  return (
+    <div className="bg-white rounded-2xl p-5 shadow-card">
+      <h2 className="text-sm font-bold text-on-surface mb-4 flex items-center gap-2">
+        <Users className="w-4 h-4 text-slate-400" /> Members
+        <span className="text-xs text-slate-400 font-normal">({users.length})</span>
+      </h2>
+
+      {users.length === 0 ? (
+        <p className="text-sm text-slate-400 italic text-center py-8">No members found.</p>
+      ) : (
+        <div className="space-y-2">
+          {users.map((u) => (
+            <div
+              key={u.id}
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-slate-50 rounded-xl p-3"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-on-surface">{u.name}</p>
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  {u.membershipRole.replace(/_/g, ' ')}
+                </p>
+                <div className="flex flex-wrap gap-3 mt-1 text-xs text-slate-500">
+                  <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{u.email}</span>
+                  {u.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{u.phone}</span>}
+                  {u.lastLogin && (
+                    <span>Last login: {new Date(u.lastLogin).toLocaleDateString('en-IN')}</span>
+                  )}
+                </div>
+              </div>
+
+              {confirmId === u.id ? (
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-red-600 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> Delete {u.name}?
+                  </span>
+                  <button
+                    type="button"
+                    disabled={deleteUser.isPending}
+                    onClick={() => deleteUser.mutate(u.id)}
+                    className="btn-danger text-xs py-1 px-2 disabled:opacity-40"
+                  >
+                    {deleteUser.isPending ? 'Deleting…' : 'Confirm'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmId(null)}
+                    className="btn-outline text-xs py-1 px-2"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmId(u.id)}
+                  className="shrink-0 btn-outline text-red-500 border-red-200 hover:bg-red-50 flex items-center gap-1 text-xs py-1 px-2"
+                >
+                  <Trash2 className="w-3 h-3" /> Delete
+                </button>
+              )}
             </div>
           ))}
         </div>
