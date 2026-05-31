@@ -498,53 +498,21 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
               ? 'Your society has used all purchased flat capacity. Increase the count now — new flats unlock immediately and the higher amount kicks in at the next renewal.'
               : 'You can increase your purchased flat count any time before hitting the current capacity.'
             : premiumStatus.trial?.isOnTrial
-              ? `Your 1-month free trial allows up to ${premiumStatus.trial.flatLimit} flats. Subscribe to Premium to go beyond the trial limit and keep full access once the trial ends.`
+              ? 'Your 1-month free trial has a flat limit. Subscribe to Premium to go beyond it and keep full access once the trial ends.'
               : 'Your free trial has ended. Subscribe to Premium to continue adding flats.'}
         </p>
       </div>
 
       {/* ── 3. Key numbers ── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-xl bg-surface-container-low p-3">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Current flats</p>
-          <p className="mt-1 text-lg font-bold text-on-surface">{premiumStatus.currentFlatCount}</p>
-        </div>
-        <div className="rounded-xl bg-surface-container-low p-3">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Limit now</p>
-          <p className="mt-1 text-lg font-bold text-on-surface">{premiumStatus.includedFlatCount}</p>
-        </div>
+      <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl bg-surface-container-low p-3">
           <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Rate</p>
-          <p className="mt-1 text-lg font-bold text-on-surface">₹{premiumStatus.pricing.amountPerFlat}<span className="text-xs font-normal">/flat</span></p>
+          <p className="mt-1 text-lg font-bold text-on-surface">₹{premiumStatus.pricing.amountPerFlat}<span className="text-xs font-normal">/flat/month</span></p>
         </div>
         <div className="rounded-xl bg-surface-container-low p-3">
           <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Monthly total</p>
           <p className="mt-1 text-lg font-bold text-on-surface">₹{previewAmount}</p>
         </div>
-      </div>
-
-      {/* ── 4. Billing preview ── */}
-      <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-3">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <p className="text-xs uppercase tracking-widest text-on-surface-variant">Billing preview</p>
-            <p className="mt-1 text-base font-semibold text-on-surface">
-              {effectiveRequestedFlatCount} flats × ₹{premiumStatus.pricing.amountPerFlat} = ₹{previewAmount}/month
-            </p>
-          </div>
-          {activeSubscription?.currentPeriodEnd && (
-            <div className="text-right text-xs text-on-surface-variant">
-              <p>Current cycle ends</p>
-              <p className="font-medium text-on-surface">{new Date(activeSubscription.currentPeriodEnd).toLocaleDateString()}</p>
-            </div>
-          )}
-        </div>
-        <p className="mt-2 text-xs text-on-surface-variant">{premiumStatus.preview.message}</p>
-        {premiumStatus.scheduledFlatCount && premiumStatus.scheduledChangeAt && (
-          <p className="mt-2 text-xs text-primary">
-            Next renewal already scheduled for {premiumStatus.scheduledFlatCount} flats on {new Date(premiumStatus.scheduledChangeAt).toLocaleDateString()}.
-          </p>
-        )}
       </div>
 
       {/* ── 5. What you unlock ── */}
