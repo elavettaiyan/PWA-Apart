@@ -384,9 +384,12 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
   const subscribeMutation = useMutation({
     mutationFn: async (flatCount: number) => (await api.post('/premium/subscribe', { requestedFlatCount: flatCount })).data,
     onSuccess: async (payload) => {
-      // Close the app modal first so its backdrop-filter doesn't create a stacking
-      // context that traps the Razorpay fixed overlay in the wrong position.
+      // Close the modal and wait two animation frames so React re-renders and the
+      // backdrop-filter is fully removed from the DOM before Razorpay reads the
+      // viewport. Without this, Razorpay's position:fixed overlay gets trapped
+      // inside the filter's containing block and renders in the bottom-left corner.
       onClose();
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
       try {
         await openRazorpaySubscriptionCheckout({
           key: payload.keyId,
