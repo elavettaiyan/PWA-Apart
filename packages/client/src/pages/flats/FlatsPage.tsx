@@ -492,7 +492,9 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
               ? 'Purchased Premium capacity reached'
               : 'Premium is active'
             : premiumStatus.trial?.isOnTrial
-              ? 'Trial flat limit reached'
+              ? isLimitReached
+                ? 'Trial flat limit reached'
+                : 'Upgrade before your trial ends'
               : 'Free trial has ended'}
         </p>
         <p className="mt-1">
@@ -501,7 +503,9 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
               ? 'Your society has used all purchased flat capacity. Increase the count now — new flats unlock immediately and the higher amount kicks in at the next renewal.'
               : 'You can increase your purchased flat count any time before hitting the current capacity.'
             : premiumStatus.trial?.isOnTrial
-              ? 'Your 1-month free trial has a flat limit. Subscribe to Premium to go beyond it and keep full access once the trial ends.'
+              ? isLimitReached
+                ? 'Your 1-month free trial has a flat limit. Subscribe to Premium to go beyond it and keep full access once the trial ends.'
+                : 'Your free trial ends soon. Subscribe to Premium now to continue without any interruption when the trial period is over.'
               : 'Your free trial has ended. Subscribe to Premium to continue adding flats.'}
         </p>
       </div>
