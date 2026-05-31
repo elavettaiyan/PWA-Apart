@@ -504,10 +504,14 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* ── 3. Key numbers ── */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="rounded-xl bg-surface-container-low p-3">
           <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Rate</p>
           <p className="mt-1 text-lg font-bold text-on-surface">₹{premiumStatus.pricing.amountPerFlat}<span className="text-xs font-normal">/flat/month</span></p>
+        </div>
+        <div className="rounded-xl bg-surface-container-low p-3">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Flat capacity</p>
+          <p className="mt-1 text-lg font-bold text-on-surface">{effectiveRequestedFlatCount}<span className="text-xs font-normal"> flats</span></p>
         </div>
         <div className="rounded-xl bg-surface-container-low p-3">
           <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Monthly total</p>
