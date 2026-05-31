@@ -384,6 +384,9 @@ function UpgradePrompt({ onClose }: { onClose: () => void }) {
   const subscribeMutation = useMutation({
     mutationFn: async (flatCount: number) => (await api.post('/premium/subscribe', { requestedFlatCount: flatCount })).data,
     onSuccess: async (payload) => {
+      // Close the app modal first so its backdrop-filter doesn't create a stacking
+      // context that traps the Razorpay fixed overlay in the wrong position.
+      onClose();
       try {
         await openRazorpaySubscriptionCheckout({
           key: payload.keyId,
