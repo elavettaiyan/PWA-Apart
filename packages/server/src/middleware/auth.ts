@@ -116,7 +116,7 @@ export const authenticate = async (
           select: { role: true },
         })
       : null;
-    const effectiveRole = membership?.role || decoded.role || user.role;
+    const effectiveRole = user.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : (membership?.role || decoded.role || user.role);
 
     req.user = {
       id: user.id,

@@ -563,7 +563,7 @@ router.post(
       const activeMembership = activeSocietyId
         ? societies.find((membership) => membership.societyId === activeSocietyId)
         : null;
-      const effectiveRole = activeMembership?.role || user.role;
+      const effectiveRole = user.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : (activeMembership?.role || user.role);
 
       const tokens = generateTokens({
         id: user.id,
