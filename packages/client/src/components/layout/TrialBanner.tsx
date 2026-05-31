@@ -61,7 +61,7 @@ export default function TrialBanner() {
       </div>
 
       <button
-        onClick={() => navigate('/flats')}
+        onClick={() => navigate('/flats?upgrade=true')}
         className={cn(
           'shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap',
           isUrgent

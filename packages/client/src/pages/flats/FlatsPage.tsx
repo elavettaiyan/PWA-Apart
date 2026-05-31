@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Building2, User, Phone, Layers, Trash2, Upload, Download, FileSpreadsheet } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -22,6 +23,7 @@ export default function FlatsPage() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showIosUpgradeInfo, setShowIosUpgradeInfo] = useState(false);
   const [search, setSearch] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'] as string[]).includes(user?.role || '');
@@ -40,6 +42,13 @@ export default function FlatsPage() {
     () => flats.find((flat) => flat.id === selectedFlatId) ?? null,
     [flats, selectedFlatId],
   );
+
+  useEffect(() => {
+    if (searchParams.get('upgrade') === 'true') {
+      setShowUpgradeModal(true);
+      setSearchParams((prev) => { prev.delete('upgrade'); return prev; }, { replace: true });
+    }
+  }, []);
 
   useEffect(() => {
     if (!activeFlat) return;
