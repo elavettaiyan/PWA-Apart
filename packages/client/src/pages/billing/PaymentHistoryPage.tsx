@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, CreditCard } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, CreditCard, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { formatCurrency, formatDate, getMonthName, getStatusColor } from '../../lib/utils';
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import { useAuthStore } from '../../store/authStore';
-import type { PaymentHistoryItem, PaymentMethod, PaymentStatus } from '../../types';
+import type { PaymentHistoryItem, PaymentMethod } from '../../types';
 
 const FINANCIAL_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'];
 const METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -47,11 +48,34 @@ export default function PaymentHistoryPage() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'SUPER_ADMIN' || FINANCIAL_ROLES.includes(user?.role ?? '');
 
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [methodFilter, setMethodFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [checkingId, setCheckingId] = useState<string | null>(null);
+
+  async function handleCheckStatus(merchantTransId: string) {
+    setCheckingId(merchantTransId);
+    try {
+      const { data } = await api.get(`/payments/status/${merchantTransId}`);
+      const status = data?.status;
+      if (status === 'SUCCESS') {
+        toast.success('Payment confirmed as successful.');
+        queryClient.invalidateQueries({ queryKey: ['payment-history'] });
+      } else if (status === 'FAILED') {
+        toast.error('Payment confirmed as failed.');
+        queryClient.invalidateQueries({ queryKey: ['payment-history'] });
+      } else {
+        toast('Payment is still pending with PhonePe.', { icon: '⏳' });
+      }
+    } catch {
+      toast.error('Could not check payment status. Please try again.');
+    } finally {
+      setCheckingId(null);
+    }
+  }
 
   const { data, isLoading, isError } = useQuery<HistoryResponse>({
     queryKey: ['payment-history', page, statusFilter, methodFilter, startDate, endDate],
@@ -157,6 +181,7 @@ export default function PaymentHistoryPage() {
                   <th>Status</th>
                   <th>PhonePe Txn ID</th>
                   <th>Gateway Ref</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -184,6 +209,18 @@ export default function PaymentHistoryPage() {
                     </td>
                     <td>
                       <span className="font-mono text-xs text-base-content/70">{p.gatewayRefId ?? '—'}</span>
+                    </td>
+                    <td>
+                      {p.status === 'INITIATED' && p.merchantTransId && (
+                        <button
+                          className="btn btn-xs btn-outline gap-1"
+                          disabled={checkingId === p.merchantTransId}
+                          onClick={() => handleCheckStatus(p.merchantTransId!)}
+                        >
+                          <RefreshCw className={`w-3 h-3 ${checkingId === p.merchantTransId ? 'animate-spin' : ''}`} />
+                          {checkingId === p.merchantTransId ? 'Checking…' : 'Check'}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -216,6 +253,16 @@ export default function PaymentHistoryPage() {
                   {p.transactionId && <p>PhonePe: <span className="font-mono">{p.transactionId}</span></p>}
                   {p.gatewayRefId && <p>Ref: <span className="font-mono">{p.gatewayRefId}</span></p>}
                 </div>
+                {p.status === 'INITIATED' && p.merchantTransId && (
+                  <button
+                    className="btn btn-xs btn-outline gap-1 mt-3"
+                    disabled={checkingId === p.merchantTransId}
+                    onClick={() => handleCheckStatus(p.merchantTransId!)}
+                  >
+                    <RefreshCw className={`w-3 h-3 ${checkingId === p.merchantTransId ? 'animate-spin' : ''}`} />
+                    {checkingId === p.merchantTransId ? 'Checking…' : 'Check Status'}
+                  </button>
+                )}
               </div>
             ))}
           </div>
