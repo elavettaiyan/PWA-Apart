@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Receipt, Plus, CreditCard, Banknote, Calendar, BellRing } from 'lucide-react';
+import { Receipt, Plus, CreditCard, Banknote, Calendar, BellRing, History, FileBarChart2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 import { formatCurrency, getStatusColor, getMonthName, cn } from '../../lib/utils';
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
@@ -63,6 +63,7 @@ export default function BillingPage() {
   const [generationResult, setGenerationResult] = useState<BillingGenerationResult | null>(null);
   const [configForm, setConfigForm] = useState<BillingConfigFormState>(buildConfigForm());
   const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const txnStatusCheckRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
@@ -395,19 +396,27 @@ export default function BillingPage() {
           <p className="section-label mb-1">Financials</p>
           <h1 className="page-title">Billing</h1>
         </div>
-        {isAdmin && (
-          <div className="flex flex-wrap gap-1.5">
-            <button className="btn-secondary text-xs px-2.5 py-1.5" onClick={() => reminderMutation.mutate()} disabled={reminderMutation.isPending}>
-              <BellRing className="w-3.5 h-3.5" /> {reminderMutation.isPending ? 'Sending...' : 'Remind'}
-            </button>
-            <button className="btn-secondary text-xs px-2.5 py-1.5" onClick={openConfigModal}>
-              <Calendar className="w-3.5 h-3.5" /> Config
-            </button>
-            <button className="btn-primary text-xs px-2.5 py-1.5" onClick={() => setShowGenerate(true)} disabled={!canGenerateBills}>
-              <Plus className="w-3.5 h-3.5" /> Generate
-            </button>
-          </div>
-        )}
+        <div className="flex flex-wrap gap-1.5">
+          <button className="btn-secondary text-xs px-2.5 py-1.5" onClick={() => navigate('/payments/history')}>
+            <History className="w-3.5 h-3.5" /> History
+          </button>
+          {isAdmin && (
+            <>
+              <button className="btn-secondary text-xs px-2.5 py-1.5" onClick={() => navigate('/payments/report')}>
+                <FileBarChart2 className="w-3.5 h-3.5" /> Report
+              </button>
+              <button className="btn-secondary text-xs px-2.5 py-1.5" onClick={() => reminderMutation.mutate()} disabled={reminderMutation.isPending}>
+                <BellRing className="w-3.5 h-3.5" /> {reminderMutation.isPending ? 'Sending...' : 'Remind'}
+              </button>
+              <button className="btn-secondary text-xs px-2.5 py-1.5" onClick={openConfigModal}>
+                <Calendar className="w-3.5 h-3.5" /> Config
+              </button>
+              <button className="btn-primary text-xs px-2.5 py-1.5" onClick={() => setShowGenerate(true)} disabled={!canGenerateBills}>
+                <Plus className="w-3.5 h-3.5" /> Generate
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {isAdmin && (

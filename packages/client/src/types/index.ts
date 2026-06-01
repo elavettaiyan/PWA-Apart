@@ -236,8 +236,22 @@ export interface Payment {
   status: PaymentStatus;
   transactionId?: string;
   merchantTransId?: string;
+  gatewayRefId?: string;
   receiptNo?: string;
   paidAt?: string;
+  createdAt?: string;
+}
+
+export interface PaymentHistoryItem extends Payment {
+  bill: {
+    month: number;
+    year: number;
+    totalAmount: number;
+    flat: {
+      flatNumber: string;
+      block: { name: string };
+    };
+  };
 }
 
 // ─── COMPLAINT ──────────────────────────────────────────

@@ -605,6 +605,7 @@ model Payment {
   status            PaymentStatus @default(INITIATED)
   transactionId     String?       @unique
   merchantTransId   String?       @unique
+  gatewayRefId      String?       // PhonePe providerReferenceId (UTR / bank ref)
   phonepeResponse   String?
   receiptNo         String?
   paidAt            DateTime?
@@ -617,7 +618,24 @@ model Payment {
   @@index([billId])
   @@index([status, paidAt])
   @@index([notes])
+  @@index([gatewayRefId])
   @@map("payments")
+}
+
+// Idempotency log for incoming PhonePe S2S webhook events
+model WebhookEvent {
+  id              String   @id @default(uuid())
+  source          String   // "phonepe"
+  eventKey        String   // "<merchantTransId>:<txnCode>"
+  merchantTransId String?
+  payload         String   // raw decoded response JSON (capped at 4000 chars)
+  status          String   // "processed" | "duplicate" | "error"
+  error           String?
+  processedAt     DateTime @default(now())
+
+  @@unique([source, eventKey])
+  @@index([merchantTransId])
+  @@map("webhook_events")
 }
 
 // ─── PLATFORM PREMIUM SUBSCRIPTIONS ───────────────────

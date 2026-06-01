@@ -13,6 +13,8 @@ import FlatsPage from './pages/flats/FlatsPage';
 import MyFlatPage from './pages/flats/MyFlatPage';
 import BillingPage from './pages/billing/BillingPage';
 import PaymentStatusRedirect from './pages/billing/PaymentStatusRedirect';
+import PaymentHistoryPage from './pages/billing/PaymentHistoryPage';
+import PaymentReportPage from './pages/billing/PaymentReportPage';
 import ComplaintsPage from './pages/complaints/ComplaintsPage';
 import ExpensesPage from './pages/expenses/ExpensesPage';
 import BylawsPage from './pages/bylaws/BylawsPage';
@@ -139,6 +141,8 @@ export default function App() {
         <Route path="/my-flat" element={<ProtectedRoute><MyFlatPage /></ProtectedRoute>} />
         <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
         <Route path="/payments/status" element={<PaymentStatusRedirect />} />
+        <Route path="/payments/history" element={<ProtectedRoute><PaymentHistoryPage /></ProtectedRoute>} />
+        <Route path="/payments/report" element={<RoleRoute roles={['SUPER_ADMIN', ...FINANCIAL_ROLES]}><PaymentReportPage /></RoleRoute>} />
         <Route path="/complaints" element={<ProtectedRoute><ComplaintsPage /></ProtectedRoute>} />
         <Route path="/expenses" element={<RoleRoute roles={['SUPER_ADMIN', ...FINANCIAL_ROLES]}><ExpensesPage /></RoleRoute>} />
         <Route path="/assets" element={<RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_MANAGERS]}><RestrictionAwareContent path="/assets"><AssetsPage /></RestrictionAwareContent></RoleRoute>} />

@@ -1,9 +1,9 @@
 import { Request, Response, Router } from 'express';
-import { body } from 'express-validator';
+import { body, query } from 'express-validator';
 import type { Prisma } from '@prisma/client';
 import { config } from '../../config';
 import prisma from '../../config/database';
-import { authenticate, AuthRequest } from '../../middleware/auth';
+import { authenticate, authorize, AuthRequest, FINANCIAL_ROLES } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 import { v4 as uuidv4 } from 'uuid';
@@ -203,7 +203,7 @@ async function fetchPhonePeSdkOrderStatus(
   return lastData;
 }
 
-async function markPaymentSuccess(paymentId: string, transactionId: string | undefined, phonepePayload: unknown) {
+async function markPaymentSuccess(paymentId: string, transactionId: string | undefined, phonepePayload: unknown, gatewayRefId?: string) {
   return prisma.$transaction(async (tx) => {
     const existingPayment = await tx.payment.findUnique({
       where: { id: paymentId },
@@ -225,6 +225,7 @@ async function markPaymentSuccess(paymentId: string, transactionId: string | und
       data: {
         status: 'SUCCESS',
         transactionId,
+        gatewayRefId: gatewayRefId ?? undefined,
         phonepeResponse: JSON.stringify(phonepePayload),
         paidAt: new Date(),
       },
@@ -266,7 +267,7 @@ async function getUserFlatIds(userId: string, societyId: string | null) {
   return [...new Set([...owners.map((row) => row.flatId), ...tenants.map((row) => row.flatId)])];
 }
 
-async function markBulkPaymentsSuccess(merchantTransId: string, transactionId: string | undefined, phonepePayload: unknown) {
+async function markBulkPaymentsSuccess(merchantTransId: string, transactionId: string | undefined, phonepePayload: unknown, gatewayRefId?: string) {
   const references = getBulkPaymentNotes(merchantTransId);
 
   return prisma.$transaction(async (tx) => {
@@ -293,6 +294,7 @@ async function markBulkPaymentsSuccess(merchantTransId: string, transactionId: s
         data: {
           status: 'SUCCESS',
           transactionId: payment.merchantTransId === merchantTransId ? transactionId : undefined,
+          gatewayRefId: gatewayRefId ?? undefined,
           phonepeResponse: JSON.stringify(phonepePayload),
           paidAt: new Date(),
         },
@@ -798,6 +800,7 @@ router.post(
       // Attempt PhonePe REST status verification
       const pgConfig = await getPhonePeConfig(societyId ?? null);
       let finalTransactionId = sdkTransactionId;
+      let finalGatewayRefId: string | undefined;
       let verifiedByPhonePe = false;
 
       try {
@@ -811,8 +814,9 @@ router.post(
           paymentDetails: statusData.paymentDetails,
         });
 
-        if (statusData.state === 'COMPLETED') {
+      if (statusData.state === 'COMPLETED') {
           finalTransactionId = statusData.paymentDetails?.[0]?.transactionId || sdkTransactionId;
+          finalGatewayRefId = (statusData.paymentDetails?.[0] as any)?.providerReferenceId ?? undefined;
           verifiedByPhonePe = true;
         } else if (statusData.state === 'FAILED') {
           logger.warn('[SDK-Confirm] PhonePe API says FAILED but SDK reported success', { merchantTransId, sdkState, statusData });
@@ -844,7 +848,7 @@ router.post(
           sdkState,
           transactionId: finalTransactionId,
           merchantTransId,
-        });
+        }, finalGatewayRefId);
         for (const paymentId of result.processedPaymentIds) {
           sendReceiptForPayment(paymentId).catch(() => {});
           notifyPaymentSuccess(paymentId).catch(() => {});
@@ -858,7 +862,7 @@ router.post(
         sdkState,
         transactionId: finalTransactionId,
         merchantTransId,
-      });
+      }, finalGatewayRefId);
       if (!result.alreadyProcessed) {
         sendReceiptForPayment(payment.id).catch(() => {});
         notifyPaymentSuccess(payment.id).catch(() => {});
@@ -874,6 +878,9 @@ router.post(
 
 // ── PHONEPE CALLBACK (Server-to-Server) ─────────────────
 router.post('/phonepe/callback', async (req: Request, res: Response) => {
+  let merchantTransId: string | undefined;
+  let webhookEventId: string | undefined;
+
   try {
     const { response } = req.body;
 
@@ -884,7 +891,6 @@ router.post('/phonepe/callback', async (req: Request, res: Response) => {
     // Verify checksum
     const receivedChecksum = req.headers['x-verify'] as string;
 
-    // We need to find the society to get the salt key for verification
     // Decode response first to get merchantTransactionId
     const decodedResponse = JSON.parse(
       Buffer.from(response, 'base64').toString('utf-8'),
@@ -892,9 +898,37 @@ router.post('/phonepe/callback', async (req: Request, res: Response) => {
 
     logger.info('PhonePe callback received:', decodedResponse);
 
-    const merchantTransId = decodedResponse.data?.merchantTransactionId;
+    merchantTransId = decodedResponse.data?.merchantTransactionId as string | undefined;
     if (!merchantTransId) {
       return res.status(400).json({ error: 'Invalid transaction ID' });
+    }
+
+    const txnStatus: string = decodedResponse.code ?? 'UNKNOWN';
+    const eventKey = `${merchantTransId}:${txnStatus}`;
+    const payloadStr = JSON.stringify(decodedResponse).slice(0, 4000);
+
+    // ── IDEMPOTENCY: reject duplicate callbacks immediately ─
+    let webhookEvent: { id: string } | null = null;
+    try {
+      webhookEvent = await prisma.webhookEvent.create({
+        data: {
+          id: uuidv4(),
+          source: 'phonepe',
+          eventKey,
+          merchantTransId,
+          payload: payloadStr,
+          status: 'processing',
+        },
+        select: { id: true },
+      });
+      webhookEventId = webhookEvent.id;
+    } catch (dupErr: any) {
+      // Unique constraint violation → duplicate webhook delivery
+      if (dupErr?.code === 'P2002') {
+        logger.info('PhonePe callback duplicate — ignoring', { merchantTransId, eventKey });
+        return res.json({ success: true, duplicate: true });
+      }
+      throw dupErr;
     }
 
     const payment = await prisma.payment.findUnique({
@@ -904,6 +938,7 @@ router.post('/phonepe/callback', async (req: Request, res: Response) => {
 
     if (!payment) {
       logger.error('Payment not found for txn:', merchantTransId);
+      await prisma.webhookEvent.update({ where: { id: webhookEventId }, data: { status: 'error', error: 'Payment not found' } });
       return res.status(404).json({ error: 'Payment not found' });
     }
 
@@ -912,19 +947,21 @@ router.post('/phonepe/callback', async (req: Request, res: Response) => {
     const pgConfig = await getPhonePeConfig(societyId ?? null);
     if (!receivedChecksum) {
       logger.error('PhonePe callback missing checksum', { merchantTransId });
+      await prisma.webhookEvent.update({ where: { id: webhookEventId }, data: { status: 'error', error: 'Missing checksum' } });
       return res.status(400).json({ error: 'Checksum verification failed' });
     }
 
     if (!verifyCallbackChecksum(response, receivedChecksum, pgConfig.saltKey, pgConfig.saltIndex)) {
       logger.error('PhonePe callback checksum mismatch', { merchantTransId, received: receivedChecksum });
+      await prisma.webhookEvent.update({ where: { id: webhookEventId }, data: { status: 'error', error: 'Checksum mismatch' } });
       return res.status(400).json({ error: 'Checksum verification failed' });
     }
 
-    const txnStatus = decodedResponse.code;
+    const gatewayRefId: string | undefined = decodedResponse.data?.providerReferenceId ?? undefined;
 
     if (txnStatus === 'PAYMENT_SUCCESS') {
       if (isBulkPayment(payment.notes)) {
-        const result = await markBulkPaymentsSuccess(merchantTransId, decodedResponse.data?.transactionId, decodedResponse);
+        const result = await markBulkPaymentsSuccess(merchantTransId, decodedResponse.data?.transactionId, decodedResponse, gatewayRefId);
         logger.info(`Bulk payment successful: ${merchantTransId}`, { processedCount: result.processedCount });
 
         for (const paymentId of result.processedPaymentIds) {
@@ -932,7 +969,7 @@ router.post('/phonepe/callback', async (req: Request, res: Response) => {
           notifyPaymentSuccess(paymentId).catch(() => {});
         }
       } else {
-        const result = await markPaymentSuccess(payment.id, decodedResponse.data?.transactionId, decodedResponse);
+        const result = await markPaymentSuccess(payment.id, decodedResponse.data?.transactionId, decodedResponse, gatewayRefId);
         logger.info(`Payment successful: ${merchantTransId}`, { alreadyProcessed: result.alreadyProcessed });
 
         if (!result.alreadyProcessed) {
@@ -944,8 +981,9 @@ router.post('/phonepe/callback', async (req: Request, res: Response) => {
       if (isBulkPayment(payment.notes)) {
         await markBulkPaymentsFailed(merchantTransId, decodedResponse);
       } else {
-        await prisma.payment.update({
-          where: { id: payment.id },
+        // Idempotent: only update if not already in a terminal state
+        await prisma.payment.updateMany({
+          where: { id: payment.id, status: { notIn: ['SUCCESS', 'FAILED'] } },
           data: {
             status: 'FAILED',
             phonepeResponse: JSON.stringify(decodedResponse),
@@ -956,9 +994,13 @@ router.post('/phonepe/callback', async (req: Request, res: Response) => {
       logger.warn(`Payment failed: ${merchantTransId} - ${txnStatus}`);
     }
 
+    await prisma.webhookEvent.update({ where: { id: webhookEventId }, data: { status: 'processed' } });
     return res.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('PhonePe callback error:', error);
+    if (webhookEventId) {
+      await prisma.webhookEvent.update({ where: { id: webhookEventId }, data: { status: 'error', error: String(error?.message ?? error) } }).catch(() => {});
+    }
     return res.status(500).json({ error: 'Callback processing failed' });
   }
 });
@@ -1009,9 +1051,10 @@ router.get(
 
             if (statusData.state === 'COMPLETED') {
               const transactionId = statusData.paymentDetails?.[0]?.transactionId;
+              const polledGatewayRefId: string | undefined = (statusData.paymentDetails?.[0] as any)?.providerReferenceId ?? undefined;
 
               if (isBulkPayment(payment.notes)) {
-                const result = await markBulkPaymentsSuccess(merchantTransId, transactionId, statusData);
+                const result = await markBulkPaymentsSuccess(merchantTransId, transactionId, statusData, polledGatewayRefId);
 
                 for (const paymentId of result.processedPaymentIds) {
                   sendReceiptForPayment(paymentId).catch(() => {});
@@ -1020,7 +1063,7 @@ router.get(
                 return res.json({ ...payment, status: 'SUCCESS', bulkProcessedCount: result.processedCount });
               }
 
-              const result = await markPaymentSuccess(payment.id, transactionId, statusData);
+              const result = await markPaymentSuccess(payment.id, transactionId, statusData, polledGatewayRefId);
               if (!result.alreadyProcessed) {
                 sendReceiptForPayment(payment.id).catch(() => {});
                 notifyPaymentSuccess(payment.id).catch(() => {});
@@ -1032,8 +1075,8 @@ router.get(
               if (isBulkPayment(payment.notes)) {
                 await markBulkPaymentsFailed(merchantTransId, statusData);
               } else {
-                await prisma.payment.update({
-                  where: { id: payment.id },
+                await prisma.payment.updateMany({
+                  where: { id: payment.id, status: { notIn: ['SUCCESS', 'FAILED'] } },
                   data: {
                     status: 'FAILED',
                     phonepeResponse: JSON.stringify(statusData),
@@ -1066,8 +1109,10 @@ router.get(
             const statusData: any = await statusResponse.json();
 
             if (statusData.code === 'PAYMENT_SUCCESS') {
+              const redirectGatewayRefId: string | undefined = statusData.data?.providerReferenceId ?? undefined;
+
               if (isBulkPayment(payment.notes)) {
-                const result = await markBulkPaymentsSuccess(merchantTransId, statusData.data?.transactionId, statusData);
+                const result = await markBulkPaymentsSuccess(merchantTransId, statusData.data?.transactionId, statusData, redirectGatewayRefId);
 
                 for (const paymentId of result.processedPaymentIds) {
                   sendReceiptForPayment(paymentId).catch(() => {});
@@ -1076,7 +1121,7 @@ router.get(
                 return res.json({ ...payment, status: 'SUCCESS', bulkProcessedCount: result.processedCount });
               }
 
-              const result = await markPaymentSuccess(payment.id, statusData.data?.transactionId, statusData);
+              const result = await markPaymentSuccess(payment.id, statusData.data?.transactionId, statusData, redirectGatewayRefId);
               if (!result.alreadyProcessed) {
                 sendReceiptForPayment(payment.id).catch(() => {});
                 notifyPaymentSuccess(payment.id).catch(() => {});
@@ -1092,6 +1137,220 @@ router.get(
       return res.json(payment);
     } catch (error) {
       return res.status(500).json({ error: 'Failed to check payment status' });
+    }
+  },
+);
+
+// ── PAYMENT HISTORY ─────────────────────────────────────
+// All authenticated users. Residents see only their own payments; admins see all society payments.
+router.get(
+  '/history',
+  authenticate,
+  [
+    query('page').optional().isInt({ min: 1 }).toInt(),
+    query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+    query('status').optional().isString(),
+    query('method').optional().isString(),
+    query('startDate').optional().isISO8601(),
+    query('endDate').optional().isISO8601(),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const page = (req.query.page as any) || 1;
+      const limit = Math.min((req.query.limit as any) || 20, 100);
+      const skip = (page - 1) * limit;
+
+      const statusFilter = req.query.status as string | undefined;
+      const methodFilter = req.query.method as string | undefined;
+      const startDate = req.query.startDate as string | undefined;
+      const endDate = req.query.endDate as string | undefined;
+
+      const isAdmin = req.user!.role === 'SUPER_ADMIN' || (FINANCIAL_ROLES as readonly string[]).includes(req.user!.role);
+      const isResident = req.user!.role === 'OWNER' || req.user!.role === 'TENANT';
+
+      // Build where clause
+      const where: Prisma.PaymentWhereInput = {};
+
+      // Date range filter on paidAt or createdAt
+      if (startDate || endDate) {
+        where.createdAt = {
+          ...(startDate ? { gte: new Date(startDate) } : {}),
+          ...(endDate ? { lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)) } : {}),
+        };
+      }
+      if (statusFilter) where.status = statusFilter as any;
+      if (methodFilter) where.method = methodFilter as any;
+
+      if (isResident) {
+        // Scope to the resident's own flat IDs
+        const flatIds = await getUserFlatIds(req.user!.id, req.user!.societyId ?? null);
+        if (flatIds.length === 0) return res.json({ payments: [], total: 0, page, limit });
+        where.bill = { flatId: { in: flatIds } };
+      } else if (req.user!.role === 'SUPER_ADMIN') {
+        // SUPER_ADMIN must pass ?societyId= to scope the query
+        const societyId = req.query.societyId as string | undefined;
+        if (!societyId) return res.status(400).json({ error: 'societyId query parameter is required for SUPER_ADMIN' });
+        where.bill = { flat: { block: { societyId } } };
+      } else if (isAdmin) {
+        if (!req.user!.societyId) return res.status(400).json({ error: 'No society associated with your account' });
+        where.bill = { flat: { block: { societyId: req.user!.societyId } } };
+      }
+
+      const [payments, total] = await Promise.all([
+        prisma.payment.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit,
+          select: {
+            id: true,
+            billId: true,
+            amount: true,
+            method: true,
+            status: true,
+            transactionId: true,
+            merchantTransId: true,
+            gatewayRefId: true,
+            receiptNo: true,
+            paidAt: true,
+            createdAt: true,
+            bill: {
+              select: {
+                month: true,
+                year: true,
+                totalAmount: true,
+                flat: {
+                  select: {
+                    flatNumber: true,
+                    block: { select: { name: true } },
+                  },
+                },
+              },
+            },
+          },
+        }),
+        prisma.payment.count({ where }),
+      ]);
+
+      return res.json({ payments, total, page, limit, pages: Math.ceil(total / limit) });
+    } catch (error) {
+      logger.error('Payment history error:', error);
+      return res.status(500).json({ error: 'Failed to fetch payment history' });
+    }
+  },
+);
+
+// ── PAYMENT REPORT (ADMIN + CSV export) ─────────────────
+// Restricted to financial roles. Returns online (PhonePe) payments for reconciliation.
+// ?export=csv streams a CSV download.
+router.get(
+  '/report',
+  authenticate,
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
+  [
+    query('page').optional().isInt({ min: 1 }).toInt(),
+    query('limit').optional().isInt({ min: 1, max: 500 }).toInt(),
+    query('status').optional().isString(),
+    query('startDate').optional().isISO8601(),
+    query('endDate').optional().isISO8601(),
+    query('export').optional().isString(),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const isCsvExport = req.query.export === 'csv';
+      const page = (req.query.page as any) || 1;
+      const limit = Math.min((req.query.limit as any) || (isCsvExport ? 5000 : 50), isCsvExport ? 5000 : 500);
+      const skip = isCsvExport ? 0 : (page - 1) * limit;
+
+      const statusFilter = req.query.status as string | undefined;
+      const startDate = req.query.startDate as string | undefined;
+      const endDate = req.query.endDate as string | undefined;
+
+      // Scope to society
+      let societyId: string;
+      if (req.user!.role === 'SUPER_ADMIN') {
+        const sid = req.query.societyId as string | undefined;
+        if (!sid) return res.status(400).json({ error: 'societyId query parameter is required for SUPER_ADMIN' });
+        societyId = sid;
+      } else {
+        if (!req.user!.societyId) return res.status(400).json({ error: 'No society associated with your account' });
+        societyId = req.user!.societyId;
+      }
+
+      const where: Prisma.PaymentWhereInput = {
+        method: 'PHONEPE',
+        bill: { flat: { block: { societyId } } },
+      };
+
+      if (statusFilter) where.status = statusFilter as any;
+      if (startDate || endDate) {
+        where.createdAt = {
+          ...(startDate ? { gte: new Date(startDate) } : {}),
+          ...(endDate ? { lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)) } : {}),
+        };
+      }
+
+      const payments = await prisma.payment.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          billId: true,
+          amount: true,
+          status: true,
+          transactionId: true,
+          merchantTransId: true,
+          gatewayRefId: true,
+          paidAt: true,
+          createdAt: true,
+          bill: {
+            select: {
+              month: true,
+              year: true,
+              totalAmount: true,
+              flat: {
+                select: {
+                  flatNumber: true,
+                  block: {
+                    select: {
+                      name: true,
+                      society: { select: { name: true } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (isCsvExport) {
+        const MONTH_NAMES_REPORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const csvHeader = 'Date,Society,Block,Flat,Month,Year,Amount (₹),Merchant Txn ID,PhonePe Txn ID,Gateway Ref ID,Status\n';
+        const csvRows = payments.map((p) => {
+          const date = p.paidAt ? new Date(p.paidAt).toLocaleDateString('en-IN') : new Date(p.createdAt).toLocaleDateString('en-IN');
+          const society = p.bill.flat.block.society.name.replace(/,/g, ' ');
+          const block = p.bill.flat.block.name.replace(/,/g, ' ');
+          const flat = p.bill.flat.flatNumber.replace(/,/g, ' ');
+          const month = MONTH_NAMES_REPORT[p.bill.month - 1];
+          return `${date},${society},${block},${flat},${month},${p.bill.year},${p.amount.toFixed(2)},${p.merchantTransId ?? ''},${p.transactionId ?? ''},${p.gatewayRefId ?? ''},${p.status}`;
+        }).join('\n');
+
+        const today = new Date().toISOString().slice(0, 10);
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="payments-report-${today}.csv"`);
+        return res.send(csvHeader + csvRows);
+      }
+
+      const total = await prisma.payment.count({ where });
+      return res.json({ payments, total, page, limit, pages: Math.ceil(total / limit) });
+    } catch (error) {
+      logger.error('Payment report error:', error);
+      return res.status(500).json({ error: 'Failed to fetch payment report' });
     }
   },
 );
