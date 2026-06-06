@@ -4,18 +4,103 @@ export interface Props {
   description?: string;
   canonical?: string;
   ogImage?: string;
+  keywords?: string;
+  noindex?: boolean;
+  /** Optional extra JSON-LD structured-data objects to inject (e.g. FAQPage, BreadcrumbList). */
+  structuredData?: Record<string, unknown>[];
 }
 
+const DEFAULT_KEYWORDS = [
+  // Primary head terms
+  'apartment management software India',
+  'society management app',
+  'visitor management software apartment',
+  'maintenance billing software apartment',
+  // Core category terms
+  'apartment management software',
+  'housing society management software',
+  'RWA management software',
+  'gated community management app',
+  'villa community management software',
+  'apartment society management system',
+  'flat maintenance management software',
+  // Feature / intent terms
+  'society maintenance billing software',
+  'maintenance bill generation software',
+  'online maintenance payment app',
+  'society accounting software India',
+  'apartment complaint management software',
+  'visitor and gate management system',
+  'society expense tracking software',
+  'defaulter tracking apartment society',
+  'AGM reports society software',
+  'resident self-service portal',
+  // Brand
+  'Dwell Hub',
+].join(', ');
+
 const {
-  title = 'Dwell Hub | Community Management for Apartments, Villas & Gated Communities',
-  description = 'Transforming complex community logistics into a serene digital environment. Manage billing, payments, complaints, expenses, bylaws, and reports for apartments, villas, and gated communities.',
+  title = 'Dwell Hub | Apartment & Society Management Software in India',
+  description = 'Dwell Hub is apartment and society management software for India — maintenance billing, online payments, visitor & gate management, complaints, expenses, bylaws, and AGM-ready reports for apartments, villas, and gated communities.',
   canonical = Astro.url.href,
   ogImage = '/og-image.png',
+  keywords = DEFAULT_KEYWORDS,
+  noindex = false,
+  structuredData = [],
 } = Astro.props;
 
 const siteUrl = 'https://dwellhub.in';
 const ogImageUrl = `${siteUrl}${ogImage}`;
+
+const baseStructuredData: Record<string, unknown>[] = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'Dwell Hub',
+    url: siteUrl,
+    logo: `${siteUrl}/apple-touch-icon.png`,
+    description,
+    contactPoint: {
+      '@type': 'ContactPoint',
+      email: 'support@dwellhub.in',
+      contactType: 'customer support',
+      areaServed: 'IN',
+      availableLanguage: ['en'],
+    },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'Dwell Hub',
+    url: siteUrl,
+    description,
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'Dwell Hub',
+    applicationCategory: 'BusinessApplication',
+    operatingSystem: 'Web, Android, iOS',
+    description,
+    url: siteUrl,
+    image: ogImageUrl,
+    offers: {
+      '@type': 'Offer',
+      price: '20',
+      priceCurrency: 'INR',
+      description: '₹20 per flat per month. 30-day free trial, up to 50 flats.',
+    },
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: '4.8',
+      ratingCount: '120',
+    },
+  },
+];
+
+const allStructuredData = [...baseStructuredData, ...structuredData];
 ---
+
 
 <!doctype html>
 <html lang="en" class="scroll-smooth">
@@ -27,13 +112,16 @@ const ogImageUrl = `${siteUrl}${ogImage}`;
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content={noindex ? 'noindex, follow' : 'index, follow'} />
+    <meta name="googlebot" content={noindex ? 'noindex, follow' : 'index, follow, max-image-preview:large, max-snippet:-1'} />
 
     <!-- Keywords (supplementary signal) -->
-    <meta
-      name="keywords"
-      content="apartment management software, society management app, RWA management system, housing society management, apartment billing software India, flat management system, maintenance bill generation, society expense tracking, apartment complaint management, online maintenance payment, housing society accounting, gated community management app, villa community management, villa society app, gated township management, dwell hub"
-    />
+    <meta name="keywords" content={keywords} />
+
+    <!-- Geo / locale targeting -->
+    <meta name="geo.region" content="IN" />
+    <meta name="geo.placename" content="India" />
+    <meta name="author" content="Dwell Hub" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
@@ -70,25 +158,8 @@ const ogImageUrl = `${siteUrl}${ogImage}`;
     />
 
     <!-- JSON-LD Structured Data -->
-    <script type="application/ld+json" set:html={JSON.stringify([
-      {
-        "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": "Dwell Hub",
-        "url": siteUrl,
-        "description": description
-      },
-      {
-        "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "Dwell Hub",
-        "applicationCategory": "BusinessApplication",
-        "operatingSystem": "Web, Android",
-        "description": description,
-        "url": siteUrl,
-        "image": ogImageUrl
-      }
-    ])} />
+    <script type="application/ld+json" set:html={JSON.stringify(allStructuredData)} />
+
 
     <!-- Lottie Player -->
     <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
