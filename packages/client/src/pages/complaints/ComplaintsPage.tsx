@@ -56,7 +56,7 @@ export default function ComplaintsPage() {
         </div>
         {!isSpecializedStaffView && (
           <button className="btn-primary" onClick={() => setShowCreate(true)}>
-            <Plus className="w-4 h-4" /> New
+            <Plus className="w-4 h-4" /> New Complaint
           </button>
         )}
       </div>

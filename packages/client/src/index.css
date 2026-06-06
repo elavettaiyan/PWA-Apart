@@ -12,17 +12,17 @@ html {
 
 @layer base {
   :root {
-    --primary: 14 23 42;
-    --primary-container: 226 232 240;
-    --on-primary-container: 30 41 59;
-    --on-primary-fixed: 2 6 23;
-    --on-primary-fixed-variant: 15 23 42;
-    --primary-fixed: 241 245 249;
-    --primary-fixed-dim: 148 163 184;
-    --inverse-primary: 148 163 184;
-    --secondary: 51 65 85;
-    --secondary-container: 241 245 249;
-    --on-secondary-container: 30 41 59;
+    --primary: 10 37 64;                 /* #0A2540 Deep Navy */
+    --primary-container: 13 53 97;       /* #0D3561 dark navy hero bg */
+    --on-primary-container: 204 251 241; /* #CCFBF1 light teal on dark */
+    --on-primary-fixed: 255 255 255;     /* white on navy */
+    --on-primary-fixed-variant: 204 251 241;
+    --primary-fixed: 10 49 87;
+    --primary-fixed-dim: 13 63 113;
+    --inverse-primary: 204 251 241;
+    --secondary: 0 196 180;              /* #00C4B4 Premium Teal */
+    --secondary-container: 204 251 241;  /* #CCFBF1 light teal container */
+    --on-secondary-container: 15 118 110; /* #0F766E dark teal text */
   }
   * {
     @apply border-outline-variant/20;
@@ -80,10 +80,38 @@ html {
 
   /* Cards — clean, modern, ultra-soft shadows */
   .card {
-    @apply bg-white rounded-2xl shadow-card;
+    @apply bg-white rounded-[20px] shadow-card;
   }
   .card-elevated {
-    @apply bg-white rounded-2xl shadow-elevated;
+    @apply bg-white rounded-[20px] shadow-elevated;
+  }
+
+  /* Hero card — deep navy gradient, for outstanding dues / key financial */
+  .hero-card {
+    border-radius: 20px;
+    background: linear-gradient(145deg, #0A2540 0%, #0D3A65 100%);
+    box-shadow: 0 8px 32px -4px rgba(10, 37, 64, 0.35), 0 2px 8px -2px rgba(10, 37, 64, 0.20);
+  }
+
+  /* Glass card — frosted glass effect for stats / secondary panels */
+  .glass-card {
+    @apply bg-white rounded-[20px] border border-outline-variant/30;
+    box-shadow: 0 2px 12px -2px rgba(10, 37, 64, 0.07), 0 1px 3px rgba(10, 37, 64, 0.04);
+  }
+
+  /* Accent (Teal) button — Pay Now, primary CTA */
+  .btn-accent {
+    @apply btn text-white font-bold;
+    background-color: #00C4B4;
+    box-shadow: 0 4px 16px -2px rgba(0, 196, 180, 0.40);
+  }
+  .btn-accent:hover {
+    background-color: #00A89A;
+    box-shadow: 0 6px 20px -2px rgba(0, 196, 180, 0.50);
+  }
+  .btn-accent:focus-visible {
+    @apply ring-2 ring-offset-2;
+    --tw-ring-color: #00C4B4;
   }
 
   /* Inputs — clean form fields with subtle borders */
@@ -144,7 +172,10 @@ html {
     @apply badge bg-red-50 text-red-700;
   }
   .badge-info {
-    @apply badge bg-blue-50 text-blue-700;
+    @apply badge bg-[#CCFBF1] text-[#0F766E];
+  }
+  .badge-active {
+    @apply badge bg-[#CCFBF1] text-[#0F766E];
   }
   .badge-neutral {
     @apply badge bg-slate-100 text-slate-600;
@@ -152,7 +183,7 @@ html {
 
   /* Tables — clean minimal tables */
   .table-container {
-    @apply bg-white rounded-2xl overflow-x-auto shadow-card;
+    @apply bg-white rounded-[20px] overflow-x-auto shadow-card;
   }
   .table-container table {
     @apply w-full text-sm;
@@ -175,7 +206,7 @@ html {
 
   /* Stat cards — modern metric blocks */
   .stat-card {
-    @apply bg-white p-5 rounded-2xl flex flex-col gap-1 shadow-card;
+    @apply bg-white p-5 rounded-[20px] flex flex-col gap-1 shadow-card;
   }
   .stat-card .stat-label {
     @apply text-[11px] font-semibold text-slate-500 uppercase tracking-wider font-label;
@@ -199,7 +230,13 @@ html {
 
   /* Operations card — summary list item style */
   .ops-card {
-    @apply bg-white border border-slate-100/60 rounded-2xl p-5 sm:p-6 flex items-center justify-between transition-all shadow-card hover:shadow-card-hover;
+    @apply bg-white border border-slate-100/60 rounded-[20px] p-5 sm:p-6 flex items-center justify-between transition-all shadow-card hover:shadow-card-hover;
+  }
+
+  /* Left-accent card — for complaints, announcements with priority color */
+  .card-accent-left {
+    @apply bg-white rounded-r-[20px] rounded-l-none shadow-card overflow-hidden;
+    border-left-width: 4px;
   }
 
   /* Utility: hide scrollbar while preserving scrolling */
@@ -219,11 +256,11 @@ html {
   /* Gradient primary button — vibrant blue */
   .btn-gradient {
     @apply btn text-white font-bold;
-    background: linear-gradient(135deg, #4A6CF7 0%, #6366F1 100%);
-    box-shadow: 0 4px 14px -3px rgba(74, 108, 247, 0.4);
+    background: linear-gradient(135deg, #0A2540 0%, #0D3A65 100%);
+    box-shadow: 0 4px 14px -3px rgba(10, 37, 64, 0.4);
   }
   .btn-gradient:hover {
-    box-shadow: 0 6px 20px -3px rgba(74, 108, 247, 0.5);
+    box-shadow: 0 6px 20px -3px rgba(10, 37, 64, 0.5);
   }
 }
 

@@ -4,6 +4,10 @@ import {
   Shield,
   ChevronRight,
   DatabaseZap,
+  CreditCard,
+  CheckCircle2,
+  ClipboardList,
+  TrendingUp,
 } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
@@ -191,63 +195,111 @@ function ResidentDashboard() {
   if (isLoading) return <PageLoader />;
 
   const hasDue = (data?.totalDue ?? 0) > 0;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const firstName = user?.name?.split(' ')[0] || '';
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto lg:max-w-none">
+    <div className="space-y-5 max-w-2xl mx-auto lg:max-w-none">
       {/* Header */}
-      <header>
-        <Greeting name={user?.name} />
-        <h1 className="text-2xl font-extrabold text-on-surface font-headline mt-1">My Dashboard</h1>
+      <header className="pt-1">
+        <p className="text-on-surface-variant text-sm">
+          {greeting}{firstName ? `, ${firstName}` : ''} 👋
+        </p>
+        <h1 className="text-2xl font-extrabold text-on-surface font-headline mt-0.5 tracking-tight">My Dashboard</h1>
       </header>
 
-      {/* Financial strip */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Outstanding */}
-        <div className={`rounded-2xl p-5 shadow-card ${hasDue ? 'bg-red-50 border border-red-100' : 'bg-white'}`}>
-          <div className="flex items-center gap-2 mb-3">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${hasDue ? 'bg-red-100' : 'bg-sky-50'}`}>
-              <Receipt className={`w-4 h-4 ${hasDue ? 'text-red-500' : 'text-sky-500'}`} />
-            </div>
+      {/* Hero — Outstanding Dues */}
+      <div className="hero-card p-6">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/50 mb-2">Outstanding Dues</p>
+        <p className={`text-4xl font-extrabold font-headline mb-1 ${hasDue ? 'text-white' : 'text-white/70'}`}>
+          {formatCurrency(data?.totalDue ?? 0)}
+        </p>
+        <p className="text-sm text-white/40 mb-5">
+          {data?.pendingBills ?? 0} bill{(data?.pendingBills ?? 0) !== 1 ? 's' : ''} pending
+        </p>
+        {hasDue ? (
+          <button
+            className="btn-accent w-full justify-center rounded-[14px] py-3 text-sm"
+            onClick={() => navigate('/billing')}
+          >
+            <CreditCard className="w-4 h-4" />
+            Pay Now
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 text-sm">
+            <CheckCircle2 className="w-4 h-4 text-[#00C4B4]" />
+            <span className="text-white/60">All dues cleared</span>
           </div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Outstanding</p>
-          <p className={`text-2xl font-extrabold font-headline ${hasDue ? 'text-red-500' : 'text-on-surface'}`}>
-            {formatCurrency(data?.totalDue ?? 0)}
-          </p>
-          <p className="text-xs text-slate-400 mt-1">
-            {data?.pendingBills ?? 0} bill{(data?.pendingBills ?? 0) !== 1 ? 's' : ''} unpaid
-          </p>
-        </div>
-        {/* Paid */}
-        <div className="rounded-2xl p-5 bg-white shadow-card">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
-              <Receipt className="w-4 h-4 text-emerald-500" />
-            </div>
+        )}
+      </div>
+
+      {/* Quick Stats Row */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Open Complaints */}
+        <button
+          className="glass-card p-4 text-left active:scale-[0.98] transition-transform"
+          onClick={() => navigate('/complaints')}
+        >
+          <div className="w-9 h-9 rounded-[10px] bg-amber-50 flex items-center justify-center mb-3">
+            <ClipboardList className="w-4.5 h-4.5 text-amber-500" />
           </div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Total Paid</p>
-          <p className="text-2xl font-extrabold font-headline text-on-surface">
-            {formatCurrency(data?.totalPaid ?? 0)}
+          <p className="text-xl font-extrabold text-on-surface font-headline leading-none">
+            {data?.openComplaints ?? 0}
           </p>
-          <p className="text-xs text-slate-400 mt-1">Lifetime payments</p>
+          <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider mt-1">
+            Open Complaints
+          </p>
+        </button>
+
+        {/* Pending Bills */}
+        <div className="glass-card p-4">
+          <div className="w-9 h-9 rounded-[10px] bg-[#CCFBF1] flex items-center justify-center mb-3">
+            <Receipt className="w-4.5 h-4.5 text-[#0F766E]" />
+          </div>
+          <p className="text-xl font-extrabold text-on-surface font-headline leading-none">
+            {data?.pendingBills ?? 0}
+          </p>
+          <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider mt-1">
+            Pending Bills
+          </p>
         </div>
       </div>
 
-      {/* Active complaints */}
+      {/* Total Paid Lifetime */}
+      <div className="glass-card p-5 flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-on-surface-variant mb-1">
+            Total Paid
+          </p>
+          <p className="text-2xl font-extrabold font-headline text-on-surface">
+            {formatCurrency(data?.totalPaid ?? 0)}
+          </p>
+          <p className="text-xs text-on-surface-variant mt-0.5">Lifetime payments</p>
+        </div>
+        <div className="w-12 h-12 rounded-[14px] bg-emerald-50 flex items-center justify-center shrink-0">
+          <TrendingUp className="w-6 h-6 text-emerald-500" />
+        </div>
+      </div>
+
+      {/* Active Complaints CTA — only shown when > 0 */}
       {(data?.openComplaints ?? 0) > 0 && (
         <button
           onClick={() => navigate('/complaints')}
-          className="w-full rounded-2xl bg-white p-4 flex items-center justify-between hover:shadow-card-hover transition-shadow shadow-card"
+          className="glass-card w-full p-4 flex items-center justify-between hover:shadow-card-hover transition-shadow text-left"
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-amber-50 rounded-[12px] flex items-center justify-center">
               <MessageSquareWarning className="w-5 h-5 text-amber-500" />
             </div>
-            <div className="text-left">
-              <p className="text-sm font-semibold text-on-surface">{data.openComplaints} open complaint{data.openComplaints !== 1 ? 's' : ''}</p>
-              <p className="text-xs text-slate-400">Tap to view status</p>
+            <div>
+              <p className="text-sm font-semibold text-on-surface">
+                {data.openComplaints} open complaint{data.openComplaints !== 1 ? 's' : ''}
+              </p>
+              <p className="text-xs text-on-surface-variant">Tap to view & track status</p>
             </div>
           </div>
-          <ChevronRight className="w-5 h-5 text-slate-300" />
+          <ChevronRight className="w-5 h-5 text-outline" />
         </button>
       )}
     </div>

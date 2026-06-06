@@ -1,11 +1,22 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { ClipboardList, Package, Search, ShieldCheck } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Car, Clock, LogOut, Package, Phone, Search, ShieldCheck, UserRound } from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { PageLoader } from '../../components/ui/Loader';
-import { cn, formatDateTime, getStatusColor } from '../../lib/utils';
+import { cn, formatDateTime } from '../../lib/utils';
 import { useAuthStore } from '../../store/authStore';
 import type { Delivery, FlatOption, Visitor } from '../../types';
+
+function getInitials(name?: string): string {
+  if (!name) return '?';
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('');
+}
 
 type ActivityMode = 'VISITOR' | 'DELIVERY';
 
@@ -13,10 +24,21 @@ const FULL_ACCESS_ROLES = ['SUPER_ADMIN', 'SERVICE_STAFF'];
 
 export default function EntryActivityPage() {
   const { user } = useAuthStore();
+  const queryClient = useQueryClient();
   const showFlatFilter = FULL_ACCESS_ROLES.includes(user?.role || '') || ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'].includes(user?.role || '');
+  const canMarkOut = FULL_ACCESS_ROLES.includes(user?.role || '') || ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'].includes(user?.role || '');
   const [mode, setMode] = useState<ActivityMode>('VISITOR');
   const [search, setSearch] = useState('');
   const [flatId, setFlatId] = useState('');
+
+  const checkoutVisitor = useMutation({
+    mutationFn: async (visitorId: string) => (await api.patch(`/visitors/${visitorId}/checkout`)).data,
+    onSuccess: () => {
+      toast.success('Visitor marked as left');
+      queryClient.invalidateQueries({ queryKey: ['visitors'] });
+    },
+    onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to mark visitor out'),
+  });
 
   const { data: flats = [], isLoading: flatsLoading } = useQuery<FlatOption[]>({
     queryKey: ['flat-options', 'admin-activity'],
@@ -117,14 +139,22 @@ export default function EntryActivityPage() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {(mode === 'VISITOR' ? filteredVisitors : filteredDeliveries).map((record) => (
           mode === 'VISITOR'
-            ? <VisitorActivityCard key={record.id} visitor={record as Visitor} />
+            ? (
+              <VisitorActivityCard
+                key={record.id}
+                visitor={record as Visitor}
+                canMarkOut={canMarkOut}
+                onMarkOut={(id) => checkoutVisitor.mutate(id)}
+                isMarkingOut={checkoutVisitor.isPending && checkoutVisitor.variables === record.id}
+              />
+            )
             : <DeliveryActivityCard key={record.id} delivery={record as Delivery} />
         ))}
       </div>
 
       {(mode === 'VISITOR' ? filteredVisitors.length === 0 : filteredDeliveries.length === 0) && (
         <div className="card p-6 text-center text-on-surface-variant">
-          <ClipboardList className="w-10 h-10 mx-auto mb-3 text-outline/40" />
+          <ShieldCheck className="w-10 h-10 mx-auto mb-3 text-outline/40" />
           No matching {mode === 'VISITOR' ? 'visitor' : 'delivery'} records found.
         </div>
       )}
@@ -132,28 +162,96 @@ export default function EntryActivityPage() {
   );
 }
 
-function VisitorActivityCard({ visitor }: { visitor: Visitor }) {
+type VisitorActivityCardProps = {
+  visitor: Visitor;
+  canMarkOut: boolean;
+  onMarkOut: (visitorId: string) => void;
+  isMarkingOut: boolean;
+};
+
+function VisitorActivityCard({ visitor, canMarkOut, onMarkOut, isMarkingOut }: VisitorActivityCardProps) {
+  const isActive = visitor.status === 'ACTIVE';
+
   return (
-    <div className="card-elevated overflow-hidden">
-      <div className="flex items-center justify-between gap-2 px-4 pt-3">
-        <div className="flex items-center gap-1.5">
-          <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-          <h2 className="text-[13px] font-semibold text-on-surface">{visitor.visitorName}</h2>
+    <div
+      className={cn(
+        'card-elevated overflow-hidden transition-shadow hover:shadow-card-hover',
+        isActive && 'ring-1 ring-secondary/40',
+      )}
+    >
+      {/* Accent strip for active visitors */}
+      {isActive && <div className="h-1 w-full bg-secondary" />}
+
+      <div className="flex items-start justify-between gap-3 px-4 pt-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div
+            className={cn(
+              'flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-bold font-headline',
+              isActive ? 'bg-secondary-container text-on-secondary-container' : 'bg-surface-container text-on-surface-variant',
+            )}
+          >
+            {getInitials(visitor.visitorName)}
+          </div>
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-bold text-on-surface">{visitor.visitorName}</h2>
+            <p className="truncate text-xs text-on-surface-variant">
+              {visitor.flat?.block?.name}-{visitor.flat?.flatNumber}
+              {visitor.flat?.residentName ? ` · ${visitor.flat.residentName}` : ''}
+            </p>
+          </div>
         </div>
-        <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold', getStatusColor(visitor.status))}>{visitor.status}</span>
+        <span
+          className={cn(
+            'inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+            isActive ? 'bg-secondary-container text-on-secondary-container' : 'bg-slate-100 text-slate-500',
+          )}
+        >
+          {isActive ? 'Active' : 'Left'}
+        </span>
       </div>
-      <div className="px-4 pt-1.5 pb-3 text-xs text-on-surface-variant space-y-0.5">
+
+      <div className="px-4 pt-3 pb-4 space-y-2">
         {visitor.photoUrl && (
           <img
             src={visitor.photoUrl}
             alt={visitor.visitorName}
-            className="w-full h-32 rounded-xl object-cover border border-outline-variant/20 mb-2"
+            className="w-full h-32 rounded-xl object-cover border border-outline-variant/20"
           />
         )}
-        <p>{visitor.flat?.block?.name}-{visitor.flat?.flatNumber} {visitor.flat?.residentName ? `· ${visitor.flat.residentName}` : ''}</p>
-        <p>{visitor.purpose} · {visitor.mobile}</p>
-        {visitor.vehicleNumber && <p>Vehicle: {visitor.vehicleNumber}</p>}
-        <p className="text-[11px] text-outline">In: {formatDateTime(visitor.checkedInAt)}{visitor.checkedOutAt ? ` · Out: ${formatDateTime(visitor.checkedOutAt)}` : ''}</p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-on-surface-variant">
+          {visitor.purpose && (
+            <span className="inline-flex items-center gap-1.5">
+              <UserRound className="w-3.5 h-3.5 text-outline" /> {visitor.purpose}
+            </span>
+          )}
+          {visitor.mobile && (
+            <span className="inline-flex items-center gap-1.5">
+              <Phone className="w-3.5 h-3.5 text-outline" /> {visitor.mobile}
+            </span>
+          )}
+          {visitor.vehicleNumber && (
+            <span className="inline-flex items-center gap-1.5">
+              <Car className="w-3.5 h-3.5 text-outline" /> {visitor.vehicleNumber}
+            </span>
+          )}
+        </div>
+        <p className="inline-flex items-center gap-1.5 text-[11px] text-outline">
+          <Clock className="w-3.5 h-3.5" />
+          In: {formatDateTime(visitor.checkedInAt)}
+          {visitor.checkedOutAt ? ` · Out: ${formatDateTime(visitor.checkedOutAt)}` : ''}
+        </p>
+
+        {isActive && canMarkOut && (
+          <button
+            type="button"
+            className="btn-accent btn-sm mt-1 w-full justify-center"
+            onClick={() => onMarkOut(visitor.id)}
+            disabled={isMarkingOut}
+          >
+            <LogOut className="w-4 h-4" />
+            {isMarkingOut ? 'Marking Out…' : 'Mark Out'}
+          </button>
+        )}
       </div>
     </div>
   );
