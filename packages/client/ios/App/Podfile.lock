@@ -1,11 +1,13 @@
 PODS:
-  - Capacitor (7.6.2):
+  - Capacitor (7.6.6):
     - CapacitorCordova
   - CapacitorApp (7.1.2):
     - Capacitor
-  - CapacitorBrowser (7.0.4):
+  - CapacitorBrowser (7.0.5):
     - Capacitor
-  - CapacitorCordova (7.6.2)
+  - CapacitorCommunitySpeechRecognition (7.0.1):
+    - Capacitor
+  - CapacitorCordova (7.6.6)
   - CapacitorPreferences (7.0.4):
     - Capacitor
   - CapacitorPushNotifications (7.0.6):
@@ -71,12 +73,13 @@ PODS:
   - PromisesObjC (2.4.0)
 
 DEPENDENCIES:
-  - "Capacitor (from `../../../../node_modules/@capacitor/ios`)"
-  - "CapacitorApp (from `../../../../node_modules/@capacitor/app`)"
-  - "CapacitorBrowser (from `../../../../node_modules/@capacitor/browser`)"
-  - "CapacitorCordova (from `../../../../node_modules/@capacitor/ios`)"
-  - "CapacitorPreferences (from `../../../../node_modules/@capacitor/preferences`)"
-  - "CapacitorPushNotifications (from `../../../../node_modules/@capacitor/push-notifications`)"
+  - "Capacitor (from `../../node_modules/@capacitor/ios`)"
+  - "CapacitorApp (from `../../node_modules/@capacitor/app`)"
+  - "CapacitorBrowser (from `../../node_modules/@capacitor/browser`)"
+  - "CapacitorCommunitySpeechRecognition (from `../../node_modules/@capacitor-community/speech-recognition`)"
+  - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
+  - "CapacitorPreferences (from `../../node_modules/@capacitor/preferences`)"
+  - "CapacitorPushNotifications (from `../../node_modules/@capacitor/push-notifications`)"
   - Firebase/Messaging
   - PhonePePayment
 
@@ -95,23 +98,26 @@ SPEC REPOS:
 
 EXTERNAL SOURCES:
   Capacitor:
-    :path: "../../../../node_modules/@capacitor/ios"
+    :path: "../../node_modules/@capacitor/ios"
   CapacitorApp:
-    :path: "../../../../node_modules/@capacitor/app"
+    :path: "../../node_modules/@capacitor/app"
   CapacitorBrowser:
-    :path: "../../../../node_modules/@capacitor/browser"
+    :path: "../../node_modules/@capacitor/browser"
+  CapacitorCommunitySpeechRecognition:
+    :path: "../../node_modules/@capacitor-community/speech-recognition"
   CapacitorCordova:
-    :path: "../../../../node_modules/@capacitor/ios"
+    :path: "../../node_modules/@capacitor/ios"
   CapacitorPreferences:
-    :path: "../../../../node_modules/@capacitor/preferences"
+    :path: "../../node_modules/@capacitor/preferences"
   CapacitorPushNotifications:
-    :path: "../../../../node_modules/@capacitor/push-notifications"
+    :path: "../../node_modules/@capacitor/push-notifications"
 
 SPEC CHECKSUMS:
-  Capacitor: 5d4e6523047feb0e4755e5e922ded0372c2dde24
+  Capacitor: 961efd309ab0e390a8081b63c561186f61a6714d
   CapacitorApp: f01a913211780e0718dae9750442c3e23f96e106
-  CapacitorBrowser: affdd32ab6a1822942eb55095b3c5ecf3f656a9d
-  CapacitorCordova: 8214697bed435f6e7c5e3ed86d1632a8c42f7d77
+  CapacitorBrowser: 6d09f59655e89aede71654ef08b98de55cf032b6
+  CapacitorCommunitySpeechRecognition: 3e03566c44c2bb3b52391a33d4518b1adbdeb38f
+  CapacitorCordova: 3a4e0027a89a59421c918d19aee9d6ba1c7a3556
   CapacitorPreferences: 69d9991307507aeab8ef8019c10b9babfda0e9ca
   CapacitorPushNotifications: b8e30637549ce91468b8c4dddbef2657be831f4c
   Firebase: d99ac19b909cd2c548339c2241ecd0d1599ab02e
@@ -125,6 +131,6 @@ SPEC CHECKSUMS:
   PhonePePayment: 9516849183e00c77a2d64bb85e2c9942a5e618b7
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
 
-PODFILE CHECKSUM: 8553fd59cd1f37ccd17f25efd2823d36c5756979
+PODFILE CHECKSUM: 34e7dbd52973c3853b9f6fbdd0cd97482d0f8315
 
 COCOAPODS: 1.16.2

@@ -51,7 +51,7 @@ function getPresetRange(preset: PnlPreset) {
   };
 }
 
-function getFilenameFromDisposition(disposition?: string) {
+function getFilenameFromDisposition(disposition?: string | null) {
   if (!disposition) {
     return null;
   }
@@ -62,13 +62,15 @@ function getFilenameFromDisposition(disposition?: string) {
 
 async function downloadReportFile(endpoint: string, fallbackFilename: string) {
   const response = await api.get(endpoint, { responseType: 'blob' });
+  const contentType = response.headers['content-type'];
   const blob = new Blob([response.data], {
-    type: response.headers['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    type: (typeof contentType === 'string' ? contentType : '') || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = getFilenameFromDisposition(response.headers['content-disposition']) || fallbackFilename;
+  const disposition = response.headers['content-disposition'];
+  link.download = getFilenameFromDisposition(typeof disposition === 'string' ? disposition : null) || fallbackFilename;
   document.body.appendChild(link);
   link.click();
   link.remove();

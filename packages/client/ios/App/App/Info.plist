@@ -51,6 +51,10 @@
 	<string>Dwell Hub needs photo library access to upload profile photos.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Dwell Hub needs permission to save photos to your library.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Dwell Hub uses the microphone to dictate visitor name and mobile number at the gate.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Dwell Hub converts spoken visitor details into text to speed up gate entry.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
