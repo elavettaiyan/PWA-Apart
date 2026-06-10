@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Mic, Package, Search, ShieldCheck } from 'lucide-react';
+import { Loader2, Mic, Package, Search, ShieldCheck, Sparkles, Square } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { PageLoader } from '../../components/ui/Loader';
 import { cn, formatDateTime, getStatusColor } from '../../lib/utils';
 import { DICTATION_LANGUAGES, toDigits, useDictation, type DictationLang } from '../../lib/useDictation';
+import { parseDeliverySpeech, parseVisitorSpeech } from '../../lib/gateVoiceParser';
 import type { Delivery, DeliveryType, FlatOption, Visitor } from '../../types';
 
 const DICTATION_LANG_KEY = 'gate-dictation-lang';
@@ -112,6 +113,63 @@ export default function GateManagementPage() {
     setDictationLang(lang);
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(DICTATION_LANG_KEY, lang);
+    }
+  };
+
+  // ─── Smart "speak once" capture ──────────────────────────────────
+  const [smartTranscript, setSmartTranscript] = useState('');
+  const smartListening = activeMic === 'smart';
+
+  const handleSmartCapture = async () => {
+    if (!dictationSupported) return;
+
+    if (dictationListening) {
+      if (smartListening) {
+        await stopDictation();
+      }
+      return;
+    }
+
+    setSmartTranscript('');
+    setActiveMic('smart');
+    try {
+      await startDictation(dictationLang, {
+        onPartial: (text) => setSmartTranscript(text),
+        onFinal: (text) => {
+          setActiveMic(null);
+          const transcript = (text || '').trim();
+          setSmartTranscript(transcript);
+          if (!transcript) {
+            toast('Nothing captured. Please try again.', { icon: '🎤' });
+            return;
+          }
+          if (mode === 'VISITOR') {
+            const parsed = parseVisitorSpeech(transcript, dictationLang);
+            setVisitorForm((current) => ({
+              ...current,
+              visitorName: parsed.name || current.visitorName,
+              mobile: parsed.mobile || current.mobile,
+              purpose: (parsed.purpose as VisitorPurpose) || current.purpose,
+            }));
+          } else {
+            const parsed = parseDeliverySpeech(transcript, dictationLang);
+            setDeliveryForm((current) => ({
+              ...current,
+              deliveryPersonName: parsed.name || current.deliveryPersonName,
+              mobile: parsed.mobile || current.mobile,
+              deliveryType: (parsed.deliveryType as DeliveryType) || current.deliveryType,
+            }));
+          }
+          toast.success('Captured. Please review the fields below.');
+        },
+      });
+    } catch (error: any) {
+      setActiveMic(null);
+      if (error?.message === 'PERMISSION_DENIED') {
+        toast.error('Microphone permission is required for voice entry.');
+      } else {
+        toast.error('Voice entry failed. Please type instead.');
+      }
     }
   };
 
@@ -248,6 +306,15 @@ export default function GateManagementPage() {
                   <LanguageToggle value={dictationLang} onChange={changeDictationLang} disabled={dictationListening} />
                 )}
               </div>
+              {dictationSupported && (
+                <SmartVoicePanel
+                  mode="VISITOR"
+                  listening={smartListening}
+                  busy={dictationListening && !smartListening}
+                  transcript={smartTranscript}
+                  onToggle={handleSmartCapture}
+                />
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
                 <SelectFlat value={visitorForm.flatId} onChange={(value) => setVisitorForm((current) => ({ ...current, flatId: value }))} flats={flats} />
                 <Field label="Visitor Name *">
@@ -310,6 +377,15 @@ export default function GateManagementPage() {
                   <LanguageToggle value={dictationLang} onChange={changeDictationLang} disabled={dictationListening} />
                 )}
               </div>
+              {dictationSupported && (
+                <SmartVoicePanel
+                  mode="DELIVERY"
+                  listening={smartListening}
+                  busy={dictationListening && !smartListening}
+                  transcript={smartTranscript}
+                  onToggle={handleSmartCapture}
+                />
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
                 <SelectFlat value={deliveryForm.flatId} onChange={(value) => setDeliveryForm((current) => ({ ...current, flatId: value }))} flats={flats} />
                 <Field label="Delivery Type *">
@@ -504,6 +580,59 @@ function Field({ label, children, className }: { label: string; children: React.
     <div className={className}>
       <label className="label">{label}</label>
       {children}
+    </div>
+  );
+}
+
+function SmartVoicePanel({
+  mode,
+  listening,
+  busy,
+  transcript,
+  onToggle,
+}: {
+  mode: EntryMode;
+  listening: boolean;
+  busy: boolean;
+  transcript: string;
+  onToggle: () => void;
+}) {
+  const example =
+    mode === 'VISITOR'
+      ? 'e.g. “Rajesh Kumar, nine eight seven six five four three two one zero, guest”'
+      : 'e.g. “Suresh, nine eight … zero, food delivery”';
+
+  return (
+    <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4">
+      <div className="flex items-start gap-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          disabled={busy}
+          aria-label={listening ? 'Stop listening' : 'Speak once to fill the form'}
+          className={cn(
+            'flex h-12 w-12 shrink-0 items-center justify-center rounded-full transition-colors',
+            listening ? 'bg-error text-white animate-pulse' : 'bg-primary text-white hover:opacity-90',
+            busy && 'opacity-50',
+          )}
+        >
+          {listening ? <Square className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <p className="text-sm font-semibold text-on-surface">Speak once to fill the form</p>
+          </div>
+          {listening ? (
+            <p className="mt-1 text-xs font-medium text-error">Listening… say name, number &amp; purpose, then tap to stop</p>
+          ) : (
+            <p className="mt-1 text-xs text-on-surface-variant">{example}</p>
+          )}
+          {transcript && (
+            <p className="mt-2 rounded-lg bg-white/70 px-3 py-2 text-sm text-on-surface break-words">{transcript}</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

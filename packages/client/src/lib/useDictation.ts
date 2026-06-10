@@ -12,7 +12,7 @@ export const DICTATION_LANGUAGES: { value: DictationLang; label: string }[] = [
 
 // ─── Digit conversion ──────────────────────────────────────────────
 // Maps spoken single-digit words (English, Tamil, Hindi) to ASCII digits.
-const WORD_TO_DIGIT: Record<string, string> = {
+export const WORD_TO_DIGIT: Record<string, string> = {
   // English
   zero: '0', oh: '0', o: '0', nought: '0',
   one: '1', two: '2', three: '3', four: '4', five: '5',
@@ -28,10 +28,26 @@ const WORD_TO_DIGIT: Record<string, string> = {
 };
 
 // Native digit scripts → ASCII (Devanagari ०-९, Tamil ௦-௯).
-const NATIVE_DIGITS: Record<string, string> = {
+export const NATIVE_DIGITS: Record<string, string> = {
   '०': '0', '१': '1', '२': '2', '३': '3', '४': '4', '५': '5', '६': '6', '७': '7', '८': '8', '९': '9',
   '௦': '0', '௧': '1', '௨': '2', '௩': '3', '௪': '4', '௫': '5', '௬': '6', '௭': '7', '௮': '8', '௯': '9',
 };
+
+/**
+ * Convert a single spoken token into the digits it represents, or '' if it has none.
+ * Handles number-words (en/ta/hi), ASCII digits, and native digit scripts.
+ */
+export function tokenToDigits(token: string): string {
+  if (!token) return '';
+  const lower = token.toLowerCase();
+  if (WORD_TO_DIGIT[lower] !== undefined) return WORD_TO_DIGIT[lower];
+  let out = '';
+  for (const ch of token) {
+    if (ch >= '0' && ch <= '9') out += ch;
+    else if (NATIVE_DIGITS[ch] !== undefined) out += NATIVE_DIGITS[ch];
+  }
+  return out;
+}
 
 /**
  * Convert a spoken transcript into a digit string (max 10 digits for India).
@@ -51,18 +67,7 @@ export function toDigits(transcript: string, _lang?: DictationLang): string {
     .filter(Boolean);
 
   for (const token of tokens) {
-    if (WORD_TO_DIGIT[token] !== undefined) {
-      out += WORD_TO_DIGIT[token];
-      continue;
-    }
-    // Walk each character: ASCII digit, native digit, or skip.
-    for (const ch of token) {
-      if (ch >= '0' && ch <= '9') {
-        out += ch;
-      } else if (NATIVE_DIGITS[ch] !== undefined) {
-        out += NATIVE_DIGITS[ch];
-      }
-    }
+    out += tokenToDigits(token);
   }
 
   return out.slice(0, 10);
