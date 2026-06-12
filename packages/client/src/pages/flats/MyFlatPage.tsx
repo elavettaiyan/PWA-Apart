@@ -6,17 +6,26 @@ import api from '../../lib/api';
 import { formatCurrency, formatDate, getMonthName, getStatusColor, cn, isValidEmailAddress, isValidIndianMobileNumber, normalizeEmail, normalizeIndianMobileNumber } from '../../lib/utils';
 import { PageLoader } from '../../components/ui/Loader';
 import { useAuthStore } from '../../store/authStore';
+import { isOwnerViewActive } from '../../lib/ownerView';
 import type { Flat, MaintenanceBill, PaymentMethod } from '../../types';
 
 export default function MyFlatPage() {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
-  const { user } = useAuthStore();
-  const isOwner = user?.role === 'OWNER';
+  const { user, viewMode } = useAuthStore();
+  const isOwner = user?.role === 'OWNER' || isOwnerViewActive(user, viewMode);
 
   const { data: flat, isLoading, error } = useQuery<Flat>({
-    queryKey: ['my-flat', selectedYear],
-    queryFn: async () => (await api.get(`/flats/my-flat?year=${selectedYear}`)).data,
+    queryKey: ['my-flat', user?.activeSocietyId || user?.societyId || 'no-society', selectedYear],
+    queryFn: async () => {
+      const searchParams = new URLSearchParams({ year: String(selectedYear) });
+      const activeSocietyId = user?.activeSocietyId || user?.societyId;
+      if (activeSocietyId) {
+        searchParams.set('societyId', activeSocietyId);
+      }
+      return (await api.get(`/flats/my-flat?${searchParams.toString()}`)).data;
+    },
+    enabled: !!user,
   });
 
   const yearOptions = useMemo(

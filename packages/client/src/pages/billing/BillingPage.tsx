@@ -10,6 +10,7 @@ import Modal from '../../components/ui/Modal';
 import { initPhonePeSdk, startPhonePeCheckout } from '../../lib/phonePeNative';
 import { isNativeAndroid, isNativeIos } from '../../lib/platform';
 import { useAuthStore } from '../../store/authStore';
+import { isOwnerViewActive } from '../../lib/ownerView';
 import type { BillingGenerationResult, MaintenanceBill, MaintenanceConfigSummary } from '../../types';
 
 const currentDate = new Date();
@@ -67,19 +68,23 @@ export default function BillingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const txnStatusCheckRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
-  const isAdmin = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'] as string[]).includes(user?.role || '');
+  const { user, viewMode } = useAuthStore();
+  const ownerViewActive = isOwnerViewActive(user, viewMode);
+  const isAdmin = !ownerViewActive && (user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'] as string[]).includes(user?.role || ''));
   const shouldApplyMonthYear = isAdmin || applyMonthYearFilter;
   const billsBaseKey = ['bills', user?.id || 'anonymous', user?.societyId || 'no-society'];
   const billsQueryKey = [
     ...billsBaseKey,
-    isAdmin ? 'admin' : 'resident',
+    ownerViewActive ? 'owner-view' : isAdmin ? 'admin' : 'resident',
+    ownerViewActive ? user?.flat?.id || 'no-flat' : 'role-scope',
     shouldApplyMonthYear ? month : 'all-months',
     shouldApplyMonthYear ? year : 'all-years',
   ];
   const configBaseKey = ['billing-config', user?.id || 'anonymous', user?.societyId || 'no-society'];
 
-  const billsEndpoint = shouldApplyMonthYear
+  const billsEndpoint = ownerViewActive
+    ? '/billing?ownerView=true'
+    : shouldApplyMonthYear
     ? `/billing?month=${month}&year=${year}`
     : '/billing';
   const pendingStatuses = new Set(['PENDING', 'OVERDUE', 'PARTIAL']);

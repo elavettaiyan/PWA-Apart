@@ -1,10 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { appStorage } from '../lib/storage';
+import { getDefaultViewMode, normalizeViewMode, type AppViewMode } from '../lib/ownerView';
 import type { User } from '../types';
 
 interface AuthState {
   user: User | null;
+  viewMode: AppViewMode;
   accessToken: string | null;
   refreshToken: string | null;
   isAuthenticated: boolean;
@@ -12,6 +14,7 @@ interface AuthState {
   setAuth: (user: User, accessToken: string, refreshToken: string) => void;
   setTokens: (accessToken: string, refreshToken: string) => void;
   setUser: (user: User) => void;
+  setViewMode: (viewMode: AppViewMode) => void;
   setActiveSociety: (societyId: string) => void;
   logout: () => void;
 }
@@ -23,6 +26,7 @@ function hasCompleteSession(state: Pick<AuthState, 'user' | 'accessToken' | 'ref
 function getLoggedOutState() {
   return {
     user: null,
+    viewMode: 'ADMIN_VIEW' as AppViewMode,
     accessToken: null,
     refreshToken: null,
     isAuthenticated: false,
@@ -33,6 +37,7 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
+      viewMode: 'ADMIN_VIEW',
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
@@ -41,6 +46,7 @@ export const useAuthStore = create<AuthState>()(
       setAuth: (user, accessToken, refreshToken) =>
         set({
           user,
+          viewMode: getDefaultViewMode(user),
           accessToken,
           refreshToken,
           isAuthenticated: Boolean(user && accessToken && refreshToken),
@@ -54,9 +60,23 @@ export const useAuthStore = create<AuthState>()(
         })),
 
       setUser: (user) =>
+        set((state) => {
+          const previousSocietyId = state.user?.activeSocietyId || state.user?.societyId || '';
+          const nextSocietyId = user.activeSocietyId || user.societyId || '';
+          const shouldDefaultToOwnerView = Boolean(
+            user.canUseOwnerView && (!state.user?.canUseOwnerView || previousSocietyId !== nextSocietyId),
+          );
+
+          return {
+            user,
+            viewMode: shouldDefaultToOwnerView ? 'OWNER_VIEW' : normalizeViewMode(user, state.viewMode),
+            isAuthenticated: Boolean(user && state.accessToken && state.refreshToken),
+          };
+        }),
+
+      setViewMode: (viewMode) =>
         set((state) => ({
-          user,
-          isAuthenticated: Boolean(user && state.accessToken && state.refreshToken),
+          viewMode: normalizeViewMode(state.user, viewMode),
         })),
 
       setActiveSociety: (societyId) =>
@@ -79,6 +99,7 @@ export const useAuthStore = create<AuthState>()(
       storage: appStorage,
       partialize: (state) => ({
         user: state.user,
+        viewMode: state.viewMode,
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
@@ -88,6 +109,8 @@ export const useAuthStore = create<AuthState>()(
           const snapshot = useAuthStore.getState();
           if (!hasCompleteSession(snapshot)) {
             useAuthStore.setState(getLoggedOutState());
+          } else {
+            useAuthStore.setState({ viewMode: normalizeViewMode(snapshot.user, snapshot.viewMode) });
           }
           useAuthStore.setState({ _hydrated: true });
         }

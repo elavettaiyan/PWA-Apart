@@ -15,6 +15,7 @@ import TrialBanner from './TrialBanner';
 import api from '../../lib/api';
 import { MenuVisibilityResponse, NavigationMenuId, SOCIETY_ADMINS } from '../../types';
 import { getFallbackMenuVisibility, getVisibleMenuIdsForUser, getVisibleNavigationItemsForUser } from '../../lib/menuConfig';
+import { canUseOwnerView, getDisplayUserForView, getRoleDisplayLabel, getRoleViewLabel, isOwnerViewActive, type AppViewMode } from '../../lib/ownerView';
 
 const navigationIcons: Record<NavigationMenuId, typeof LayoutDashboard> = {
   dashboard: LayoutDashboard,
@@ -41,8 +42,12 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, logout, setUser, setTokens, setActiveSociety } = useAuthStore();
+  const { user, viewMode, logout, setUser, setTokens, setViewMode } = useAuthStore();
   const activeSocietyId = user?.activeSocietyId || user?.societyId || '';
+  const displayUser = getDisplayUserForView(user, viewMode);
+  const canSwitchOwnerView = canUseOwnerView(user);
+  const roleDisplayLabel = getRoleDisplayLabel(user, viewMode);
+  const roleViewLabel = getRoleViewLabel(user);
 
   const { data: societiesData } = useQuery<{ activeSocietyId?: string; societies: Array<{ id: string; name: string; role?: string }> }>({
     queryKey: ['my-societies'],
@@ -58,11 +63,17 @@ export default function Layout({ children }: LayoutProps) {
     retry: false,
   });
 
+  const hasSocietySwitcher = (societiesData?.societies?.length || 0) > 1;
+  const mobileSpacerHeight = hasSocietySwitcher && canSwitchOwnerView
+    ? 'calc(11rem + var(--sat))'
+    : hasSocietySwitcher || canSwitchOwnerView
+      ? 'calc(8.75rem + var(--sat))'
+      : 'calc(5rem + var(--sat))';
+
   const switchSocietyMutation = useMutation({
     mutationFn: async (societyId: string) => (await api.post('/auth/switch-society', { societyId })).data,
     onSuccess: (data, societyId) => {
       setTokens(data.accessToken, data.refreshToken);
-      setActiveSociety(societyId);
       if (user) {
         setUser({
           ...user,
@@ -91,10 +102,40 @@ export default function Layout({ children }: LayoutProps) {
     navigate('/login');
   };
 
+  const handleViewModeChange = (nextViewMode: AppViewMode) => {
+    setViewMode(nextViewMode);
+    setProfileOpen(false);
+    navigate('/', { replace: true });
+  };
+
   const effectiveMenuVisibility = menuVisibilityData || getFallbackMenuVisibility(activeSocietyId);
-  const visibleNavigationItems = getVisibleNavigationItemsForUser(user, effectiveMenuVisibility);
-  const visibleMenuIds = getVisibleMenuIdsForUser(user, effectiveMenuVisibility);
+  const visibleNavigationItems = getVisibleNavigationItemsForUser(displayUser, effectiveMenuVisibility);
+  const visibleMenuIds = getVisibleMenuIdsForUser(displayUser, effectiveMenuVisibility);
   const visibleMenuIdSet = new Set(visibleMenuIds);
+  const viewModeSwitcher = canSwitchOwnerView ? (
+    <div className="inline-flex rounded-2xl bg-slate-100 p-1 text-xs font-semibold text-slate-500">
+      <button
+        type="button"
+        onClick={() => handleViewModeChange('OWNER_VIEW')}
+        className={cn(
+          'rounded-xl px-3 py-1.5 transition-colors',
+          isOwnerViewActive(user, viewMode) ? 'bg-white text-primary shadow-sm' : 'hover:text-on-surface',
+        )}
+      >
+        Owner View
+      </button>
+      <button
+        type="button"
+        onClick={() => handleViewModeChange('ADMIN_VIEW')}
+        className={cn(
+          'rounded-xl px-3 py-1.5 transition-colors',
+          viewMode === 'ADMIN_VIEW' ? 'bg-white text-primary shadow-sm' : 'hover:text-on-surface',
+        )}
+      >
+        {roleViewLabel}
+      </button>
+    </div>
+  ) : null;
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -188,7 +229,7 @@ export default function Layout({ children }: LayoutProps) {
             </button>
             <div>
               <span className="font-headline text-lg font-bold tracking-tight text-primary block leading-none">Dwell Hub</span>
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">{user?.role?.replace('_', ' ')}</span>
+              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">{roleDisplayLabel}</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -217,6 +258,11 @@ export default function Layout({ children }: LayoutProps) {
               </select>
             </div>
           )}
+          {viewModeSwitcher && (
+            <div className="px-4 pb-3">
+              <div className="w-full flex justify-center">{viewModeSwitcher}</div>
+            </div>
+          )}
           {/* Mobile profile dropdown */}
           {profileOpen && (
             <>
@@ -225,13 +271,22 @@ export default function Layout({ children }: LayoutProps) {
                 <div className="px-4 py-3 border-b border-slate-100">
                   <p className="text-sm font-bold text-on-surface">{user?.name}</p>
                   <p className="text-xs text-slate-400">{user?.email}</p>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mt-1">{user?.role?.replace('_', ' ')}</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mt-1">{roleDisplayLabel}</p>
                   {societiesData?.societies?.length ? (
                     <p className="text-xs text-slate-500 mt-1 truncate">
                       {societiesData.societies.find(s => s.id === user?.societyId)?.name}
                     </p>
                   ) : null}
                 </div>
+                {canSwitchOwnerView && (
+                  <button
+                    onClick={() => handleViewModeChange(isOwnerViewActive(user, viewMode) ? 'ADMIN_VIEW' : 'OWNER_VIEW')}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-slate-50 transition"
+                  >
+                    <Building2 className="w-4 h-4" />
+                    {isOwnerViewActive(user, viewMode) ? `Switch to ${roleViewLabel}` : 'Switch to Owner View'}
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setProfileOpen(false);
@@ -278,6 +333,8 @@ export default function Layout({ children }: LayoutProps) {
                 </select>
               )}
 
+              {viewModeSwitcher}
+
               {/* Settings gear */}
               {visibleMenuIdSet.has('settings') && (
                 <button
@@ -298,7 +355,7 @@ export default function Layout({ children }: LayoutProps) {
                 >
                   <div className="text-right">
                     <p className="text-sm font-semibold text-on-surface">{user?.name}</p>
-                    <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">{user?.role?.replace('_', ' ')}</p>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">{roleDisplayLabel}</p>
                   </div>
                     <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center ring-2 ring-primary/10">
                     <span className="text-sm font-bold text-primary">
@@ -314,12 +371,22 @@ export default function Layout({ children }: LayoutProps) {
                       <div className="px-4 py-3 border-b border-slate-100">
                         <p className="text-sm font-semibold text-on-surface">{user?.name}</p>
                         <p className="text-xs text-slate-400">{user?.email}</p>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mt-1">{roleDisplayLabel}</p>
                         {societiesData?.societies?.length ? (
                           <p className="text-xs text-slate-500 mt-1 truncate">
                             {societiesData.societies.find(s => s.id === user?.societyId)?.name}
                           </p>
                         ) : null}
                       </div>
+                      {canSwitchOwnerView && (
+                        <button
+                          onClick={() => handleViewModeChange(isOwnerViewActive(user, viewMode) ? 'ADMIN_VIEW' : 'OWNER_VIEW')}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-slate-50 transition"
+                        >
+                          <Building2 className="w-4 h-4" />
+                          {isOwnerViewActive(user, viewMode) ? `Switch to ${roleViewLabel}` : 'Switch to Owner View'}
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           setProfileOpen(false);
@@ -354,7 +421,7 @@ export default function Layout({ children }: LayoutProps) {
 
         {/* Page Content */}
         {/* Mobile spacer: pushes content below the fixed mobile header (which is out of document flow) */}
-        <div className="lg:hidden shrink-0" style={{ height: 'calc(5rem + var(--sat))' }} aria-hidden="true" />
+        <div className="lg:hidden shrink-0" style={{ height: mobileSpacerHeight }} aria-hidden="true" />
         <TrialBanner />
         <main className="flex-1 pb-6 px-4 sm:px-6 lg:pb-0 lg:p-8 overflow-auto">{children}</main>
       </div>

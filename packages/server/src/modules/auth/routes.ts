@@ -16,6 +16,7 @@ const router = Router();
 const TRIAL_DURATION_MS = TRIAL_DAYS * 24 * 60 * 60 * 1000;
 const ACCOUNT_DELETION_ALLOWED_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT', 'SERVICE_STAFF'] as const;
 const REVIEW_DELETE_ACCOUNT_OTP = '123456';
+const OWNER_VIEW_ELIGIBLE_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'];
 
 async function findUserByEmailInsensitive(tx: any, email: string, options: Record<string, any> = {}) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
@@ -564,6 +565,7 @@ router.post(
         ? societies.find((membership) => membership.societyId === activeSocietyId)
         : null;
       const effectiveRole = user.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : (activeMembership?.role || user.role);
+      const canUseOwnerView = OWNER_VIEW_ELIGIBLE_ROLES.includes(effectiveRole) && Boolean(flatFromOwners);
 
       const tokens = generateTokens({
         id: user.id,
@@ -634,6 +636,8 @@ router.post(
           specialization: user.specialization,
           societyId: activeSocietyId,
           flat: flatFromOwners || flatFromTenants || null,
+          flatRelation: flatFromOwners ? 'OWNER' : flatFromTenants ? 'TENANT' : null,
+          canUseOwnerView,
           mustChangePassword: user.mustChangePassword,
           skipAccountDeletionVerification: user.skipAccountDeletionVerification,
           societies: societies.map((membership) => ({ id: membership.society.id, name: membership.society.name, role: membership.role })),
@@ -773,6 +777,17 @@ router.post(
       });
 
       const effectiveRole = membership.role;
+      const [ownerFlat, tenantFlat] = await Promise.all([
+        prisma.owner.findFirst({
+          where: { userId: req.user!.id, flat: { block: { societyId } } },
+          select: { flat: { include: { block: true } } },
+        }),
+        prisma.tenant.findFirst({
+          where: { userId: req.user!.id, flat: { block: { societyId } } },
+          select: { flat: { include: { block: true } } },
+        }),
+      ]);
+      const canUseOwnerView = OWNER_VIEW_ELIGIBLE_ROLES.includes(effectiveRole) && Boolean(ownerFlat?.flat);
       const tokens = generateTokens({ ...updatedUser, role: effectiveRole });
       invalidateAuthCache(req.user!.id);
 
@@ -781,6 +796,9 @@ router.post(
         user: {
           ...updatedUser,
           role: effectiveRole,
+          flat: ownerFlat?.flat || tenantFlat?.flat || null,
+          flatRelation: ownerFlat?.flat ? 'OWNER' : tenantFlat?.flat ? 'TENANT' : null,
+          canUseOwnerView,
         },
         ...tokens,
       });

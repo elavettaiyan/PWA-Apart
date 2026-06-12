@@ -6,6 +6,7 @@ import api from '../../lib/api';
 import { PageLoader } from '../../components/ui/Loader';
 import { cn, formatDateTime } from '../../lib/utils';
 import { useAuthStore } from '../../store/authStore';
+import { getDisplayUserForView, isOwnerViewActive } from '../../lib/ownerView';
 import type { Delivery, FlatOption, Visitor } from '../../types';
 
 function getInitials(name?: string): string {
@@ -23,10 +24,12 @@ type ActivityMode = 'VISITOR' | 'DELIVERY';
 const FULL_ACCESS_ROLES = ['SUPER_ADMIN', 'SERVICE_STAFF'];
 
 export default function EntryActivityPage() {
-  const { user } = useAuthStore();
+  const { user, viewMode } = useAuthStore();
+  const displayUser = getDisplayUserForView(user, viewMode);
+  const ownerViewActive = isOwnerViewActive(user, viewMode);
   const queryClient = useQueryClient();
-  const showFlatFilter = FULL_ACCESS_ROLES.includes(user?.role || '') || ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'].includes(user?.role || '');
-  const canMarkOut = FULL_ACCESS_ROLES.includes(user?.role || '') || ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'].includes(user?.role || '');
+  const showFlatFilter = FULL_ACCESS_ROLES.includes(displayUser?.role || '') || ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'].includes(displayUser?.role || '');
+  const canMarkOut = FULL_ACCESS_ROLES.includes(displayUser?.role || '') || ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'].includes(displayUser?.role || '');
   const [mode, setMode] = useState<ActivityMode>('VISITOR');
   const [search, setSearch] = useState('');
   const [flatId, setFlatId] = useState('');
@@ -47,13 +50,13 @@ export default function EntryActivityPage() {
   });
 
   const { data: visitors = [], isLoading: visitorsLoading } = useQuery<Visitor[]>({
-    queryKey: ['visitors', 'activity'],
-    queryFn: async () => (await api.get('/visitors?limit=100')).data,
+    queryKey: ['visitors', 'activity', ownerViewActive ? 'owner-view' : 'role-view'],
+    queryFn: async () => (await api.get(`/visitors?limit=100${ownerViewActive ? '&ownerView=true' : ''}`)).data,
   });
 
   const { data: deliveries = [], isLoading: deliveriesLoading } = useQuery<Delivery[]>({
-    queryKey: ['deliveries', 'activity'],
-    queryFn: async () => (await api.get('/deliveries?limit=100')).data,
+    queryKey: ['deliveries', 'activity', ownerViewActive ? 'owner-view' : 'role-view'],
+    queryFn: async () => (await api.get(`/deliveries?limit=100${ownerViewActive ? '&ownerView=true' : ''}`)).data,
   });
 
   const normalizedSearch = search.trim().toLowerCase();
@@ -97,7 +100,7 @@ export default function EntryActivityPage() {
 
   if ((showFlatFilter && flatsLoading) || visitorsLoading || deliveriesLoading) return <PageLoader />;
 
-  const isResident = user?.role === 'OWNER' || user?.role === 'TENANT';
+  const isResident = displayUser?.role === 'OWNER' || displayUser?.role === 'TENANT';
 
   return (
     <div className="space-y-6">

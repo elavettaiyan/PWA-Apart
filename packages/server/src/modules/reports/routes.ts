@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest, FINANCIAL_ROLES } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
+import { getResidentFlatIds } from '../entries/utils';
 
 const router = Router();
 router.use(authenticate);
@@ -103,30 +104,56 @@ router.get('/my-dashboard', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
 
-    // Find user's flat
+    // Find user's linked flats in the active society
     const societyId = req.user!.societyId;
-    const relationWhere = societyId ? { userId, flat: { block: { societyId } } } : { userId };
+    const flatIds = societyId ? await getResidentFlatIds(userId, societyId) : [];
+    const recentSince = new Date();
+    recentSince.setDate(recentSince.getDate() - 7);
 
-    const owner = await prisma.owner.findFirst({ where: relationWhere, select: { flatId: true } });
-    const tenant = !owner ? await prisma.tenant.findFirst({ where: relationWhere, select: { flatId: true } }) : null;
-    const flatId = owner?.flatId || tenant?.flatId;
+    const communityWhere = societyId ? { societyId } : undefined;
+    const [unreadAnnouncements, upcomingEvents] = societyId
+      ? await Promise.all([
+          prisma.announcementBroadcast.count({
+            where: { societyId, readStates: { none: { userId } } },
+          }),
+          prisma.societyEvent.count({
+            where: { societyId, status: 'SCHEDULED', startAt: { gte: new Date() } },
+          }),
+        ])
+      : [0, 0];
 
-    if (!flatId) return res.json({ pendingBills: 0, totalDue: 0, totalPaid: 0, openComplaints: 0 });
+    if (flatIds.length === 0) return res.json({
+      pendingBills: 0,
+      totalDue: 0,
+      totalPaid: 0,
+      openComplaints: 0,
+      unreadAnnouncements,
+      upcomingEvents,
+      recentVisitors: 0,
+      recentDeliveries: 0,
+    });
 
-    const [pendingBills, totalDue, totalPaid, openComplaints] = await Promise.all([
+    const flatScope = { in: flatIds };
+    const [pendingBills, totalDue, totalPaid, openComplaints, recentVisitors, recentDeliveries] = await Promise.all([
       prisma.maintenanceBill.count({
-        where: { flatId, status: { in: ['PENDING', 'OVERDUE'] } },
+        where: { flatId: flatScope, status: { in: ['PENDING', 'OVERDUE'] } },
       }),
       prisma.maintenanceBill.aggregate({
-        where: { flatId, status: { in: ['PENDING', 'OVERDUE', 'PARTIAL'] } },
+        where: { flatId: flatScope, status: { in: ['PENDING', 'OVERDUE', 'PARTIAL'] } },
         _sum: { totalAmount: true },
       }),
       prisma.payment.aggregate({
-        where: { status: 'SUCCESS', bill: { flatId } },
+        where: { status: 'SUCCESS', bill: { flatId: flatScope } },
         _sum: { amount: true },
       }),
       prisma.complaint.count({
         where: { createdById: userId, status: { in: ['OPEN', 'IN_PROGRESS'] } },
+      }),
+      prisma.visitor.count({
+        where: { flatId: flatScope, checkedInAt: { gte: recentSince }, ...(communityWhere || {}) },
+      }),
+      prisma.delivery.count({
+        where: { flatId: flatScope, deliveredAt: { gte: recentSince }, ...(communityWhere || {}) },
       }),
     ]);
 
@@ -135,6 +162,10 @@ router.get('/my-dashboard', async (req: AuthRequest, res: Response) => {
       totalDue: totalDue._sum.totalAmount || 0,
       totalPaid: totalPaid._sum.amount || 0,
       openComplaints,
+      unreadAnnouncements,
+      upcomingEvents,
+      recentVisitors,
+      recentDeliveries,
     });
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch dashboard' });
@@ -148,6 +179,8 @@ router.get('/dashboard', authorize('SUPER_ADMIN', ...FINANCIAL_ROLES), async (re
       ? (req.query.societyId as string) || req.user!.societyId
       : req.user!.societyId;
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+    const recentSince = new Date();
+    recentSince.setDate(recentSince.getDate() - 7);
 
     const [
       totalFlats,
@@ -158,6 +191,10 @@ router.get('/dashboard', authorize('SUPER_ADMIN', ...FINANCIAL_ROLES), async (re
       pendingBills,
       totalCollected,
       totalExpenses,
+      unreadAnnouncements,
+      upcomingEvents,
+      recentVisitors,
+      recentDeliveries,
     ] = await Promise.all([
       prisma.flat.count({ where: { block: { societyId } } }),
       prisma.flat.count({ where: { block: { societyId }, isOccupied: true } }),
@@ -175,6 +212,18 @@ router.get('/dashboard', authorize('SUPER_ADMIN', ...FINANCIAL_ROLES), async (re
         where: { societyId },
         _sum: { amount: true },
       }),
+      prisma.announcementBroadcast.count({
+        where: { societyId, readStates: { none: { userId: req.user!.id } } },
+      }),
+      prisma.societyEvent.count({
+        where: { societyId, status: 'SCHEDULED', startAt: { gte: new Date() } },
+      }),
+      prisma.visitor.count({
+        where: { societyId, checkedInAt: { gte: recentSince } },
+      }),
+      prisma.delivery.count({
+        where: { societyId, deliveredAt: { gte: recentSince } },
+      }),
     ]);
 
     return res.json({
@@ -188,6 +237,10 @@ router.get('/dashboard', authorize('SUPER_ADMIN', ...FINANCIAL_ROLES), async (re
       totalCollected: totalCollected._sum.amount || 0,
       totalExpenses: totalExpenses._sum.amount || 0,
       netBalance: (totalCollected._sum.amount || 0) - (totalExpenses._sum.amount || 0),
+      unreadAnnouncements,
+      upcomingEvents,
+      recentVisitors,
+      recentDeliveries,
     });
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch dashboard data' });

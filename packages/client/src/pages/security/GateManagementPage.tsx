@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Package, Search, ShieldCheck } from 'lucide-react';
+import { Loader2, Mic, Package, Search, ShieldCheck, Sparkles, Square } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { PageLoader } from '../../components/ui/Loader';
 import { cn, formatDateTime, getStatusColor } from '../../lib/utils';
+import { DICTATION_LANGUAGES, toDigits, useDictation, type DictationLang } from '../../lib/useDictation';
+import { parseDeliverySpeech, parseVisitorSpeech } from '../../lib/gateVoiceParser';
 import type { Delivery, DeliveryType, FlatOption, Visitor } from '../../types';
+
+const DICTATION_LANG_KEY = 'gate-dictation-lang';
 
 type EntryMode = 'VISITOR' | 'DELIVERY';
 
@@ -52,6 +56,122 @@ export default function GateManagementPage() {
   const [deliveryForm, setDeliveryForm] = useState(emptyDeliveryForm);
   const [visitorPhoto, setVisitorPhoto] = useState<File | null>(null);
   const [deliveryPhoto, setDeliveryPhoto] = useState<File | null>(null);
+
+  const { supported: dictationSupported, listening: dictationListening, start: startDictation, stop: stopDictation } = useDictation();
+  const [dictationLang, setDictationLang] = useState<DictationLang>(() => {
+    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(DICTATION_LANG_KEY) : null;
+    return (stored as DictationLang) || 'en-IN';
+  });
+  const [activeMic, setActiveMic] = useState<string | null>(null);
+
+  const handleDictate = async (
+    field: string,
+    apply: (text: string) => void,
+    mode: 'text' | 'digits' = 'text',
+  ) => {
+    if (!dictationSupported) return;
+
+    // Tap again while listening = stop this field.
+    if (dictationListening) {
+      if (activeMic === field) {
+        await stopDictation();
+      }
+      return;
+    }
+
+    const process = (text: string) => (mode === 'digits' ? toDigits(text, dictationLang) : text);
+    let gotAny = false;
+
+    setActiveMic(field);
+    try {
+      await startDictation(dictationLang, {
+        onPartial: (text) => {
+          gotAny = true;
+          apply(process(text));
+        },
+        onFinal: (text) => {
+          setActiveMic(null);
+          const value = process(text);
+          if (value) {
+            apply(value);
+          } else if (!gotAny) {
+            toast('Nothing captured. Please try again.', { icon: '🎤' });
+          }
+        },
+      });
+    } catch (error: any) {
+      setActiveMic(null);
+      if (error?.message === 'PERMISSION_DENIED') {
+        toast.error('Microphone permission is required for voice entry.');
+      } else {
+        toast.error('Voice entry failed. Please type instead.');
+      }
+    }
+  };
+
+  const changeDictationLang = (lang: DictationLang) => {
+    setDictationLang(lang);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(DICTATION_LANG_KEY, lang);
+    }
+  };
+
+  // ─── Smart "speak once" capture ──────────────────────────────────
+  const [smartTranscript, setSmartTranscript] = useState('');
+  const smartListening = activeMic === 'smart';
+
+  const handleSmartCapture = async () => {
+    if (!dictationSupported) return;
+
+    if (dictationListening) {
+      if (smartListening) {
+        await stopDictation();
+      }
+      return;
+    }
+
+    setSmartTranscript('');
+    setActiveMic('smart');
+    try {
+      await startDictation(dictationLang, {
+        onPartial: (text) => setSmartTranscript(text),
+        onFinal: (text) => {
+          setActiveMic(null);
+          const transcript = (text || '').trim();
+          setSmartTranscript(transcript);
+          if (!transcript) {
+            toast('Nothing captured. Please try again.', { icon: '🎤' });
+            return;
+          }
+          if (mode === 'VISITOR') {
+            const parsed = parseVisitorSpeech(transcript, dictationLang);
+            setVisitorForm((current) => ({
+              ...current,
+              visitorName: parsed.name || current.visitorName,
+              mobile: parsed.mobile || current.mobile,
+              purpose: (parsed.purpose as VisitorPurpose) || current.purpose,
+            }));
+          } else {
+            const parsed = parseDeliverySpeech(transcript, dictationLang);
+            setDeliveryForm((current) => ({
+              ...current,
+              deliveryPersonName: parsed.name || current.deliveryPersonName,
+              mobile: parsed.mobile || current.mobile,
+              deliveryType: (parsed.deliveryType as DeliveryType) || current.deliveryType,
+            }));
+          }
+          toast.success('Captured. Please review the fields below.');
+        },
+      });
+    } catch (error: any) {
+      setActiveMic(null);
+      if (error?.message === 'PERMISSION_DENIED') {
+        toast.error('Microphone permission is required for voice entry.');
+      } else {
+        toast.error('Voice entry failed. Please type instead.');
+      }
+    }
+  };
 
   const { data: flats = [], isLoading: flatsLoading } = useQuery<FlatOption[]>({
     queryKey: ['flat-options'],
@@ -177,17 +297,49 @@ export default function GateManagementPage() {
         <div className="card-elevated p-6 space-y-5">
           {mode === 'VISITOR' ? (
             <>
-              <div>
-                <h2 className="text-lg font-semibold text-on-surface">Record Visitor</h2>
-                <p className="text-sm text-on-surface-variant mt-1">Visitor photo is optional.</p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-on-surface">Record Visitor</h2>
+                  <p className="text-sm text-on-surface-variant mt-1">Visitor photo is optional.</p>
+                </div>
+                {dictationSupported && (
+                  <LanguageToggle value={dictationLang} onChange={changeDictationLang} disabled={dictationListening} />
+                )}
               </div>
+              {dictationSupported && (
+                <SmartVoicePanel
+                  mode="VISITOR"
+                  listening={smartListening}
+                  busy={dictationListening && !smartListening}
+                  transcript={smartTranscript}
+                  onToggle={handleSmartCapture}
+                />
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
                 <SelectFlat value={visitorForm.flatId} onChange={(value) => setVisitorForm((current) => ({ ...current, flatId: value }))} flats={flats} />
                 <Field label="Visitor Name *">
-                  <input className="input" value={visitorForm.visitorName} onChange={(event) => setVisitorForm((current) => ({ ...current, visitorName: event.target.value }))} placeholder="Full name" />
+                  <DictationInput
+                    value={visitorForm.visitorName}
+                    onChange={(value) => setVisitorForm((current) => ({ ...current, visitorName: value }))}
+                    placeholder="Full name"
+                    showMic={dictationSupported}
+                    listening={activeMic === 'visitorName'}
+                    micDisabled={dictationListening}
+                    onMic={() => handleDictate('visitorName', (text) => setVisitorForm((current) => ({ ...current, visitorName: text })))}
+                  />
                 </Field>
                 <Field label="Mobile *">
-                  <input className="input" value={visitorForm.mobile} onChange={(event) => setVisitorForm((current) => ({ ...current, mobile: event.target.value }))} placeholder="Phone number" />
+                  <DictationInput
+                    value={visitorForm.mobile}
+                    onChange={(value) => setVisitorForm((current) => ({ ...current, mobile: value }))}
+                    placeholder="Phone number"
+                    inputMode="numeric"
+                    showMic={dictationSupported}
+                    listening={activeMic === 'visitorMobile'}
+                    micDisabled={dictationListening}
+                    onMic={() => handleDictate('visitorMobile', (text) => setVisitorForm((current) => ({ ...current, mobile: text })), 'digits')}
+                    hint={dictationSupported ? 'Tip: speak digits one at a time' : undefined}
+                  />
                 </Field>
                 <Field label="Vehicle Number">
                   <input className="input" value={visitorForm.vehicleNumber} onChange={(event) => setVisitorForm((current) => ({ ...current, vehicleNumber: event.target.value }))} placeholder="Optional vehicle number" />
@@ -216,10 +368,24 @@ export default function GateManagementPage() {
             </>
           ) : (
             <>
-              <div>
-                <h2 className="text-lg font-semibold text-on-surface">Record Delivery</h2>
-                <p className="text-sm text-on-surface-variant mt-1">Delivery photo is optional.</p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-on-surface">Record Delivery</h2>
+                  <p className="text-sm text-on-surface-variant mt-1">Delivery photo is optional.</p>
+                </div>
+                {dictationSupported && (
+                  <LanguageToggle value={dictationLang} onChange={changeDictationLang} disabled={dictationListening} />
+                )}
               </div>
+              {dictationSupported && (
+                <SmartVoicePanel
+                  mode="DELIVERY"
+                  listening={smartListening}
+                  busy={dictationListening && !smartListening}
+                  transcript={smartTranscript}
+                  onToggle={handleSmartCapture}
+                />
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
                 <SelectFlat value={deliveryForm.flatId} onChange={(value) => setDeliveryForm((current) => ({ ...current, flatId: value }))} flats={flats} />
                 <Field label="Delivery Type *">
@@ -230,10 +396,28 @@ export default function GateManagementPage() {
                   </select>
                 </Field>
                 <Field label="Delivery Person *">
-                  <input className="input" value={deliveryForm.deliveryPersonName} onChange={(event) => setDeliveryForm((current) => ({ ...current, deliveryPersonName: event.target.value }))} placeholder="Courier or rider name" />
+                  <DictationInput
+                    value={deliveryForm.deliveryPersonName}
+                    onChange={(value) => setDeliveryForm((current) => ({ ...current, deliveryPersonName: value }))}
+                    placeholder="Courier or rider name"
+                    showMic={dictationSupported}
+                    listening={activeMic === 'deliveryPerson'}
+                    micDisabled={dictationListening}
+                    onMic={() => handleDictate('deliveryPerson', (text) => setDeliveryForm((current) => ({ ...current, deliveryPersonName: text })))}
+                  />
                 </Field>
                 <Field label="Mobile *">
-                  <input className="input" value={deliveryForm.mobile} onChange={(event) => setDeliveryForm((current) => ({ ...current, mobile: event.target.value }))} placeholder="Phone number" />
+                  <DictationInput
+                    value={deliveryForm.mobile}
+                    onChange={(value) => setDeliveryForm((current) => ({ ...current, mobile: value }))}
+                    placeholder="Phone number"
+                    inputMode="numeric"
+                    showMic={dictationSupported}
+                    listening={activeMic === 'deliveryMobile'}
+                    micDisabled={dictationListening}
+                    onMic={() => handleDictate('deliveryMobile', (text) => setDeliveryForm((current) => ({ ...current, mobile: text })), 'digits')}
+                    hint={dictationSupported ? 'Tip: speak digits one at a time' : undefined}
+                  />
                 </Field>
                 <Field label="Vehicle Number">
                   <input className="input" value={deliveryForm.vehicleNumber} onChange={(event) => setDeliveryForm((current) => ({ ...current, vehicleNumber: event.target.value }))} placeholder="Optional vehicle number" />
@@ -396,6 +580,145 @@ function Field({ label, children, className }: { label: string; children: React.
     <div className={className}>
       <label className="label">{label}</label>
       {children}
+    </div>
+  );
+}
+
+function SmartVoicePanel({
+  mode,
+  listening,
+  busy,
+  transcript,
+  onToggle,
+}: {
+  mode: EntryMode;
+  listening: boolean;
+  busy: boolean;
+  transcript: string;
+  onToggle: () => void;
+}) {
+  const example =
+    mode === 'VISITOR'
+      ? 'e.g. “Rajesh Kumar, nine eight seven six five four three two one zero, guest”'
+      : 'e.g. “Suresh, nine eight … zero, food delivery”';
+
+  return (
+    <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4">
+      <div className="flex items-start gap-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          disabled={busy}
+          aria-label={listening ? 'Stop listening' : 'Speak once to fill the form'}
+          className={cn(
+            'flex h-12 w-12 shrink-0 items-center justify-center rounded-full transition-colors',
+            listening ? 'bg-error text-white animate-pulse' : 'bg-primary text-white hover:opacity-90',
+            busy && 'opacity-50',
+          )}
+        >
+          {listening ? <Square className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <p className="text-sm font-semibold text-on-surface">Speak once to fill the form</p>
+          </div>
+          {listening ? (
+            <p className="mt-1 text-xs font-medium text-error">Listening… say name, number &amp; purpose, then tap to stop</p>
+          ) : (
+            <p className="mt-1 text-xs text-on-surface-variant">{example}</p>
+          )}
+          {transcript && (
+            <p className="mt-2 rounded-lg bg-white/70 px-3 py-2 text-sm text-on-surface break-words">{transcript}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LanguageToggle({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: DictationLang;
+  onChange: (lang: DictationLang) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="inline-flex items-center gap-1 rounded-xl bg-surface-container p-1" role="group" aria-label="Voice language">
+      <Mic className="w-4 h-4 text-on-surface-variant mx-1" aria-hidden />
+      {DICTATION_LANGUAGES.map((lang) => (
+        <button
+          key={lang.value}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(lang.value)}
+          className={cn(
+            'rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors disabled:opacity-50',
+            value === lang.value ? 'bg-primary text-white' : 'text-on-surface-variant',
+          )}
+        >
+          {lang.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function DictationInput({
+  value,
+  onChange,
+  placeholder,
+  inputMode,
+  showMic,
+  listening,
+  micDisabled,
+  onMic,
+  hint,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  inputMode?: 'text' | 'numeric';
+  showMic: boolean;
+  listening: boolean;
+  micDisabled: boolean;
+  onMic: () => void;
+  hint?: string;
+}) {
+  return (
+    <div>
+      <div className="relative">
+        <input
+          className={cn('input', showMic && 'pr-12')}
+          value={value}
+          inputMode={inputMode}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+        />
+        {showMic && (
+          <button
+            type="button"
+            onClick={onMic}
+            disabled={micDisabled && !listening}
+            aria-label={listening ? 'Listening' : 'Dictate'}
+            className={cn(
+              'absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
+              listening ? 'bg-error text-white animate-pulse' : 'bg-primary/10 text-primary hover:bg-primary/20',
+              micDisabled && !listening && 'opacity-50',
+            )}
+          >
+            {listening ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4" />}
+          </button>
+        )}
+      </div>
+      {listening ? (
+        <p className="mt-1.5 text-xs font-medium text-error">Listening… tap mic to stop</p>
+      ) : (
+        hint && <p className="mt-1.5 text-xs text-on-surface-variant">{hint}</p>
+      )}
     </div>
   );
 }

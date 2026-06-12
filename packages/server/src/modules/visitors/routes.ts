@@ -4,7 +4,7 @@ import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import { getFileUrl, upload } from '../../middleware/upload';
-import { ENTRY_ACCESS_ROLES, ENTRY_MANAGE_ROLES, findFlatInSociety, getFlatResidentName, getResidentFlatIds, isAdminWithFlat, isResidentRole } from '../entries/utils';
+import { ENTRY_ACCESS_ROLES, ENTRY_MANAGE_ROLES, findFlatInSociety, getFlatResidentName, getOwnedFlatIds, getResidentFlatIds, isResidentRole } from '../entries/utils';
 import { notifyVisitorEntry } from '../notifications/service';
 
 const router = Router();
@@ -33,6 +33,7 @@ router.get(
     query('status').optional().isIn(['ACTIVE', 'LEFT']),
     query('flatId').optional().isUUID(),
     query('limit').optional().isInt({ min: 1, max: 100 }),
+    query('ownerView').optional().isBoolean(),
   ],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -43,10 +44,14 @@ router.get(
       const where: any = { societyId };
       if (req.query.status) where.status = req.query.status;
 
-      const shouldFilterByFlat = isResidentRole(req.user!.role) || await isAdminWithFlat(req.user!.id, societyId, req.user!.role);
+      const ownerViewRequested = req.query.ownerView === 'true';
+      const isHigherRoleOwnerView = ownerViewRequested && ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'].includes(req.user!.role);
+      const shouldFilterByFlat = isResidentRole(req.user!.role) || isHigherRoleOwnerView;
 
       if (shouldFilterByFlat) {
-        const flatIds = await getResidentFlatIds(req.user!.id, societyId);
+        const flatIds = isHigherRoleOwnerView
+          ? await getOwnedFlatIds(req.user!.id, societyId)
+          : await getResidentFlatIds(req.user!.id, societyId);
         if (flatIds.length === 0) return res.json([]);
 
         where.flatId = req.query.flatId

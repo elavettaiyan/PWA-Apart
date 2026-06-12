@@ -22,6 +22,11 @@ function toAssetUrl(value: string) {
   return `${getApiBaseUrl().replace('/api', '')}${value}`;
 }
 
+function invalidateDashboardShortcuts(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+  queryClient.invalidateQueries({ queryKey: ['my-dashboard'] });
+}
+
 function toDateTimeLocalValue(value?: string | null) {
   if (!value) {
     return '';
@@ -90,6 +95,7 @@ export default function EventsPage({ embedded = false }: { embedded?: boolean })
     onSuccess: () => {
       toast.success('Event deleted');
       queryClient.invalidateQueries({ queryKey: ['events'] });
+      invalidateDashboardShortcuts(queryClient);
     },
     onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to delete event'),
   });
@@ -297,6 +303,7 @@ export default function EventsPage({ embedded = false }: { embedded?: boolean })
           onSuccess={() => {
             setShowCreate(false);
             queryClient.invalidateQueries({ queryKey: ['events'] });
+            invalidateDashboardShortcuts(queryClient);
           }}
         />
       </Modal>
@@ -308,6 +315,7 @@ export default function EventsPage({ embedded = false }: { embedded?: boolean })
             onSuccess={() => {
               setEditingEvent(null);
               queryClient.invalidateQueries({ queryKey: ['events'] });
+              invalidateDashboardShortcuts(queryClient);
             }}
           />
         )}

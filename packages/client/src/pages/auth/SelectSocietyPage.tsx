@@ -22,7 +22,7 @@ type SocietyResponse = {
 export default function SelectSocietyPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, setTokens, setActiveSociety, setUser } = useAuthStore();
+  const { user, setTokens, setUser } = useAuthStore();
 
   const { data, isLoading } = useQuery<SocietyResponse>({
     queryKey: ['my-societies'],
@@ -45,7 +45,6 @@ export default function SelectSocietyPage() {
     mutationFn: async (societyId: string) => (await api.post('/auth/switch-society', { societyId })).data,
     onSuccess: (response, societyId) => {
       setTokens(response.accessToken, response.refreshToken);
-      setActiveSociety(societyId);
       if (user) {
         setUser({
           ...user,

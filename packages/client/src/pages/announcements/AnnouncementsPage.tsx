@@ -21,6 +21,11 @@ function toAssetUrl(value: string) {
   return `${getApiBaseUrl().replace('/api', '')}${value}`;
 }
 
+function invalidateDashboardShortcuts(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+  queryClient.invalidateQueries({ queryKey: ['my-dashboard'] });
+}
+
 export default function AnnouncementsPage({ embedded = false }: { embedded?: boolean }) {
   const [showCreate, setShowCreate] = useState(false);
   const [viewAnnouncement, setViewAnnouncement] = useState<Announcement | null>(null);
@@ -38,6 +43,7 @@ export default function AnnouncementsPage({ embedded = false }: { embedded?: boo
     onSuccess: () => {
       toast.success('Announcement deleted');
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      invalidateDashboardShortcuts(queryClient);
     },
     onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to delete announcement'),
   });
@@ -49,6 +55,7 @@ export default function AnnouncementsPage({ embedded = false }: { embedded?: boo
     onSuccess: (_, variables) => {
       toast.success(variables.isPinned ? 'Announcement pinned' : 'Announcement unpinned');
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      invalidateDashboardShortcuts(queryClient);
     },
     onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to update pin status'),
   });
@@ -60,6 +67,7 @@ export default function AnnouncementsPage({ embedded = false }: { embedded?: boo
     onSuccess: (_, variables) => {
       toast.success(variables.isRead ? 'Marked as read' : 'Marked as unread');
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      invalidateDashboardShortcuts(queryClient);
     },
     onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to update read state'),
   });
@@ -239,6 +247,7 @@ export default function AnnouncementsPage({ embedded = false }: { embedded?: boo
           onSuccess={() => {
             setShowCreate(false);
             queryClient.invalidateQueries({ queryKey: ['announcements'] });
+            invalidateDashboardShortcuts(queryClient);
           }}
         />
       </Modal>
