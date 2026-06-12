@@ -9,6 +9,7 @@ import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
 import { getDefaultComplaintCategoryForUser, isNonSecurityServiceStaff } from '../../lib/serviceStaff';
 import { useAuthStore } from '../../store/authStore';
+import { isOwnerViewActive } from '../../lib/ownerView';
 import type { Complaint } from '../../types';
 
 const CATEGORIES = ['Plumbing', 'Electrical', 'Civil', 'Lift', 'Parking', 'Security', 'Cleaning', 'Noise', 'Other'];
@@ -18,16 +19,20 @@ export default function ComplaintsPage() {
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
+  const { user, viewMode } = useAuthStore();
+  const ownerViewActive = isOwnerViewActive(user, viewMode);
   const defaultCategory = getDefaultComplaintCategoryForUser(user);
   const isSpecializedStaffView = isNonSecurityServiceStaff(user) && !!defaultCategory;
 
   const { data: complaints = [], isLoading } = useQuery<Complaint[]>({
-    queryKey: ['complaints', defaultCategory],
+    queryKey: ['complaints', defaultCategory, ownerViewActive ? 'owner-view' : 'role-view'],
     queryFn: async () => {
       const searchParams = new URLSearchParams();
       if (defaultCategory) {
         searchParams.set('category', defaultCategory);
+      }
+      if (ownerViewActive) {
+        searchParams.set('ownerView', 'true');
       }
       const query = searchParams.toString();
       return (await api.get(`/complaints${query ? `?${query}` : ''}`)).data;

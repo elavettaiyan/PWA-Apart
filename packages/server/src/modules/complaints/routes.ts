@@ -36,12 +36,14 @@ router.get(
     query('status').optional().isIn(['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REJECTED']),
     query('priority').optional().isIn(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
     query('category').optional().isString(),
+    query('ownerView').optional().isBoolean(),
   ],
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
       const where: any = {};
       let serviceStaffCategory = '';
+      const ownerViewRequested = req.query.ownerView === 'true';
 
       if (req.query.status) where.status = req.query.status;
       if (req.query.priority) where.priority = req.query.priority;
@@ -50,8 +52,17 @@ router.get(
       // Restrict to user's society
       if (req.user!.societyId) where.societyId = req.user!.societyId;
 
-      // Non-manager: only their own complaints or assigned complaints
-      if ([...RESIDENT_ROLES, 'TREASURER'].includes(req.user!.role as any)) {
+      if (ownerViewRequested && ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'].includes(req.user!.role)) {
+        if (!req.user!.societyId) return res.json([]);
+
+        const owner = await prisma.owner.findFirst({
+          where: { userId: req.user!.id, flat: { block: { societyId: req.user!.societyId } } },
+          select: { id: true },
+        });
+        if (!owner) return res.json([]);
+
+        where.createdById = req.user!.id;
+      } else if ([...RESIDENT_ROLES, 'TREASURER'].includes(req.user!.role as any)) {
         where.createdById = req.user!.id;
       } else if (req.user!.role === 'SERVICE_STAFF') {
         const serviceStaffUser = await prisma.user.findUnique({

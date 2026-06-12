@@ -8,6 +8,10 @@ import {
   CheckCircle2,
   ClipboardList,
   TrendingUp,
+  Megaphone,
+  CalendarDays,
+  UserRound,
+  Package,
 } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
@@ -15,13 +19,15 @@ import { formatCurrency } from '../../lib/utils';
 import { PageLoader } from '../../components/ui/Loader';
 import { getDefaultAuthenticatedRoute } from '../../lib/serviceStaff';
 import { useAuthStore } from '../../store/authStore';
+import { getDisplayUserForView } from '../../lib/ownerView';
 import type { DashboardData } from '../../types';
 import { FINANCIAL_ROLES, SOCIETY_ADMINS } from '../../types';
 
 export default function DashboardPage() {
-  const { user } = useAuthStore();
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
-  const isManager = FINANCIAL_ROLES.includes(user?.role as any);
+  const { user, viewMode } = useAuthStore();
+  const displayUser = getDisplayUserForView(user, viewMode);
+  const isSuperAdmin = displayUser?.role === 'SUPER_ADMIN';
+  const isManager = FINANCIAL_ROLES.includes(displayUser?.role as any);
   const defaultRoute = getDefaultAuthenticatedRoute(user);
 
   if (defaultRoute !== '/') {
@@ -65,6 +71,17 @@ type SocietyRecord = {
     complaints: number;
     expenses: number;
   };
+};
+
+type MyDashboardData = {
+  pendingBills: number;
+  totalDue: number;
+  totalPaid: number;
+  openComplaints: number;
+  unreadAnnouncements: number;
+  upcomingEvents: number;
+  recentVisitors: number;
+  recentDeliveries: number;
 };
 
 /* ─── Super Admin Dashboard ────────────────────────────────── */
@@ -187,9 +204,11 @@ function ResidentDashboard() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
 
-  const { data, isLoading } = useQuery<any>({
+  const { data, isLoading } = useQuery<MyDashboardData>({
     queryKey: ['my-dashboard'],
     queryFn: async () => (await api.get('/reports/my-dashboard')).data,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   if (isLoading) return <PageLoader />;
@@ -294,7 +313,7 @@ function ResidentDashboard() {
             </div>
             <div>
               <p className="text-sm font-semibold text-on-surface">
-                {data.openComplaints} open complaint{data.openComplaints !== 1 ? 's' : ''}
+                {data?.openComplaints ?? 0} open complaint{(data?.openComplaints ?? 0) !== 1 ? 's' : ''}
               </p>
               <p className="text-xs text-on-surface-variant">Tap to view & track status</p>
             </div>
@@ -302,6 +321,49 @@ function ResidentDashboard() {
           <ChevronRight className="w-5 h-5 text-outline" />
         </button>
       )}
+
+      {/* Community and entry shortcuts */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => navigate('/community')}
+          className="glass-card p-4 text-left flex items-center justify-between gap-3 hover:shadow-card-hover active:scale-[0.98] transition-all"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative w-11 h-11 rounded-[14px] bg-indigo-50 flex items-center justify-center shrink-0">
+              <Megaphone className="w-5 h-5 text-indigo-500" />
+              <CalendarDays className="w-3.5 h-3.5 text-violet-500 absolute -right-1 -bottom-1 bg-white rounded-full p-0.5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-on-surface">Announcements & Events</p>
+              <p className="text-xs text-on-surface-variant mt-0.5">
+                {data?.unreadAnnouncements ?? 0} unread · {data?.upcomingEvents ?? 0} upcoming
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-outline shrink-0" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => navigate('/entry-activity')}
+          className="glass-card p-4 text-left flex items-center justify-between gap-3 hover:shadow-card-hover active:scale-[0.98] transition-all"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative w-11 h-11 rounded-[14px] bg-emerald-50 flex items-center justify-center shrink-0">
+              <UserRound className="w-5 h-5 text-emerald-500" />
+              <Package className="w-3.5 h-3.5 text-orange-500 absolute -right-1 -bottom-1 bg-white rounded-full p-0.5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-on-surface">Visitors & Deliveries</p>
+              <p className="text-xs text-on-surface-variant mt-0.5">
+                {data?.recentVisitors ?? 0} visitors · {data?.recentDeliveries ?? 0} deliveries recently
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-outline shrink-0" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -315,6 +377,8 @@ function AdminDashboard() {
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ['dashboard'],
     queryFn: async () => (await api.get('/reports/dashboard')).data,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   if (isLoading) return <PageLoader />;
@@ -383,6 +447,49 @@ function AdminDashboard() {
             </button>
           )}
         </div>
+      </div>
+
+      {/* ── Quick Shortcuts ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <button
+          type="button"
+          onClick={() => navigate('/community')}
+          className="rounded-2xl bg-white p-5 shadow-card hover:shadow-card-hover transition-shadow text-left flex items-center justify-between gap-4"
+        >
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="relative w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center shrink-0">
+              <Megaphone className="w-6 h-6 text-indigo-500" />
+              <CalendarDays className="w-4 h-4 text-violet-500 absolute -right-1 -bottom-1 bg-white rounded-full p-0.5 shadow-sm" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-on-surface">Announcements & Events</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {data?.unreadAnnouncements || 0} unread announcements · {data?.upcomingEvents || 0} upcoming events
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-slate-300 shrink-0" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => navigate('/entry-activity')}
+          className="rounded-2xl bg-white p-5 shadow-card hover:shadow-card-hover transition-shadow text-left flex items-center justify-between gap-4"
+        >
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="relative w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0">
+              <UserRound className="w-6 h-6 text-emerald-500" />
+              <Package className="w-4 h-4 text-orange-500 absolute -right-1 -bottom-1 bg-white rounded-full p-0.5 shadow-sm" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-on-surface">Visitors & Deliveries</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {data?.recentVisitors || 0} recent visitors · {data?.recentDeliveries || 0} recent deliveries
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-slate-300 shrink-0" />
+        </button>
       </div>
 
       {/* ── Occupancy ── */}

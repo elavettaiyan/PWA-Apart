@@ -92,12 +92,23 @@ async function handleNotificationAction(action: ActionPerformed) {
     queryClient.invalidateQueries({ queryKey: notificationInboxKeys.all }),
   ];
 
+  const invalidateDashboardShortcuts = () => {
+    invalidations.push(queryClient.invalidateQueries({ queryKey: ['dashboard'] }));
+    invalidations.push(queryClient.invalidateQueries({ queryKey: ['my-dashboard'] }));
+  };
+
   if (type === 'announcement.broadcast') {
     invalidations.push(queryClient.invalidateQueries({ queryKey: ['announcements'] }));
+    invalidateDashboardShortcuts();
+  } else if (type?.startsWith('event.')) {
+    invalidations.push(queryClient.invalidateQueries({ queryKey: ['events'] }));
+    invalidateDashboardShortcuts();
   } else if (type === 'visitor.entry') {
     invalidations.push(queryClient.invalidateQueries({ queryKey: ['visitors'] }));
+    invalidateDashboardShortcuts();
   } else if (type === 'delivery.alert') {
     invalidations.push(queryClient.invalidateQueries({ queryKey: ['deliveries'] }));
+    invalidateDashboardShortcuts();
   }
 
   await Promise.all(invalidations);
@@ -114,12 +125,23 @@ async function handleNotificationReceived(notification: PushNotificationSchema) 
     queryClient.invalidateQueries({ queryKey: notificationInboxKeys.all }),
   ];
 
+  const invalidateDashboardShortcuts = () => {
+    invalidations.push(queryClient.invalidateQueries({ queryKey: ['dashboard'] }));
+    invalidations.push(queryClient.invalidateQueries({ queryKey: ['my-dashboard'] }));
+  };
+
   if (type === 'announcement.broadcast') {
     invalidations.push(queryClient.invalidateQueries({ queryKey: ['announcements'] }));
+    invalidateDashboardShortcuts();
+  } else if (type?.startsWith('event.')) {
+    invalidations.push(queryClient.invalidateQueries({ queryKey: ['events'] }));
+    invalidateDashboardShortcuts();
   } else if (type === 'visitor.entry') {
     invalidations.push(queryClient.invalidateQueries({ queryKey: ['visitors'] }));
+    invalidateDashboardShortcuts();
   } else if (type === 'delivery.alert') {
     invalidations.push(queryClient.invalidateQueries({ queryKey: ['deliveries'] }));
+    invalidateDashboardShortcuts();
   }
 
   await Promise.all(invalidations);

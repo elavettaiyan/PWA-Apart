@@ -370,6 +370,7 @@ router.get(
     query('year').optional().isInt({ min: 2020 }),
     query('status').optional().isIn(['PENDING', 'PARTIAL', 'PAID', 'OVERDUE']),
     query('flatId').optional().isUUID(),
+    query('ownerView').optional().isBoolean(),
   ],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -391,11 +392,13 @@ router.get(
       if (req.query.year) where.year = parseInt(req.query.year as string);
       if (req.query.status) where.status = req.query.status;
       if (req.query.flatId) where.flatId = req.query.flatId;
+      const ownerViewRequested = req.query.ownerView === 'true';
 
       // Safety fallback: if admin/super-admin does not send month/year,
       // default to current month to avoid heavy full-history scans.
       if (
         (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN')
+        && !ownerViewRequested
         && where.month === undefined
         && where.year === undefined
       ) {
@@ -407,7 +410,22 @@ router.get(
       timing.parseFiltersMs = nowMs() - parseStart;
 
       const scopeStart = nowMs();
-      if (req.user!.role === 'SUPER_ADMIN' || [...FINANCIAL_ROLES].includes(req.user!.role as any)) {
+      if (ownerViewRequested && [...FINANCIAL_ROLES].includes(req.user!.role as any)) {
+        if (!req.user!.societyId) return res.json([]);
+
+        const residentLookupStart = nowMs();
+        const userFlatIds = await getUserOwnedFlatIds(req.user!.id, req.user!.societyId);
+        timing.residentLookupMs = nowMs() - residentLookupStart;
+        if (userFlatIds.length > 0) {
+          Object.assign(where, buildResidentBillFilter(userFlatIds));
+          where.flat = {
+            ...(where.flat || {}),
+            block: { societyId: req.user!.societyId },
+          };
+        } else {
+          return res.json([]);
+        }
+      } else if (req.user!.role === 'SUPER_ADMIN' || [...FINANCIAL_ROLES].includes(req.user!.role as any)) {
         where.flat = { block: { societyId: req.user!.societyId } };
       }
 
@@ -438,7 +456,7 @@ router.get(
 
       let payload: any[];
 
-      if (isAdminRole && societyId) {
+      if (isAdminRole && societyId && !ownerViewRequested) {
         // Build dynamic WHERE clauses for optional filters
         const params: any[] = [societyId];
         const conditions = ['bl."societyId" = $1'];
@@ -705,6 +723,15 @@ async function getUserFlatIds(userId: string, societyId: string) {
   ]);
 
   return [...new Set([...owners.map((owner) => owner.flatId), ...tenants.map((tenant) => tenant.flatId)])];
+}
+
+async function getUserOwnedFlatIds(userId: string, societyId: string) {
+  const owners = await prisma.owner.findMany({
+    where: { userId, flat: { block: { societyId } } },
+    select: { flatId: true },
+  });
+
+  return [...new Set(owners.map((owner) => owner.flatId))];
 }
 
 export default router;

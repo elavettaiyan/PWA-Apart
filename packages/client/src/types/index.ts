@@ -61,6 +61,8 @@ export interface User {
   activeSocietyId?: string;
   societies?: Array<{ id: string; name: string; role?: Role }>;
   flat?: Flat;
+  flatRelation?: 'OWNER' | 'TENANT' | null;
+  canUseOwnerView?: boolean;
   mustChangePassword?: boolean;
   skipAccountDeletionVerification?: boolean;
 }
@@ -449,6 +451,10 @@ export interface DashboardData {
   totalCollected: number;
   totalExpenses: number;
   netBalance: number;
+  unreadAnnouncements: number;
+  upcomingEvents: number;
+  recentVisitors: number;
+  recentDeliveries: number;
 }
 
 export interface CollectionReport {

@@ -34,6 +34,15 @@ export async function getResidentFlatIds(userId: string, societyId: string) {
   return [...new Set([...owners.map((owner) => owner.flatId), ...tenants.map((tenant) => tenant.flatId)])];
 }
 
+export async function getOwnedFlatIds(userId: string, societyId: string) {
+  const owners = await prisma.owner.findMany({
+    where: { userId, flat: { block: { societyId } } },
+    select: { flatId: true },
+  });
+
+  return [...new Set(owners.map((owner) => owner.flatId))];
+}
+
 export async function findFlatInSociety(flatId: string, societyId: string) {
   return prisma.flat.findFirst({
     where: {
