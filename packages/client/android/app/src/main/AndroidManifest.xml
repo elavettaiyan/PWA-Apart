@@ -42,6 +42,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- RECORD_AUDIO is used for optional voice dictation; do not filter devices without a microphone. -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
     <!-- Speech recognition service (Android 11+ package visibility) -->
     <queries>
         <intent>
