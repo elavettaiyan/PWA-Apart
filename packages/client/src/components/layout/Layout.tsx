@@ -64,11 +64,9 @@ export default function Layout({ children }: LayoutProps) {
   });
 
   const hasSocietySwitcher = (societiesData?.societies?.length || 0) > 1;
-  const mobileSpacerHeight = hasSocietySwitcher && canSwitchOwnerView
-    ? 'calc(11rem + var(--sat))'
-    : hasSocietySwitcher || canSwitchOwnerView
-      ? 'calc(8.75rem + var(--sat))'
-      : 'calc(5rem + var(--sat))';
+  const mobileSpacerHeight = hasSocietySwitcher
+    ? 'calc(8.75rem + var(--sat))'
+    : 'calc(5rem + var(--sat))';
 
   const switchSocietyMutation = useMutation({
     mutationFn: async (societyId: string) => (await api.post('/auth/switch-society', { societyId })).data,
@@ -112,6 +110,7 @@ export default function Layout({ children }: LayoutProps) {
   const visibleNavigationItems = getVisibleNavigationItemsForUser(displayUser, effectiveMenuVisibility);
   const visibleMenuIds = getVisibleMenuIdsForUser(displayUser, effectiveMenuVisibility);
   const visibleMenuIdSet = new Set(visibleMenuIds);
+  const nextViewMode = isOwnerViewActive(user, viewMode) ? 'ADMIN_VIEW' : 'OWNER_VIEW';
   const viewModeSwitcher = canSwitchOwnerView ? (
     <div className="inline-flex rounded-2xl bg-slate-100 p-1 text-xs font-semibold text-slate-500">
       <button
@@ -234,6 +233,21 @@ export default function Layout({ children }: LayoutProps) {
           </div>
           <div className="flex items-center gap-3">
             <NotificationBell compact />
+            {canSwitchOwnerView && (
+              <button
+                type="button"
+                onClick={() => handleViewModeChange(nextViewMode)}
+                className="w-9 h-9 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center touch-manipulation transition-colors hover:bg-slate-200 hover:text-on-surface"
+                aria-label={isOwnerViewActive(user, viewMode) ? `Switch to ${roleViewLabel}` : 'Switch to Owner View'}
+                title={isOwnerViewActive(user, viewMode) ? `Switch to ${roleViewLabel}` : 'Switch to Owner View'}
+              >
+                {isOwnerViewActive(user, viewMode) ? (
+                  <Building2 className="w-4.5 h-4.5" />
+                ) : (
+                  <UserCircle2 className="w-4.5 h-4.5" />
+                )}
+              </button>
+            )}
             <button
               onClick={() => setProfileOpen(!profileOpen)}
               className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center ring-2 ring-primary/10 touch-manipulation"
@@ -258,11 +272,6 @@ export default function Layout({ children }: LayoutProps) {
               </select>
             </div>
           )}
-          {viewModeSwitcher && (
-            <div className="px-4 pb-3">
-              <div className="w-full flex justify-center">{viewModeSwitcher}</div>
-            </div>
-          )}
           {/* Mobile profile dropdown */}
           {profileOpen && (
             <>
@@ -278,15 +287,6 @@ export default function Layout({ children }: LayoutProps) {
                     </p>
                   ) : null}
                 </div>
-                {canSwitchOwnerView && (
-                  <button
-                    onClick={() => handleViewModeChange(isOwnerViewActive(user, viewMode) ? 'ADMIN_VIEW' : 'OWNER_VIEW')}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-slate-50 transition"
-                  >
-                    <Building2 className="w-4 h-4" />
-                    {isOwnerViewActive(user, viewMode) ? `Switch to ${roleViewLabel}` : 'Switch to Owner View'}
-                  </button>
-                )}
                 <button
                   onClick={() => {
                     setProfileOpen(false);
