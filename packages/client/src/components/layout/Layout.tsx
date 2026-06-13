@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   LayoutDashboard, Building2, Receipt, MessageSquareWarning,
   Wallet, BarChart3, LogOut, Menu, X, Settings, KeyRound, Megaphone,
-  ShieldCheck, ClipboardList, Box, UserCircle2,
+  ShieldCheck, ClipboardList, Box, UserCircle2, RefreshCw,
 } from 'lucide-react';
 import { isNonSecurityServiceStaff, isSecurityServiceStaff } from '@/lib/serviceStaff';
 import { useAuthStore } from '../../store/authStore';
@@ -37,11 +37,20 @@ interface LayoutProps {
 }
 
 export default function Layout({ children }: LayoutProps) {
+  const PULL_THRESHOLD = 72;
+  const MAX_PULL_DISTANCE = 108;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullToRefreshEnabled, setPullToRefreshEnabled] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const mainRef = useRef<HTMLElement | null>(null);
+  const pullStartYRef = useRef<number | null>(null);
+  const pullDistanceRef = useRef(0);
   const { user, viewMode, logout, setUser, setTokens, setViewMode } = useAuthStore();
   const activeSocietyId = user?.activeSocietyId || user?.societyId || '';
   const displayUser = getDisplayUserForView(user, viewMode);
@@ -93,6 +102,97 @@ export default function Layout({ children }: LayoutProps) {
     setSidebarOpen(false);
     setProfileOpen(false);
   }, [location.key]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const mediaQuery = window.matchMedia('(pointer: coarse)');
+    const update = () => setPullToRefreshEnabled(mediaQuery.matches);
+
+    update();
+    mediaQuery.addEventListener?.('change', update);
+
+    return () => mediaQuery.removeEventListener?.('change', update);
+  }, []);
+
+  const resetPullState = () => {
+    pullStartYRef.current = null;
+    pullDistanceRef.current = 0;
+    setPullDistance(0);
+    setIsPulling(false);
+  };
+
+  const handlePullRefresh = async () => {
+    setIsRefreshing(true);
+    setPullDistance(PULL_THRESHOLD * 0.65);
+
+    try {
+      await queryClient.refetchQueries({ type: 'active' });
+    } finally {
+      setIsRefreshing(false);
+      resetPullState();
+    }
+  };
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLElement>) => {
+    if (!pullToRefreshEnabled || isRefreshing || sidebarOpen || profileOpen || event.touches.length !== 1) {
+      return;
+    }
+
+    const mainElement = mainRef.current;
+    if (!mainElement || mainElement.scrollTop > 0) {
+      return;
+    }
+
+    pullStartYRef.current = event.touches[0].clientY;
+    setIsPulling(true);
+  };
+
+  const handleTouchMove = (event: React.TouchEvent<HTMLElement>) => {
+    if (!isPulling || pullStartYRef.current === null || isRefreshing) {
+      return;
+    }
+
+    const mainElement = mainRef.current;
+    if (!mainElement || mainElement.scrollTop > 0) {
+      resetPullState();
+      return;
+    }
+
+    const rawDistance = event.touches[0].clientY - pullStartYRef.current;
+    if (rawDistance <= 0) {
+      pullDistanceRef.current = 0;
+      setPullDistance(0);
+      return;
+    }
+
+    const nextDistance = Math.min(rawDistance * 0.45, MAX_PULL_DISTANCE);
+    pullDistanceRef.current = nextDistance;
+    setPullDistance(nextDistance);
+  };
+
+  const handleTouchEnd = async () => {
+    if (!isPulling || isRefreshing) {
+      return;
+    }
+
+    setIsPulling(false);
+
+    if (pullDistanceRef.current >= PULL_THRESHOLD) {
+      await handlePullRefresh();
+      return;
+    }
+
+    resetPullState();
+  };
+
+  const pullProgress = Math.min(pullDistance / PULL_THRESHOLD, 1);
+  const showPullIndicator = pullToRefreshEnabled && (pullDistance > 0 || isRefreshing);
+  const pullIndicatorLabel = isRefreshing
+    ? 'Refreshing...'
+    : pullProgress >= 1
+      ? 'Release to refresh'
+      : 'Pull to refresh';
 
   const handleLogout = () => {
     queryClient.clear();
@@ -423,7 +523,43 @@ export default function Layout({ children }: LayoutProps) {
         {/* Mobile spacer: pushes content below the fixed mobile header (which is out of document flow) */}
         <div className="lg:hidden shrink-0" style={{ height: mobileSpacerHeight }} aria-hidden="true" />
         <TrialBanner />
-        <main className="flex-1 pb-6 px-4 sm:px-6 lg:pb-0 lg:p-8 overflow-auto">{children}</main>
+        <div className="relative flex-1 min-h-0">
+          {showPullIndicator ? (
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center px-4"
+              style={{
+                paddingTop: '0.75rem',
+                transform: `translateY(${Math.max(pullDistance - 40, 0)}px)`,
+              }}
+              aria-live="polite"
+            >
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 text-xs font-semibold text-slate-500 shadow-card ring-1 ring-slate-200/80 backdrop-blur">
+                <RefreshCw
+                  className={cn('h-3.5 w-3.5 text-primary', isRefreshing && 'animate-spin')}
+                  style={isRefreshing ? undefined : { transform: `rotate(${pullProgress * 180}deg)` }}
+                />
+                <span>{pullIndicatorLabel}</span>
+              </div>
+            </div>
+          ) : null}
+
+          <main
+            ref={mainRef}
+            className="flex-1 h-full pb-6 px-4 sm:px-6 lg:pb-0 lg:p-8 overflow-auto"
+            style={{ overscrollBehaviorY: 'contain' }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={resetPullState}
+          >
+            <div
+              className={cn(!isPulling && 'transition-transform duration-200 ease-out')}
+              style={{ transform: `translateY(${pullDistance}px)` }}
+            >
+              {children}
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   );
