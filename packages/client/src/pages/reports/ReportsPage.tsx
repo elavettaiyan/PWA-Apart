@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   BarChart3, TrendingUp, TrendingDown, Users, AlertTriangle,
-  FileText, DollarSign, Download,
+  DollarSign, Download, Loader2,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -11,12 +11,12 @@ import {
 import api from '../../lib/api';
 import { formatCurrency, getMonthName, cn } from '../../lib/utils';
 import { PageLoader } from '../../components/ui/Loader';
-import type { CollectionReport, PnLReport } from '../../types';
+import type { CollectionReport, PnLReport, ResidentReport } from '../../types';
 import toast from 'react-hot-toast';
 
 const COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899', '#14b8a6', '#64748b'];
 
-type ReportTab = 'collection' | 'defaulters' | 'expenses' | 'pnl';
+type ReportTab = 'collection' | 'residents' | 'defaulters' | 'expenses' | 'pnl';
 
 type PnlPreset = 'month' | 'quarter' | 'year';
 
@@ -86,6 +86,7 @@ export default function ReportsPage() {
 
   const tabs: { id: ReportTab; label: string; icon: React.ElementType }[] = [
     { id: 'collection', label: 'Collection Report', icon: TrendingUp },
+    { id: 'residents', label: 'Resident Report', icon: Users },
     { id: 'defaulters', label: 'Defaulters', icon: AlertTriangle },
     { id: 'expenses', label: 'Expense Summary', icon: DollarSign },
     { id: 'pnl', label: 'P&L Report', icon: BarChart3 },
@@ -122,6 +123,7 @@ export default function ReportsPage() {
 
       {/* Tab Content */}
       {activeTab === 'collection' && <CollectionReportTab month={month} year={year} setMonth={setMonth} setYear={setYear} />}
+      {activeTab === 'residents' && <ResidentReportTab />}
       {activeTab === 'defaulters' && <DefaultersTab />}
       {activeTab === 'expenses' && <ExpenseSummaryTab />}
       {activeTab === 'pnl' && <PnLTab from={pnlFrom} to={pnlTo} setFrom={setPnlFrom} setTo={setPnlTo} />}
@@ -129,15 +131,251 @@ export default function ReportsPage() {
   );
 }
 
+// ── RESIDENT REPORT ─────────────────────────────────────
+function ResidentReportTab() {
+  const [isExporting, setIsExporting] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [page, setPage] = useState(1);
+  const [draftFilters, setDraftFilters] = useState({
+    name: '',
+    mobile: '',
+    carNumber: '',
+  });
+  const [appliedFilters, setAppliedFilters] = useState(draftFilters);
+  const pageSize = 20;
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setAppliedFilters((current) => {
+        if (
+          current.name === draftFilters.name
+          && current.mobile === draftFilters.mobile
+          && current.carNumber === draftFilters.carNumber
+        ) {
+          return current;
+        }
+
+        return draftFilters;
+      });
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [draftFilters]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [appliedFilters]);
+
+  const queryString = useMemo(() => {
+    const searchParams = new URLSearchParams();
+    if (appliedFilters.name.trim()) searchParams.set('name', appliedFilters.name.trim());
+    if (appliedFilters.mobile.trim()) searchParams.set('mobile', appliedFilters.mobile.trim());
+    if (appliedFilters.carNumber.trim()) searchParams.set('carNumber', appliedFilters.carNumber.trim());
+    searchParams.set('page', String(page));
+    searchParams.set('pageSize', String(pageSize));
+    return searchParams.toString();
+  }, [appliedFilters, page]);
+
+  const exportQueryString = useMemo(() => {
+    const exportParams = new URLSearchParams();
+    if (appliedFilters.name.trim()) exportParams.set('name', appliedFilters.name.trim());
+    if (appliedFilters.mobile.trim()) exportParams.set('mobile', appliedFilters.mobile.trim());
+    if (appliedFilters.carNumber.trim()) exportParams.set('carNumber', appliedFilters.carNumber.trim());
+    return exportParams.toString();
+  }, [appliedFilters]);
+
+  const { data, isLoading, isFetching, isError, error } = useQuery<ResidentReport>({
+    queryKey: ['report-residents', appliedFilters.name, appliedFilters.mobile, appliedFilters.carNumber, page, pageSize],
+    queryFn: async () => (await api.get(`/reports/residents?${queryString}`)).data,
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  });
+
+  if (isLoading && !data) return <PageLoader />;
+
+  if (isError) {
+    return (
+      <div className="rounded-2xl border border-error/20 bg-error/5 px-4 py-6 text-sm text-error">
+        {((error as any)?.response?.data?.error as string | undefined) || 'Failed to load resident report.'}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm text-on-surface-variant">
+          <p>All residents are shown by default. Use filters only when needed.</p>
+          {isFetching ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-surface-container px-2 py-1 text-xs text-on-surface-variant">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Updating...
+            </span>
+          ) : null}
+        </div>
+        <button type="button" className="btn-secondary" onClick={() => setShowFilters((current) => !current)}>
+          {showFilters ? 'Hide Filters' : 'Show Filters'}
+        </button>
+      </div>
+
+      {showFilters && (
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="label">Name</label>
+            <input
+              className="input"
+              value={draftFilters.name}
+              onChange={(e) => setDraftFilters((current) => ({ ...current, name: e.target.value }))}
+              placeholder="Search by resident name"
+            />
+          </div>
+          <div>
+            <label className="label">Mobile Number</label>
+            <input
+              className="input"
+              value={draftFilters.mobile}
+              onChange={(e) => setDraftFilters((current) => ({ ...current, mobile: e.target.value }))}
+              placeholder="Search by mobile number"
+            />
+          </div>
+          <div>
+            <label className="label">Car Number</label>
+            <input
+              className="input"
+              value={draftFilters.carNumber}
+              onChange={(e) => setDraftFilters((current) => ({ ...current, carNumber: e.target.value }))}
+              placeholder="Search by car number"
+            />
+          </div>
+          <div className="md:col-span-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-outline-variant/10 bg-surface-container/40 px-4 py-3">
+            <p className="text-xs text-on-surface-variant">
+              Search updates automatically after you pause typing.
+            </p>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setDraftFilters({ name: '', mobile: '', carNumber: '' });
+                setAppliedFilters({ name: '', mobile: '', carNumber: '' });
+                setPage(1);
+              }}
+              disabled={!draftFilters.name && !draftFilters.mobile && !draftFilters.carNumber}
+            >
+              Clear Filters
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="grid grid-cols-3 gap-4">
+          <div className="stat-card">
+            <p className="stat-label">Total Residents</p>
+            <p className="text-2xl font-bold text-on-surface">{data?.summary.totalResidents || 0}</p>
+          </div>
+          <div className="stat-card">
+            <p className="stat-label">Owners</p>
+            <p className="text-2xl font-bold text-sky-900">{data?.summary.owners || 0}</p>
+          </div>
+          <div className="stat-card">
+            <p className="stat-label">Tenants</p>
+            <p className="text-2xl font-bold text-emerald-900">{data?.summary.tenants || 0}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={isExporting}
+          onClick={async () => {
+            try {
+              setIsExporting(true);
+              await downloadReportFile(`/reports/residents/export${exportQueryString ? `?${exportQueryString}` : ''}`, 'resident-report.xlsx');
+            } catch (error: any) {
+              toast.error(error.response?.data?.error || 'Failed to export resident report');
+            } finally {
+              setIsExporting(false);
+            }
+          }}
+        >
+          <Download className="h-4 w-4" /> {isExporting ? 'Exporting...' : 'Export Excel'}
+        </button>
+      </div>
+
+      <div className="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Resident</th>
+              <th>Relation</th>
+              <th>Mobile</th>
+              <th>Car Number</th>
+              <th>Flat</th>
+              <th>Block</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data?.residents?.map((resident, index) => (
+              <tr key={`${resident.relation}-${resident.flatNumber}-${resident.mobile}-${index}`}>
+                <td>
+                  <p className="font-medium">{resident.name}</p>
+                  <p className="text-xs text-on-surface-variant">{resident.email || '—'}</p>
+                </td>
+                <td>
+                  <span className={cn('badge', resident.relation === 'OWNER' ? 'badge-info' : 'badge-success')}>
+                    {resident.relation}
+                  </span>
+                </td>
+                <td>{resident.mobile || '—'}</td>
+                <td>{resident.carNumber || '—'}</td>
+                <td>{resident.flatNumber}</td>
+                <td>{resident.blockName || '—'}</td>
+              </tr>
+            ))}
+            {(!data?.residents || data.residents.length === 0) && (
+              <tr>
+                <td colSpan={6} className="py-8 text-center text-on-surface-variant">No residents matched the selected filters.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <p className="text-sm text-on-surface-variant">
+          Showing page {data?.pagination.page || 1} of {data?.pagination.totalPages || 1} · {data?.pagination.totalItems || 0} residents
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={!data || data.pagination.page <= 1}
+            onClick={() => setPage((current) => Math.max(current - 1, 1))}
+          >
+            Previous
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={!data || data.pagination.page >= data.pagination.totalPages}
+            onClick={() => setPage((current) => (!data ? current : Math.min(current + 1, data.pagination.totalPages)))}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── COLLECTION REPORT ───────────────────────────────────
 function CollectionReportTab({ month, year, setMonth, setYear }: any) {
   const [isExporting, setIsExporting] = useState(false);
-  const { data, isLoading } = useQuery<CollectionReport>({
+  const { data, isLoading, isFetching } = useQuery<CollectionReport>({
     queryKey: ['report-collection', month, year],
     queryFn: async () => (await api.get(`/reports/collection?month=${month}&year=${year}`)).data,
+    placeholderData: keepPreviousData,
   });
 
-  if (isLoading) return <PageLoader />;
+  if (isLoading && !data) return <PageLoader />;
 
   const summary = data?.summary;
 
@@ -150,6 +388,11 @@ function CollectionReportTab({ month, year, setMonth, setYear }: any) {
         <select className="select w-28" value={year} onChange={(e) => setYear(Number(e.target.value))}>
           {[2024, 2025, 2026, 2027].map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
+        {isFetching ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-surface-container px-3 py-2 text-xs text-on-surface-variant">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Updating...
+          </span>
+        ) : null}
         <button
           type="button"
           className="btn-secondary"
@@ -379,12 +622,13 @@ function ExpenseSummaryTab() {
 // ── P&L REPORT ──────────────────────────────────────────
 function PnLTab({ from, to, setFrom, setTo }: { from: string; to: string; setFrom: (v: string) => void; setTo: (v: string) => void }) {
   const [isExporting, setIsExporting] = useState(false);
-  const { data, isLoading } = useQuery<PnLReport>({
+  const { data, isLoading, isFetching } = useQuery<PnLReport>({
     queryKey: ['report-pnl', from, to],
     queryFn: async () => (await api.get(`/reports/pnl?fromDate=${from}&toDate=${to}`)).data,
+    placeholderData: keepPreviousData,
   });
 
-  if (isLoading) return <PageLoader />;
+  if (isLoading && !data) return <PageLoader />;
 
   // Merge income and expense months for chart
   const allMonths = new Set([
@@ -453,6 +697,11 @@ function PnLTab({ from, to, setFrom, setTo }: { from: string; to: string; setFro
             <label className="label">To</label>
             <input type="date" className="input" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
+          {isFetching ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-surface-container px-3 py-2 text-xs text-on-surface-variant sm:mb-0">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Updating...
+            </span>
+          ) : null}
           <button
             type="button"
             className="btn-secondary sm:mb-0"

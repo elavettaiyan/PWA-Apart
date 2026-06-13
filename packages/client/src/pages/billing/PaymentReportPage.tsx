@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Download, FileText } from 'lucide-react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { ArrowLeft, Download, FileText, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -46,12 +46,13 @@ export default function PaymentReportPage() {
     return params;
   }
 
-  const { data, isLoading, isError } = useQuery<ReportResponse>({
+  const { data, isLoading, isFetching, isError } = useQuery<ReportResponse>({
     queryKey: ['payment-report', page, statusFilter, startDate, endDate, user?.societyId],
     queryFn: async () => {
       const { data } = await api.get<ReportResponse>(`/payments/report?${buildParams()}`);
       return data;
     },
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
 
@@ -79,7 +80,7 @@ export default function PaymentReportPage() {
     setPage(1);
   }
 
-  if (isLoading) return <PageLoader />;
+  if (isLoading && !data) return <PageLoader />;
 
   const payments = data?.payments ?? [];
   const totalPages = data?.pages ?? 1;
@@ -111,6 +112,14 @@ export default function PaymentReportPage() {
 
       {/* Filters */}
       <div className="card bg-base-100 shadow-sm mb-4 p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p className="text-xs text-base-content/60">Report rows stay visible while filters update.</p>
+          {isFetching ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-base-200 px-2 py-1 text-xs text-base-content/60">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Updating...
+            </span>
+          ) : null}
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <select
             className="select select-bordered select-sm"

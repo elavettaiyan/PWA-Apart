@@ -724,7 +724,15 @@ function AddBlockForm({ onSuccess }: { onSuccess: () => void }) {
 
 // ── Add Flat Form ───────────────────────────────────────
 function AddFlatForm({ blocks, onSuccess, onLimitReached }: { blocks: Block[]; onSuccess: () => void; onLimitReached: () => void }) {
-  const [form, setForm] = useState({ flatNumber: '', floor: '1', type: 'TWO_BHK', areaSqFt: '', blockId: blocks[0]?.id || '' });
+  const [form, setForm] = useState({
+    flatNumber: '',
+    floor: '1',
+    type: 'TWO_BHK',
+    areaSqFt: '',
+    parkingType: 'NONE' as 'NONE' | 'OPEN' | 'COVERED',
+    parkingSlotNumber: '',
+    blockId: blocks[0]?.id || '',
+  });
 
   useEffect(() => {
     // Blocks are loaded asynchronously; ensure blockId is set once data arrives.
@@ -751,7 +759,12 @@ function AddFlatForm({ blocks, onSuccess, onLimitReached }: { blocks: Block[]; o
       toast.error('Please create/select a block before adding a flat.');
       return;
     }
-    mutation.mutate({ ...form, floor: Number(form.floor), areaSqFt: form.areaSqFt ? Number(form.areaSqFt) : undefined });
+    mutation.mutate({
+      ...form,
+      floor: Number(form.floor),
+      areaSqFt: form.areaSqFt ? Number(form.areaSqFt) : undefined,
+      parkingSlotNumber: form.parkingType === 'NONE' ? undefined : form.parkingSlotNumber.trim() || undefined,
+    });
   };
 
   return (
@@ -788,6 +801,35 @@ function AddFlatForm({ blocks, onSuccess, onLimitReached }: { blocks: Block[]; o
         <div>
           <label className="label">Area (sq.ft)</label>
           <input type="number" className="input" value={form.areaSqFt} onChange={(e) => setForm({ ...form, areaSqFt: e.target.value })} placeholder="Optional" />
+        </div>
+        <div>
+          <label className="label">Parking Type</label>
+          <select
+            className="select"
+            value={form.parkingType}
+            onChange={(e) => {
+              const parkingType = e.target.value as 'NONE' | 'OPEN' | 'COVERED';
+              setForm({
+                ...form,
+                parkingType,
+                parkingSlotNumber: parkingType === 'NONE' ? '' : form.parkingSlotNumber,
+              });
+            }}
+          >
+            <option value="NONE">None</option>
+            <option value="OPEN">Open</option>
+            <option value="COVERED">Covered</option>
+          </select>
+        </div>
+        <div>
+          <label className="label">Parking Slot Number</label>
+          <input
+            className="input"
+            value={form.parkingSlotNumber}
+            onChange={(e) => setForm({ ...form, parkingSlotNumber: e.target.value })}
+            placeholder="Optional"
+            disabled={form.parkingType === 'NONE'}
+          />
         </div>
       </div>
       <div className="flex justify-end gap-3 pt-4">
@@ -832,6 +874,8 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
     name: flat.owner?.name || '',
     phone: flat.owner?.phone || '',
     email: flat.owner?.email || '',
+    carNumber: flat.owner?.carNumber || '',
+    twoWheelerNumber: flat.owner?.twoWheelerNumber || '',
     aadharNo: flat.owner?.aadharNo || '',
     panNo: flat.owner?.panNo || '',
   });
@@ -839,6 +883,8 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
     name: activeTenant?.name || '',
     phone: activeTenant?.phone || '',
     email: activeTenant?.email || '',
+    carNumber: activeTenant?.carNumber || '',
+    twoWheelerNumber: activeTenant?.twoWheelerNumber || '',
     leaseStart: activeTenant?.leaseStart ? new Date(activeTenant.leaseStart).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
     leaseEnd: activeTenant?.leaseEnd ? new Date(activeTenant.leaseEnd).toISOString().split('T')[0] : '',
     rentAmount: activeTenant?.rentAmount?.toString() || '',
@@ -852,16 +898,20 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
       name: flat.owner?.name || '',
       phone: flat.owner?.phone || '',
       email: flat.owner?.email || '',
+      carNumber: flat.owner?.carNumber || '',
+      twoWheelerNumber: flat.owner?.twoWheelerNumber || '',
       aadharNo: flat.owner?.aadharNo || '',
       panNo: flat.owner?.panNo || '',
     });
-  }, [flat.owner]);
+  }, [flat.owner, flat.parkingType, flat.parkingSlotNumber]);
 
   useEffect(() => {
     setTenantForm({
       name: activeTenant?.name || '',
       phone: activeTenant?.phone || '',
       email: activeTenant?.email || '',
+      carNumber: activeTenant?.carNumber || '',
+      twoWheelerNumber: activeTenant?.twoWheelerNumber || '',
       leaseStart: activeTenant?.leaseStart ? new Date(activeTenant.leaseStart).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       leaseEnd: activeTenant?.leaseEnd ? new Date(activeTenant.leaseEnd).toISOString().split('T')[0] : '',
       rentAmount: activeTenant?.rentAmount?.toString() || '',
@@ -925,6 +975,8 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
       name: form.name.trim(),
       phone: contact.phone,
       email: contact.email || undefined,
+      carNumber: form.carNumber.trim() || undefined,
+      twoWheelerNumber: form.twoWheelerNumber.trim() || undefined,
       aadharNo: form.aadharNo.trim() || undefined,
       panNo: form.panNo.trim() || undefined,
     });
@@ -952,6 +1004,8 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
       name: tenantForm.name.trim(),
       phone: contact.phone,
       email: contact.email || undefined,
+      carNumber: tenantForm.carNumber.trim() || undefined,
+      twoWheelerNumber: tenantForm.twoWheelerNumber.trim() || undefined,
       leaseStart: tenantForm.leaseStart,
       leaseEnd: tenantForm.leaseEnd || undefined,
       rentAmount: tenantForm.rentAmount || undefined,
@@ -964,6 +1018,9 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
       <div className="mb-4 p-3 bg-surface-container-low rounded-lg">
         <p className="text-sm text-on-surface-variant">
           <strong>Flat:</strong> {flat.flatNumber} · {flat.block?.name} · Floor {flat.floor} · {getFlatTypeLabel(flat.type)}
+        </p>
+        <p className="text-xs text-on-surface-variant mt-1">
+          <strong>Parking:</strong> {flat.parkingType && flat.parkingType !== 'NONE' ? `${flat.parkingType}${flat.parkingSlotNumber ? ` · Slot ${flat.parkingSlotNumber}` : ''}` : 'None'}
         </p>
       </div>
 
@@ -1014,6 +1071,14 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 placeholder="owner@email.com"
               />
+            </div>
+            <div>
+              <label className="label">Car Number</label>
+              <input className="input" value={form.carNumber} onChange={(e) => setForm({ ...form, carNumber: e.target.value })} placeholder="Optional" />
+            </div>
+            <div>
+              <label className="label">Two Wheeler Number</label>
+              <input className="input" value={form.twoWheelerNumber} onChange={(e) => setForm({ ...form, twoWheelerNumber: e.target.value })} placeholder="Optional" />
             </div>
             <div>
               <label className="label">Aadhar No</label>
@@ -1098,6 +1163,14 @@ function ManageFlatForm({ flat, onSaved }: { flat: Flat; onSaved: () => void }) 
                 onChange={(e) => setTenantForm({ ...tenantForm, email: e.target.value })}
                 placeholder="tenant@email.com"
               />
+            </div>
+            <div>
+              <label className="label">Car Number</label>
+              <input className="input" value={tenantForm.carNumber} onChange={(e) => setTenantForm({ ...tenantForm, carNumber: e.target.value })} placeholder="Optional" />
+            </div>
+            <div>
+              <label className="label">Two Wheeler Number</label>
+              <input className="input" value={tenantForm.twoWheelerNumber} onChange={(e) => setTenantForm({ ...tenantForm, twoWheelerNumber: e.target.value })} placeholder="Optional" />
             </div>
             <div>
               <label className="label">Lease Start *</label>

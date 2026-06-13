@@ -99,6 +99,99 @@ function sendWorkbook(res: Response, filename: string, sheets: Array<{ name: str
   return res.send(buffer);
 }
 
+function matchesResidentFilters(
+  resident: { name?: string | null; phone?: string | null; carNumber?: string | null },
+  filters: { name?: string; mobile?: string; carNumber?: string },
+) {
+  const normalizedName = (filters.name || '').trim().toLowerCase();
+  const normalizedMobile = (filters.mobile || '').trim().toLowerCase();
+  const normalizedCarNumber = (filters.carNumber || '').trim().toLowerCase();
+
+  if (normalizedName && !(resident.name || '').toLowerCase().includes(normalizedName)) {
+    return false;
+  }
+
+  if (normalizedMobile && !(resident.phone || '').toLowerCase().includes(normalizedMobile)) {
+    return false;
+  }
+
+  if (normalizedCarNumber && !(resident.carNumber || '').toLowerCase().includes(normalizedCarNumber)) {
+    return false;
+  }
+
+  return true;
+}
+
+async function getResidentReportRows(
+  societyId: string,
+  filters: { name?: string; mobile?: string; carNumber?: string },
+) {
+  const flats = await prisma.flat.findMany({
+    where: { block: { societyId } },
+    include: {
+      block: { select: { name: true } },
+      owner: {
+        select: {
+          name: true,
+          phone: true,
+          email: true,
+          carNumber: true,
+          twoWheelerNumber: true,
+        },
+      },
+      tenant: {
+        select: {
+          name: true,
+          phone: true,
+          email: true,
+          carNumber: true,
+          twoWheelerNumber: true,
+          isActive: true,
+        },
+      },
+    },
+    orderBy: [{ block: { name: 'asc' } }, { flatNumber: 'asc' }],
+  });
+
+  const residents = flats.flatMap((flat) => {
+    if (!flat.isOccupied) {
+      return [];
+    }
+
+    if (flat.tenant?.isActive) {
+      return matchesResidentFilters(flat.tenant, filters)
+        ? [{
+            relation: 'TENANT',
+            name: flat.tenant.name,
+            mobile: flat.tenant.phone,
+            email: flat.tenant.email || '',
+            carNumber: flat.tenant.carNumber || '',
+            twoWheelerNumber: flat.tenant.twoWheelerNumber || '',
+            flatNumber: flat.flatNumber,
+            blockName: flat.block?.name || '',
+          }]
+        : [];
+    }
+
+    if (flat.owner && matchesResidentFilters(flat.owner, filters)) {
+      return [{
+        relation: 'OWNER',
+        name: flat.owner.name,
+        mobile: flat.owner.phone,
+        email: flat.owner.email || '',
+        carNumber: flat.owner.carNumber || '',
+        twoWheelerNumber: flat.owner.twoWheelerNumber || '',
+        flatNumber: flat.flatNumber,
+        blockName: flat.block?.name || '',
+      }];
+    }
+
+    return [];
+  });
+
+  return residents;
+}
+
 // ── MY DASHBOARD (Owner/Tenant) ─────────────────────────
 router.get('/my-dashboard', async (req: AuthRequest, res: Response) => {
   try {
@@ -246,6 +339,113 @@ router.get('/dashboard', authorize('SUPER_ADMIN', ...FINANCIAL_ROLES), async (re
     return res.status(500).json({ error: 'Failed to fetch dashboard data' });
   }
 });
+
+// ── RESIDENT REPORT ─────────────────────────────────────
+router.get(
+  '/residents',
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
+  [
+    query('name').optional({ values: 'falsy' }).isString(),
+    query('mobile').optional({ values: 'falsy' }).isString(),
+    query('carNumber').optional({ values: 'falsy' }).isString(),
+    query('page').optional().isInt({ min: 1 }),
+    query('pageSize').optional().isInt({ min: 1, max: 100 }),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const societyId = req.user!.role === 'SUPER_ADMIN'
+        ? (req.query.societyId as string) || req.user!.societyId
+        : req.user!.societyId;
+
+      if (!societyId) {
+        return res.status(400).json({ error: 'Society ID required' });
+      }
+
+      const filters = {
+        name: req.query.name as string | undefined,
+        mobile: req.query.mobile as string | undefined,
+        carNumber: req.query.carNumber as string | undefined,
+      };
+
+      const page = Math.max(parseInt((req.query.page as string) || '1', 10), 1);
+      const pageSize = Math.max(parseInt((req.query.pageSize as string) || '20', 10), 1);
+      const allResidents = await getResidentReportRows(societyId, filters);
+      const totalItems = allResidents.length;
+      const totalPages = Math.max(Math.ceil(totalItems / pageSize), 1);
+      const currentPage = Math.min(page, totalPages);
+      const start = (currentPage - 1) * pageSize;
+      const residents = allResidents.slice(start, start + pageSize);
+      const summary = {
+        totalResidents: totalItems,
+        owners: allResidents.filter((resident) => resident.relation === 'OWNER').length,
+        tenants: allResidents.filter((resident) => resident.relation === 'TENANT').length,
+      };
+
+      return res.json({
+        residents,
+        summary,
+        filters,
+        pagination: {
+          page: currentPage,
+          pageSize,
+          totalItems,
+          totalPages,
+        },
+      });
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to fetch resident report' });
+    }
+  },
+);
+
+router.get(
+  '/residents/export',
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
+  [
+    query('name').optional({ values: 'falsy' }).isString(),
+    query('mobile').optional({ values: 'falsy' }).isString(),
+    query('carNumber').optional({ values: 'falsy' }).isString(),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const societyId = req.user!.role === 'SUPER_ADMIN'
+        ? (req.query.societyId as string) || req.user!.societyId
+        : req.user!.societyId;
+
+      if (!societyId) {
+        return res.status(400).json({ error: 'Society ID required' });
+      }
+
+      const filters = {
+        name: req.query.name as string | undefined,
+        mobile: req.query.mobile as string | undefined,
+        carNumber: req.query.carNumber as string | undefined,
+      };
+
+      const residents = await getResidentReportRows(societyId, filters);
+
+      return sendWorkbook(res, 'resident-report.xlsx', [
+        {
+          name: 'Residents',
+          rows: residents.map((resident) => ({
+            Relation: resident.relation,
+            Name: resident.name,
+            Mobile: resident.mobile,
+            Email: resident.email,
+            CarNumber: resident.carNumber,
+            TwoWheelerNumber: resident.twoWheelerNumber,
+            Flat: resident.flatNumber,
+            Block: resident.blockName,
+          })),
+        },
+      ]);
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to export resident report' });
+    }
+  },
+);
 
 // ── MONTHLY COLLECTION REPORT ───────────────────────────
 router.get(

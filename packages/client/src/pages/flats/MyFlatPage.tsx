@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, User, Phone, Mail, Home, Calendar, UserPlus, Pencil, Trash2, Loader2, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -12,8 +12,9 @@ import type { Flat, MaintenanceBill, PaymentMethod } from '../../types';
 export default function MyFlatPage() {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
-  const { user, viewMode } = useAuthStore();
+  const { user, viewMode, setUser } = useAuthStore();
   const isOwner = user?.role === 'OWNER' || isOwnerViewActive(user, viewMode);
+  const residentRelation = !isOwner && user?.flatRelation === 'TENANT' ? 'TENANT' : 'OWNER';
 
   const { data: flat, isLoading, error } = useQuery<Flat>({
     queryKey: ['my-flat', user?.activeSocietyId || user?.societyId || 'no-society', selectedYear],
@@ -32,6 +33,7 @@ export default function MyFlatPage() {
     () => Array.from({ length: 6 }, (_, index) => currentYear - index),
     [currentYear],
   );
+  const isTenantSelfView = residentRelation === 'TENANT';
 
   if (isLoading) return <PageLoader />;
 
@@ -73,6 +75,7 @@ export default function MyFlatPage() {
             <Row label="Floor" value={flat.floor} />
             <Row label="BHK Type" value={flat.type?.replace('_', ' ')} />
             {flat.areaSqFt && <Row label="Area" value={`${flat.areaSqFt} sq.ft.`} />}
+            <Row label="Parking" value={getParkingLabel(flat.parkingType, flat.parkingSlotNumber)} />
             <Row label="Status" value={flat.isOccupied ? 'Occupied' : 'Vacant'} />
           </div>
         </div>
@@ -80,23 +83,19 @@ export default function MyFlatPage() {
         {/* Owner / Tenant Info */}
         <div className="space-y-6">
           {flat.owner && (
-            <div className="card-elevated p-6">
-              <h2 className="text-lg font-bold text-primary mb-4 flex items-center gap-2 editorial-title">
-                <div className="w-8 h-8 rounded-xl bg-secondary-container flex items-center justify-center">
-                  <User className="w-4 h-4 text-on-secondary-container" />
-                </div>
-                Owner
-              </h2>
-              <div className="space-y-3 text-sm">
-                <Row label="Name" value={flat.owner.name} />
-                <Row label="Phone" value={flat.owner.phone} icon={<Phone className="w-3.5 h-3.5" />} />
-                <Row label="Email" value={flat.owner.email} icon={<Mail className="w-3.5 h-3.5" />} />
-              </div>
-            </div>
+            <OwnerCard
+              owner={flat.owner}
+              canSelfEdit={residentRelation === 'OWNER'}
+              onPhoneUpdated={(phone) => {
+                if (user) {
+                  setUser({ ...user, phone });
+                }
+              }}
+            />
           )}
 
           {flat.tenant && flat.tenant.isActive !== false ? (
-            <TenantCard tenant={flat.tenant} isOwner={isOwner} />
+            <TenantCard tenant={flat.tenant} isOwner={isOwner} allowSelfVehicleEdit={isTenantSelfView} />
           ) : isOwner ? (
             <AddTenantCard />
           ) : null}
@@ -182,6 +181,212 @@ function Row({ label, value, icon }: { label: string; value: string | number | n
       <span className="font-medium text-on-surface flex items-center gap-1.5">
         {icon} {value || '—'}
       </span>
+    </div>
+  );
+}
+
+function getParkingLabel(parkingType?: 'NONE' | 'OPEN' | 'COVERED', parkingSlotNumber?: string) {
+  if (!parkingType || parkingType === 'NONE') {
+    return 'None';
+  }
+
+  return `${parkingType}${parkingSlotNumber ? ` - Slot ${parkingSlotNumber}` : ''}`;
+}
+
+function EditableResidentRow({
+  label,
+  value,
+  icon,
+  canEdit = true,
+  isEditing,
+  inputValue,
+  placeholder,
+  inputMode,
+  maxLength,
+  onStartEdit,
+  onCancel,
+  onChange,
+  onSave,
+  isSaving,
+}: {
+  label: string;
+  value: string | null | undefined;
+  icon?: React.ReactNode;
+  canEdit?: boolean;
+  isEditing: boolean;
+  inputValue: string;
+  placeholder?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
+  maxLength?: number;
+  onStartEdit: () => void;
+  onCancel: () => void;
+  onChange: (value: string) => void;
+  onSave: () => void;
+  isSaving: boolean;
+}) {
+  if (!isEditing) {
+    return (
+      <div className="flex justify-between items-center py-1.5 border-b border-outline-variant/5 last:border-0 gap-3">
+        <span className="text-on-surface-variant">{label}</span>
+        <span className="font-medium text-on-surface flex items-center gap-1.5">
+          {icon} {value || '—'}
+          {canEdit ? (
+            <button type="button" className="text-primary hover:text-primary/80" onClick={onStartEdit} aria-label={`Edit ${label}`}>
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          ) : null}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-2 border-b border-outline-variant/5 last:border-0 space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-on-surface-variant">{label}</span>
+        <button type="button" className="text-primary hover:text-primary/80" onClick={onCancel} aria-label={`Cancel editing ${label}`}>
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          className="input flex-1"
+          value={inputValue}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          inputMode={inputMode}
+          maxLength={maxLength}
+        />
+        <button type="button" className="btn-primary" disabled={isSaving} onClick={onSave}>
+          {isSaving ? 'Saving...' : 'Save'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function OwnerCard({
+  owner,
+  canSelfEdit,
+  onPhoneUpdated,
+}: {
+  owner: { name: string; phone?: string; email?: string; carNumber?: string; twoWheelerNumber?: string };
+  canSelfEdit: boolean;
+  onPhoneUpdated: (phone: string) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [editingField, setEditingField] = useState<'phone' | 'carNumber' | 'twoWheelerNumber' | null>(null);
+  const [form, setForm] = useState({
+    phone: owner.phone || '',
+    carNumber: owner.carNumber || '',
+    twoWheelerNumber: owner.twoWheelerNumber || '',
+  });
+
+  useEffect(() => {
+    setForm({
+      phone: owner.phone || '',
+      carNumber: owner.carNumber || '',
+      twoWheelerNumber: owner.twoWheelerNumber || '',
+    });
+    setEditingField(null);
+  }, [owner.phone, owner.carNumber, owner.twoWheelerNumber]);
+
+  const mutation = useMutation({
+    mutationFn: async (field: 'phone' | 'carNumber' | 'twoWheelerNumber') => {
+      const payload: Record<string, string> = {};
+      payload.relation = 'OWNER';
+
+      if (field === 'phone') {
+        const normalizedPhone = normalizeIndianMobileNumber(form.phone);
+        if (!isValidIndianMobileNumber(normalizedPhone)) {
+          throw new Error('Phone number must be a valid 10-digit Indian mobile number.');
+        }
+        payload.phone = normalizedPhone;
+      } else if (field === 'carNumber') {
+        payload.carNumber = form.carNumber.trim();
+      } else {
+        payload.twoWheelerNumber = form.twoWheelerNumber.trim();
+      }
+
+      return (await api.put('/flats/my-flat/resident', payload)).data;
+    },
+    onSuccess: (_data, field) => {
+      if (field === 'phone') {
+        onPhoneUpdated(normalizeIndianMobileNumber(form.phone));
+      }
+      setEditingField(null);
+      toast.success('Resident details updated');
+      queryClient.invalidateQueries({ queryKey: ['my-flat'] });
+    },
+    onError: (error: any) => {
+      const message = error instanceof Error ? error.message : getApiErrorMessage(error, 'Failed to update resident details');
+      toast.error(message);
+    },
+  });
+
+  return (
+    <div className="card-elevated p-6">
+      <h2 className="text-lg font-bold text-primary mb-4 flex items-center gap-2 editorial-title">
+        <div className="w-8 h-8 rounded-xl bg-secondary-container flex items-center justify-center">
+          <User className="w-4 h-4 text-on-secondary-container" />
+        </div>
+        Owner
+      </h2>
+      <div className="space-y-3 text-sm">
+        <Row label="Name" value={owner.name} />
+        <EditableResidentRow
+          label="Phone"
+          value={owner.phone}
+          icon={<Phone className="w-3.5 h-3.5" />}
+          canEdit={canSelfEdit}
+          isEditing={editingField === 'phone'}
+          inputValue={form.phone}
+          inputMode="numeric"
+          maxLength={10}
+          placeholder="9876543210"
+          onStartEdit={() => canSelfEdit && setEditingField('phone')}
+          onCancel={() => {
+            setEditingField(null);
+            setForm((current) => ({ ...current, phone: owner.phone || '' }));
+          }}
+          onChange={(value) => setForm((current) => ({ ...current, phone: value }))}
+          onSave={() => mutation.mutate('phone')}
+          isSaving={mutation.isPending && editingField === 'phone'}
+        />
+        <Row label="Email" value={owner.email} icon={<Mail className="w-3.5 h-3.5" />} />
+        <EditableResidentRow
+          label="Car"
+          value={owner.carNumber}
+          canEdit={canSelfEdit}
+          isEditing={editingField === 'carNumber'}
+          inputValue={form.carNumber}
+          placeholder="Optional"
+          onStartEdit={() => canSelfEdit && setEditingField('carNumber')}
+          onCancel={() => {
+            setEditingField(null);
+            setForm((current) => ({ ...current, carNumber: owner.carNumber || '' }));
+          }}
+          onChange={(value) => setForm((current) => ({ ...current, carNumber: value }))}
+          onSave={() => mutation.mutate('carNumber')}
+          isSaving={mutation.isPending && editingField === 'carNumber'}
+        />
+        <EditableResidentRow
+          label="Two Wheeler"
+          value={owner.twoWheelerNumber}
+          canEdit={canSelfEdit}
+          isEditing={editingField === 'twoWheelerNumber'}
+          inputValue={form.twoWheelerNumber}
+          placeholder="Optional"
+          onStartEdit={() => canSelfEdit && setEditingField('twoWheelerNumber')}
+          onCancel={() => {
+            setEditingField(null);
+            setForm((current) => ({ ...current, twoWheelerNumber: owner.twoWheelerNumber || '' }));
+          }}
+          onChange={(value) => setForm((current) => ({ ...current, twoWheelerNumber: value }))}
+          onSave={() => mutation.mutate('twoWheelerNumber')}
+          isSaving={mutation.isPending && editingField === 'twoWheelerNumber'}
+        />
+      </div>
     </div>
   );
 }
@@ -362,10 +567,23 @@ function AddTenantCard() {
 }
 
 // ── TENANT CARD (displays tenant info, with edit/remove for owner) ──
-function TenantCard({ tenant, isOwner }: { tenant: any; isOwner: boolean }) {
+function TenantCard({ tenant, isOwner, allowSelfVehicleEdit = false }: { tenant: any; isOwner: boolean; allowSelfVehicleEdit?: boolean }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const [editingField, setEditingField] = useState<'carNumber' | 'twoWheelerNumber' | null>(null);
+  const [residentForm, setResidentForm] = useState({
+    carNumber: tenant.carNumber || '',
+    twoWheelerNumber: tenant.twoWheelerNumber || '',
+  });
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+
+  useEffect(() => {
+    setResidentForm({
+      carNumber: tenant.carNumber || '',
+      twoWheelerNumber: tenant.twoWheelerNumber || '',
+    });
+    setEditingField(null);
+  }, [tenant.carNumber, tenant.twoWheelerNumber]);
 
   const updateMutation = useMutation({
     mutationFn: (data: TenantFormData) =>
@@ -394,6 +612,22 @@ function TenantCard({ tenant, isOwner }: { tenant: any; isOwner: boolean }) {
       queryClient.invalidateQueries({ queryKey: ['my-flat'] });
     },
     onError: (e: any) => toast.error(getApiErrorMessage(e, 'Failed to remove tenant')),
+  });
+
+  const residentMutation = useMutation({
+    mutationFn: async (field: 'carNumber' | 'twoWheelerNumber') => {
+      const payload: Record<string, string> = field === 'carNumber'
+        ? { relation: 'TENANT', carNumber: residentForm.carNumber.trim() }
+        : { relation: 'TENANT', twoWheelerNumber: residentForm.twoWheelerNumber.trim() };
+
+      return (await api.put('/flats/my-flat/resident', payload)).data;
+    },
+    onSuccess: () => {
+      setEditingField(null);
+      toast.success('Resident details updated');
+      queryClient.invalidateQueries({ queryKey: ['my-flat'] });
+    },
+    onError: (error: any) => toast.error(getApiErrorMessage(error, 'Failed to update resident details')),
   });
 
   const toDateStr = (d: string | null | undefined) => (d ? new Date(d).toISOString().split('T')[0] : '');
@@ -444,6 +678,40 @@ function TenantCard({ tenant, isOwner }: { tenant: any; isOwner: boolean }) {
         <Row label="Name" value={tenant.name} />
         <Row label="Phone" value={tenant.phone} icon={<Phone className="w-3.5 h-3.5" />} />
         <Row label="Email" value={tenant.email} icon={<Mail className="w-3.5 h-3.5" />} />
+        {allowSelfVehicleEdit ? (
+          <EditableResidentRow
+            label="Car"
+            value={tenant.carNumber}
+            isEditing={editingField === 'carNumber'}
+            inputValue={residentForm.carNumber}
+            placeholder="Optional"
+            onStartEdit={() => setEditingField('carNumber')}
+            onCancel={() => {
+              setEditingField(null);
+              setResidentForm((current) => ({ ...current, carNumber: tenant.carNumber || '' }));
+            }}
+            onChange={(value) => setResidentForm((current) => ({ ...current, carNumber: value }))}
+            onSave={() => residentMutation.mutate('carNumber')}
+            isSaving={residentMutation.isPending && editingField === 'carNumber'}
+          />
+        ) : tenant.carNumber ? <Row label="Car" value={tenant.carNumber} /> : null}
+        {allowSelfVehicleEdit ? (
+          <EditableResidentRow
+            label="Two Wheeler"
+            value={tenant.twoWheelerNumber}
+            isEditing={editingField === 'twoWheelerNumber'}
+            inputValue={residentForm.twoWheelerNumber}
+            placeholder="Optional"
+            onStartEdit={() => setEditingField('twoWheelerNumber')}
+            onCancel={() => {
+              setEditingField(null);
+              setResidentForm((current) => ({ ...current, twoWheelerNumber: tenant.twoWheelerNumber || '' }));
+            }}
+            onChange={(value) => setResidentForm((current) => ({ ...current, twoWheelerNumber: value }))}
+            onSave={() => residentMutation.mutate('twoWheelerNumber')}
+            isSaving={residentMutation.isPending && editingField === 'twoWheelerNumber'}
+          />
+        ) : tenant.twoWheelerNumber ? <Row label="Two Wheeler" value={tenant.twoWheelerNumber} /> : null}
         <Row label="Lease Start" value={formatDate(tenant.leaseStart || tenant.leaseStartDate)} icon={<Calendar className="w-3.5 h-3.5" />} />
         {(tenant.leaseEnd || tenant.leaseEndDate) && (
           <Row label="Lease End" value={formatDate(tenant.leaseEnd || tenant.leaseEndDate)} icon={<Calendar className="w-3.5 h-3.5" />} />

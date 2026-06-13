@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Wallet, Plus, Trash2, FileText } from 'lucide-react';
+import { Wallet, Plus, Trash2, FileText, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { getApiBaseUrl } from '../../lib/platform';
@@ -75,7 +75,7 @@ export default function ExpensesPage() {
   const [accountingYear, setAccountingYear] = useState(currentPeriod.accountingYear);
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery<ExpenseListResponse>({
+  const { data, isLoading, isFetching } = useQuery<ExpenseListResponse>({
     queryKey: ['expenses', accountingMonth, accountingYear, categoryFilter],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -85,6 +85,7 @@ export default function ExpensesPage() {
       if (categoryFilter) params.set('category', categoryFilter);
       return (await api.get(`/expenses?${params.toString()}`)).data;
     },
+    placeholderData: (previousData) => previousData,
   });
 
   const deleteMutation = useMutation({
@@ -96,7 +97,7 @@ export default function ExpensesPage() {
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
   });
 
-  if (isLoading) return <PageLoader />;
+  if (isLoading && !data) return <PageLoader />;
 
   const expenses = data?.expenses || [];
   const total = data?.total || 0;
@@ -145,8 +146,15 @@ export default function ExpensesPage() {
             </select>
           </div>
         </div>
-        <div className="rounded-2xl border border-outline-variant/15 bg-white px-4 py-3 text-sm text-on-surface-variant">
-          Viewing expenses booked for <span className="font-semibold text-on-surface">{selectedPeriodLabel}</span>
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-outline-variant/15 bg-white px-4 py-3 text-sm text-on-surface-variant">
+          <span>
+            Viewing expenses booked for <span className="font-semibold text-on-surface">{selectedPeriodLabel}</span>
+          </span>
+          {isFetching ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-surface-container px-2 py-1 text-xs text-on-surface-variant">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Updating...
+            </span>
+          ) : null}
         </div>
       </div>
 

@@ -117,6 +117,8 @@ export interface Flat {
   areaSqFt?: number;
   blockId: string;
   isOccupied: boolean;
+  parkingType?: 'NONE' | 'OPEN' | 'COVERED';
+  parkingSlotNumber?: string;
   block?: Block & { society?: { id: string; name: string } };
   owner?: Owner;
   tenant?: Tenant;
@@ -141,6 +143,8 @@ export interface Owner {
   name: string;
   email?: string;
   phone: string;
+  carNumber?: string;
+  twoWheelerNumber?: string;
   altPhone?: string;
   aadharNo?: string;
   panNo?: string;
@@ -156,6 +160,8 @@ export interface Tenant {
   name: string;
   email?: string;
   phone: string;
+  carNumber?: string;
+  twoWheelerNumber?: string;
   flatId: string;
   leaseStart: string;
   leaseEnd?: string;
@@ -470,6 +476,37 @@ export interface CollectionReport {
     pendingCount: number;
     partialCount: number;
     totalBills: number;
+  };
+}
+
+export interface ResidentReportRow {
+  relation: 'OWNER' | 'TENANT';
+  name: string;
+  mobile: string;
+  email: string;
+  carNumber: string;
+  twoWheelerNumber: string;
+  flatNumber: string;
+  blockName: string;
+}
+
+export interface ResidentReport {
+  residents: ResidentReportRow[];
+  summary: {
+    totalResidents: number;
+    owners: number;
+    tenants: number;
+  };
+  filters: {
+    name?: string;
+    mobile?: string;
+    carNumber?: string;
+  };
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
   };
 }
 
