@@ -84,7 +84,7 @@ type CrmDetail = {
   crmTags: string[];
   createdAt: string;
   updatedAt: string;
-  _count: { users: number; blocks: number; complaints: number; expenses: number };
+  _count: { users: number; blocks: number; flats: number; complaints: number; expenses: number };
   adminContacts: AdminContact[];
   latestSubscription: LatestSubscription | null;
   trial: {
@@ -274,10 +274,11 @@ function OverviewTab({
   return (
     <div className="space-y-5">
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
           { label: 'Users', value: society._count.users },
           { label: 'Blocks', value: society._count.blocks },
+          { label: 'Flats', value: society._count.flats },
           { label: 'Complaints', value: society._count.complaints },
           { label: 'Expenses', value: society._count.expenses },
         ].map(({ label, value }) => (

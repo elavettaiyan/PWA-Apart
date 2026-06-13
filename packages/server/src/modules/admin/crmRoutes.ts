@@ -54,6 +54,7 @@ const SOCIETY_CRM_SELECT = {
     select: {
       users: true,
       blocks: true,
+      flats: true,
       complaints: true,
       expenses: true,
     },
