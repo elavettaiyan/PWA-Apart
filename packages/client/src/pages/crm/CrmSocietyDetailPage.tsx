@@ -84,7 +84,8 @@ type CrmDetail = {
   crmTags: string[];
   createdAt: string;
   updatedAt: string;
-  _count: { users: number; blocks: number; flats: number; complaints: number; expenses: number };
+  flatCount: number;
+  _count: { users: number; blocks: number; complaints: number; expenses: number };
   adminContacts: AdminContact[];
   latestSubscription: LatestSubscription | null;
   trial: {
@@ -278,7 +279,7 @@ function OverviewTab({
         {[
           { label: 'Users', value: society._count.users },
           { label: 'Blocks', value: society._count.blocks },
-          { label: 'Flats', value: society._count.flats },
+          { label: 'Flats', value: society.flatCount },
           { label: 'Complaints', value: society._count.complaints },
           { label: 'Expenses', value: society._count.expenses },
         ].map(({ label, value }) => (

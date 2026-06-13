@@ -54,7 +54,6 @@ const SOCIETY_CRM_SELECT = {
     select: {
       users: true,
       blocks: true,
-      flats: true,
       complaints: true,
       expenses: true,
     },
@@ -168,51 +167,54 @@ router.get(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
-      const society = await prisma.society.findUnique({
-        where: { id: req.params.id },
-        select: {
-          ...SOCIETY_CRM_SELECT,
-          users: {
-            where: { role: { in: ['ADMIN', 'SECRETARY'] }, isActive: true },
-            select: { id: true, name: true, email: true, phone: true, role: true, createdAt: true },
-            orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
-          },
-          premiumSubscriptions: {
-            orderBy: { createdAt: 'desc' },
-            take: 1,
-            select: {
-              id: true,
-              status: true,
-              lockedFlatCount: true,
-              includedFlatCount: true,
-              amountPerFlatPaise: true,
-              amountPaise: true,
-              startDate: true,
-              currentPeriodStart: true,
-              currentPeriodEnd: true,
-              nextBillingAt: true,
-              cancelledAt: true,
-              expiresAt: true,
-              overdueStartedAt: true,
-              notes: true,
-              createdAt: true,
-              payments: {
-                orderBy: { createdAt: 'desc' },
-                take: 5,
-                select: {
-                  id: true,
-                  status: true,
-                  amountPaise: true,
-                  paidAt: true,
-                  failureReason: true,
-                  razorpayPaymentId: true,
-                  createdAt: true,
+      const [society, flatCount] = await Promise.all([
+        prisma.society.findUnique({
+          where: { id: req.params.id },
+          select: {
+            ...SOCIETY_CRM_SELECT,
+            users: {
+              where: { role: { in: ['ADMIN', 'SECRETARY'] }, isActive: true },
+              select: { id: true, name: true, email: true, phone: true, role: true, createdAt: true },
+              orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+            },
+            premiumSubscriptions: {
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+              select: {
+                id: true,
+                status: true,
+                lockedFlatCount: true,
+                includedFlatCount: true,
+                amountPerFlatPaise: true,
+                amountPaise: true,
+                startDate: true,
+                currentPeriodStart: true,
+                currentPeriodEnd: true,
+                nextBillingAt: true,
+                cancelledAt: true,
+                expiresAt: true,
+                overdueStartedAt: true,
+                notes: true,
+                createdAt: true,
+                payments: {
+                  orderBy: { createdAt: 'desc' },
+                  take: 5,
+                  select: {
+                    id: true,
+                    status: true,
+                    amountPaise: true,
+                    paidAt: true,
+                    failureReason: true,
+                    razorpayPaymentId: true,
+                    createdAt: true,
+                  },
                 },
               },
             },
           },
-        },
-      });
+        }),
+        prisma.flat.count({ where: { block: { societyId: req.params.id } } }),
+      ]);
 
       if (!society) return res.status(404).json({ error: 'Society not found' });
 
@@ -222,6 +224,7 @@ router.get(
 
       return res.json({
         ...society,
+        flatCount,
         adminContacts: society.users,
         latestSubscription: society.premiumSubscriptions[0] ?? null,
         trial,
