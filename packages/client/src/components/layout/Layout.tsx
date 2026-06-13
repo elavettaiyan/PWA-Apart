@@ -237,7 +237,7 @@ export default function Layout({ children }: LayoutProps) {
   ) : null;
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="flex h-dvh min-h-screen overflow-hidden bg-background">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -315,7 +315,7 @@ export default function Layout({ children }: LayoutProps) {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* Mobile Top App Bar */}
         <header className="lg:hidden fixed top-0 z-30 w-full bg-white/95 backdrop-blur-xl shadow-card" style={{ paddingTop: 'var(--sat)' }}>
           <div className="flex justify-between items-center px-4 py-3">
@@ -523,7 +523,7 @@ export default function Layout({ children }: LayoutProps) {
         {/* Mobile spacer: pushes content below the fixed mobile header (which is out of document flow) */}
         <div className="lg:hidden shrink-0" style={{ height: mobileSpacerHeight }} aria-hidden="true" />
         <TrialBanner />
-        <div className="relative flex-1 min-h-0">
+        <div className="relative flex min-h-0 flex-1 flex-col">
           {showPullIndicator ? (
             <div
               className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center px-4"
@@ -545,7 +545,7 @@ export default function Layout({ children }: LayoutProps) {
 
           <main
             ref={mainRef}
-            className="flex-1 h-full pb-6 px-4 sm:px-6 lg:pb-0 lg:p-8 overflow-auto"
+            className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 sm:px-6 lg:p-8 lg:pb-0"
             style={{ overscrollBehaviorY: 'contain' }}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
