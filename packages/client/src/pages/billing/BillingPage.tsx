@@ -588,7 +588,7 @@ export default function BillingPage() {
           </>
         )}
 
-        {!isAdmin && manualBillSelectionEnabled && selectedCount >= 2 && (
+        {residentBillingView && manualBillSelectionEnabled && selectedCount >= 2 && (
           <button
             className="btn-primary"
             onClick={() => handlePhonePeBulkPay(selectedBillIds)}
@@ -596,7 +596,7 @@ export default function BillingPage() {
             <CreditCard className="w-4 h-4" /> Pay Selected ({selectedCount})
           </button>
         )}
-        {!isAdmin && !manualBillSelectionEnabled && (
+        {residentBillingView && !manualBillSelectionEnabled && (
           <div className="flex flex-wrap items-center gap-2">
             <input
               className="input w-40"
@@ -683,7 +683,7 @@ export default function BillingPage() {
               <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    {!isAdmin && manualBillSelectionEnabled && bill.status !== 'PAID' && (
+                    {residentBillingView && manualBillSelectionEnabled && bill.status !== 'PAID' && (
                       <input
                         type="checkbox"
                         className="shrink-0"
@@ -754,7 +754,7 @@ export default function BillingPage() {
           <table>
             <thead>
               <tr>
-                {!isAdmin && manualBillSelectionEnabled && <th>
+                {residentBillingView && manualBillSelectionEnabled && <th>
                   <input
                     type="checkbox"
                     checked={selectableBillIds.length > 0 && selectedBillIds.length === selectableBillIds.length}
@@ -776,7 +776,7 @@ export default function BillingPage() {
             <tbody>
               {displayedBills.map((bill) => (
                 <tr key={bill.id}>
-                  {!isAdmin && manualBillSelectionEnabled && (
+                  {residentBillingView && manualBillSelectionEnabled && (
                     <td>
                       {bill.status !== 'PAID' ? (
                         <input
