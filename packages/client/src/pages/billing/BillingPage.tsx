@@ -11,7 +11,7 @@ import { initPhonePeSdk, startPhonePeCheckout } from '../../lib/phonePeNative';
 import { isNativeAndroid, isNativeIos } from '../../lib/platform';
 import { useAuthStore } from '../../store/authStore';
 import { isOwnerViewActive } from '../../lib/ownerView';
-import type { BillingGenerationResult, MaintenanceBill, MaintenanceConfigSummary } from '../../types';
+import type { BillingGenerationResult, MaintenanceBill, MaintenanceConfigSummary, OwnerBillingSummary } from '../../types';
 
 const currentDate = new Date();
 const yearOptions = Array.from({ length: 5 }, (_, index) => currentDate.getFullYear() - 1 + index);
@@ -64,6 +64,7 @@ export default function BillingPage() {
   const [generationResult, setGenerationResult] = useState<BillingGenerationResult | null>(null);
   const [configForm, setConfigForm] = useState<BillingConfigFormState>(buildConfigForm());
   const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
+  const [paymentAmount, setPaymentAmount] = useState('');
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const txnStatusCheckRef = useRef<string | null>(null);
@@ -95,12 +96,28 @@ export default function BillingPage() {
     enabled: !!user,
   });
 
+  const { data: societySettings } = useQuery<any>({
+    queryKey: ['society-settings-billing', user?.societyId || 'no-society'],
+    queryFn: async () => (await api.get('/settings/society-settings')).data,
+    enabled: !!user && !isAdmin,
+    retry: false,
+  });
+
+  const { data: ownerSummary } = useQuery<OwnerBillingSummary>({
+    queryKey: ['owner-billing-summary', user?.id || 'anonymous', user?.societyId || 'no-society', month, year],
+    queryFn: async () => (await api.get(`/billing/owner-summary?month=${month}&year=${year}`)).data,
+    enabled: !!user && ownerViewActive,
+  });
+
   const displayedBills = isAdmin
     ? bills.filter((bill) => bill.month === month && bill.year === year)
     : bills.filter((bill) => pendingStatuses.has(bill.status));
   const selectableBillIds = displayedBills.filter((bill) => bill.status !== 'PAID').map((bill) => bill.id);
   const selectableBillIdsKey = selectableBillIds.join(',');
   const selectedCount = selectedBillIds.length;
+  const manualBillSelectionEnabled = societySettings?.manualBillSelection !== false;
+  const totalOutstanding = Number(displayedBills.reduce((sum, bill) => sum + Math.max(0, bill.totalAmount - bill.paidAmount), 0).toFixed(2));
+  const residentFlatId = displayedBills[0]?.flatId;
 
   useEffect(() => {
     const selectable = new Set(selectableBillIds);
@@ -373,6 +390,42 @@ export default function BillingPage() {
     }
   };
 
+  const handlePhonePeAmountPay = async () => {
+    try {
+      const amount = Number(paymentAmount);
+      if (!residentFlatId) {
+        toast.error('No payable flat found for this account');
+        return;
+      }
+      if (!Number.isFinite(amount) || amount <= 0) {
+        toast.error('Enter a valid amount');
+        return;
+      }
+
+      const { data } = await api.post('/payments/phonepe/initiate-amount', {
+        flatId: residentFlatId,
+        amount,
+        nativeSdk: isNativeAndroid() || isNativeIos(),
+      });
+
+      if (data?.nativeSdk) {
+        await handleNativePhonePeCheckout(data);
+        return;
+      }
+
+      if (data?.redirectUrl) {
+        window.location.href = data.redirectUrl;
+        return;
+      }
+
+      toast.error('Failed to get payment URL');
+    } catch (error: any) {
+      const msg = error.response?.data?.error;
+      console.error('[PhonePe] amount initiate error', { status: error.response?.status, msg, raw: error.message });
+      toast.error(msg || error.message || 'Payment initiation failed');
+    }
+  };
+
   useEffect(() => {
     if (!txnId || txnStatusCheckRef.current === txnId) return;
 
@@ -498,7 +551,7 @@ export default function BillingPage() {
 
       {/* Month/Year Filter */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
-        {!isAdmin && (
+        {!isAdmin && !ownerViewActive && (
           <label className="inline-flex items-center gap-2 text-sm text-on-surface-variant">
             <input
               type="checkbox"
@@ -524,7 +577,7 @@ export default function BillingPage() {
           </>
         )}
 
-        {!isAdmin && selectedCount >= 2 && (
+        {!isAdmin && manualBillSelectionEnabled && selectedCount >= 2 && (
           <button
             className="btn-primary"
             onClick={() => handlePhonePeBulkPay(selectedBillIds)}
@@ -532,26 +585,65 @@ export default function BillingPage() {
             <CreditCard className="w-4 h-4" /> Pay Selected ({selectedCount})
           </button>
         )}
+        {!isAdmin && !manualBillSelectionEnabled && (
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              className="input w-40"
+              type="number"
+              min={1}
+              step="0.01"
+              value={paymentAmount}
+              onChange={(e) => setPaymentAmount(e.target.value)}
+              placeholder={`Pay up to ${formatCurrency(totalOutstanding)}`}
+            />
+            <button className="btn-primary" onClick={handlePhonePeAmountPay}>
+              <CreditCard className="w-4 h-4" /> Pay Amount
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
-        <div className="stat-card">
-          <p className="stat-label">Total Billed</p>
-          <p className="stat-value text-base sm:text-lg">{formatCurrency(totalBilled)}</p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-label">Collected</p>
-          <p className="text-base sm:text-lg font-bold text-emerald-900">{formatCurrency(totalCollected)}</p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-label">Paid</p>
-          <p className="text-base sm:text-lg font-bold text-emerald-900">{paidCount} flats</p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-label">Pending</p>
-          <p className="text-base sm:text-lg font-bold text-warning">{pendingCount} flats</p>
-        </div>
+        {ownerViewActive ? (
+          <>
+            <div className="stat-card">
+              <p className="stat-label">Total Outstanding</p>
+              <p className="stat-value text-base sm:text-lg">{formatCurrency(ownerSummary?.outstandingAmount || 0)}</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-label">Advance Balance</p>
+              <p className="text-base sm:text-lg font-bold text-emerald-900">{formatCurrency(ownerSummary?.advanceAmount || 0)}</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-label">{getMonthName(month)} Due</p>
+              <p className="text-base sm:text-lg font-bold text-warning">{formatCurrency(ownerSummary?.monthDueAmount || 0)}</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-label">Amount To Pay</p>
+              <p className="text-base sm:text-lg font-bold text-rose-900">{formatCurrency(ownerSummary?.netPayableAmount || 0)}</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="stat-card">
+              <p className="stat-label">Total Billed</p>
+              <p className="stat-value text-base sm:text-lg">{formatCurrency(totalBilled)}</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-label">Collected</p>
+              <p className="text-base sm:text-lg font-bold text-emerald-900">{formatCurrency(totalCollected)}</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-label">Paid</p>
+              <p className="text-base sm:text-lg font-bold text-emerald-900">{paidCount} flats</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-label">Pending</p>
+              <p className="text-base sm:text-lg font-bold text-warning">{pendingCount} flats</p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Bills Table */}
@@ -580,7 +672,7 @@ export default function BillingPage() {
               <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    {!isAdmin && bill.status !== 'PAID' && (
+                    {!isAdmin && manualBillSelectionEnabled && bill.status !== 'PAID' && (
                       <input
                         type="checkbox"
                         className="shrink-0"
@@ -644,7 +736,7 @@ export default function BillingPage() {
           <table>
             <thead>
               <tr>
-                {!isAdmin && <th>
+                {!isAdmin && manualBillSelectionEnabled && <th>
                   <input
                     type="checkbox"
                     checked={selectableBillIds.length > 0 && selectedBillIds.length === selectableBillIds.length}
@@ -665,7 +757,7 @@ export default function BillingPage() {
             <tbody>
               {displayedBills.map((bill) => (
                 <tr key={bill.id}>
-                  {!isAdmin && (
+                  {!isAdmin && manualBillSelectionEnabled && (
                     <td>
                       {bill.status !== 'PAID' ? (
                         <input
@@ -707,7 +799,7 @@ export default function BillingPage() {
                         )}
                         <button
                           className="btn-sm btn-primary"
-                          onClick={() => handlePhonePePay(bill.id)}
+                          onClick={() => manualBillSelectionEnabled ? handlePhonePePay(bill.id) : handlePhonePeAmountPay()}
                         >
                           <CreditCard className="w-3 h-3" /> PhonePe
                         </button>

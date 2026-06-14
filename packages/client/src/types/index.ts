@@ -211,6 +211,15 @@ export interface BillingGenerationResult {
   error?: string;
 }
 
+export interface OwnerBillingSummary {
+  month: number;
+  year: number;
+  outstandingAmount: number;
+  advanceAmount: number;
+  monthDueAmount: number;
+  netPayableAmount: number;
+}
+
 export interface MaintenanceBill {
   id: string;
   flatId: string;

@@ -938,4 +938,80 @@ router.put(
   },
 );
 
+// ── SOCIETY SETTINGS (FEATURE TOGGLES) ─────────────────────
+router.get('/society-settings', async (req: AuthRequest, res: Response) => {
+  try {
+    const societyId = resolveSettingsSocietyId(req, req.query.societyId as string | undefined);
+    if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+
+    let settings = await prisma.societySettings.findUnique({ where: { societyId } });
+    if (!settings) {
+      // Return defaults if not configured yet
+      settings = await prisma.societySettings.create({
+        data: {
+          societyId,
+          lateFeeEnabled: true,
+          partialPaymentAllowed: true,
+          advancePaymentAllowed: true,
+          autoAdjustAdvance: true,
+          forceOldestDueSettlement: true,
+          manualBillSelection: false,
+        },
+      });
+    }
+
+    return res.json(settings);
+  } catch (error: any) {
+    logger.error('Failed to fetch society settings', { error: error.message });
+    return res.status(500).json({ error: 'Failed to fetch society settings' });
+  }
+});
+
+router.put(
+  '/society-settings',
+  [body('societyId').optional().isUUID(), body('lateFeeEnabled').optional().isBoolean(), body('partialPaymentAllowed').optional().isBoolean(), body('advancePaymentAllowed').optional().isBoolean(), body('autoAdjustAdvance').optional().isBoolean(), body('forceOldestDueSettlement').optional().isBoolean(), body('manualBillSelection').optional().isBoolean()],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const societyId = resolveSettingsSocietyId(req, req.body.societyId);
+      if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+
+      const {
+        lateFeeEnabled,
+        partialPaymentAllowed,
+        advancePaymentAllowed,
+        autoAdjustAdvance,
+        forceOldestDueSettlement,
+        manualBillSelection,
+      } = req.body;
+
+      const settings = await prisma.societySettings.upsert({
+        where: { societyId },
+        create: {
+          societyId,
+          lateFeeEnabled: lateFeeEnabled ?? true,
+          partialPaymentAllowed: partialPaymentAllowed ?? true,
+          advancePaymentAllowed: advancePaymentAllowed ?? true,
+          autoAdjustAdvance: autoAdjustAdvance ?? true,
+          forceOldestDueSettlement: forceOldestDueSettlement ?? true,
+          manualBillSelection: manualBillSelection ?? false,
+        },
+        update: {
+          ...(lateFeeEnabled !== undefined ? { lateFeeEnabled } : {}),
+          ...(partialPaymentAllowed !== undefined ? { partialPaymentAllowed } : {}),
+          ...(advancePaymentAllowed !== undefined ? { advancePaymentAllowed } : {}),
+          ...(autoAdjustAdvance !== undefined ? { autoAdjustAdvance } : {}),
+          ...(forceOldestDueSettlement !== undefined ? { forceOldestDueSettlement } : {}),
+          ...(manualBillSelection !== undefined ? { manualBillSelection } : {}),
+        },
+      });
+
+      return res.json({ message: 'Settings saved successfully', settings });
+    } catch (error: any) {
+      logger.error('Failed to save society settings', { error: error.message });
+      return res.status(500).json({ error: 'Failed to save society settings' });
+    }
+  },
+);
+
 export default router;

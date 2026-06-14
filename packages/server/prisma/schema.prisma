@@ -58,6 +58,7 @@ enum PaymentMethod {
   CHEQUE
   BANK_TRANSFER
   UPI_OTHER
+  ADVANCE
 }
 
 enum PaymentGateway {
@@ -218,6 +219,7 @@ model Society {
   bylaws             AssociationBylaw[]
   maintenanceConfig  MaintenanceConfig[]
   paymentConfigs     PaymentGatewayConfig[]
+  societySettings    SocietySettings?
   premiumSubscriptions PremiumSubscription[]
   assets             Asset[]
   serviceJobs        ServiceJob[]
@@ -265,6 +267,7 @@ model Flat {
   owner       Owner?
   tenant      Tenant?
   bills       MaintenanceBill[]
+  advanceBalances AdvanceBalance[]
   complaints  Complaint[]
   visitors    Visitor[]
   deliveries  Delivery[]
@@ -573,6 +576,25 @@ model MaintenanceConfig {
   @@map("maintenance_configs")
 }
 
+// Per-society toggles for billing & collections behavior
+model SocietySettings {
+  id                      String   @id @default(uuid())
+  societyId               String   @unique
+  lateFeeEnabled          Boolean  @default(true)
+  partialPaymentAllowed   Boolean  @default(true)
+  advancePaymentAllowed   Boolean  @default(true)
+  autoAdjustAdvance       Boolean  @default(true)
+  forceOldestDueSettlement Boolean @default(true)
+  manualBillSelection     Boolean  @default(false)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  society                 Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  @@index([societyId])
+  @@map("society_settings")
+}
+
 // ─── MAINTENANCE BILL ───────────────────────────────────
 
 model MaintenanceBill {
@@ -632,6 +654,21 @@ model Payment {
   @@index([notes])
   @@index([gatewayRefId])
   @@map("payments")
+}
+
+// Advance balances held for flats when payments exceed outstanding bills.
+model AdvanceBalance {
+  id         String   @id @default(uuid())
+  flatId     String   @unique
+  societyId  String
+  amount     Float    @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  flat       Flat     @relation(fields: [flatId], references: [id], onDelete: Cascade)
+  @@index([flatId])
+  @@index([societyId])
+  @@map("advance_balances")
 }
 
 // Idempotency log for incoming PhonePe S2S webhook events

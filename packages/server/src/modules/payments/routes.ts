@@ -8,6 +8,7 @@ import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { calculateBillPaymentUpdate, generateChecksum, verifyCallbackChecksum } from './phonepeUtils';
+import { allocatePayment } from '../collections/service';
 import { sendPaymentReceiptEmail, PaymentReceiptData } from '../../config/email';
 import { notifyPaymentSuccess } from '../notifications/service';
 
@@ -204,50 +205,45 @@ async function fetchPhonePeSdkOrderStatus(
 }
 
 async function markPaymentSuccess(paymentId: string, transactionId: string | undefined, phonepePayload: unknown, gatewayRefId?: string) {
-  return prisma.$transaction(async (tx) => {
-    const existingPayment = await tx.payment.findUnique({
-      where: { id: paymentId },
-      include: { bill: true },
-    });
-
-    if (!existingPayment) {
-      throw new Error(`Payment not found: ${paymentId}`);
-    }
-
-    if (existingPayment.status === 'SUCCESS') {
-      return { alreadyProcessed: true };
-    }
-
-    // Use updateMany with status guard to prevent double-processing race condition.
-    // If two callbacks arrive simultaneously, only one will match status != 'SUCCESS'.
-    const updated = await tx.payment.updateMany({
-      where: { id: existingPayment.id, status: { not: 'SUCCESS' } },
-      data: {
-        status: 'SUCCESS',
-        transactionId,
-        gatewayRefId: gatewayRefId ?? undefined,
-        phonepeResponse: JSON.stringify(phonepePayload),
-        paidAt: new Date(),
-      },
-    });
-
-    if (updated.count === 0) {
-      return { alreadyProcessed: true };
-    }
-
-    const { newPaidAmount, newStatus } = calculateBillPaymentUpdate(
-      existingPayment.bill.paidAmount,
-      existingPayment.bill.totalAmount,
-      existingPayment.amount,
-    );
-
-    await tx.maintenanceBill.update({
-      where: { id: existingPayment.bill.id },
-      data: { paidAmount: newPaidAmount, status: newStatus },
-    });
-
-    return { alreadyProcessed: false };
+  // Mark payment SUCCESS in a guarded update, then allocate the amount to bills.
+  const existingPayment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    include: { bill: true },
   });
+
+  if (!existingPayment) {
+    throw new Error(`Payment not found: ${paymentId}`);
+  }
+
+  if (existingPayment.status === 'SUCCESS') {
+    return { alreadyProcessed: true };
+  }
+
+  // Use updateMany with status guard to prevent double-processing race condition.
+  const updated = await prisma.payment.updateMany({
+    where: { id: existingPayment.id, status: { not: 'SUCCESS' } },
+    data: {
+      status: 'SUCCESS',
+      transactionId,
+      gatewayRefId: gatewayRefId ?? undefined,
+      phonepeResponse: JSON.stringify(phonepePayload),
+      paidAt: new Date(),
+    },
+  });
+
+  if (updated.count === 0) {
+    return { alreadyProcessed: true };
+  }
+
+  // Allocate the payment amount across outstanding bills for the flat (oldest-first).
+  try {
+    const flatId = existingPayment.bill.flatId;
+    await allocatePayment(flatId, existingPayment.amount);
+  } catch (err: any) {
+    logger.error('markPaymentSuccess: allocation failed', { paymentId, error: err?.message });
+  }
+
+  return { alreadyProcessed: false };
 }
 
 async function getUserFlatIds(userId: string, societyId: string | null) {
@@ -267,10 +263,17 @@ async function getUserFlatIds(userId: string, societyId: string | null) {
   return [...new Set([...owners.map((row) => row.flatId), ...tenants.map((row) => row.flatId)])];
 }
 
+async function getSocietySettings(societyId: string | null) {
+  if (!societyId) return null;
+  return prisma.societySettings.findUnique({ where: { societyId } });
+}
+
 async function markBulkPaymentsSuccess(merchantTransId: string, transactionId: string | undefined, phonepePayload: unknown, gatewayRefId?: string) {
   const references = getBulkPaymentNotes(merchantTransId);
 
-  return prisma.$transaction(async (tx) => {
+  // Mark payments SUCCESS inside a transaction and collect processed payments,
+  // then run allocation outside the transaction to avoid nested transactions.
+  const txResult = await prisma.$transaction(async (tx) => {
     const linkedPayments = await tx.payment.findMany({
       where: {
         OR: [
@@ -286,7 +289,8 @@ async function markBulkPaymentsSuccess(merchantTransId: string, transactionId: s
     }
 
     let processedCount = 0;
-    const processedPaymentIds: string[] = [];
+    const processedPayments: Array<{ id: string; amount: number; flatId: string }> = [];
+    const touchedFlatIds = new Set<string>();
 
     for (const payment of linkedPayments) {
       const updatedPayment = await tx.payment.updateMany({
@@ -304,27 +308,29 @@ async function markBulkPaymentsSuccess(merchantTransId: string, transactionId: s
         continue;
       }
 
-      const updatedBill = await tx.maintenanceBill.update({
-        where: { id: payment.bill.id },
-        data: {
-          paidAmount: { increment: payment.amount },
-        },
-        select: { id: true, paidAmount: true, totalAmount: true },
-      });
-
-      const newStatus = updatedBill.paidAmount >= updatedBill.totalAmount ? 'PAID' : 'PARTIAL';
-
-      await tx.maintenanceBill.update({
-        where: { id: updatedBill.id },
-        data: { status: newStatus },
-      });
-
       processedCount++;
-      processedPaymentIds.push(payment.id);
+      touchedFlatIds.add(payment.bill.flatId);
+      processedPayments.push({ id: payment.id, amount: payment.amount, flatId: payment.bill.flatId });
     }
 
-    return { processedCount, processedPaymentIds };
+    return { processedCount, processedPayments, touchedFlatIds: [...touchedFlatIds] };
   });
+
+  // Allocate one consolidated amount per flat outside the transaction.
+  const totalsByFlat = new Map<string, number>();
+  for (const p of txResult.processedPayments) {
+    totalsByFlat.set(p.flatId, Number(((totalsByFlat.get(p.flatId) || 0) + p.amount).toFixed(2)));
+  }
+
+  for (const [flatId, amount] of totalsByFlat.entries()) {
+    try {
+      await allocatePayment(flatId, amount);
+    } catch (err: any) {
+      logger.error('markBulkPaymentsSuccess: allocation failed for flat', { flatId, amount, error: err?.message });
+    }
+  }
+
+  return { processedCount: txResult.processedCount, processedPaymentIds: txResult.processedPayments.map((p) => p.id) };
 }
 
 async function markBulkPaymentsFailed(merchantTransId: string, phonepePayload: unknown) {
@@ -563,6 +569,179 @@ router.post(
       }
     } catch (error) {
       logger.error('PhonePe payment error:', error);
+      return res.status(500).json({ error: 'Payment initiation failed' });
+    }
+  },
+);
+
+router.post(
+  '/phonepe/initiate-amount',
+  authenticate,
+  [
+    body('flatId').isUUID(),
+    body('amount').isFloat({ gt: 0 }),
+    body('nativeSdk').optional().isBoolean(),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { flatId, nativeSdk = false } = req.body;
+      const requestedAmount = Number(req.body.amount);
+
+      const flat = await prisma.flat.findUnique({
+        where: { id: flatId },
+        include: { block: true },
+      });
+
+      if (!flat) return res.status(404).json({ error: 'Flat not found' });
+
+      const societyId = flat.block.societyId;
+      if (req.user!.role !== 'SUPER_ADMIN' && req.user!.societyId !== societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if (req.user!.role === 'OWNER' || req.user!.role === 'TENANT') {
+        const userFlatIds = await getUserFlatIds(req.user!.id, req.user!.societyId ?? null);
+        if (!userFlatIds.includes(flatId)) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+      }
+
+      const settings = await getSocietySettings(societyId);
+      const bills = await prisma.maintenanceBill.findMany({
+        where: { flatId },
+        orderBy: [{ year: 'asc' }, { month: 'asc' }],
+      });
+
+      const outstandingBills = bills.filter((bill) => Number((bill.totalAmount - bill.paidAmount).toFixed(2)) > 0);
+      if (outstandingBills.length === 0) {
+        return res.status(400).json({ error: 'No outstanding bills found for this flat' });
+      }
+
+      const totalOutstanding = Number(
+        outstandingBills.reduce((sum, bill) => sum + Math.max(0, bill.totalAmount - bill.paidAmount), 0).toFixed(2),
+      );
+
+      if (settings?.partialPaymentAllowed === false && requestedAmount < totalOutstanding) {
+        return res.status(400).json({ error: 'Partial payments are disabled for this association' });
+      }
+
+      if (settings?.advancePaymentAllowed === false && requestedAmount > totalOutstanding) {
+        return res.status(400).json({ error: 'Advance payments are disabled for this association' });
+      }
+
+      const anchorBill = outstandingBills[0];
+      const merchantTransId = `MTA${Date.now()}${uuidv4().slice(0, 8).toUpperCase()}`;
+      const pgConfig = await getPhonePeConfig(societyId);
+      if (!pgConfig.merchantId) {
+        return res.status(400).json({ error: 'PhonePe Merchant ID is not configured. Ask your admin to update payment gateway settings.' });
+      }
+      if (nativeSdk && (!pgConfig.clientId || !pgConfig.clientSecret)) {
+        return res.status(400).json({ error: 'PhonePe SDK credentials (Client ID and Client Secret) are not configured. Ask your admin to add them in payment gateway settings.' });
+      }
+      if (!nativeSdk && !pgConfig.saltKey) {
+        return res.status(400).json({ error: 'PhonePe Salt Key is not configured for web redirect payments. Add it in settings.' });
+      }
+
+      const payment = await prisma.payment.create({
+        data: {
+          billId: anchorBill.id,
+          amount: requestedAmount,
+          method: 'PHONEPE',
+          status: 'INITIATED',
+          merchantTransId,
+          notes: nativeSdk ? SINGLE_PHONEPE_SDK_NOTE : 'AUTO_ALLOCATE',
+        },
+      });
+
+      if (nativeSdk) {
+        try {
+          const sdkOrder = await createPhonePeSdkOrder(pgConfig, {
+            merchantOrderId: merchantTransId,
+            amount: Math.round(requestedAmount * 100),
+            expireAfter: 1200,
+            metaInfo: {
+              udf1: payment.id,
+              udf2: anchorBill.id,
+              udf3: req.user!.id,
+              udf4: societyId,
+            },
+            paymentFlow: { type: 'PG_CHECKOUT' },
+          });
+
+          await prisma.payment.update({
+            where: { id: payment.id },
+            data: { phonepeResponse: JSON.stringify(sdkOrder) },
+          });
+
+          return res.json({
+            success: true,
+            paymentId: payment.id,
+            merchantTransId,
+            nativeSdk: true,
+            orderId: sdkOrder.orderId,
+            token: sdkOrder.token,
+            sdkContext: {
+              merchantId: pgConfig.merchantId,
+              environment: pgConfig.environment,
+            },
+          });
+        } catch (error: any) {
+          await prisma.payment.update({
+            where: { id: payment.id },
+            data: { status: 'FAILED', phonepeResponse: JSON.stringify({ error: error.message }) },
+          });
+
+          logger.error('PhonePe amount-based SDK initiation failed:', error);
+          return res.status(400).json({ error: error.message || 'Payment initiation failed' });
+        }
+      }
+
+      const payload = {
+        merchantId: pgConfig.merchantId,
+        merchantTransactionId: merchantTransId,
+        merchantUserId: req.user!.id,
+        amount: Math.round(requestedAmount * 100),
+        redirectUrl: `${pgConfig.redirectUrl}${pgConfig.redirectUrl.includes('?') ? '&' : '?'}txnId=${merchantTransId}`,
+        redirectMode: 'REDIRECT',
+        callbackUrl: pgConfig.callbackUrl,
+        paymentInstrument: { type: 'PAY_PAGE' },
+      };
+
+      const payloadBase64 = Buffer.from(JSON.stringify(payload)).toString('base64');
+      const checksum = generateChecksum(payloadBase64, '/pg/v1/pay', pgConfig.saltKey, pgConfig.saltIndex);
+
+      const phonePeResponse = await fetch(`${pgConfig.baseUrl}/pg/v1/pay`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-VERIFY': checksum,
+        },
+        body: JSON.stringify({ request: payloadBase64 }),
+      });
+
+      const phonePeData: any = await phonePeResponse.json();
+      if (phonePeData.success) {
+        return res.json({
+          success: true,
+          paymentId: payment.id,
+          merchantTransId,
+          redirectUrl: phonePeData.data?.instrumentResponse?.redirectInfo?.url,
+        });
+      }
+
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: 'FAILED', phonepeResponse: JSON.stringify(phonePeData) },
+      });
+
+      logger.error('PhonePe amount-based initiation failed:', phonePeData);
+      return res.status(400).json({
+        error: phonePeData.message || 'Payment initiation failed',
+        code: phonePeData.code,
+      });
+    } catch (error) {
+      logger.error('PhonePe amount-based payment error:', error);
       return res.status(500).json({ error: 'Payment initiation failed' });
     }
   },

@@ -7,6 +7,7 @@ import logger from '../../config/logger';
 import { buildResidentBillFilter, canResidentAccessBill } from './scope';
 import { sendPaymentReceiptEmail, PaymentReceiptData } from '../../config/email';
 import { notifyBillGenerated, notifyPaymentSuccess } from '../notifications/service';
+import { allocatePayment } from '../collections/service';
 
 const router = Router();
 router.use(authenticate);
@@ -328,6 +329,50 @@ router.post(
           },
         });
 
+        // Auto-apply advance balance if society setting enabled
+        try {
+          const societySettings = await prisma.societySettings.findUnique({ where: { societyId } });
+          if (societySettings?.autoAdjustAdvance) {
+            const adv = await prisma.advanceBalance.findUnique({ where: { flatId: flat.id } });
+            if (adv && adv.amount > 0) {
+              const toApply = Math.min(Number(adv.amount), Number(bill.totalAmount));
+              if (toApply > 0) {
+                const newPaid = (bill.paidAmount || 0) + toApply;
+                const newStatus = newPaid >= bill.totalAmount ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'PENDING';
+
+                // persist payment record and update bill + advance atomically
+                const payment = await prisma.$transaction(async (tx) => {
+                  const createdPayment = await tx.payment.create({
+                    data: {
+                      billId: bill.id,
+                      amount: toApply,
+                      method: 'ADVANCE',
+                      status: 'SUCCESS',
+                      notes: 'Auto-applied advance balance',
+                      paidAt: new Date(),
+                    },
+                  });
+
+                  await tx.maintenanceBill.update({ where: { id: bill.id }, data: { paidAmount: newPaid, status: newStatus } });
+
+                  if (adv.amount - toApply <= 0) {
+                    await tx.advanceBalance.delete({ where: { id: adv.id } });
+                  } else {
+                    await tx.advanceBalance.update({ where: { id: adv.id }, data: { amount: { set: adv.amount - toApply } } });
+                  }
+
+                  return createdPayment;
+                });
+
+                // Fire notification for applied payment (non-blocking)
+                notifyPaymentSuccess(payment.id).catch(() => {});
+              }
+            }
+          }
+        } catch (applyErr: any) {
+          logger.error('Failed to auto-apply advance during bill generation', { flatId: flat.id, error: applyErr?.message });
+        }
+
         generatedBillIds.push(bill.id);
         generatedCount++;
       }
@@ -358,6 +403,94 @@ router.post(
     } catch (error) {
       logger.error('Bill generation failed:', error);
       return res.status(500).json({ error: 'Failed to generate bills' });
+    }
+  },
+);
+
+router.get(
+  '/owner-summary',
+  [
+    query('month').optional().isInt({ min: 1, max: 12 }),
+    query('year').optional().isInt({ min: 2020 }),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      if (!req.user?.societyId) {
+        return res.json({
+          month: Number(req.query.month) || new Date().getMonth() + 1,
+          year: Number(req.query.year) || new Date().getFullYear(),
+          outstandingAmount: 0,
+          advanceAmount: 0,
+          monthDueAmount: 0,
+          netPayableAmount: 0,
+        });
+      }
+
+      const month = Number(req.query.month) || new Date().getMonth() + 1;
+      const year = Number(req.query.year) || new Date().getFullYear();
+      const canUseOwnerScopedView = [...FINANCIAL_ROLES, ...RESIDENT_ROLES].includes(req.user.role as any);
+      const flatIds = canUseOwnerScopedView
+        ? [...FINANCIAL_ROLES].includes(req.user.role as any)
+          ? await getUserOwnedFlatIds(req.user.id, req.user.societyId)
+          : await getUserFlatIds(req.user.id, req.user.societyId)
+        : [];
+
+      if (flatIds.length === 0) {
+        return res.json({
+          month,
+          year,
+          outstandingAmount: 0,
+          advanceAmount: 0,
+          monthDueAmount: 0,
+          netPayableAmount: 0,
+        });
+      }
+
+      const [bills, advances] = await Promise.all([
+        prisma.maintenanceBill.findMany({
+          where: {
+            flatId: { in: flatIds },
+            flat: { block: { societyId: req.user.societyId } },
+          },
+          select: {
+            month: true,
+            year: true,
+            totalAmount: true,
+            paidAmount: true,
+          },
+        }),
+        prisma.advanceBalance.findMany({
+          where: {
+            flatId: { in: flatIds },
+            societyId: req.user.societyId,
+          },
+          select: { amount: true },
+        }),
+      ]);
+
+      const outstandingAmount = Number(
+        bills.reduce((sum, bill) => sum + Math.max(0, Number(bill.totalAmount) - Number(bill.paidAmount)), 0).toFixed(2),
+      );
+      const monthDueAmount = Number(
+        bills
+          .filter((bill) => bill.month === month && bill.year === year)
+          .reduce((sum, bill) => sum + Math.max(0, Number(bill.totalAmount) - Number(bill.paidAmount)), 0)
+          .toFixed(2),
+      );
+      const advanceAmount = Number(advances.reduce((sum, item) => sum + Number(item.amount), 0).toFixed(2));
+      const netPayableAmount = Number(Math.max(0, outstandingAmount - advanceAmount).toFixed(2));
+
+      return res.json({
+        month,
+        year,
+        outstandingAmount,
+        advanceAmount,
+        monthDueAmount,
+        netPayableAmount,
+      });
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to fetch owner billing summary' });
     }
   },
 );
@@ -635,7 +768,25 @@ router.post(
       }
 
       const { amount, method, notes, receiptNo } = req.body;
-      const newPaidAmount = bill.paidAmount + amount;
+      const societySettings = await prisma.societySettings.findUnique({
+        where: { societyId: bill.flat.block.societyId },
+      });
+
+      const flatBills = await prisma.maintenanceBill.findMany({
+        where: { flatId: bill.flatId },
+        orderBy: [{ year: 'asc' }, { month: 'asc' }],
+      });
+      const totalOutstanding = Number(
+        flatBills.reduce((sum, currentBill) => sum + Math.max(0, currentBill.totalAmount - currentBill.paidAmount), 0).toFixed(2),
+      );
+
+      if (societySettings?.partialPaymentAllowed === false && amount < totalOutstanding) {
+        return res.status(400).json({ error: 'Partial payments are disabled for this association' });
+      }
+
+      if (societySettings?.advancePaymentAllowed === false && amount > totalOutstanding) {
+        return res.status(400).json({ error: 'Advance payments are disabled for this association' });
+      }
 
       const payment = await prisma.payment.create({
         data: {
@@ -649,12 +800,7 @@ router.post(
         },
       });
 
-      const newStatus = newPaidAmount >= bill.totalAmount ? 'PAID' : 'PARTIAL';
-
-      await prisma.maintenanceBill.update({
-        where: { id: bill.id },
-        data: { paidAmount: newPaidAmount, status: newStatus },
-      });
+      await allocatePayment(bill.flatId, amount);
 
       // Send receipt email (fire-and-forget)
       const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -702,7 +848,8 @@ router.post(
 
       notifyPaymentSuccess(payment.id).catch(() => {});
 
-      return res.json({ payment, newStatus, paidAmount: newPaidAmount });
+      const refreshedBill = await prisma.maintenanceBill.findUnique({ where: { id: bill.id } });
+      return res.json({ payment, newStatus: refreshedBill?.status, paidAmount: refreshedBill?.paidAmount });
     } catch (error) {
       return res.status(500).json({ error: 'Failed to record payment' });
     }

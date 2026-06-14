@@ -28,6 +28,7 @@ import notificationRoutes from './modules/notifications/routes';
 import announcementRoutes from './modules/announcements/routes';
 import eventRoutes from './modules/events/routes';
 import assetRoutes, { sendServiceDueReminders } from './modules/assets/routes';
+import runLateFeeWorker from './jobs/lateFeeWorker';
 
 const app = express();
 const processStartMs = Date.now();
@@ -244,5 +245,20 @@ if (process.env.VERCEL !== '1') {
 // ── SCHEDULED TASKS ─────────────────────────────────────
 // Check for asset service due reminders every 6 hours
 setInterval(() => { sendServiceDueReminders().catch(() => {}); }, 6 * 60 * 60 * 1000);
+
+// Run late-fee worker once on startup and then daily thereafter
+async function scheduleLateFeeWorker() {
+  try {
+    await runLateFeeWorker();
+  } catch (e) {
+    logger.error('Initial lateFeeWorker run failed', { error: (e as any)?.message });
+  }
+
+  // Schedule daily (24h)
+  setInterval(() => { runLateFeeWorker().catch(() => {}); }, 24 * 60 * 60 * 1000);
+}
+
+// Start scheduler in background (non-blocking)
+scheduleLateFeeWorker().catch(() => {});
 
 export default app;

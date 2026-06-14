@@ -108,6 +108,29 @@ export default function SettingsPage() {
     retry: false,
   });
 
+  // Society settings for billing/collections
+  const { data: societySettings, isLoading: settingsLoading } = useQuery<any>({
+    queryKey: ['society-settings', activeSocietyId],
+    queryFn: async () => (await api.get('/settings/society-settings')).data,
+    enabled: isAdmin,
+    retry: false,
+  });
+
+  const [billingSettings, setBillingSettings] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (societySettings) setBillingSettings(societySettings);
+  }, [societySettings]);
+
+  const settingsMutation = useMutation({
+    mutationFn: (payload: any) => api.put('/settings/society-settings', payload),
+    onSuccess: (res: any) => {
+      toast.success(res.data?.message || 'Settings saved');
+      queryClient.invalidateQueries({ queryKey: ['society-settings', activeSocietyId] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save settings'),
+  });
+
   // Populate form when data loads
   useEffect(() => {
     if (data?.config) {
@@ -955,6 +978,107 @@ export default function SettingsPage() {
             <p>Do not rely on shared sample credentials because they may be expired, disabled, or rate-limited.</p>
         </div>
       </div>
+      </SettingsAccordion>
+
+      <SettingsAccordion
+        title="Collections & Billing"
+        description="Controls for late fees, partial payments, advances and auto-adjust behavior"
+        icon={AlertTriangle}
+        iconWrapperClassName="group-open:bg-amber-100"
+        iconClassName="group-open:text-amber-800"
+      >
+        <div className="space-y-4">
+          {settingsLoading || !billingSettings ? (
+            <div className="p-4">Loading...</div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="flex items-center justify-between rounded-xl p-4 bg-surface-container-low">
+                  <div>
+                    <div className="font-semibold">Late Fee Enabled</div>
+                    <div className="text-sm text-on-surface-variant">Persist and charge configured late fees</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={!!billingSettings.lateFeeEnabled}
+                    onChange={(e) => setBillingSettings({ ...billingSettings, lateFeeEnabled: e.target.checked })}
+                  />
+                </label>
+
+                <label className="flex items-center justify-between rounded-xl p-4 bg-surface-container-low">
+                  <div>
+                    <div className="font-semibold">Partial Payment Allowed</div>
+                    <div className="text-sm text-on-surface-variant">Allow residents to make partial payments</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={!!billingSettings.partialPaymentAllowed}
+                    onChange={(e) => setBillingSettings({ ...billingSettings, partialPaymentAllowed: e.target.checked })}
+                  />
+                </label>
+
+                <label className="flex items-center justify-between rounded-xl p-4 bg-surface-container-low">
+                  <div>
+                    <div className="font-semibold">Advance Payments Allowed</div>
+                    <div className="text-sm text-on-surface-variant">Allow crediting advance balances for overpayments</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={!!billingSettings.advancePaymentAllowed}
+                    onChange={(e) => setBillingSettings({ ...billingSettings, advancePaymentAllowed: e.target.checked })}
+                  />
+                </label>
+
+                <label className="flex items-center justify-between rounded-xl p-4 bg-surface-container-low">
+                  <div>
+                    <div className="font-semibold">Auto Adjust Advance</div>
+                    <div className="text-sm text-on-surface-variant">Automatically consume advance balance when generating bills</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={!!billingSettings.autoAdjustAdvance}
+                    onChange={(e) => setBillingSettings({ ...billingSettings, autoAdjustAdvance: e.target.checked })}
+                  />
+                </label>
+
+                <label className="flex items-center justify-between rounded-xl p-4 bg-surface-container-low">
+                  <div>
+                    <div className="font-semibold">Force Oldest Due Settlement</div>
+                    <div className="text-sm text-on-surface-variant">When enabled, payments are allocated to oldest unpaid bills first</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={!!billingSettings.forceOldestDueSettlement}
+                    onChange={(e) => setBillingSettings({ ...billingSettings, forceOldestDueSettlement: e.target.checked })}
+                  />
+                </label>
+
+                <label className="flex items-center justify-between rounded-xl p-4 bg-surface-container-low">
+                  <div>
+                    <div className="font-semibold">Manual Bill Selection</div>
+                    <div className="text-sm text-on-surface-variant">Allow choosing specific bills for payment (disable to force oldest-first)</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={!!billingSettings.manualBillSelection}
+                    onChange={(e) => setBillingSettings({ ...billingSettings, manualBillSelection: e.target.checked })}
+                  />
+                </label>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={() => settingsMutation.mutate(billingSettings)}
+                  disabled={settingsMutation.isPending}
+                  className="btn-primary"
+                >
+                  {settingsMutation.isPending ? 'Saving...' : 'Save Collections Settings'}
+                </button>
+                {settingsMutation.isError && <span className="text-sm text-error">Failed to save settings</span>}
+              </div>
+            </div>
+          )}
+        </div>
       </SettingsAccordion>
       </>
       )}
