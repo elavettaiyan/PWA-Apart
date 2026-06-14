@@ -41,6 +41,19 @@ async function ensureMembership(tx: any, userId: string, societyId: string, role
   });
 }
 
+type ClientMedium = 'web' | 'android' | 'ios';
+
+function detectClientMedium(req: Request, requestedMedium?: string): ClientMedium {
+  if (requestedMedium === 'web' || requestedMedium === 'android' || requestedMedium === 'ios') {
+    return requestedMedium;
+  }
+
+  const userAgent = (req.get('user-agent') || '').toLowerCase();
+  if (userAgent.includes('android')) return 'android';
+  if (userAgent.includes('iphone') || userAgent.includes('ipad') || userAgent.includes('ios')) return 'ios';
+  return 'web';
+}
+
 // ── OTP STORE ───────────────────────────────────────────
 type OtpFlowType = 'REGISTRATION' | 'DELETE_ACCOUNT';
 
@@ -466,11 +479,13 @@ router.post(
   [
     body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }),
     body('password').notEmpty(),
+    body('clientMedium').optional().isIn(['web', 'android', 'ios']),
   ],
   validate,
   async (req: Request, res: Response) => {
     try {
-      const { email, password } = req.body;
+      const { email, password, clientMedium: requestedMedium } = req.body;
+      const clientMedium = detectClientMedium(req, requestedMedium);
       const loginContext = {
         email,
         ip: req.ip,
@@ -478,6 +493,7 @@ router.post(
         origin: req.get('origin'),
         referer: req.get('referer'),
         userAgent: req.get('user-agent'),
+        clientMedium,
       };
 
       logger.info('Login attempt', loginContext);
@@ -505,10 +521,10 @@ router.post(
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
-      // Update last login
+      // `lastLogin` is intentionally updated only on a real login request, not on refresh or app reopen.
       await prisma.user.update({
         where: { id: user.id },
-        data: { lastLogin: new Date() },
+        data: { lastLogin: new Date(), lastLoginPlatform: clientMedium },
       });
 
       const ownerSocietyIds = user.owners

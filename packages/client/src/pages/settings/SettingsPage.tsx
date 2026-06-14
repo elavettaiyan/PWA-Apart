@@ -1084,30 +1084,6 @@ export default function SettingsPage() {
                     onChange={(e) => setBillingSettings({ ...billingSettings, autoAdjustAdvance: e.target.checked })}
                   />
                 </label>
-
-                <label className="flex items-center justify-between rounded-xl p-4 bg-surface-container-low">
-                  <div>
-                    <div className="font-semibold">Force Oldest Due Settlement</div>
-                    <div className="text-sm text-on-surface-variant">When enabled, payments are allocated to oldest unpaid bills first</div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={!!billingSettings.forceOldestDueSettlement}
-                    onChange={(e) => setBillingSettings({ ...billingSettings, forceOldestDueSettlement: e.target.checked })}
-                  />
-                </label>
-
-                <label className="flex items-center justify-between rounded-xl p-4 bg-surface-container-low">
-                  <div>
-                    <div className="font-semibold">Manual Bill Selection</div>
-                    <div className="text-sm text-on-surface-variant">Allow choosing specific bills for payment (disable to force oldest-first)</div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={!!billingSettings.manualBillSelection}
-                    onChange={(e) => setBillingSettings({ ...billingSettings, manualBillSelection: e.target.checked })}
-                  />
-                </label>
               </div>
 
               <div className="flex items-center gap-3 pt-2">

@@ -356,6 +356,7 @@ model User {
   passwordResetToken   String?   @unique
   passwordResetExpiry  DateTime?
   lastLogin            DateTime?
+  lastLoginPlatform    String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

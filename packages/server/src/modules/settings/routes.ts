@@ -960,7 +960,11 @@ router.get('/society-settings', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    return res.json(settings);
+    return res.json({
+      ...settings,
+      forceOldestDueSettlement: true,
+      manualBillSelection: false,
+    });
   } catch (error: any) {
     logger.error('Failed to fetch society settings', { error: error.message });
     return res.status(500).json({ error: 'Failed to fetch society settings' });
@@ -969,7 +973,7 @@ router.get('/society-settings', async (req: AuthRequest, res: Response) => {
 
 router.put(
   '/society-settings',
-  [body('societyId').optional().isUUID(), body('lateFeeEnabled').optional().isBoolean(), body('partialPaymentAllowed').optional().isBoolean(), body('advancePaymentAllowed').optional().isBoolean(), body('autoAdjustAdvance').optional().isBoolean(), body('forceOldestDueSettlement').optional().isBoolean(), body('manualBillSelection').optional().isBoolean()],
+  [body('societyId').optional().isUUID(), body('lateFeeEnabled').optional().isBoolean(), body('partialPaymentAllowed').optional().isBoolean(), body('advancePaymentAllowed').optional().isBoolean(), body('autoAdjustAdvance').optional().isBoolean()],
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -981,8 +985,6 @@ router.put(
         partialPaymentAllowed,
         advancePaymentAllowed,
         autoAdjustAdvance,
-        forceOldestDueSettlement,
-        manualBillSelection,
       } = req.body;
 
       const settings = await prisma.societySettings.upsert({
@@ -993,16 +995,16 @@ router.put(
           partialPaymentAllowed: partialPaymentAllowed ?? true,
           advancePaymentAllowed: advancePaymentAllowed ?? true,
           autoAdjustAdvance: autoAdjustAdvance ?? true,
-          forceOldestDueSettlement: forceOldestDueSettlement ?? true,
-          manualBillSelection: manualBillSelection ?? false,
+          forceOldestDueSettlement: true,
+          manualBillSelection: false,
         },
         update: {
           ...(lateFeeEnabled !== undefined ? { lateFeeEnabled } : {}),
           ...(partialPaymentAllowed !== undefined ? { partialPaymentAllowed } : {}),
           ...(advancePaymentAllowed !== undefined ? { advancePaymentAllowed } : {}),
           ...(autoAdjustAdvance !== undefined ? { autoAdjustAdvance } : {}),
-          ...(forceOldestDueSettlement !== undefined ? { forceOldestDueSettlement } : {}),
-          ...(manualBillSelection !== undefined ? { manualBillSelection } : {}),
+          forceOldestDueSettlement: true,
+          manualBillSelection: false,
         },
       });
 

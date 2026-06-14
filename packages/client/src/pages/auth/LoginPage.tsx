@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { getActionRestriction } from '../../lib/appRestrictions';
 import { getPostLoginRoute } from '@/lib/serviceStaff';
 import api from '../../lib/api';
-import { getApiBaseUrl, isNativePlatform } from '../../lib/platform';
+import { getApiBaseUrl, getClientMedium, isNativePlatform } from '../../lib/platform';
 import { useAuthStore } from '../../store/authStore';
 import type { AuthResponse } from '../../types';
 
@@ -24,14 +24,16 @@ export default function LoginPage() {
     setLoading(true);
 
     const normalizedEmail = email.trim().toLowerCase();
+    const clientMedium = getClientMedium();
     console.info('[login] submitting resident login', {
       email: normalizedEmail,
       apiBaseUrl: getApiBaseUrl(),
       nativePlatform: isNativePlatform(),
+      clientMedium,
     });
 
     try {
-      const { data } = await api.post<AuthResponse>('/auth/login', { email, password });
+      const { data } = await api.post<AuthResponse>('/auth/login', { email, password, clientMedium });
       const premiumLifecycleMessage = data.premiumLifecycle?.message;
 
       console.info('[login] resident login succeeded', {

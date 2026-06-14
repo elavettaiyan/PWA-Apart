@@ -1,5 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 
+export type ClientMedium = 'web' | 'android' | 'ios';
+
 export function isNativePlatform() {
   return Capacitor.isNativePlatform();
 }
@@ -10,6 +12,12 @@ export function isNativeAndroid() {
 
 export function isNativeIos() {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+}
+
+export function getClientMedium(): ClientMedium {
+  if (isNativeAndroid()) return 'android';
+  if (isNativeIos()) return 'ios';
+  return 'web';
 }
 
 export function shouldUseHashRouter() {

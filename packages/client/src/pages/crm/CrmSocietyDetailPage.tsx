@@ -893,7 +893,16 @@ type SocietyUser = {
   isActive: boolean;
   createdAt: string;
   lastLogin: string | null;
+  lastLoginPlatform: string | null;
 };
+
+function formatClientMedium(value: string | null | undefined) {
+  if (!value) return null;
+  if (value === 'ios') return 'iOS';
+  if (value === 'android') return 'Android';
+  if (value === 'web') return 'Web';
+  return value;
+}
 
 function MembersTab({
   societyId,
@@ -948,7 +957,13 @@ function MembersTab({
                   <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{u.email}</span>
                   {u.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{u.phone}</span>}
                   {u.lastLogin && (
-                    <span>Last login: {new Date(u.lastLogin).toLocaleDateString('en-IN')}</span>
+                    <span>
+                      Last login: {new Date(u.lastLogin).toLocaleDateString('en-IN')}
+                      {formatClientMedium(u.lastLoginPlatform) ? ` via ${formatClientMedium(u.lastLoginPlatform)}` : ''}
+                    </span>
+                  )}
+                  {!u.lastLogin && formatClientMedium(u.lastLoginPlatform) && (
+                    <span>Last used via {formatClientMedium(u.lastLoginPlatform)}</span>
                   )}
                 </div>
               </div>

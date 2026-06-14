@@ -514,7 +514,7 @@ router.get(
         where: { societyId },
         include: {
           user: {
-            select: { id: true, name: true, email: true, phone: true, role: true, isActive: true, createdAt: true, lastLogin: true },
+            select: { id: true, name: true, email: true, phone: true, role: true, isActive: true, createdAt: true, lastLogin: true, lastLoginPlatform: true },
           },
         },
         orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
