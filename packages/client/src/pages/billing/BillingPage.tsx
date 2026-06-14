@@ -11,7 +11,7 @@ import { initPhonePeSdk, startPhonePeCheckout } from '../../lib/phonePeNative';
 import { isNativeAndroid, isNativeIos } from '../../lib/platform';
 import { useAuthStore } from '../../store/authStore';
 import { isOwnerViewActive } from '../../lib/ownerView';
-import type { BillingGenerationResult, MaintenanceBill, MaintenanceConfigSummary, OwnerBillingSummary } from '../../types';
+import type { BillingGenerationResult, LateFeeMode, MaintenanceBill, MaintenanceConfigSummary, OwnerBillingSummary } from '../../types';
 
 const currentDate = new Date();
 const yearOptions = Array.from({ length: 5 }, (_, index) => currentDate.getFullYear() - 1 + index);
@@ -23,7 +23,10 @@ type BillingConfigFormState = {
   sinkingFund: number | '';
   repairFund: number | '';
   otherCharges: number | '';
+  lateFeeMode: LateFeeMode;
   lateFeePerDay: number | '';
+  lateFeeAmount: number | '';
+  gracePeriodDays: number | '';
   dueDay: number | '';
 };
 
@@ -35,7 +38,10 @@ function buildConfigForm(summary?: MaintenanceConfigSummary): BillingConfigFormS
     sinkingFund: summary?.sinkingFund ?? 0,
     repairFund: summary?.repairFund ?? 0,
     otherCharges: summary?.otherCharges ?? 0,
+    lateFeeMode: summary?.lateFeeMode ?? 'PER_DAY',
     lateFeePerDay: summary?.lateFeePerDay ?? 0,
+    lateFeeAmount: summary?.lateFeeAmount ?? 0,
+    gracePeriodDays: summary?.gracePeriodDays ?? 0,
     dueDay: summary?.dueDay ?? 10,
   };
 }
@@ -48,7 +54,10 @@ function normalizeBillingConfigForm(value: BillingConfigFormState) {
     sinkingFund: Number(value.sinkingFund || 0),
     repairFund: Number(value.repairFund || 0),
     otherCharges: Number(value.otherCharges || 0),
+    lateFeeMode: value.lateFeeMode,
     lateFeePerDay: Number(value.lateFeePerDay || 0),
+    lateFeeAmount: Number(value.lateFeeAmount || 0),
+    gracePeriodDays: Number(value.gracePeriodDays || 0),
     dueDay: Number(value.dueDay || 0),
   };
 }
@@ -909,6 +918,10 @@ function ConfigureBillingForm({
     onChange({ ...value, [field]: rawValue === '' ? '' : Number(rawValue) });
   };
 
+  const updateLateFeeMode = (lateFeeMode: LateFeeMode) => {
+    onChange({ ...value, lateFeeMode });
+  };
+
   return (
     <form
       onSubmit={(e) => {
@@ -948,8 +961,25 @@ function ConfigureBillingForm({
           <input type="number" min={0} className="input" value={value.otherCharges} onChange={(e) => updateNumberField('otherCharges', e.target.value)} />
         </div>
         <div>
-          <label className="label">Late Fee Per Day</label>
-          <input type="number" min={0} className="input" value={value.lateFeePerDay} onChange={(e) => updateNumberField('lateFeePerDay', e.target.value)} />
+          <label className="label">Late Fee Mode</label>
+          <select className="select" value={value.lateFeeMode} onChange={(e) => updateLateFeeMode(e.target.value as LateFeeMode)}>
+            <option value="PER_DAY">Per Day</option>
+            <option value="ONE_TIME_PER_BILL">One-Time Per Bill</option>
+          </select>
+        </div>
+        <div>
+          <label className="label">Grace Period (Days)</label>
+          <input type="number" min={0} className="input" value={value.gracePeriodDays} onChange={(e) => updateNumberField('gracePeriodDays', e.target.value)} />
+        </div>
+        <div>
+          <label className="label">{value.lateFeeMode === 'ONE_TIME_PER_BILL' ? 'One-Time Late Fee Amount' : 'Late Fee Per Day'}</label>
+          <input
+            type="number"
+            min={0}
+            className="input"
+            value={value.lateFeeMode === 'ONE_TIME_PER_BILL' ? value.lateFeeAmount : value.lateFeePerDay}
+            onChange={(e) => updateNumberField(value.lateFeeMode === 'ONE_TIME_PER_BILL' ? 'lateFeeAmount' : 'lateFeePerDay', e.target.value)}
+          />
         </div>
         <div>
           <label className="label">Due Day</label>

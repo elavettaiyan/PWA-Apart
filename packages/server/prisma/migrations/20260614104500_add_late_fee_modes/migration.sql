@@ -1,0 +1,8 @@
+-- CreateEnum
+CREATE TYPE "LateFeeMode" AS ENUM ('PER_DAY', 'ONE_TIME_PER_BILL');
+
+-- AlterTable
+ALTER TABLE "maintenance_configs"
+ADD COLUMN "gracePeriodDays" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN "lateFeeAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN "lateFeeMode" "LateFeeMode" NOT NULL DEFAULT 'PER_DAY';

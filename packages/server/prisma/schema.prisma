@@ -45,6 +45,11 @@ enum BillStatus {
   OVERDUE
 }
 
+enum LateFeeMode {
+  PER_DAY
+  ONE_TIME_PER_BILL
+}
+
 enum PaymentStatus {
   INITIATED
   SUCCESS
@@ -562,7 +567,10 @@ model MaintenanceConfig {
   sinkingFund     Float    @default(0)
   repairFund      Float    @default(0)
   otherCharges    Float    @default(0)
+  lateFeeMode     LateFeeMode @default(PER_DAY)
   lateFeePerDay   Float    @default(0)
+  lateFeeAmount   Float    @default(0)
+  gracePeriodDays Int      @default(0)
   dueDay          Int      @default(10)
   effectiveFrom   DateTime @default(now())
   isActive        Boolean  @default(true)

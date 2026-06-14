@@ -9,6 +9,8 @@ import logger from '../../config/logger';
  */
 export async function computeAndApplyLateFees(societyId?: string) {
   const now = new Date();
+  const configCache = new Map<string, any>();
+  const settingsCache = new Map<string, any>();
 
   // Select bills that are past due and not fully paid
   const where: any = {
@@ -30,26 +32,57 @@ export async function computeAndApplyLateFees(societyId?: string) {
 
   for (const bill of bills) {
     try {
-      // Find applicable config for this flat's society and flat type
-      const config = await prisma.maintenanceConfig.findFirst({
-        where: {
-          societyId: bill.flat.block.societyId,
-          isActive: true,
-        },
-        orderBy: { effectiveFrom: 'desc' },
-      });
+      const societyKey = bill.flat.block.societyId;
+      const configKey = `${societyKey}:${bill.flat.type}`;
 
-      const lateFeePerDay = config?.lateFeePerDay ?? 0;
+      let config = configCache.get(configKey);
+      if (!config) {
+        config = await prisma.maintenanceConfig.findFirst({
+          where: {
+            societyId: societyKey,
+            flatType: bill.flat.type,
+            isActive: true,
+          },
+          orderBy: { effectiveFrom: 'desc' },
+        });
+        configCache.set(configKey, config ?? null);
+      }
 
+      let settings = settingsCache.get(societyKey);
+      if (settings === undefined) {
+        settings = await prisma.societySettings.findUnique({ where: { societyId: societyKey } });
+        settingsCache.set(societyKey, settings ?? null);
+      }
+
+      const lateFeeEnabled = settings?.lateFeeEnabled !== false;
+      const lateFeeMode = config?.lateFeeMode ?? 'PER_DAY';
+      const lateFeePerDay = Number(config?.lateFeePerDay ?? 0);
+      const lateFeeAmount = Number(config?.lateFeeAmount ?? 0);
+      const gracePeriodDays = Math.max(0, Number(config?.gracePeriodDays ?? 0));
       const daysOverdue = Math.max(0, Math.floor((Date.now() - bill.dueDate.getTime()) / 86400000));
-      const newLateFee = Number((daysOverdue * lateFeePerDay).toFixed(2));
+      const effectiveOverdueDays = Math.max(0, daysOverdue - gracePeriodDays);
+
+      let newLateFee = Number(bill.lateFee.toFixed(2));
+      if (lateFeeEnabled) {
+        if (lateFeeMode === 'ONE_TIME_PER_BILL') {
+          newLateFee = Number((effectiveOverdueDays > 0 ? lateFeeAmount : 0).toFixed(2));
+        } else {
+          newLateFee = Number((effectiveOverdueDays * lateFeePerDay).toFixed(2));
+        }
+      }
 
       // Recompute total amount from components + new late fee
       const baseComponentsSum = Number((bill.baseAmount + bill.waterCharge + bill.parkingCharge + bill.sinkingFund + bill.repairFund + bill.otherCharges).toFixed(2));
       const newTotal = Number((baseComponentsSum + newLateFee).toFixed(2));
 
       if (bill.lateFee !== newLateFee || bill.totalAmount !== newTotal) {
-        const newStatus = (bill.paidAmount >= newTotal) ? 'PAID' : (newTotal > bill.paidAmount && bill.dueDate < now ? 'OVERDUE' : bill.status);
+        const newStatus = bill.paidAmount >= newTotal
+          ? 'PAID'
+          : effectiveOverdueDays > 0
+            ? 'OVERDUE'
+            : bill.paidAmount > 0
+              ? 'PARTIAL'
+              : 'PENDING';
 
         await prisma.maintenanceBill.update({
           where: { id: bill.id },

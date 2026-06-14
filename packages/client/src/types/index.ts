@@ -173,6 +173,7 @@ export interface Tenant {
 // ─── MAINTENANCE ────────────────────────────────────────
 
 export type BillStatus = 'PENDING' | 'PARTIAL' | 'PAID' | 'OVERDUE';
+export type LateFeeMode = 'PER_DAY' | 'ONE_TIME_PER_BILL';
 
 export interface MaintenanceConfig {
   id: string;
@@ -184,7 +185,10 @@ export interface MaintenanceConfig {
   sinkingFund: number;
   repairFund: number;
   otherCharges: number;
+  lateFeeMode: LateFeeMode;
   lateFeePerDay: number;
+  lateFeeAmount: number;
+  gracePeriodDays: number;
   dueDay: number;
 }
 
@@ -197,7 +201,10 @@ export interface MaintenanceConfigSummary {
   sinkingFund: number;
   repairFund: number;
   otherCharges: number;
+  lateFeeMode: LateFeeMode;
   lateFeePerDay: number;
+  lateFeeAmount: number;
+  gracePeriodDays: number;
   dueDay: number;
   configuredFlatTypes: FlatType[];
   totalMonthlyAmount: number;

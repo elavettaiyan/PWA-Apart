@@ -26,6 +26,7 @@ describe('Collections service', () => {
     // create a flat and a config with lateFeePerDay for this test
     const flat = await prisma.flat.create({ data: { flatNumber: `T-late-${Date.now()}`, blockId, type: 'TWO_BHK', floor: 1 } as any });
     const fid = flat.id;
+    await prisma.maintenanceConfig.deleteMany({ where: { societyId, flatType: 'TWO_BHK' } });
     await prisma.maintenanceConfig.create({ data: { societyId, flatType: 'TWO_BHK', baseAmount: 0, lateFeePerDay: 10, dueDay: 1, effectiveFrom: new Date(), isActive: true } as any });
 
     // create a bill overdue by 3 days
@@ -41,6 +42,116 @@ describe('Collections service', () => {
     assert.strictEqual(Number(refreshed!.lateFee.toFixed(2)), 30);
     assert.strictEqual(Number(refreshed!.totalAmount.toFixed(2)), 130);
     assert.strictEqual(refreshed!.status, 'OVERDUE');
+  });
+
+  it('computeAndApplyLateFees should apply one-time late fee once after grace period', async () => {
+    const flat = await prisma.flat.create({ data: { flatNumber: `T-once-${Date.now()}`, blockId, type: 'TWO_BHK', floor: 1 } as any });
+    const fid = flat.id;
+
+    await prisma.societySettings.upsert({
+      where: { societyId },
+      create: { societyId, lateFeeEnabled: true } as any,
+      update: { lateFeeEnabled: true },
+    });
+    await prisma.maintenanceConfig.deleteMany({ where: { societyId, flatType: 'TWO_BHK' } });
+
+    await prisma.maintenanceConfig.create({
+      data: {
+        societyId,
+        flatType: 'TWO_BHK',
+        baseAmount: 0,
+        lateFeeMode: 'ONE_TIME_PER_BILL',
+        lateFeeAmount: 200,
+        gracePeriodDays: 5,
+        dueDay: 1,
+        effectiveFrom: new Date(),
+        isActive: true,
+      } as any,
+    });
+
+    const dueDate = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000);
+    const bill = await prisma.maintenanceBill.create({ data: { flatId: fid, month: 2, year: 2020, baseAmount: 2000, totalAmount: 2000, dueDate, paidAmount: 0 } as any });
+
+    await computeAndApplyLateFees(societyId);
+    await computeAndApplyLateFees(societyId);
+
+    const refreshed = await prisma.maintenanceBill.findUnique({ where: { id: bill.id } });
+    assert.ok(refreshed);
+    assert.strictEqual(Number(refreshed!.lateFee.toFixed(2)), 200);
+    assert.strictEqual(Number(refreshed!.totalAmount.toFixed(2)), 2200);
+    assert.strictEqual(refreshed!.status, 'OVERDUE');
+  });
+
+  it('computeAndApplyLateFees should not apply late fee before grace period ends', async () => {
+    const flat = await prisma.flat.create({ data: { flatNumber: `T-grace-${Date.now()}`, blockId, type: 'TWO_BHK', floor: 1 } as any });
+    const fid = flat.id;
+
+    await prisma.societySettings.upsert({
+      where: { societyId },
+      create: { societyId, lateFeeEnabled: true } as any,
+      update: { lateFeeEnabled: true },
+    });
+    await prisma.maintenanceConfig.deleteMany({ where: { societyId, flatType: 'TWO_BHK' } });
+
+    await prisma.maintenanceConfig.create({
+      data: {
+        societyId,
+        flatType: 'TWO_BHK',
+        baseAmount: 0,
+        lateFeeMode: 'ONE_TIME_PER_BILL',
+        lateFeeAmount: 200,
+        gracePeriodDays: 5,
+        dueDay: 1,
+        effectiveFrom: new Date(),
+        isActive: true,
+      } as any,
+    });
+
+    const dueDate = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000);
+    const bill = await prisma.maintenanceBill.create({ data: { flatId: fid, month: 3, year: 2020, baseAmount: 2000, totalAmount: 2000, dueDate, paidAmount: 0 } as any });
+
+    await computeAndApplyLateFees(societyId);
+
+    const refreshed = await prisma.maintenanceBill.findUnique({ where: { id: bill.id } });
+    assert.ok(refreshed);
+    assert.strictEqual(Number(refreshed!.lateFee.toFixed(2)), 0);
+    assert.strictEqual(Number(refreshed!.totalAmount.toFixed(2)), 2000);
+  });
+
+  it('computeAndApplyLateFees should skip fees when late fee is disabled', async () => {
+    const flat = await prisma.flat.create({ data: { flatNumber: `T-disabled-${Date.now()}`, blockId, type: 'TWO_BHK', floor: 1 } as any });
+    const fid = flat.id;
+
+    await prisma.societySettings.upsert({
+      where: { societyId },
+      create: { societyId, lateFeeEnabled: false } as any,
+      update: { lateFeeEnabled: false },
+    });
+    await prisma.maintenanceConfig.deleteMany({ where: { societyId, flatType: 'TWO_BHK' } });
+
+    await prisma.maintenanceConfig.create({
+      data: {
+        societyId,
+        flatType: 'TWO_BHK',
+        baseAmount: 0,
+        lateFeeMode: 'PER_DAY',
+        lateFeePerDay: 10,
+        gracePeriodDays: 0,
+        dueDay: 1,
+        effectiveFrom: new Date(),
+        isActive: true,
+      } as any,
+    });
+
+    const dueDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    const bill = await prisma.maintenanceBill.create({ data: { flatId: fid, month: 4, year: 2020, baseAmount: 100, totalAmount: 100, dueDate, paidAmount: 0 } as any });
+
+    await computeAndApplyLateFees(societyId);
+
+    const refreshed = await prisma.maintenanceBill.findUnique({ where: { id: bill.id } });
+    assert.ok(refreshed);
+    assert.strictEqual(Number(refreshed!.lateFee.toFixed(2)), 0);
+    assert.strictEqual(Number(refreshed!.totalAmount.toFixed(2)), 100);
   });
 
   it('allocatePayment should apply amount oldest-first and create no advance when exact', async () => {
