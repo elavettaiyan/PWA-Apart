@@ -82,6 +82,7 @@ export default function BillingPage() {
   const { user, viewMode } = useAuthStore();
   const ownerViewActive = isOwnerViewActive(user, viewMode);
   const isAdmin = !ownerViewActive && (user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'] as string[]).includes(user?.role || ''));
+  const residentBillingView = ownerViewActive || user?.role === 'OWNER' || user?.role === 'TENANT';
   const shouldApplyMonthYear = isAdmin || applyMonthYearFilter;
   const billsBaseKey = ['bills', user?.id || 'anonymous', user?.societyId || 'no-society'];
   const billsQueryKey = [
@@ -116,7 +117,7 @@ export default function BillingPage() {
   const { data: ownerSummary } = useQuery<OwnerBillingSummary>({
     queryKey: ['owner-billing-summary', user?.id || 'anonymous', user?.societyId || 'no-society', month, year],
     queryFn: async () => (await api.get(`/billing/owner-summary?month=${month}&year=${year}`)).data,
-    enabled: !!user && ownerViewActive,
+    enabled: !!user && residentBillingView,
   });
 
   const displayedBills = isAdmin
@@ -561,7 +562,7 @@ export default function BillingPage() {
 
       {/* Month/Year Filter */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
-        {!isAdmin && !ownerViewActive && (
+        {!isAdmin && !residentBillingView && (
           <label className="inline-flex items-center gap-2 text-sm text-on-surface-variant">
             <input
               type="checkbox"
@@ -615,7 +616,7 @@ export default function BillingPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
-        {ownerViewActive ? (
+        {residentBillingView ? (
           <>
             <div className="stat-card">
               <p className="stat-label">Total Outstanding</p>
@@ -691,11 +692,11 @@ export default function BillingPage() {
                       />
                     )}
                     <p className="font-semibold text-on-surface truncate">
-                      {ownerViewActive ? `${getMonthName(bill.month)} ${bill.year}` : <>{bill.flat?.flatNumber}<span className="ml-1 text-xs font-normal text-on-surface-variant">{bill.flat?.block?.name}</span></>}
+                      {residentBillingView ? `${getMonthName(bill.month)} ${bill.year}` : <>{bill.flat?.flatNumber}<span className="ml-1 text-xs font-normal text-on-surface-variant">{bill.flat?.block?.name}</span></>}
                     </p>
                   </div>
                   <p className="text-xs text-on-surface-variant mt-0.5">
-                    {ownerViewActive ? `Due ${formatDate(bill.dueDate)}` : `${bill.flat?.owner?.name || '—'} · ${getMonthName(bill.month)} ${bill.year}`}
+                    {residentBillingView ? `Due ${formatDate(bill.dueDate)}` : `${bill.flat?.owner?.name || '—'} · ${getMonthName(bill.month)} ${bill.year}`}
                   </p>
                 </div>
                 <span className={cn('badge shrink-0', getStatusColor(bill.status))}>{bill.status}</span>
@@ -762,9 +763,9 @@ export default function BillingPage() {
                   />
                 </th>}
                 <th>Month</th>
-                {!ownerViewActive && <th>Flat</th>}
-                {!ownerViewActive && <th>Owner</th>}
-                {ownerViewActive && <th>Due Date</th>}
+                {!residentBillingView && <th>Flat</th>}
+                {!residentBillingView && <th>Owner</th>}
+                {residentBillingView && <th>Due Date</th>}
                 <th>Total</th>
                 <th>Paid</th>
                 <th>Balance</th>
@@ -790,7 +791,7 @@ export default function BillingPage() {
                   <td>
                     <p className="text-sm whitespace-nowrap">{getMonthName(bill.month)} {bill.year}</p>
                   </td>
-                  {!ownerViewActive && (
+                  {!residentBillingView && (
                     <td>
                       <div>
                         <p className="font-medium text-on-surface">{bill.flat?.flatNumber}</p>
@@ -798,13 +799,13 @@ export default function BillingPage() {
                       </div>
                     </td>
                   )}
-                  {!ownerViewActive && (
+                  {!residentBillingView && (
                     <td>
                       <p className="text-sm">{bill.flat?.owner?.name || '-'}</p>
                       <p className="text-xs text-on-surface-variant">{bill.flat?.owner?.phone}</p>
                     </td>
                   )}
-                  {ownerViewActive && <td className="whitespace-nowrap">{formatDate(bill.dueDate)}</td>}
+                  {residentBillingView && <td className="whitespace-nowrap">{formatDate(bill.dueDate)}</td>}
                   <td className="font-medium whitespace-nowrap">{formatCurrency(bill.totalAmount)}</td>
                   <td className="text-emerald-900 font-medium whitespace-nowrap">{formatCurrency(bill.paidAmount)}</td>
                   <td className="text-rose-900 font-medium whitespace-nowrap">{formatCurrency(bill.totalAmount - bill.paidAmount)}</td>
