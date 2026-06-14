@@ -262,6 +262,16 @@ async function getUserFlatIds(userId: string, societyId: string | null) {
 
   return [...new Set([...owners.map((row) => row.flatId), ...tenants.map((row) => row.flatId)])];
 }
+async function getUserOwnedFlatIds(userId: string, societyId: string | null) {
+  if (!societyId) return [] as string[];
+
+  const owners = await prisma.owner.findMany({
+    where: { userId, flat: { block: { societyId } } },
+    select: { flatId: true },
+  });
+
+  return owners.map((record) => record.flatId);
+}
 
 async function getSocietySettings(societyId: string | null) {
   if (!societyId) return null;
@@ -1363,6 +1373,7 @@ router.get(
     query('method').optional().isString(),
     query('startDate').optional().isISO8601(),
     query('endDate').optional().isISO8601(),
+    query('ownerView').optional().isIn(['true', 'false']),
   ],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -1375,6 +1386,7 @@ router.get(
       const methodFilter = req.query.method as string | undefined;
       const startDate = req.query.startDate as string | undefined;
       const endDate = req.query.endDate as string | undefined;
+      const ownerView = req.query.ownerView === 'true';
 
       const isAdmin = req.user!.role === 'SUPER_ADMIN' || (FINANCIAL_ROLES as readonly string[]).includes(req.user!.role);
       const isResident = req.user!.role === 'OWNER' || req.user!.role === 'TENANT';
@@ -1392,7 +1404,11 @@ router.get(
       if (statusFilter) where.status = statusFilter as any;
       if (methodFilter) where.method = methodFilter as any;
 
-      if (isResident) {
+      if (ownerView && isAdmin && req.user!.role !== 'SUPER_ADMIN') {
+        const flatIds = await getUserOwnedFlatIds(req.user!.id, req.user!.societyId ?? null);
+        if (flatIds.length === 0) return res.json({ payments: [], total: 0, page, limit, pages: 0 });
+        where.bill = { flatId: { in: flatIds } };
+      } else if (isResident) {
         // Scope to the resident's own flat IDs
         const flatIds = await getUserFlatIds(req.user!.id, req.user!.societyId ?? null);
         if (flatIds.length === 0) return res.json({ payments: [], total: 0, page, limit });
@@ -1479,10 +1495,16 @@ router.get('/receipt/:id', authenticate, async (req: AuthRequest, res: Response)
 
     if (!payment) return res.status(404).json({ error: 'Payment not found' });
 
+    const ownerView = req.query.ownerView === 'true';
     const isAdmin = req.user!.role === 'SUPER_ADMIN' || (FINANCIAL_ROLES as readonly string[]).includes(req.user!.role);
     const isResident = req.user!.role === 'OWNER' || req.user!.role === 'TENANT';
 
-    if (isResident) {
+    if (ownerView && isAdmin && req.user!.role !== 'SUPER_ADMIN') {
+      const flatIds = await getUserOwnedFlatIds(req.user!.id, req.user!.societyId ?? null);
+      if (!flatIds.includes(payment.bill.flatId)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    } else if (isResident) {
       const flatIds = await getUserFlatIds(req.user!.id, req.user!.societyId ?? null);
       if (!flatIds.includes(payment.bill.flatId)) {
         return res.status(403).json({ error: 'Access denied' });
@@ -1555,6 +1577,7 @@ router.get(
     query('startDate').optional().isISO8601(),
     query('endDate').optional().isISO8601(),
     query('export').optional().isString(),
+    query('ownerView').optional().isIn(['true', 'false']),
   ],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -1567,6 +1590,7 @@ router.get(
       const statusFilter = req.query.status as string | undefined;
       const startDate = req.query.startDate as string | undefined;
       const endDate = req.query.endDate as string | undefined;
+      const ownerView = req.query.ownerView === 'true';
 
       // Scope to society
       let societyId: string;
@@ -1583,6 +1607,14 @@ router.get(
         method: 'PHONEPE',
         bill: { flat: { block: { societyId } } },
       };
+
+      if (ownerView && req.user!.role !== 'SUPER_ADMIN') {
+        const flatIds = await getUserOwnedFlatIds(req.user!.id, req.user!.societyId ?? null);
+        if (flatIds.length === 0) {
+          return res.json({ payments: [], total: 0, page, limit, pages: 0 });
+        }
+        where.bill = { flatId: { in: flatIds } };
+      }
 
       if (statusFilter) where.status = statusFilter as any;
       if (startDate || endDate) {

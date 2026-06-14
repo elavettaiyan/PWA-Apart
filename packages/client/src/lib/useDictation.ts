@@ -2,13 +2,69 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 
-export type DictationLang = 'en-IN' | 'ta-IN' | 'hi-IN';
+export type DictationLang =
+  | 'en-IN'
+  | 'as-IN'
+  | 'bn-IN'
+  | 'gu-IN'
+  | 'hi-IN'
+  | 'kn-IN'
+  | 'ml-IN'
+  | 'mr-IN'
+  | 'or-IN'
+  | 'pa-IN'
+  | 'ta-IN'
+  | 'te-IN';
+
+export const GATE_DICTATION_LANGUAGE_KEY = 'gate-dictation-lang';
+export const GATE_REGIONAL_LANGUAGE_KEY = 'gate-regional-lang';
+export const MAX_GATE_REGIONAL_LANGUAGES = 3;
 
 export const DICTATION_LANGUAGES: { value: DictationLang; label: string }[] = [
-  { value: 'en-IN', label: 'EN' },
-  { value: 'ta-IN', label: 'தமிழ்' },
-  { value: 'hi-IN', label: 'हिंदी' },
+  { value: 'en-IN', label: 'English' },
+  { value: 'as-IN', label: 'অসমীয়া (Assamese)' },
+  { value: 'bn-IN', label: 'বাংলা (Bengali)' },
+  { value: 'gu-IN', label: 'ગુજરાતી (Gujarati)' },
+  { value: 'hi-IN', label: 'हिंदी (Hindi)' },
+  { value: 'kn-IN', label: 'ಕನ್ನಡ (Kannada)' },
+  { value: 'ml-IN', label: 'മലയാളം (Malayalam)' },
+  { value: 'mr-IN', label: 'मराठी (Marathi)' },
+  { value: 'or-IN', label: 'ଓଡ଼ିଆ (Odia)' },
+  { value: 'pa-IN', label: 'ਪੰਜਾਬੀ (Punjabi)' },
+  { value: 'ta-IN', label: 'தமிழ் (Tamil)' },
+  { value: 'te-IN', label: 'తెలుగు (Telugu)' },
 ];
+
+export const REGIONAL_DICTATION_LANGUAGES = DICTATION_LANGUAGES.filter(
+  (language) => language.value !== 'en-IN',
+);
+
+export function isDictationLang(value: string | null | undefined): value is DictationLang {
+  return DICTATION_LANGUAGES.some((language) => language.value === value);
+}
+
+export function parseGateRegionalLanguages(value: string | null | undefined): DictationLang[] {
+  if (!value) return [];
+
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((entry): entry is DictationLang => isDictationLang(entry) && entry !== 'en-IN').slice(0, MAX_GATE_REGIONAL_LANGUAGES);
+  } catch {
+    return isDictationLang(value) && value !== 'en-IN' ? [value] : [];
+  }
+}
+
+export function getGateDictationLanguages(preferredRegionalLanguages?: DictationLang[] | null) {
+  if (!preferredRegionalLanguages?.length) {
+    return DICTATION_LANGUAGES.filter((language) => language.value === 'en-IN');
+  }
+
+  const allowedRegionalLanguages = new Set(preferredRegionalLanguages.slice(0, MAX_GATE_REGIONAL_LANGUAGES));
+  return DICTATION_LANGUAGES.filter(
+    (language) => language.value === 'en-IN' || allowedRegionalLanguages.has(language.value),
+  );
+}
 
 // ─── Digit conversion ──────────────────────────────────────────────
 // Maps spoken single-digit words (English, Tamil, Hindi) to ASCII digits.

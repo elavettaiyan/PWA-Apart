@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Copy, CreditCard, Download, Loader2, RefreshCw } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { formatCurrency, formatDate, getMonthName, getStatusColor } from '../../lib/utils';
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import { useAuthStore } from '../../store/authStore';
+import { isOwnerViewActive } from '../../lib/ownerView';
 import type { PaymentHistoryItem, PaymentMethod, PaymentReceiptDetails } from '../../types';
 
 const FINANCIAL_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'];
@@ -46,7 +47,10 @@ interface HistoryResponse {
 
 export default function PaymentHistoryPage() {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const [searchParams] = useSearchParams();
+  const { user, viewMode } = useAuthStore();
+  const ownerViewRequested = searchParams.get('ownerView') === 'true';
+  const ownerViewActive = ownerViewRequested && isOwnerViewActive(user, viewMode);
   const isAdmin = user?.role === 'SUPER_ADMIN' || FINANCIAL_ROLES.includes(user?.role ?? '');
 
   const queryClient = useQueryClient();
@@ -141,13 +145,14 @@ export default function PaymentHistoryPage() {
   }
 
   const { data, isLoading, isFetching, isError } = useQuery<HistoryResponse>({
-    queryKey: ['payment-history', page, statusFilter, methodFilter, startDate, endDate],
+    queryKey: ['payment-history', ownerViewActive ? 'owner-view' : 'default', page, statusFilter, methodFilter, startDate, endDate],
     queryFn: async () => {
       const params = new URLSearchParams({ page: String(page), limit: '20' });
       if (statusFilter) params.set('status', statusFilter);
       if (methodFilter) params.set('method', methodFilter);
       if (startDate) params.set('startDate', startDate);
       if (endDate) params.set('endDate', endDate);
+      if (ownerViewActive) params.set('ownerView', 'true');
       const { data } = await api.get<HistoryResponse>(`/payments/history?${params}`);
       return data;
     },
@@ -174,7 +179,7 @@ export default function PaymentHistoryPage() {
         <div>
           <h1 className="page-title mb-0">Payment History</h1>
           <p className="text-sm text-base-content/60 mt-0.5">
-            {isAdmin ? 'All payments for your society' : 'Your payment transactions'}
+            {ownerViewActive ? 'Payments for your owner-view flats' : isAdmin ? 'All payments for your society' : 'Your payment transactions'}
           </p>
         </div>
       </div>

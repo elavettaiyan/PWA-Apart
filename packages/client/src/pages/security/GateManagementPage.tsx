@@ -5,11 +5,18 @@ import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { PageLoader } from '../../components/ui/Loader';
 import { cn, formatDateTime, getStatusColor } from '../../lib/utils';
-import { DICTATION_LANGUAGES, toDigits, useDictation, type DictationLang } from '../../lib/useDictation';
+import {
+  GATE_DICTATION_LANGUAGE_KEY,
+  GATE_REGIONAL_LANGUAGE_KEY,
+  getGateDictationLanguages,
+  isDictationLang,
+  parseGateRegionalLanguages,
+  toDigits,
+  useDictation,
+  type DictationLang,
+} from '../../lib/useDictation';
 import { parseDeliverySpeech, parseVisitorSpeech } from '../../lib/gateVoiceParser';
 import type { Delivery, DeliveryType, FlatOption, Visitor } from '../../types';
-
-const DICTATION_LANG_KEY = 'gate-dictation-lang';
 
 type EntryMode = 'VISITOR' | 'DELIVERY';
 
@@ -56,13 +63,56 @@ export default function GateManagementPage() {
   const [deliveryForm, setDeliveryForm] = useState(emptyDeliveryForm);
   const [visitorPhoto, setVisitorPhoto] = useState<File | null>(null);
   const [deliveryPhoto, setDeliveryPhoto] = useState<File | null>(null);
+  const [preferredRegionalLanguages, setPreferredRegionalLanguages] = useState<DictationLang[]>(() => {
+    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(GATE_REGIONAL_LANGUAGE_KEY) : null;
+    return parseGateRegionalLanguages(stored);
+  });
+  const availableDictationLanguages = useMemo(
+    () => getGateDictationLanguages(preferredRegionalLanguages),
+    [preferredRegionalLanguages],
+  );
 
   const { supported: dictationSupported, listening: dictationListening, start: startDictation, stop: stopDictation } = useDictation();
   const [dictationLang, setDictationLang] = useState<DictationLang>(() => {
-    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(DICTATION_LANG_KEY) : null;
-    return (stored as DictationLang) || 'en-IN';
+    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(GATE_DICTATION_LANGUAGE_KEY) : null;
+    return isDictationLang(stored) ? stored : 'en-IN';
   });
   const [activeMic, setActiveMic] = useState<string | null>(null);
+
+  useEffect(() => {
+    const readPreferredLanguage = () => {
+      if (typeof localStorage === 'undefined') return;
+      const stored = localStorage.getItem(GATE_REGIONAL_LANGUAGE_KEY);
+      setPreferredRegionalLanguages(parseGateRegionalLanguages(stored));
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        readPreferredLanguage();
+      }
+    };
+
+    readPreferredLanguage();
+    window.addEventListener('focus', readPreferredLanguage);
+    window.addEventListener('storage', readPreferredLanguage);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', readPreferredLanguage);
+      window.removeEventListener('storage', readPreferredLanguage);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    const isAllowed = availableDictationLanguages.some((language) => language.value === dictationLang);
+    if (!isAllowed) {
+      setDictationLang('en-IN');
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(GATE_DICTATION_LANGUAGE_KEY, 'en-IN');
+      }
+    }
+  }, [availableDictationLanguages, dictationLang]);
 
   const handleDictate = async (
     field: string,
@@ -112,7 +162,7 @@ export default function GateManagementPage() {
   const changeDictationLang = (lang: DictationLang) => {
     setDictationLang(lang);
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(DICTATION_LANG_KEY, lang);
+      localStorage.setItem(GATE_DICTATION_LANGUAGE_KEY, lang);
     }
   };
 
@@ -303,7 +353,12 @@ export default function GateManagementPage() {
                   <p className="text-sm text-on-surface-variant mt-1">Visitor photo is optional.</p>
                 </div>
                 {dictationSupported && (
-                  <LanguageToggle value={dictationLang} onChange={changeDictationLang} disabled={dictationListening} />
+                  <LanguageToggle
+                    languages={availableDictationLanguages}
+                    value={dictationLang}
+                    onChange={changeDictationLang}
+                    disabled={dictationListening}
+                  />
                 )}
               </div>
               {dictationSupported && (
@@ -322,8 +377,8 @@ export default function GateManagementPage() {
                     value={visitorForm.visitorName}
                     onChange={(value) => setVisitorForm((current) => ({ ...current, visitorName: value }))}
                     placeholder="Full name"
-                    showMic={dictationSupported}
-                    listening={activeMic === 'visitorName'}
+                    showMic={false}
+                    listening={false}
                     micDisabled={dictationListening}
                     onMic={() => handleDictate('visitorName', (text) => setVisitorForm((current) => ({ ...current, visitorName: text })))}
                   />
@@ -334,11 +389,10 @@ export default function GateManagementPage() {
                     onChange={(value) => setVisitorForm((current) => ({ ...current, mobile: value }))}
                     placeholder="Phone number"
                     inputMode="numeric"
-                    showMic={dictationSupported}
-                    listening={activeMic === 'visitorMobile'}
+                    showMic={false}
+                    listening={false}
                     micDisabled={dictationListening}
                     onMic={() => handleDictate('visitorMobile', (text) => setVisitorForm((current) => ({ ...current, mobile: text })), 'digits')}
-                    hint={dictationSupported ? 'Tip: speak digits one at a time' : undefined}
                   />
                 </Field>
                 <Field label="Vehicle Number">
@@ -374,7 +428,12 @@ export default function GateManagementPage() {
                   <p className="text-sm text-on-surface-variant mt-1">Delivery photo is optional.</p>
                 </div>
                 {dictationSupported && (
-                  <LanguageToggle value={dictationLang} onChange={changeDictationLang} disabled={dictationListening} />
+                  <LanguageToggle
+                    languages={availableDictationLanguages}
+                    value={dictationLang}
+                    onChange={changeDictationLang}
+                    disabled={dictationListening}
+                  />
                 )}
               </div>
               {dictationSupported && (
@@ -638,10 +697,12 @@ function SmartVoicePanel({
 }
 
 function LanguageToggle({
+  languages,
   value,
   onChange,
   disabled,
 }: {
+  languages: { value: DictationLang; label: string }[];
   value: DictationLang;
   onChange: (lang: DictationLang) => void;
   disabled?: boolean;
@@ -649,7 +710,7 @@ function LanguageToggle({
   return (
     <div className="inline-flex items-center gap-1 rounded-xl bg-surface-container p-1" role="group" aria-label="Voice language">
       <Mic className="w-4 h-4 text-on-surface-variant mx-1" aria-hidden />
-      {DICTATION_LANGUAGES.map((lang) => (
+      {languages.map((lang) => (
         <button
           key={lang.value}
           type="button"

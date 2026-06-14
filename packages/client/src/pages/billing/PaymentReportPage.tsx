@@ -7,6 +7,7 @@ import api from '../../lib/api';
 import { formatCurrency, formatDate, getMonthName, getStatusColor } from '../../lib/utils';
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import { useAuthStore } from '../../store/authStore';
+import { isOwnerViewActive } from '../../lib/ownerView';
 import type { PaymentHistoryItem } from '../../types';
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -27,7 +28,8 @@ interface ReportResponse {
 
 export default function PaymentReportPage() {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, viewMode } = useAuthStore();
+  const ownerViewActive = isOwnerViewActive(user, viewMode);
 
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
@@ -40,6 +42,7 @@ export default function PaymentReportPage() {
     if (statusFilter) params.set('status', statusFilter);
     if (startDate) params.set('startDate', startDate);
     if (endDate) params.set('endDate', endDate);
+    if (ownerViewActive) params.set('ownerView', 'true');
     // SUPER_ADMIN must pass societyId
     if (user?.role === 'SUPER_ADMIN' && user?.societyId) params.set('societyId', user.societyId);
     Object.entries(overrides).forEach(([k, v]) => params.set(k, v));
@@ -96,7 +99,7 @@ export default function PaymentReportPage() {
           <div>
             <h1 className="page-title mb-0">Online Payment Report</h1>
             <p className="text-sm text-base-content/60 mt-0.5">
-              PhonePe payment reconciliation — {data?.total ?? 0} records
+              {ownerViewActive ? `Owner-view PhonePe payments — ${data?.total ?? 0} records` : `PhonePe payment reconciliation — ${data?.total ?? 0} records`}
             </p>
           </div>
         </div>

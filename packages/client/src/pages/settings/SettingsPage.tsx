@@ -12,6 +12,13 @@ import Modal from '../../components/ui/Modal';
 import { isSectionRestricted } from '../../lib/appRestrictions';
 import { cn } from '../../lib/utils';
 import { getFallbackMenuVisibility } from '../../lib/menuConfig';
+import {
+  GATE_REGIONAL_LANGUAGE_KEY,
+  MAX_GATE_REGIONAL_LANGUAGES,
+  REGIONAL_DICTATION_LANGUAGES,
+  parseGateRegionalLanguages,
+  type DictationLang,
+} from '../../lib/useDictation';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import type { ConfigurableMenuRole, MenuVisibilityResponse, NavigationMenuId, PremiumStatusResponse } from '../../types';
@@ -79,6 +86,8 @@ export default function SettingsPage() {
   const [deleteAccountStep, setDeleteAccountStep] = useState<'idle' | 'otp'>('idle');
   const [deleteAccountResendCooldown, setDeleteAccountResendCooldown] = useState(0);
   const deleteOtpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [preferredGateLanguages, setPreferredGateLanguages] = useState<DictationLang[]>([]);
+  const [gateLanguageDirty, setGateLanguageDirty] = useState(false);
 
   const isAdmin = user?.role === 'SUPER_ADMIN' || SOCIETY_ADMINS.includes(user?.role as any);
 
@@ -87,6 +96,12 @@ export default function SettingsPage() {
     const timer = setTimeout(() => setDeleteAccountResendCooldown((value) => value - 1), 1000);
     return () => clearTimeout(timer);
   }, [deleteAccountResendCooldown]);
+
+  useEffect(() => {
+    if (typeof localStorage === 'undefined') return;
+    const stored = localStorage.getItem(GATE_REGIONAL_LANGUAGE_KEY);
+    setPreferredGateLanguages(parseGateRegionalLanguages(stored));
+  }, []);
 
   const { data, isLoading } = useQuery<{ exists: boolean; config: PhonePeConfig }>({
     queryKey: ['payment-gateway-config'],
@@ -360,6 +375,35 @@ export default function SettingsPage() {
     }
 
     saveMutation.mutate(payload);
+  };
+
+  const handleSaveGateLanguage = () => {
+    if (typeof localStorage === 'undefined') return;
+
+    if (preferredGateLanguages.length > 0) {
+      localStorage.setItem(GATE_REGIONAL_LANGUAGE_KEY, JSON.stringify(preferredGateLanguages));
+      toast.success('Gate language preference saved');
+    } else {
+      localStorage.removeItem(GATE_REGIONAL_LANGUAGE_KEY);
+      toast.success('Gate Management will use English only');
+    }
+
+    setGateLanguageDirty(false);
+  };
+
+  const toggleGateLanguage = (language: DictationLang) => {
+    setPreferredGateLanguages((current) => {
+      const exists = current.includes(language);
+      if (exists) {
+        return current.filter((entry) => entry !== language);
+      }
+      if (current.length >= MAX_GATE_REGIONAL_LANGUAGES) {
+        toast.error(`Select up to ${MAX_GATE_REGIONAL_LANGUAGES} regional languages`);
+        return current;
+      }
+      return [...current, language];
+    });
+    setGateLanguageDirty(true);
   };
 
   if (isAdmin && isLoading) return <PageLoader />;
@@ -1078,6 +1122,71 @@ export default function SettingsPage() {
               </div>
             </div>
           )}
+        </div>
+      </SettingsAccordion>
+
+      <SettingsAccordion
+        title="Gate Language"
+        description="Choose up to three regional languages to show with English in Gate Management"
+        icon={Globe}
+        defaultOpen
+        iconWrapperClassName="group-open:bg-sky-100"
+        iconClassName="group-open:text-sky-800"
+      >
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-low p-4">
+            <label className="label">Additional regional languages</label>
+            <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
+              {REGIONAL_DICTATION_LANGUAGES.map((language) => {
+                const checked = preferredGateLanguages.includes(language.value);
+                const disabled = !checked && preferredGateLanguages.length >= MAX_GATE_REGIONAL_LANGUAGES;
+
+                return (
+                  <label
+                    key={language.value}
+                    className={cn(
+                      'flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors',
+                      checked
+                        ? 'border-primary/25 bg-primary-container/20'
+                        : 'border-outline-variant/15 bg-surface',
+                      disabled ? 'opacity-50' : 'cursor-pointer hover:border-primary/20',
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-outline-variant/30 text-primary focus:ring-primary"
+                      checked={checked}
+                      disabled={disabled}
+                      onChange={() => toggleGateLanguage(language.value)}
+                    />
+                    <span className="text-sm font-medium text-on-surface">{language.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-sm text-on-surface-variant">
+              Gate Management will always show English. Select up to {MAX_GATE_REGIONAL_LANGUAGES} additional languages for voice capture shortcuts.
+            </p>
+            <p className="mt-1 text-xs text-on-surface-variant">
+              Selected: {preferredGateLanguages.length} / {MAX_GATE_REGIONAL_LANGUAGES}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleSaveGateLanguage}
+              disabled={!gateLanguageDirty}
+            >
+              Save Gate Language
+            </button>
+            {gateLanguageDirty && (
+              <span className="text-xs text-warning flex items-center gap-1">
+                <Clock className="w-3 h-3" /> Unsaved changes
+              </span>
+            )}
+          </div>
         </div>
       </SettingsAccordion>
       </>

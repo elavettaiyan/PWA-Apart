@@ -81,13 +81,14 @@ export default function BillingPage() {
   const queryClient = useQueryClient();
   const { user, viewMode } = useAuthStore();
   const ownerViewActive = isOwnerViewActive(user, viewMode);
-  const isAdmin = !ownerViewActive && (user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'] as string[]).includes(user?.role || ''));
+  const isFinancialAdmin = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'] as string[]).includes(user?.role || '');
   const residentBillingView = ownerViewActive || user?.role === 'OWNER' || user?.role === 'TENANT';
-  const shouldApplyMonthYear = isAdmin || applyMonthYearFilter;
+  const ownerFacingBillingView = residentBillingView;
+  const shouldApplyMonthYear = ownerFacingBillingView ? false : isFinancialAdmin || applyMonthYearFilter;
   const billsBaseKey = ['bills', user?.id || 'anonymous', user?.societyId || 'no-society'];
   const billsQueryKey = [
     ...billsBaseKey,
-    ownerViewActive ? 'owner-view' : isAdmin ? 'admin' : 'resident',
+    ownerViewActive ? 'owner-view' : isFinancialAdmin ? 'admin' : 'resident',
     ownerViewActive ? user?.flat?.id || 'no-flat' : 'role-scope',
     shouldApplyMonthYear ? month : 'all-months',
     shouldApplyMonthYear ? year : 'all-years',
@@ -117,15 +118,16 @@ export default function BillingPage() {
   const { data: ownerSummary } = useQuery<OwnerBillingSummary>({
     queryKey: ['owner-billing-summary', user?.id || 'anonymous', user?.societyId || 'no-society', month, year],
     queryFn: async () => (await api.get(`/billing/owner-summary?month=${month}&year=${year}`)).data,
-    enabled: !!user && residentBillingView,
+    enabled: !!user && ownerFacingBillingView,
   });
 
-  const displayedBills = isAdmin
+  const displayedBills = ownerFacingBillingView
+    ? bills
+    : isFinancialAdmin
     ? bills.filter((bill) => bill.month === month && bill.year === year)
     : bills.filter((bill) => pendingStatuses.has(bill.status));
   const selectableBillIds = displayedBills.filter((bill) => bill.status !== 'PAID').map((bill) => bill.id);
   const selectableBillIdsKey = selectableBillIds.join(',');
-  const selectedCount = selectedBillIds.length;
   const manualBillSelectionEnabled = societySettings?.manualBillSelection !== false;
   const totalOutstanding = Number(displayedBills.reduce((sum, bill) => sum + Math.max(0, bill.totalAmount - bill.paidAmount), 0).toFixed(2));
   const residentFlatId = displayedBills[0]?.flatId;
@@ -155,7 +157,7 @@ export default function BillingPage() {
   const { data: configSummary, isLoading: isConfigLoading } = useQuery<MaintenanceConfigSummary>({
     queryKey: configBaseKey,
     queryFn: async () => (await api.get('/billing/config/summary')).data,
-    enabled: isAdmin,
+    enabled: isFinancialAdmin,
   });
 
   const openConfigModal = () => {
@@ -456,7 +458,7 @@ export default function BillingPage() {
     };
   }, [txnId, queryClient, setSearchParams]);
 
-  if (isLoading || (isAdmin && isConfigLoading)) return <PageLoader />;
+  if (isLoading || (isFinancialAdmin && isConfigLoading)) return <PageLoader />;
 
   return (
     <div>
@@ -466,10 +468,10 @@ export default function BillingPage() {
           <h1 className="page-title">Billing</h1>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <button className="btn-secondary text-xs px-2.5 py-1.5" onClick={() => navigate('/payments/history')}>
+          <button className="btn-secondary text-xs px-2.5 py-1.5" onClick={() => navigate(ownerViewActive ? '/payments/history?ownerView=true' : '/payments/history')}>
             <History className="w-3.5 h-3.5" /> History
           </button>
-          {isAdmin && (
+          {isFinancialAdmin && !ownerViewActive && (
             <>
               <button className="btn-secondary text-xs px-2.5 py-1.5" onClick={() => navigate('/payments/report')}>
                 <FileBarChart2 className="w-3.5 h-3.5" /> Report
@@ -488,7 +490,7 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {isAdmin && (
+      {isFinancialAdmin && !ownerViewActive && (
         <div className="grid gap-4 mb-6 md:grid-cols-[1.25fr_0.75fr]">
           <div className="rounded-2xl bg-surface-container-lowest p-5 editorial-shadow">
             <div className="flex items-start justify-between gap-4">
@@ -562,7 +564,7 @@ export default function BillingPage() {
 
       {/* Month/Year Filter */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
-        {!isAdmin && !residentBillingView && (
+        {!isFinancialAdmin && !ownerFacingBillingView && (
           <label className="inline-flex items-center gap-2 text-sm text-on-surface-variant">
             <input
               type="checkbox"
@@ -573,7 +575,7 @@ export default function BillingPage() {
           </label>
         )}
 
-        {(isAdmin || applyMonthYearFilter) && (
+        {!ownerFacingBillingView && (isFinancialAdmin || applyMonthYearFilter) && (
           <>
             <select className="select w-40" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
               {Array.from({ length: 12 }, (_, i) => (
@@ -588,15 +590,7 @@ export default function BillingPage() {
           </>
         )}
 
-        {residentBillingView && manualBillSelectionEnabled && selectedCount >= 2 && (
-          <button
-            className="btn-primary"
-            onClick={() => handlePhonePeBulkPay(selectedBillIds)}
-          >
-            <CreditCard className="w-4 h-4" /> Pay Selected ({selectedCount})
-          </button>
-        )}
-        {residentBillingView && !manualBillSelectionEnabled && (
+        {ownerFacingBillingView && (
           <div className="flex flex-wrap items-center gap-2">
             <input
               className="input w-40"
@@ -616,7 +610,7 @@ export default function BillingPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
-        {residentBillingView ? (
+        {ownerFacingBillingView ? (
           <>
             <div className="stat-card">
               <p className="stat-label">Total Outstanding</p>
@@ -663,11 +657,11 @@ export default function BillingPage() {
           icon={Receipt}
           title="No bills found"
           description={
-            isAdmin || applyMonthYearFilter
+            isFinancialAdmin || applyMonthYearFilter
               ? `No bills generated for ${getMonthName(month)} ${year}`
               : 'No pending dues found'
           }
-          action={isAdmin ? (
+          action={isFinancialAdmin && !ownerViewActive ? (
             <button className="btn-primary" onClick={() => (canGenerateBills ? setShowGenerate(true) : openConfigModal())}>
               {canGenerateBills ? 'Generate Bills' : 'Set Maintenance Amount'}
             </button>
@@ -683,20 +677,12 @@ export default function BillingPage() {
               <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    {residentBillingView && manualBillSelectionEnabled && bill.status !== 'PAID' && (
-                      <input
-                        type="checkbox"
-                        className="shrink-0"
-                        checked={selectedBillIds.includes(bill.id)}
-                        onChange={(e) => toggleBillSelection(bill.id, e.target.checked)}
-                      />
-                    )}
                     <p className="font-semibold text-on-surface truncate">
-                      {residentBillingView ? `${getMonthName(bill.month)} ${bill.year}` : <>{bill.flat?.flatNumber}<span className="ml-1 text-xs font-normal text-on-surface-variant">{bill.flat?.block?.name}</span></>}
+                      {ownerFacingBillingView ? `${getMonthName(bill.month)} ${bill.year}` : <>{bill.flat?.flatNumber}<span className="ml-1 text-xs font-normal text-on-surface-variant">{bill.flat?.block?.name}</span></>}
                     </p>
                   </div>
                   <p className="text-xs text-on-surface-variant mt-0.5">
-                    {residentBillingView ? `Due ${formatDate(bill.dueDate)}` : `${bill.flat?.owner?.name || '—'} · ${getMonthName(bill.month)} ${bill.year}`}
+                    {ownerFacingBillingView ? `Due ${formatDate(bill.dueDate)}` : `${bill.flat?.owner?.name || '—'} · ${getMonthName(bill.month)} ${bill.year}`}
                   </p>
                 </div>
                 <span className={cn('badge shrink-0', getStatusColor(bill.status))}>{bill.status}</span>
@@ -727,7 +713,7 @@ export default function BillingPage() {
                   </button>
                   {bill.status !== 'PAID' && (
                     <>
-                      {isAdmin && (
+                      {!ownerFacingBillingView && isFinancialAdmin && (
                         <button
                           className="btn-sm btn-success"
                           onClick={() => { setSelectedBill(bill); setShowPayment(true); }}
@@ -754,18 +740,10 @@ export default function BillingPage() {
           <table>
             <thead>
               <tr>
-                {residentBillingView && manualBillSelectionEnabled && <th>
-                  <input
-                    type="checkbox"
-                    checked={selectableBillIds.length > 0 && selectedBillIds.length === selectableBillIds.length}
-                    onChange={(e) => toggleSelectAll(e.target.checked)}
-                    aria-label="Select all payable bills"
-                  />
-                </th>}
                 <th>Month</th>
-                {!residentBillingView && <th>Flat</th>}
-                {!residentBillingView && <th>Owner</th>}
-                {residentBillingView && <th>Due Date</th>}
+                {!ownerFacingBillingView && <th>Flat</th>}
+                {!ownerFacingBillingView && <th>Owner</th>}
+                {ownerFacingBillingView && <th>Due Date</th>}
                 <th>Total</th>
                 <th>Paid</th>
                 <th>Balance</th>
@@ -776,22 +754,10 @@ export default function BillingPage() {
             <tbody>
               {displayedBills.map((bill) => (
                 <tr key={bill.id}>
-                  {residentBillingView && manualBillSelectionEnabled && (
-                    <td>
-                      {bill.status !== 'PAID' ? (
-                        <input
-                          type="checkbox"
-                          checked={selectedBillIds.includes(bill.id)}
-                          onChange={(e) => toggleBillSelection(bill.id, e.target.checked)}
-                          aria-label={`Select bill ${bill.id}`}
-                        />
-                      ) : null}
-                    </td>
-                  )}
                   <td>
                     <p className="text-sm whitespace-nowrap">{getMonthName(bill.month)} {bill.year}</p>
                   </td>
-                  {!residentBillingView && (
+                  {!ownerFacingBillingView && (
                     <td>
                       <div>
                         <p className="font-medium text-on-surface">{bill.flat?.flatNumber}</p>
@@ -799,13 +765,13 @@ export default function BillingPage() {
                       </div>
                     </td>
                   )}
-                  {!residentBillingView && (
+                  {!ownerFacingBillingView && (
                     <td>
                       <p className="text-sm">{bill.flat?.owner?.name || '-'}</p>
                       <p className="text-xs text-on-surface-variant">{bill.flat?.owner?.phone}</p>
                     </td>
                   )}
-                  {residentBillingView && <td className="whitespace-nowrap">{formatDate(bill.dueDate)}</td>}
+                  {ownerFacingBillingView && <td className="whitespace-nowrap">{formatDate(bill.dueDate)}</td>}
                   <td className="font-medium whitespace-nowrap">{formatCurrency(bill.totalAmount)}</td>
                   <td className="text-emerald-900 font-medium whitespace-nowrap">{formatCurrency(bill.paidAmount)}</td>
                   <td className="text-rose-900 font-medium whitespace-nowrap">{formatCurrency(bill.totalAmount - bill.paidAmount)}</td>
@@ -820,7 +786,7 @@ export default function BillingPage() {
                       </button>
                       {bill.status !== 'PAID' && (
                         <>
-                          {isAdmin && (
+                          {!ownerFacingBillingView && isFinancialAdmin && (
                             <button
                               className="btn-sm btn-success"
                               onClick={() => { setSelectedBill(bill); setShowPayment(true); }}
@@ -830,7 +796,7 @@ export default function BillingPage() {
                           )}
                           <button
                             className="btn-sm btn-primary"
-                            onClick={() => manualBillSelectionEnabled ? handlePhonePePay(bill.id) : handlePhonePeAmountPay()}
+                            onClick={() => handlePhonePePay(bill.id)}
                           >
                             <CreditCard className="w-3 h-3" /> PhonePe
                           </button>
