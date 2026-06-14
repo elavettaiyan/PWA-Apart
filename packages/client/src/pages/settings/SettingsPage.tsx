@@ -1129,7 +1129,6 @@ export default function SettingsPage() {
         title="Gate Language"
         description="Choose up to three regional languages to show with English in Gate Management"
         icon={Globe}
-        defaultOpen
         iconWrapperClassName="group-open:bg-sky-100"
         iconClassName="group-open:text-sky-800"
       >
