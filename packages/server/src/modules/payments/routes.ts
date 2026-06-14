@@ -268,6 +268,37 @@ async function getSocietySettings(societyId: string | null) {
   return prisma.societySettings.findUnique({ where: { societyId } });
 }
 
+function buildReceiptText(payment: any) {
+  const bill = payment.bill;
+  const flat = bill.flat;
+  const lines = [
+    'Dwell Hub Payment Receipt',
+    '',
+    `Society: ${flat.block.society?.name || '-'}`,
+    `Flat: ${flat.flatNumber}, ${flat.block.name}`,
+    `Bill Period: ${MONTH_NAMES[bill.month - 1]} ${bill.year}`,
+    `Payment Date: ${payment.paidAt ? new Date(payment.paidAt).toLocaleString('en-IN') : payment.createdAt ? new Date(payment.createdAt).toLocaleString('en-IN') : '-'}`,
+    `Payment Method: ${payment.method}`,
+    `Transaction Ref: ${payment.transactionId || payment.receiptNo || payment.merchantTransId || '-'}`,
+    '',
+    'Bill Split-up',
+    `- Base Maintenance Amount: ${bill.baseAmount.toFixed(2)}`,
+    `- Water Charge: ${bill.waterCharge.toFixed(2)}`,
+    `- Parking Charge: ${bill.parkingCharge.toFixed(2)}`,
+    `- Sinking Fund: ${bill.sinkingFund.toFixed(2)}`,
+    `- Repair Fund: ${bill.repairFund.toFixed(2)}`,
+    `- Other Charges: ${bill.otherCharges.toFixed(2)}`,
+    `- Late Fee: ${bill.lateFee.toFixed(2)}`,
+    `- Bill Total: ${bill.totalAmount.toFixed(2)}`,
+    `- Amount Paid In This Receipt: ${payment.amount.toFixed(2)}`,
+    `- Total Paid On Bill: ${bill.paidAmount.toFixed(2)}`,
+    `- Balance Due: ${Math.max(0, bill.totalAmount - bill.paidAmount).toFixed(2)}`,
+    `- Bill Status: ${bill.status}`,
+  ];
+
+  return lines.join('\n');
+}
+
 async function markBulkPaymentsSuccess(merchantTransId: string, transactionId: string | undefined, phonepePayload: unknown, gatewayRefId?: string) {
   const references = getBulkPaymentNotes(merchantTransId);
 
@@ -1398,11 +1429,20 @@ router.get(
               select: {
                 month: true,
                 year: true,
+                baseAmount: true,
+                waterCharge: true,
+                parkingCharge: true,
+                sinkingFund: true,
+                repairFund: true,
+                otherCharges: true,
+                lateFee: true,
                 totalAmount: true,
+                paidAmount: true,
+                status: true,
                 flat: {
                   select: {
                     flatNumber: true,
-                    block: { select: { name: true } },
+                    block: { select: { name: true, society: { select: { name: true } } } },
                   },
                 },
               },
@@ -1419,6 +1459,87 @@ router.get(
     }
   },
 );
+
+router.get('/receipt/:id', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const payment = await prisma.payment.findUnique({
+      where: { id: req.params.id },
+      include: {
+        bill: {
+          include: {
+            flat: {
+              include: {
+                block: { include: { society: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!payment) return res.status(404).json({ error: 'Payment not found' });
+
+    const isAdmin = req.user!.role === 'SUPER_ADMIN' || (FINANCIAL_ROLES as readonly string[]).includes(req.user!.role);
+    const isResident = req.user!.role === 'OWNER' || req.user!.role === 'TENANT';
+
+    if (isResident) {
+      const flatIds = await getUserFlatIds(req.user!.id, req.user!.societyId ?? null);
+      if (!flatIds.includes(payment.bill.flatId)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    } else if (req.user!.role !== 'SUPER_ADMIN' && isAdmin) {
+      if (payment.bill.flat.block.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
+    const receiptPayload = {
+      id: payment.id,
+      amount: payment.amount,
+      method: payment.method,
+      status: payment.status,
+      transactionId: payment.transactionId,
+      merchantTransId: payment.merchantTransId,
+      gatewayRefId: payment.gatewayRefId,
+      receiptNo: payment.receiptNo,
+      paidAt: payment.paidAt,
+      createdAt: payment.createdAt,
+      bill: {
+        month: payment.bill.month,
+        year: payment.bill.year,
+        baseAmount: payment.bill.baseAmount,
+        waterCharge: payment.bill.waterCharge,
+        parkingCharge: payment.bill.parkingCharge,
+        sinkingFund: payment.bill.sinkingFund,
+        repairFund: payment.bill.repairFund,
+        otherCharges: payment.bill.otherCharges,
+        lateFee: payment.bill.lateFee,
+        totalAmount: payment.bill.totalAmount,
+        paidAmount: payment.bill.paidAmount,
+        status: payment.bill.status,
+        flat: {
+          flatNumber: payment.bill.flat.flatNumber,
+          block: {
+            name: payment.bill.flat.block.name,
+            society: { name: payment.bill.flat.block.society.name },
+          },
+        },
+      },
+    };
+
+    if (req.query.download === '1') {
+      const fileName = `receipt-${payment.bill.flat.flatNumber}-${payment.bill.month}-${payment.bill.year}.txt`;
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      return res.send(buildReceiptText({ ...payment, bill: receiptPayload.bill }));
+    }
+
+    return res.json(receiptPayload);
+  } catch (error) {
+    logger.error('Payment receipt detail error:', error);
+    return res.status(500).json({ error: 'Failed to fetch payment receipt' });
+  }
+});
 
 // ── PAYMENT REPORT (ADMIN + CSV export) ─────────────────
 // Restricted to financial roles. Returns online (PhonePe) payments for reconciliation.

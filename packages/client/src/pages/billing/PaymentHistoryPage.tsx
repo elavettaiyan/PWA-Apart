@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CreditCard, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Copy, CreditCard, Download, Loader2, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { formatCurrency, formatDate, getMonthName, getStatusColor } from '../../lib/utils';
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import { useAuthStore } from '../../store/authStore';
-import type { PaymentHistoryItem, PaymentMethod } from '../../types';
+import type { PaymentHistoryItem, PaymentMethod, PaymentReceiptDetails } from '../../types';
 
 const FINANCIAL_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'];
 const METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -16,6 +16,7 @@ const METHOD_LABELS: Record<PaymentMethod, string> = {
   CHEQUE: 'Cheque',
   BANK_TRANSFER: 'Bank Transfer',
   UPI_OTHER: 'UPI',
+  ADVANCE: 'Advance',
 };
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -55,6 +56,68 @@ export default function PaymentHistoryPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [checkingId, setCheckingId] = useState<string | null>(null);
+  const [receiptActionId, setReceiptActionId] = useState<string | null>(null);
+
+  function buildReceiptText(receipt: PaymentReceiptDetails) {
+    const bill = receipt.bill;
+    const due = Math.max(0, bill.totalAmount - bill.paidAmount);
+    return [
+      'Dwell Hub Payment Receipt',
+      '',
+      `Society: ${bill.flat.block.society?.name || '-'}`,
+      `Flat: ${bill.flat.flatNumber}, ${bill.flat.block.name}`,
+      `Bill Period: ${getMonthName(bill.month)} ${bill.year}`,
+      `Payment Date: ${receipt.paidAt ? formatDate(receipt.paidAt) : formatDate(receipt.createdAt ?? '')}`,
+      `Payment Method: ${METHOD_LABELS[receipt.method] ?? receipt.method}`,
+      `Transaction Ref: ${receipt.transactionId || receipt.receiptNo || receipt.merchantTransId || '-'}`,
+      '',
+      'Bill Split-up',
+      `Base Maintenance Amount: ${formatCurrency(bill.baseAmount)}`,
+      `Water Charge: ${formatCurrency(bill.waterCharge)}`,
+      `Parking Charge: ${formatCurrency(bill.parkingCharge)}`,
+      `Sinking Fund: ${formatCurrency(bill.sinkingFund)}`,
+      `Repair Fund: ${formatCurrency(bill.repairFund)}`,
+      `Other Charges: ${formatCurrency(bill.otherCharges)}`,
+      `Late Fee: ${formatCurrency(bill.lateFee)}`,
+      `Bill Total: ${formatCurrency(bill.totalAmount)}`,
+      `Amount Paid In This Receipt: ${formatCurrency(receipt.amount)}`,
+      `Total Paid On Bill: ${formatCurrency(bill.paidAmount)}`,
+      `Balance Due: ${formatCurrency(due)}`,
+      `Bill Status: ${bill.status}`,
+    ].join('\n');
+  }
+
+  async function handleCopyReceipt(paymentId: string) {
+    setReceiptActionId(paymentId);
+    try {
+      const { data } = await api.get<PaymentReceiptDetails>(`/payments/receipt/${paymentId}`);
+      await navigator.clipboard.writeText(buildReceiptText(data));
+      toast.success('Receipt copied');
+    } catch {
+      toast.error('Could not copy receipt');
+    } finally {
+      setReceiptActionId(null);
+    }
+  }
+
+  async function handleDownloadReceipt(paymentId: string) {
+    setReceiptActionId(paymentId);
+    try {
+      const response = await api.get(`/payments/receipt/${paymentId}?download=1`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([response.data], { type: 'text/plain;charset=utf-8' }));
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `payment-receipt-${paymentId}.txt`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Could not download receipt');
+    } finally {
+      setReceiptActionId(null);
+    }
+  }
 
   async function handleCheckStatus(merchantTransId: string) {
     setCheckingId(merchantTransId);
@@ -220,16 +283,37 @@ export default function PaymentHistoryPage() {
                       <span className="font-mono text-xs text-base-content/70">{p.gatewayRefId ?? '—'}</span>
                     </td>
                     <td>
-                      {p.status === 'INITIATED' && p.merchantTransId && (
-                        <button
-                          className="btn btn-xs btn-outline gap-1"
-                          disabled={checkingId === p.merchantTransId}
-                          onClick={() => handleCheckStatus(p.merchantTransId!)}
-                        >
-                          <RefreshCw className={`w-3 h-3 ${checkingId === p.merchantTransId ? 'animate-spin' : ''}`} />
-                          {checkingId === p.merchantTransId ? 'Checking…' : 'Check'}
-                        </button>
-                      )}
+                      <div className="flex items-center justify-end gap-2">
+                        {p.status === 'SUCCESS' ? (
+                          <>
+                            <button
+                              className="btn btn-xs btn-outline gap-1"
+                              disabled={receiptActionId === p.id}
+                              onClick={() => handleCopyReceipt(p.id)}
+                            >
+                              <Copy className="w-3 h-3" />
+                              {receiptActionId === p.id ? 'Copying…' : 'Copy'}
+                            </button>
+                            <button
+                              className="btn btn-xs btn-outline gap-1"
+                              disabled={receiptActionId === p.id}
+                              onClick={() => handleDownloadReceipt(p.id)}
+                            >
+                              <Download className="w-3 h-3" /> {receiptActionId === p.id ? 'Downloading…' : 'Download'}
+                            </button>
+                          </>
+                        ) : null}
+                        {p.status === 'INITIATED' && p.merchantTransId && (
+                          <button
+                            className="btn btn-xs btn-outline gap-1"
+                            disabled={checkingId === p.merchantTransId}
+                            onClick={() => handleCheckStatus(p.merchantTransId!)}
+                          >
+                            <RefreshCw className={`w-3 h-3 ${checkingId === p.merchantTransId ? 'animate-spin' : ''}`} />
+                            {checkingId === p.merchantTransId ? 'Checking…' : 'Check'}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -262,6 +346,16 @@ export default function PaymentHistoryPage() {
                   {p.transactionId && <p>PhonePe: <span className="font-mono">{p.transactionId}</span></p>}
                   {p.gatewayRefId && <p>Ref: <span className="font-mono">{p.gatewayRefId}</span></p>}
                 </div>
+                {p.status === 'SUCCESS' && (
+                  <div className="mt-3 flex gap-2">
+                    <button className="btn btn-xs btn-outline gap-1" disabled={receiptActionId === p.id} onClick={() => handleCopyReceipt(p.id)}>
+                      <Copy className="w-3 h-3" /> {receiptActionId === p.id ? 'Copying…' : 'Copy Receipt'}
+                    </button>
+                    <button className="btn btn-xs btn-outline gap-1" disabled={receiptActionId === p.id} onClick={() => handleDownloadReceipt(p.id)}>
+                      <Download className="w-3 h-3" /> {receiptActionId === p.id ? 'Downloading…' : 'Download Receipt'}
+                    </button>
+                  </div>
+                )}
                 {p.status === 'INITIATED' && p.merchantTransId && (
                   <button
                     className="btn btn-xs btn-outline gap-1 mt-3"

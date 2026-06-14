@@ -250,7 +250,7 @@ export interface MaintenanceBill {
 // ─── PAYMENT ────────────────────────────────────────────
 
 export type PaymentStatus = 'INITIATED' | 'SUCCESS' | 'FAILED' | 'REFUNDED';
-export type PaymentMethod = 'PHONEPE' | 'CASH' | 'CHEQUE' | 'BANK_TRANSFER' | 'UPI_OTHER';
+export type PaymentMethod = 'PHONEPE' | 'CASH' | 'CHEQUE' | 'BANK_TRANSFER' | 'UPI_OTHER' | 'ADVANCE';
 
 export interface Payment {
   id: string;
@@ -270,12 +270,38 @@ export interface PaymentHistoryItem extends Payment {
   bill: {
     month: number;
     year: number;
+    baseAmount: number;
+    waterCharge: number;
+    parkingCharge: number;
+    sinkingFund: number;
+    repairFund: number;
+    otherCharges: number;
+    lateFee: number;
     totalAmount: number;
+    paidAmount: number;
+    status: BillStatus;
     flat: {
       flatNumber: string;
-      block: { name: string };
+      block: {
+        name: string;
+        society?: { name: string };
+      };
     };
   };
+}
+
+export interface PaymentReceiptDetails {
+  id: string;
+  amount: number;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  transactionId?: string;
+  merchantTransId?: string;
+  gatewayRefId?: string;
+  receiptNo?: string;
+  paidAt?: string;
+  createdAt?: string;
+  bill: PaymentHistoryItem['bill'];
 }
 
 // ─── COMPLAINT ──────────────────────────────────────────

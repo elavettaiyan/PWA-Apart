@@ -4,7 +4,7 @@ import { Receipt, Plus, CreditCard, Banknote, Calendar, BellRing, History, FileB
 import toast from 'react-hot-toast';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
-import { formatCurrency, getStatusColor, getMonthName, cn } from '../../lib/utils';
+import { formatCurrency, formatDate, getStatusColor, getMonthName, cn } from '../../lib/utils';
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
 import { initPhonePeSdk, startPhonePeCheckout } from '../../lib/phonePeNative';
@@ -69,6 +69,7 @@ export default function BillingPage() {
   const [showGenerate, setShowGenerate] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  const [showBillDetails, setShowBillDetails] = useState(false);
   const [selectedBill, setSelectedBill] = useState<MaintenanceBill | null>(null);
   const [generationResult, setGenerationResult] = useState<BillingGenerationResult | null>(null);
   const [configForm, setConfigForm] = useState<BillingConfigFormState>(buildConfigForm());
@@ -108,7 +109,7 @@ export default function BillingPage() {
   const { data: societySettings } = useQuery<any>({
     queryKey: ['society-settings-billing', user?.societyId || 'no-society'],
     queryFn: async () => (await api.get('/settings/society-settings')).data,
-    enabled: !!user && !isAdmin,
+    enabled: !!user,
     retry: false,
   });
 
@@ -690,12 +691,11 @@ export default function BillingPage() {
                       />
                     )}
                     <p className="font-semibold text-on-surface truncate">
-                      {bill.flat?.flatNumber}
-                      <span className="ml-1 text-xs font-normal text-on-surface-variant">{bill.flat?.block?.name}</span>
+                      {ownerViewActive ? `${getMonthName(bill.month)} ${bill.year}` : <>{bill.flat?.flatNumber}<span className="ml-1 text-xs font-normal text-on-surface-variant">{bill.flat?.block?.name}</span></>}
                     </p>
                   </div>
                   <p className="text-xs text-on-surface-variant mt-0.5">
-                    {bill.flat?.owner?.name || '—'} &middot; {getMonthName(bill.month)} {bill.year}
+                    {ownerViewActive ? `Due ${formatDate(bill.dueDate)}` : `${bill.flat?.owner?.name || '—'} · ${getMonthName(bill.month)} ${bill.year}`}
                   </p>
                 </div>
                 <span className={cn('badge shrink-0', getStatusColor(bill.status))}>{bill.status}</span>
@@ -717,24 +717,32 @@ export default function BillingPage() {
                     <span className="font-semibold text-rose-900">{formatCurrency(bill.totalAmount - bill.paidAmount)}</span>
                   </div>
                 </div>
-                {bill.status !== 'PAID' && (
-                  <div className="flex gap-1.5 shrink-0">
-                    {isAdmin && (
+                <div className="flex gap-1.5 shrink-0">
+                  <button
+                    className="btn-sm btn-secondary"
+                    onClick={() => { setSelectedBill(bill); setShowBillDetails(true); }}
+                  >
+                    View Details
+                  </button>
+                  {bill.status !== 'PAID' && (
+                    <>
+                      {isAdmin && (
+                        <button
+                          className="btn-sm btn-success"
+                          onClick={() => { setSelectedBill(bill); setShowPayment(true); }}
+                        >
+                          <Banknote className="w-3 h-3" /> Record
+                        </button>
+                      )}
                       <button
-                        className="btn-sm btn-success"
-                        onClick={() => { setSelectedBill(bill); setShowPayment(true); }}
+                        className="btn-sm btn-primary"
+                        onClick={() => handlePhonePePay(bill.id)}
                       >
-                        <Banknote className="w-3 h-3" /> Record
+                        <CreditCard className="w-3 h-3" /> Pay
                       </button>
-                    )}
-                    <button
-                      className="btn-sm btn-primary"
-                      onClick={() => handlePhonePePay(bill.id)}
-                    >
-                      <CreditCard className="w-3 h-3" /> Pay
-                    </button>
-                  </div>
-                )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -754,8 +762,9 @@ export default function BillingPage() {
                   />
                 </th>}
                 <th>Month</th>
-                <th>Flat</th>
-                <th>Owner</th>
+                {!ownerViewActive && <th>Flat</th>}
+                {!ownerViewActive && <th>Owner</th>}
+                {ownerViewActive && <th>Due Date</th>}
                 <th>Total</th>
                 <th>Paid</th>
                 <th>Balance</th>
@@ -781,39 +790,52 @@ export default function BillingPage() {
                   <td>
                     <p className="text-sm whitespace-nowrap">{getMonthName(bill.month)} {bill.year}</p>
                   </td>
-                  <td>
-                    <div>
-                      <p className="font-medium text-on-surface">{bill.flat?.flatNumber}</p>
-                      <p className="text-xs text-on-surface-variant">{bill.flat?.block?.name}</p>
-                    </div>
-                  </td>
-                  <td>
-                    <p className="text-sm">{bill.flat?.owner?.name || '-'}</p>
-                    <p className="text-xs text-on-surface-variant">{bill.flat?.owner?.phone}</p>
-                  </td>
+                  {!ownerViewActive && (
+                    <td>
+                      <div>
+                        <p className="font-medium text-on-surface">{bill.flat?.flatNumber}</p>
+                        <p className="text-xs text-on-surface-variant">{bill.flat?.block?.name}</p>
+                      </div>
+                    </td>
+                  )}
+                  {!ownerViewActive && (
+                    <td>
+                      <p className="text-sm">{bill.flat?.owner?.name || '-'}</p>
+                      <p className="text-xs text-on-surface-variant">{bill.flat?.owner?.phone}</p>
+                    </td>
+                  )}
+                  {ownerViewActive && <td className="whitespace-nowrap">{formatDate(bill.dueDate)}</td>}
                   <td className="font-medium whitespace-nowrap">{formatCurrency(bill.totalAmount)}</td>
                   <td className="text-emerald-900 font-medium whitespace-nowrap">{formatCurrency(bill.paidAmount)}</td>
                   <td className="text-rose-900 font-medium whitespace-nowrap">{formatCurrency(bill.totalAmount - bill.paidAmount)}</td>
                   <td><span className={cn('badge', getStatusColor(bill.status))}>{bill.status}</span></td>
                   <td>
-                    {bill.status !== 'PAID' && (
-                      <div className="flex gap-2">
-                        {isAdmin && (
+                    <div className="flex gap-2">
+                      <button
+                        className="btn-sm btn-secondary"
+                        onClick={() => { setSelectedBill(bill); setShowBillDetails(true); }}
+                      >
+                        View Details
+                      </button>
+                      {bill.status !== 'PAID' && (
+                        <>
+                          {isAdmin && (
+                            <button
+                              className="btn-sm btn-success"
+                              onClick={() => { setSelectedBill(bill); setShowPayment(true); }}
+                            >
+                              <Banknote className="w-3 h-3" /> Record
+                            </button>
+                          )}
                           <button
-                            className="btn-sm btn-success"
-                            onClick={() => { setSelectedBill(bill); setShowPayment(true); }}
+                            className="btn-sm btn-primary"
+                            onClick={() => manualBillSelectionEnabled ? handlePhonePePay(bill.id) : handlePhonePeAmountPay()}
                           >
-                            <Banknote className="w-3 h-3" /> Record
+                            <CreditCard className="w-3 h-3" /> PhonePe
                           </button>
-                        )}
-                        <button
-                          className="btn-sm btn-primary"
-                          onClick={() => manualBillSelectionEnabled ? handlePhonePePay(bill.id) : handlePhonePeAmountPay()}
-                        >
-                          <CreditCard className="w-3 h-3" /> PhonePe
-                        </button>
-                      </div>
-                    )}
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -876,6 +898,7 @@ export default function BillingPage() {
       <Modal isOpen={showConfig} onClose={() => setShowConfig(false)} title="Set Monthly Maintenance Amount">
         <ConfigureBillingForm
           value={configForm}
+          showLateFeeFields={societySettings?.lateFeeEnabled !== false}
           onChange={setConfigForm}
           onSubmit={() => configMutation.mutate(configForm)}
           isPending={configMutation.isPending}
@@ -891,17 +914,84 @@ export default function BillingPage() {
           />
         )}
       </Modal>
+
+      <Modal isOpen={showBillDetails} onClose={() => setShowBillDetails(false)} title="Bill Details">
+        {selectedBill ? <BillDetailsContent bill={selectedBill} /> : null}
+      </Modal>
+    </div>
+  );
+}
+
+function BillDetailsContent({ bill }: { bill: MaintenanceBill }) {
+  const balance = Math.max(0, bill.totalAmount - bill.paidAmount);
+  const chargeItems = [
+    { label: 'Base Maintenance', amount: bill.baseAmount },
+    { label: 'Water Charge', amount: bill.waterCharge },
+    { label: 'Parking Charge', amount: bill.parkingCharge },
+    { label: 'Sinking Fund', amount: bill.sinkingFund },
+    { label: 'Repair Fund', amount: bill.repairFund },
+    { label: 'Other Charges', amount: bill.otherCharges },
+    { label: 'Late Fee', amount: bill.lateFee },
+  ].filter((item) => item.amount > 0);
+
+  const chargeSubtotal = chargeItems.reduce((sum, item) => sum + item.amount, 0);
+
+  return (
+    <div className="space-y-4 text-sm">
+      <div className="rounded-xl bg-surface-container-low p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="font-semibold text-on-surface">{getMonthName(bill.month)} {bill.year}</p>
+            <p className="text-on-surface-variant">Due {formatDate(bill.dueDate)}</p>
+          </div>
+          <span className={cn('badge', getStatusColor(bill.status))}>{bill.status}</span>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-outline-variant/15 bg-surface-container-lowest p-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-on-surface-variant">Bill Charges</p>
+        <div className="mt-3 space-y-2">
+          {chargeItems.map((item) => (
+            <SummaryRow key={item.label} label={item.label} value={formatCurrency(item.amount)} />
+          ))}
+        </div>
+        {chargeItems.length > 1 ? (
+          <div className="mt-3 border-t border-outline-variant/10 pt-3">
+            <SummaryRow label="Charges Total" value={formatCurrency(chargeSubtotal)} emphasized />
+          </div>
+        ) : null}
+      </div>
+
+      <div className="rounded-xl border border-outline-variant/15 bg-surface-container-lowest p-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-on-surface-variant">Payment Summary</p>
+        <div className="mt-3 space-y-2">
+          <SummaryRow label="Total Amount" value={formatCurrency(bill.totalAmount)} emphasized />
+          <SummaryRow label="Paid Amount" value={formatCurrency(bill.paidAmount)} />
+          <SummaryRow label="Balance Due" value={formatCurrency(balance)} emphasized />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value, emphasized = false }: { label: string; value: string; emphasized?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <p className="text-sm text-on-surface-variant">{label}</p>
+      <p className={cn('text-right text-on-surface', emphasized ? 'font-semibold' : 'font-medium')}>{value}</p>
     </div>
   );
 }
 
 function ConfigureBillingForm({
   value,
+  showLateFeeFields,
   onChange,
   onSubmit,
   isPending,
 }: {
   value: BillingConfigFormState;
+  showLateFeeFields: boolean;
   onChange: (value: BillingConfigFormState) => void;
   onSubmit: () => void;
   isPending: boolean;
@@ -960,27 +1050,31 @@ function ConfigureBillingForm({
           <label className="label">Other Charges</label>
           <input type="number" min={0} className="input" value={value.otherCharges} onChange={(e) => updateNumberField('otherCharges', e.target.value)} />
         </div>
-        <div>
-          <label className="label">Late Fee Mode</label>
-          <select className="select" value={value.lateFeeMode} onChange={(e) => updateLateFeeMode(e.target.value as LateFeeMode)}>
-            <option value="PER_DAY">Per Day</option>
-            <option value="ONE_TIME_PER_BILL">One-Time Per Bill</option>
-          </select>
-        </div>
-        <div>
-          <label className="label">Grace Period (Days)</label>
-          <input type="number" min={0} className="input" value={value.gracePeriodDays} onChange={(e) => updateNumberField('gracePeriodDays', e.target.value)} />
-        </div>
-        <div>
-          <label className="label">{value.lateFeeMode === 'ONE_TIME_PER_BILL' ? 'One-Time Late Fee Amount' : 'Late Fee Per Day'}</label>
-          <input
-            type="number"
-            min={0}
-            className="input"
-            value={value.lateFeeMode === 'ONE_TIME_PER_BILL' ? value.lateFeeAmount : value.lateFeePerDay}
-            onChange={(e) => updateNumberField(value.lateFeeMode === 'ONE_TIME_PER_BILL' ? 'lateFeeAmount' : 'lateFeePerDay', e.target.value)}
-          />
-        </div>
+        {showLateFeeFields ? (
+          <>
+            <div>
+              <label className="label">Late Fee Mode</label>
+              <select className="select" value={value.lateFeeMode} onChange={(e) => updateLateFeeMode(e.target.value as LateFeeMode)}>
+                <option value="PER_DAY">Per Day</option>
+                <option value="ONE_TIME_PER_BILL">One-Time Per Bill</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Grace Period (Days)</label>
+              <input type="number" min={0} className="input" value={value.gracePeriodDays} onChange={(e) => updateNumberField('gracePeriodDays', e.target.value)} />
+            </div>
+            <div>
+              <label className="label">{value.lateFeeMode === 'ONE_TIME_PER_BILL' ? 'One-Time Late Fee Amount' : 'Late Fee Per Day'}</label>
+              <input
+                type="number"
+                min={0}
+                className="input"
+                value={value.lateFeeMode === 'ONE_TIME_PER_BILL' ? value.lateFeeAmount : value.lateFeePerDay}
+                onChange={(e) => updateNumberField(value.lateFeeMode === 'ONE_TIME_PER_BILL' ? 'lateFeeAmount' : 'lateFeePerDay', e.target.value)}
+              />
+            </div>
+          </>
+        ) : null}
         <div>
           <label className="label">Due Day</label>
           <input type="number" min={1} max={28} className="input" value={value.dueDay} onChange={(e) => updateNumberField('dueDay', e.target.value)} required />

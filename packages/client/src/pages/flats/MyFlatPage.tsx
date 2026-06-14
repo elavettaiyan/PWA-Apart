@@ -169,6 +169,7 @@ function getPaymentMethodLabel(method: PaymentMethod) {
     CHEQUE: 'Cheque',
     BANK_TRANSFER: 'Bank Transfer',
     UPI_OTHER: 'UPI',
+    ADVANCE: 'Advance',
   };
 
   return labels[method] || method;
