@@ -7,13 +7,32 @@ import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest, SOCIETY_MANAGERS } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
+import { sendResidentOnboardingEmail } from '../../config/email';
 import { runMemberRemoval } from '../members/removal';
 import { computeTrialStatus, TRIAL_FLAT_LIMIT } from '../premium/routes';
 
 const router = Router();
+const FLAT_FEATURES = ['BALCONY', 'CENTRAL_AC'] as const;
+
+function sanitizeFlatFeatures(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return Array.from(
+    new Set(
+      input
+        .map((value) => String(value || '').trim().toUpperCase())
+        .filter((value): value is (typeof FLAT_FEATURES)[number] => FLAT_FEATURES.includes(value as (typeof FLAT_FEATURES)[number])),
+    ),
+  );
+}
 const FREE_TIER_FLAT_LIMIT = 5;
 const INDIAN_MOBILE_REGEX = /^[6-9]\d{9}$/;
 const PARKING_TYPES = ['NONE', 'OPEN', 'COVERED'] as const;
+const VEHICLE_TYPES = ['TWO_WHEELER', 'THREE_WHEELER', 'FOUR_WHEELER'] as const;
+const residentVehicleSelect = {
+  id: true,
+  type: true,
+  registrationNumber: true,
+} as const;
 
 function normalizeIndianMobileNumber(value: string): string {
   const digitsOnly = String(value || '').replace(/\D/g, '');
@@ -32,6 +51,63 @@ function normalizeIndianMobileNumber(value: string): string {
 function normalizeRegistrationValue(value: unknown) {
   const trimmed = String(value ?? '').trim().toUpperCase();
   return trimmed ? trimmed : null;
+}
+
+type NormalizedResidentVehicle = {
+  type: (typeof VEHICLE_TYPES)[number];
+  registrationNumber: string;
+};
+
+function sanitizeResidentVehicles(input: unknown): NormalizedResidentVehicle[] {
+  if (!Array.isArray(input)) return [];
+
+  const seen = new Set<string>();
+  const vehicles: NormalizedResidentVehicle[] = [];
+
+  for (const item of input) {
+    const type = String((item as any)?.type || '').trim().toUpperCase();
+    const registrationNumber = normalizeRegistrationValue((item as any)?.registrationNumber);
+
+    if (!VEHICLE_TYPES.includes(type as (typeof VEHICLE_TYPES)[number]) || !registrationNumber) {
+      continue;
+    }
+
+    const dedupeKey = `${type}:${registrationNumber}`;
+    if (seen.has(dedupeKey)) {
+      continue;
+    }
+
+    seen.add(dedupeKey);
+    vehicles.push({
+      type: type as (typeof VEHICLE_TYPES)[number],
+      registrationNumber,
+    });
+  }
+
+  return vehicles;
+}
+
+function getResidentVehiclesFromLegacyFields(input: { carNumber?: unknown; twoWheelerNumber?: unknown }): NormalizedResidentVehicle[] {
+  const vehicles: NormalizedResidentVehicle[] = [];
+  const carNumber = normalizeRegistrationValue(input.carNumber);
+  const twoWheelerNumber = normalizeRegistrationValue(input.twoWheelerNumber);
+
+  if (carNumber) {
+    vehicles.push({ type: 'FOUR_WHEELER', registrationNumber: carNumber });
+  }
+
+  if (twoWheelerNumber) {
+    vehicles.push({ type: 'TWO_WHEELER', registrationNumber: twoWheelerNumber });
+  }
+
+  return vehicles;
+}
+
+function buildLegacyVehicleFields(vehicles: NormalizedResidentVehicle[]) {
+  return {
+    carNumber: vehicles.find((vehicle) => vehicle.type === 'FOUR_WHEELER')?.registrationNumber ?? null,
+    twoWheelerNumber: vehicles.find((vehicle) => vehicle.type === 'TWO_WHEELER')?.registrationNumber ?? null,
+  };
 }
 
 async function findUserByEmailInsensitive(tx: any, email: string, select?: Record<string, boolean>) {
@@ -67,8 +143,16 @@ router.use(authenticate);
 function buildMyFlatInclude(year?: number): Prisma.FlatInclude {
   return {
     block: { include: { society: { select: { id: true, name: true } } } },
-    owner: true,
-    tenant: true,
+    owner: {
+      include: {
+        vehicles: { select: residentVehicleSelect, orderBy: { createdAt: 'asc' } },
+      },
+    },
+    tenant: {
+      include: {
+        vehicles: { select: residentVehicleSelect, orderBy: { createdAt: 'asc' } },
+      },
+    },
     visitors: {
       orderBy: { checkedInAt: 'desc' },
       take: 5,
@@ -330,6 +414,7 @@ router.get(
               panNo: true,
               altPhone: true,
               moveInDate: true,
+              vehicles: { select: residentVehicleSelect, orderBy: { createdAt: 'asc' } },
             },
           },
           tenant: {
@@ -345,6 +430,7 @@ router.get(
               rentAmount: true,
               deposit: true,
               isActive: true,
+              vehicles: { select: residentVehicleSelect, orderBy: { createdAt: 'asc' } },
             },
           },
         },
@@ -365,8 +451,8 @@ router.get('/flats/:id', [param('id').isUUID()], validate, async (req: AuthReque
       where: { id: req.params.id },
       include: {
         block: { include: { society: true } },
-        owner: true,
-        tenant: true,
+        owner: { include: { vehicles: { select: residentVehicleSelect, orderBy: { createdAt: 'asc' } } } },
+        tenant: { include: { vehicles: { select: residentVehicleSelect, orderBy: { createdAt: 'asc' } } } },
         bills: { orderBy: { createdAt: 'desc' }, take: 12 },
         complaints: { orderBy: { createdAt: 'desc' }, take: 5 },
       },
@@ -396,6 +482,8 @@ router.post(
     body('floor').isInt({ min: 0 }),
     body('type').isIn(['ONE_BHK', 'TWO_BHK', 'THREE_BHK', 'FOUR_BHK', 'STUDIO', 'PENTHOUSE', 'SHOP', 'OTHER']),
     body('areaSqFt').optional().isFloat({ min: 0 }),
+    body('keyFeatures').optional().isArray({ max: 8 }).withMessage('Key features must be an array'),
+    body('keyFeatures.*').optional().isIn(FLAT_FEATURES).withMessage('Invalid flat feature'),
     body('parkingType').optional().isIn(PARKING_TYPES).withMessage('Invalid parking type'),
     body('parkingSlotNumber').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Parking slot number is too long'),
     body('blockId').isUUID(),
@@ -432,6 +520,7 @@ router.post(
           floor: req.body.floor,
           type: req.body.type,
           areaSqFt: req.body.areaSqFt || null,
+          keyFeatures: sanitizeFlatFeatures(req.body.keyFeatures),
           parkingType: req.body.parkingType || 'NONE',
           parkingSlotNumber: req.body.parkingType && req.body.parkingType !== 'NONE'
             ? normalizeRegistrationValue(req.body.parkingSlotNumber)
@@ -454,7 +543,16 @@ router.post(
 router.put(
   '/flats/:id',
   authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
-  [param('id').isUUID()],
+  [
+    param('id').isUUID(),
+    body('flatNumber').optional().trim().notEmpty(),
+    body('floor').optional().isInt({ min: 0 }),
+    body('type').optional().isIn(['ONE_BHK', 'TWO_BHK', 'THREE_BHK', 'FOUR_BHK', 'STUDIO', 'PENTHOUSE', 'SHOP', 'OTHER']),
+    body('areaSqFt').optional({ values: 'null' }).isFloat({ min: 0 }),
+    body('keyFeatures').optional().isArray({ max: 8 }).withMessage('Key features must be an array'),
+    body('keyFeatures.*').optional().isIn(FLAT_FEATURES).withMessage('Invalid flat feature'),
+    body('isOccupied').optional().isBoolean(),
+  ],
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -476,6 +574,7 @@ router.put(
           floor: req.body.floor,
           type: req.body.type,
           areaSqFt: req.body.areaSqFt,
+          keyFeatures: req.body.keyFeatures !== undefined ? sanitizeFlatFeatures(req.body.keyFeatures) : undefined,
           isOccupied: req.body.isOccupied,
         },
         include: { block: true, owner: true, tenant: true },
@@ -553,7 +652,13 @@ router.get('/blocks', async (req: AuthRequest, res: Response) => {
 router.post(
   '/blocks',
   authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
-  [body('name').trim().notEmpty(), body('floors').isInt({ min: 1 }), body('societyId').isUUID()],
+  [
+    body('name').trim().notEmpty(),
+    body('totalWings').optional({ values: 'falsy' }).isInt({ min: 1 }),
+    body('floors').isInt({ min: 1 }),
+    body('description').optional({ values: 'falsy' }).trim().isLength({ max: 500 }),
+    body('societyId').isUUID(),
+  ],
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -566,13 +671,51 @@ router.post(
       const block = await prisma.block.create({
         data: {
           name: req.body.name,
+          totalWings: req.body.totalWings ? Number(req.body.totalWings) : null,
           floors: req.body.floors,
+          description: req.body.description?.trim() || null,
           societyId,
         },
       });
       return res.status(201).json(block);
     } catch (error) {
       return res.status(500).json({ error: 'Failed to create block' });
+    }
+  },
+);
+
+router.put(
+  '/blocks/:id',
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
+  [
+    param('id').isUUID(),
+    body('name').optional().trim().notEmpty(),
+    body('totalWings').optional({ values: 'falsy' }).isInt({ min: 1 }),
+    body('floors').optional().isInt({ min: 1 }),
+    body('description').optional({ values: 'falsy' }).trim().isLength({ max: 500 }),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const existing = await prisma.block.findUnique({ where: { id: req.params.id } });
+      if (!existing) return res.status(404).json({ error: 'Block not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && existing.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const block = await prisma.block.update({
+        where: { id: req.params.id },
+        data: {
+          name: req.body.name,
+          totalWings: req.body.totalWings !== undefined ? Number(req.body.totalWings) : undefined,
+          floors: req.body.floors,
+          description: req.body.description !== undefined ? (req.body.description?.trim() || null) : undefined,
+        },
+      });
+
+      return res.json(block);
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to update block' });
     }
   },
 );
@@ -585,6 +728,9 @@ router.post(
     body('name').trim().notEmpty().withMessage('Owner name is required'),
     body('phone').trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
     body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email address'),
+    body('vehicles').optional().isArray({ max: 10 }).withMessage('Vehicles must be an array'),
+    body('vehicles.*.type').optional().isIn(VEHICLE_TYPES).withMessage('Invalid vehicle type'),
+    body('vehicles.*.registrationNumber').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Vehicle registration number is too long'),
     body('carNumber').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Car number is too long'),
     body('twoWheelerNumber').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Two wheeler number is too long'),
     body('flatId').isUUID(),
@@ -592,6 +738,11 @@ router.post(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
+      const vehicles = req.body.vehicles !== undefined
+        ? sanitizeResidentVehicles(req.body.vehicles)
+        : getResidentVehiclesFromLegacyFields(req.body);
+      const legacyVehicleFields = buildLegacyVehicleFields(vehicles);
+
       // SECURITY: Verify flat belongs to admin's society
       const flat = await prisma.flat.findUnique({
         where: { id: req.body.flatId },
@@ -625,6 +776,7 @@ router.post(
 
         // Auto-create a user account for the owner (password = phone number)
         let userId: string | null = null;
+        let createdNewUser = false;
         if (req.body.email && req.body.phone) {
           const normalizedOwnerEmail = String(req.body.email).trim().toLowerCase();
 
@@ -673,6 +825,7 @@ router.post(
               },
             });
             userId = newUser.id;
+            createdNewUser = true;
           }
         }
 
@@ -681,14 +834,14 @@ router.post(
             name: req.body.name,
             phone: req.body.phone,
             email: req.body.email ? String(req.body.email).trim().toLowerCase() : null,
-            carNumber: normalizeRegistrationValue(req.body.carNumber),
-            twoWheelerNumber: normalizeRegistrationValue(req.body.twoWheelerNumber),
+            ...legacyVehicleFields,
             altPhone: req.body.altPhone || null,
             aadharNo: req.body.aadharNo || null,
             panNo: req.body.panNo || null,
             flatId: req.body.flatId,
             moveInDate: req.body.moveInDate ? new Date(req.body.moveInDate) : null,
             userId,
+            ...(vehicles.length ? { vehicles: { create: vehicles } } : {}),
           },
         });
 
@@ -698,21 +851,46 @@ router.post(
           data: { isOccupied: true },
         });
 
-        return { owner, userCreated: !!userId && !req.body.email ? false : !!userId };
+        return { owner, accountLinked: !!userId, accountCreated: createdNewUser };
       });
 
       logger.info('Owner created', {
         ownerId: result.owner.id,
         flatId: req.body.flatId,
-        userCreated: result.userCreated,
+        accountLinked: result.accountLinked,
+        accountCreated: result.accountCreated,
       });
+
+      if (req.body.email && req.body.phone && result.accountLinked) {
+        prisma.block.findUnique({
+          where: { id: flat.blockId },
+          include: { society: { select: { name: true } } },
+        }).then((blockRecord) => {
+          return sendResidentOnboardingEmail(String(req.body.email).trim().toLowerCase(), {
+            userName: req.body.name,
+            societyName: blockRecord?.society?.name || 'your society',
+            flatNumber: flat.flatNumber,
+            blockName: flat.block?.name || blockRecord?.name || null,
+            relation: 'OWNER',
+            loginEmail: String(req.body.email).trim().toLowerCase(),
+            phoneNumber: req.body.phone,
+            accountCreated: result.accountCreated,
+          });
+        }).catch((emailError: any) => {
+          logger.error('Resident onboarding email failed for owner', {
+            flatId: req.body.flatId,
+            email: req.body.email,
+            error: emailError.message,
+          });
+        });
+      }
 
       return res.status(201).json({
         ...result.owner,
-        userCreated: result.userCreated,
-        loginInfo: result.userCreated ? {
+        userCreated: result.accountLinked,
+        loginInfo: result.accountLinked ? {
           email: req.body.email,
-          defaultPassword: 'Phone number is the default password',
+          defaultPassword: result.accountCreated ? 'Phone number is the default password' : 'Use existing password or reset it from the login screen',
         } : null,
       });
     } catch (error: any) {
@@ -739,6 +917,9 @@ router.put(
     body('name').optional().trim().notEmpty().withMessage('Owner name is required'),
     body('phone').optional().trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
     body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email address'),
+    body('vehicles').optional().isArray({ max: 10 }).withMessage('Vehicles must be an array'),
+    body('vehicles.*.type').optional().isIn(VEHICLE_TYPES).withMessage('Invalid vehicle type'),
+    body('vehicles.*.registrationNumber').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Vehicle registration number is too long'),
     body('carNumber').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Car number is too long'),
     body('twoWheelerNumber').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Two wheeler number is too long'),
   ],
@@ -757,6 +938,9 @@ router.put(
 
       const societyId = existing.flat.block.societyId;
       const normalizedEmail = req.body.email ? String(req.body.email).trim().toLowerCase() : null;
+      const hasVehicleArray = req.body.vehicles !== undefined;
+      const vehicles = hasVehicleArray ? sanitizeResidentVehicles(req.body.vehicles) : [];
+      const legacyVehicleFields = hasVehicleArray ? buildLegacyVehicleFields(vehicles) : null;
 
       // Re-link userId when email changes OR when userId is null (e.g. after account deletion)
       let userId: string | undefined;
@@ -793,13 +977,29 @@ router.put(
             name: req.body.name,
             phone: req.body.phone,
             email: normalizedEmail,
-            carNumber: req.body.carNumber !== undefined ? normalizeRegistrationValue(req.body.carNumber) : undefined,
-            twoWheelerNumber: req.body.twoWheelerNumber !== undefined ? normalizeRegistrationValue(req.body.twoWheelerNumber) : undefined,
+            carNumber: legacyVehicleFields
+              ? legacyVehicleFields.carNumber
+              : req.body.carNumber !== undefined
+                ? normalizeRegistrationValue(req.body.carNumber)
+                : undefined,
+            twoWheelerNumber: legacyVehicleFields
+              ? legacyVehicleFields.twoWheelerNumber
+              : req.body.twoWheelerNumber !== undefined
+                ? normalizeRegistrationValue(req.body.twoWheelerNumber)
+                : undefined,
             altPhone: req.body.altPhone,
             aadharNo: req.body.aadharNo,
             panNo: req.body.panNo,
             moveInDate: req.body.moveInDate ? new Date(req.body.moveInDate) : undefined,
             ...(userId !== undefined ? { userId } : {}),
+            ...(hasVehicleArray
+              ? {
+                  vehicles: {
+                    deleteMany: {},
+                    ...(vehicles.length ? { create: vehicles } : {}),
+                  },
+                }
+              : {}),
           },
         });
 
@@ -834,7 +1034,7 @@ router.post(
     try {
       const owner = await prisma.owner.findUnique({
         where: { id: req.params.id },
-        include: { flat: { include: { block: { select: { societyId: true } } } } },
+        include: { flat: { include: { block: { select: { societyId: true, name: true, society: { select: { name: true } } } } } } },
       });
       if (!owner) return res.status(404).json({ error: 'Owner not found' });
       if (req.user!.role !== 'SUPER_ADMIN' && owner.flat.block.societyId !== req.user!.societyId) {
@@ -905,6 +1105,24 @@ router.post(
         });
       }
 
+      sendResidentOnboardingEmail(owner.email, {
+        userName: owner.name,
+        societyName: owner.flat.block.society?.name || 'your society',
+        flatNumber: owner.flat.flatNumber,
+        blockName: owner.flat.block.name || null,
+        relation: 'OWNER',
+        loginEmail: owner.email,
+        phoneNumber: owner.phone,
+        accountCreated: true,
+        mode: 'reset',
+      }).catch((emailError: any) => {
+        logger.error('Resident onboarding email failed for owner reset login', {
+          ownerId: owner.id,
+          email: owner.email,
+          error: emailError.message,
+        });
+      });
+
       return res.json({ message: 'Login reset. Owner can now log in with their phone number as password.' });
     } catch (error: any) {
       logger.error('Owner login reset failed', { ownerId: req.params.id, error: error.message });
@@ -921,6 +1139,9 @@ router.post(
     body('name').trim().notEmpty().withMessage('Tenant name is required'),
     body('phone').trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
     body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email address'),
+    body('vehicles').optional().isArray({ max: 10 }).withMessage('Vehicles must be an array'),
+    body('vehicles.*.type').optional().isIn(VEHICLE_TYPES).withMessage('Invalid vehicle type'),
+    body('vehicles.*.registrationNumber').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Vehicle registration number is too long'),
     body('carNumber').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Car number is too long'),
     body('twoWheelerNumber').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Two wheeler number is too long'),
     body('flatId').isUUID(),
@@ -929,6 +1150,11 @@ router.post(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
+      const vehicles = req.body.vehicles !== undefined
+        ? sanitizeResidentVehicles(req.body.vehicles)
+        : getResidentVehiclesFromLegacyFields(req.body);
+      const legacyVehicleFields = buildLegacyVehicleFields(vehicles);
+
       // SECURITY: Verify flat belongs to admin's society
       const flat = await prisma.flat.findUnique({
         where: { id: req.body.flatId },
@@ -945,6 +1171,7 @@ router.post(
       const result = await prisma.$transaction(async (tx) => {
         // Auto-create user account if email + phone provided
         let tenantUserId: string | null = null;
+        let createdNewUser = false;
         if (req.body.email && req.body.phone) {
           const normalizedEmail = String(req.body.email).trim().toLowerCase();
           const existingUser = await findUserByEmailInsensitive(tx, normalizedEmail, {
@@ -988,6 +1215,7 @@ router.post(
               data: { userId: newUser.id, societyId: flat.block.societyId, role: 'TENANT' },
             });
             tenantUserId = newUser.id;
+            createdNewUser = true;
           }
         }
 
@@ -1000,8 +1228,7 @@ router.post(
             name: req.body.name,
             phone: req.body.phone,
             email: req.body.email ? String(req.body.email).trim().toLowerCase() : null,
-            carNumber: normalizeRegistrationValue(req.body.carNumber),
-            twoWheelerNumber: normalizeRegistrationValue(req.body.twoWheelerNumber),
+            ...legacyVehicleFields,
             altPhone: req.body.altPhone || null,
             aadharNo: req.body.aadharNo || null,
             flatId: req.body.flatId,
@@ -1010,17 +1237,45 @@ router.post(
             rentAmount: req.body.rentAmount ? parseFloat(req.body.rentAmount) : null,
             deposit: req.body.deposit ? parseFloat(req.body.deposit) : null,
             userId: tenantUserId,
+            ...(vehicles.length ? { vehicles: { create: vehicles } } : {}),
           },
         });
 
-        return { tenant, userCreated: !!tenantUserId };
+        return { tenant, accountLinked: !!tenantUserId, accountCreated: createdNewUser };
       });
+
+      if (req.body.email && req.body.phone && result.accountLinked) {
+        prisma.block.findUnique({
+          where: { id: flat.blockId },
+          include: { society: { select: { name: true } } },
+        }).then((blockRecord) => {
+          return sendResidentOnboardingEmail(String(req.body.email).trim().toLowerCase(), {
+            userName: req.body.name,
+            societyName: blockRecord?.society?.name || 'your society',
+            flatNumber: flat.flatNumber,
+            blockName: blockRecord?.name || null,
+            relation: 'TENANT',
+            loginEmail: String(req.body.email).trim().toLowerCase(),
+            phoneNumber: req.body.phone,
+            accountCreated: result.accountCreated,
+          });
+        }).catch((emailError: any) => {
+          logger.error('Resident onboarding email failed for tenant', {
+            flatId: req.body.flatId,
+            email: req.body.email,
+            error: emailError.message,
+          });
+        });
+      }
 
       return res.status(201).json({
         ...result.tenant,
-        userCreated: result.userCreated,
-        loginInfo: result.userCreated
-          ? { email: req.body.email, defaultPassword: 'Phone number is the default password' }
+        userCreated: result.accountLinked,
+        loginInfo: result.accountLinked
+          ? {
+              email: req.body.email,
+              defaultPassword: result.accountCreated ? 'Phone number is the default password' : 'Use existing password or reset it from the login screen',
+            }
           : null,
       });
     } catch (error: any) {
@@ -1043,6 +1298,9 @@ router.put(
     body('name').optional().trim().notEmpty().withMessage('Tenant name is required'),
     body('phone').optional().trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
     body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email address'),
+    body('vehicles').optional().isArray({ max: 10 }).withMessage('Vehicles must be an array'),
+    body('vehicles.*.type').optional().isIn(VEHICLE_TYPES).withMessage('Invalid vehicle type'),
+    body('vehicles.*.registrationNumber').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Vehicle registration number is too long'),
     body('carNumber').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Car number is too long'),
     body('twoWheelerNumber').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Two wheeler number is too long'),
   ],
@@ -1060,6 +1318,9 @@ router.put(
       }
 
       const normalizedEmail = req.body.email ? String(req.body.email).trim().toLowerCase() : undefined;
+  const hasVehicleArray = req.body.vehicles !== undefined;
+  const vehicles = hasVehicleArray ? sanitizeResidentVehicles(req.body.vehicles) : [];
+  const legacyVehicleFields = hasVehicleArray ? buildLegacyVehicleFields(vehicles) : null;
       let userId: string | undefined;
 
       const emailToLookup = normalizedEmail || existing.email || undefined;
@@ -1096,8 +1357,16 @@ router.put(
           name: req.body.name,
           phone: req.body.phone,
           email: normalizedEmail,
-          carNumber: req.body.carNumber !== undefined ? normalizeRegistrationValue(req.body.carNumber) : undefined,
-          twoWheelerNumber: req.body.twoWheelerNumber !== undefined ? normalizeRegistrationValue(req.body.twoWheelerNumber) : undefined,
+          carNumber: legacyVehicleFields
+            ? legacyVehicleFields.carNumber
+            : req.body.carNumber !== undefined
+              ? normalizeRegistrationValue(req.body.carNumber)
+              : undefined,
+          twoWheelerNumber: legacyVehicleFields
+            ? legacyVehicleFields.twoWheelerNumber
+            : req.body.twoWheelerNumber !== undefined
+              ? normalizeRegistrationValue(req.body.twoWheelerNumber)
+              : undefined,
           altPhone: req.body.altPhone,
           aadharNo: req.body.aadharNo,
           leaseStart: req.body.leaseStart ? new Date(req.body.leaseStart) : undefined,
@@ -1106,6 +1375,14 @@ router.put(
           deposit: req.body.deposit !== undefined ? parseFloat(req.body.deposit) : undefined,
           isActive: req.body.isActive,
           ...(userId !== undefined ? { userId } : {}),
+          ...(hasVehicleArray
+            ? {
+                vehicles: {
+                  deleteMany: {},
+                  ...(vehicles.length ? { create: vehicles } : {}),
+                },
+              }
+            : {}),
         },
       });
       return res.json(tenant);

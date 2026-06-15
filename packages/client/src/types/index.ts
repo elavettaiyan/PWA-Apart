@@ -99,7 +99,9 @@ export interface Society {
 export interface Block {
   id: string;
   name: string;
+  totalWings?: number | null;
   floors: number;
+  description?: string | null;
   societyId: string;
   society?: { id: string; name: string };
   _count?: { flats: number };
@@ -115,6 +117,7 @@ export interface Flat {
   floor: number;
   type: FlatType;
   areaSqFt?: number;
+  keyFeatures?: Array<'BALCONY' | 'CENTRAL_AC'>;
   blockId: string;
   isOccupied: boolean;
   parkingType?: 'NONE' | 'OPEN' | 'COVERED';
@@ -136,6 +139,16 @@ export interface FlatOption {
   residentName?: string | null;
 }
 
+export type VehicleType = 'TWO_WHEELER' | 'THREE_WHEELER' | 'FOUR_WHEELER';
+
+export interface ResidentVehicle {
+  id: string;
+  type: VehicleType;
+  registrationNumber: string;
+  ownerId?: string;
+  tenantId?: string;
+}
+
 // ─── OWNER ──────────────────────────────────────────────
 
 export interface Owner {
@@ -148,6 +161,7 @@ export interface Owner {
   altPhone?: string;
   aadharNo?: string;
   panNo?: string;
+  vehicles?: ResidentVehicle[];
   flatId: string;
   moveInDate?: string;
   userId?: string;
@@ -168,6 +182,7 @@ export interface Tenant {
   rentAmount?: number;
   deposit?: number;
   isActive: boolean;
+  vehicles?: ResidentVehicle[];
 }
 
 // ─── MAINTENANCE ────────────────────────────────────────

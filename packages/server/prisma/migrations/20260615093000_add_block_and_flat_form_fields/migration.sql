@@ -1,0 +1,6 @@
+ALTER TABLE "blocks"
+ADD COLUMN "totalWings" INTEGER,
+ADD COLUMN "description" TEXT;
+
+ALTER TABLE "flats"
+ADD COLUMN "keyFeatures" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

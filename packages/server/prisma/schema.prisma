@@ -38,6 +38,12 @@ enum ParkingType {
   COVERED
 }
 
+enum VehicleType {
+  TWO_WHEELER
+  THREE_WHEELER
+  FOUR_WHEELER
+}
+
 enum BillStatus {
   PENDING
   PARTIAL
@@ -239,7 +245,9 @@ model Society {
 model Block {
   id        String   @id @default(uuid())
   name      String   // e.g., "A Wing", "Block 1"
+  totalWings Int?
   floors    Int      @default(1)
+  description String?
   societyId String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -261,6 +269,7 @@ model Flat {
   floor       Int
   type        FlatType @default(TWO_BHK)
   areaSqFt    Float?
+  keyFeatures String[] @default([])
   blockId     String
   isOccupied  Boolean  @default(false)
   parkingType ParkingType @default(NONE)
@@ -303,6 +312,7 @@ model Owner {
   flat        Flat     @relation(fields: [flatId], references: [id], onDelete: Cascade)
   user        User?    @relation(fields: [userId], references: [id])
   userId      String?
+  vehicles    ResidentVehicle[]
 
   @@index([userId])
   @@index([email])
@@ -332,10 +342,29 @@ model Tenant {
   flat        Flat      @relation(fields: [flatId], references: [id], onDelete: Cascade)
   user        User?     @relation(fields: [userId], references: [id])
   userId      String?
+  vehicles    ResidentVehicle[]
 
   @@index([userId])
   @@index([email])
   @@map("tenants")
+}
+
+model ResidentVehicle {
+  id                 String      @id @default(uuid())
+  type               VehicleType
+  registrationNumber String
+  ownerId            String?
+  tenantId           String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  owner              Owner?      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  tenant             Tenant?     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@index([tenantId])
+  @@index([registrationNumber])
+  @@map("resident_vehicles")
 }
 
 // ─── USER (AUTH) ────────────────────────────────────────
@@ -593,6 +622,7 @@ model SocietySettings {
   partialPaymentAllowed   Boolean  @default(true)
   advancePaymentAllowed   Boolean  @default(true)
   autoAdjustAdvance       Boolean  @default(true)
+  configuredFlatTypes     FlatType[] @default([])
   forceOldestDueSettlement Boolean @default(true)
   manualBillSelection     Boolean  @default(false)
   createdAt               DateTime @default(now())

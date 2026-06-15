@@ -973,7 +973,15 @@ router.get('/society-settings', async (req: AuthRequest, res: Response) => {
 
 router.put(
   '/society-settings',
-  [body('societyId').optional().isUUID(), body('lateFeeEnabled').optional().isBoolean(), body('partialPaymentAllowed').optional().isBoolean(), body('advancePaymentAllowed').optional().isBoolean(), body('autoAdjustAdvance').optional().isBoolean()],
+  [
+    body('societyId').optional().isUUID(),
+    body('lateFeeEnabled').optional().isBoolean(),
+    body('partialPaymentAllowed').optional().isBoolean(),
+    body('advancePaymentAllowed').optional().isBoolean(),
+    body('autoAdjustAdvance').optional().isBoolean(),
+    body('configuredFlatTypes').optional().isArray(),
+    body('configuredFlatTypes.*').optional().isIn(['ONE_BHK', 'TWO_BHK', 'THREE_BHK', 'FOUR_BHK', 'STUDIO', 'PENTHOUSE', 'SHOP', 'OTHER']),
+  ],
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -985,6 +993,7 @@ router.put(
         partialPaymentAllowed,
         advancePaymentAllowed,
         autoAdjustAdvance,
+        configuredFlatTypes,
       } = req.body;
 
       const settings = await prisma.societySettings.upsert({
@@ -995,6 +1004,7 @@ router.put(
           partialPaymentAllowed: partialPaymentAllowed ?? true,
           advancePaymentAllowed: advancePaymentAllowed ?? true,
           autoAdjustAdvance: autoAdjustAdvance ?? true,
+          configuredFlatTypes: Array.isArray(configuredFlatTypes) ? configuredFlatTypes : [],
           forceOldestDueSettlement: true,
           manualBillSelection: false,
         },
@@ -1003,6 +1013,7 @@ router.put(
           ...(partialPaymentAllowed !== undefined ? { partialPaymentAllowed } : {}),
           ...(advancePaymentAllowed !== undefined ? { advancePaymentAllowed } : {}),
           ...(autoAdjustAdvance !== undefined ? { autoAdjustAdvance } : {}),
+          ...(configuredFlatTypes !== undefined ? { configuredFlatTypes } : {}),
           forceOldestDueSettlement: true,
           manualBillSelection: false,
         },
