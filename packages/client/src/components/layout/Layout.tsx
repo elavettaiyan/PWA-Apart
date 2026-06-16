@@ -554,7 +554,7 @@ export default function Layout({ children }: LayoutProps) {
           >
             <div
               className={cn(!isPulling && 'transition-transform duration-200 ease-out')}
-              style={{ transform: `translateY(${pullDistance}px)` }}
+              style={pullDistance ? { transform: `translateY(${pullDistance}px)` } : undefined}
             >
               {children}
             </div>

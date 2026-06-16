@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -55,6 +55,9 @@ function getActiveOwner(flat: Flat) {
 
 const ROWS_PER_PAGE_OPTIONS = [10, 20, 50];
 const RESIDENT_PICKER_PAGE_SIZE = 12;
+const MOBILE_LIST_SPACING_CLASS = 'space-y-3 p-4';
+const MOBILE_OVERLAY_CONTENT_CLASS = 'space-y-3 px-4 pb-[calc(1rem+var(--sab,0px))] pt-1';
+const MOBILE_SURFACE_CARD_CLASS = 'rounded-xl border border-slate-100 bg-white p-4 shadow-sm';
 
 export default function FlatsPage() {
   const [showAddFlat, setShowAddFlat] = useState(false);
@@ -414,18 +417,24 @@ export default function FlatsPage() {
 
           {isAdmin ? (
             <div className="flex flex-wrap gap-3 xl:justify-end">
-              <ActionButton kind="secondary" onClick={() => setShowAddBlock(true)}>
-                <Plus className="h-4 w-4" />
-                Add Block
-              </ActionButton>
-              <ActionButton kind="secondary" onClick={() => setShowAddFlat(true)}>
-                <Plus className="h-4 w-4" />
-                Add Flat
-              </ActionButton>
-              <ActionButton kind="primary" onClick={handleAddResident}>
-                <Plus className="h-4 w-4" />
-                Add Resident
-              </ActionButton>
+              {viewMode === 'flats' ? (
+                <>
+                  <ActionButton kind="secondary" onClick={() => setShowAddBlock(true)}>
+                    <Plus className="h-4 w-4" />
+                    Add Block
+                  </ActionButton>
+                  <ActionButton kind="secondary" onClick={() => setShowAddFlat(true)}>
+                    <Plus className="h-4 w-4" />
+                    Add Flat
+                  </ActionButton>
+                </>
+              ) : null}
+              {viewMode === 'residents' ? (
+                <ActionButton kind="primary" onClick={handleAddResident}>
+                  <Plus className="h-4 w-4" />
+                  Add Resident
+                </ActionButton>
+              ) : null}
             </div>
           ) : null}
         </section>
@@ -562,7 +571,12 @@ export default function FlatsPage() {
                 </div>
 
                 {filteredResidents.length === 0 ? (
-                  <EmptyState icon={Users} title="No residents found" description="Try another search or block filter to find mapped owners and tenants." />
+                  <EmptyState
+                    icon={Users}
+                    title="No residents found"
+                    description="Add a resident to a vacant flat or try another search or block filter to find mapped owners and tenants."
+                    action={isAdmin ? <ActionButton kind="primary" onClick={handleAddResident}>Add Resident</ActionButton> : undefined}
+                  />
                 ) : (
                   <>
                     <div className="flex items-center justify-between px-4 pb-4 pt-5 lg:hidden">
@@ -1012,14 +1026,14 @@ function FlatsMobileList({
   }
 
   return (
-    <div className="space-y-3 p-4">
+    <div className={MOBILE_LIST_SPACING_CLASS}>
       {flats.map((flat) => {
         const activeOwner = getActiveOwner(flat);
         const residentName = flat.tenant?.isActive ? flat.tenant.name : activeOwner?.name;
         const residentType = flat.tenant?.isActive ? 'Tenant' : activeOwner ? 'Owner' : null;
 
         return (
-          <button key={flat.id} type="button" onClick={() => onOpenDetails(flat)} className="flex w-full items-center justify-between rounded-xl border border-slate-100 bg-white p-4 text-left">
+          <button key={flat.id} type="button" onClick={() => onOpenDetails(flat)} className={cn(MOBILE_SURFACE_CARD_CLASS, 'flex w-full items-center justify-between text-left')}>
             <div>
               <h3 className="font-bold text-slate-900">{flat.flatNumber}</h3>
               <p className="text-[11px] text-slate-400">{getFlatTypeLabel(flat.type)} • {flat.areaSqFt || '—'} sq.ft</p>
@@ -1390,39 +1404,50 @@ function MobileDetailScreen({
   onManageResidents: () => void;
   onDeleteFlat: () => void;
 }) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    if (!flat) return;
+    const container = scrollRef.current;
+    if (!container) return;
+
+    container.scrollTop = 0;
+    requestAnimationFrame(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = 0;
+      }
+    });
+  }, [flat?.id]);
+
   if (!flat) return null;
 
   return (
     <div className="fixed inset-0 z-40 bg-slate-50 xl:hidden">
-      <div className="flex h-full flex-col">
-        <header className="bg-white px-5 pb-4 pt-12">
-          <div className="mb-6 flex items-center justify-between">
-            <button type="button" className="p-1 text-slate-700" onClick={onClose}>
+      <div key={flat.id} ref={scrollRef} className="hide-scrollbar flex h-full flex-col overflow-y-auto">
+        <header className="sticky top-0 z-10 bg-slate-50/95 px-4 pb-3 pt-12 backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <button type="button" className="rounded-full bg-slate-100 p-2 text-slate-700 transition active:scale-95" onClick={onClose}>
               <ChevronLeft className="h-6 w-6" />
             </button>
-            <button type="button" className="p-1 text-slate-700" onClick={onEditFlat}>
-              <MoreVertical className="h-6 w-6" />
-            </button>
-          </div>
-
-          <div className="mb-6">
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-slate-900">{flat.flatNumber}</h1>
-              <StatusBadge occupied={flat.isOccupied} compact />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-3">
+                <h1 className="truncate text-2xl font-bold tracking-tight text-slate-900">{flat.flatNumber}</h1>
+                <StatusBadge occupied={flat.isOccupied} compact />
+              </div>
+              <p className="mt-0.5 text-sm text-slate-400">{flat.block?.name || 'Unassigned block'}</p>
             </div>
-            <p className="text-sm font-medium text-slate-400">{flat.block?.name}</p>
-          </div>
-
-          <div className="flex border-b border-gray-100">
-            <button type="button" className="border-b-2 border-blue-600 px-6 py-2 text-sm font-semibold text-blue-600">Details</button>
-            <button type="button" className="px-6 py-2 text-sm font-semibold text-gray-400">Residents</button>
-            <button type="button" className="px-6 py-2 text-sm font-semibold text-gray-400">Activity</button>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-5 py-6 pb-32">
-          <div className="rounded-2xl border border-gray-50 bg-white p-5 shadow-sm">
-            <h3 className="mb-6 font-bold text-slate-900">Flat Details</h3>
+        <div className={MOBILE_OVERLAY_CONTENT_CLASS}>
+          <div className={MOBILE_SURFACE_CARD_CLASS}>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Flat Details</h3>
+                <p className="mt-1 text-xs text-slate-400">Core apartment information</p>
+              </div>
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{flat.block?.name || 'Block'}</div>
+            </div>
             <div className="space-y-4">
               <InfoRow label="Type" value={getFlatTypeLabel(flat.type)} mobile />
               <InfoRow label="Area" value={flat.areaSqFt ? `${flat.areaSqFt} sq.ft` : '—'} mobile />
@@ -1431,27 +1456,18 @@ function MobileDetailScreen({
             </div>
           </div>
 
-          <div className="mt-4">
-            <ResidentCard title="Owner" tone="owner" name={getActiveOwner(flat)?.name || '—'} phone={getActiveOwner(flat)?.phone || 'No owner'} email={getActiveOwner(flat)?.email} mobile />
-          </div>
-          <div className="mt-4">
-            <ResidentCard title="Tenant" tone="tenant" name={flat.tenant?.isActive ? flat.tenant.name : '—'} phone={flat.tenant?.isActive ? flat.tenant.phone : 'No tenant'} email={flat.tenant?.isActive ? flat.tenant.email : undefined} mobile />
-          </div>
+          <ResidentCard title="Owner" tone="owner" name={getActiveOwner(flat)?.name || '—'} phone={getActiveOwner(flat)?.phone || 'No owner'} email={getActiveOwner(flat)?.email} mobile />
+          <ResidentCard title="Tenant" tone="tenant" name={flat.tenant?.isActive ? flat.tenant.name : '—'} phone={flat.tenant?.isActive ? flat.tenant.phone : 'No tenant'} email={flat.tenant?.isActive ? flat.tenant.email : undefined} mobile />
 
-          <div className="mt-6 rounded-2xl border border-gray-50 bg-white p-5 shadow-sm">
-            <h3 className="mb-4 font-bold text-slate-900">Quick Actions</h3>
+          <div className={MOBILE_SURFACE_CARD_CLASS}>
+            <h3 className="mb-1 text-lg font-bold text-slate-900">Quick Actions</h3>
+            <p className="mb-4 text-xs text-slate-400">Flat management shortcuts</p>
             <div className="divide-y divide-gray-50">
               <QuickAction label="Edit Flat" icon={<Building2 className="h-5 w-5 text-slate-500" />} onClick={onEditFlat} />
               <QuickAction label="Manage Residents" icon={<Users className="h-5 w-5 text-slate-500" />} onClick={onManageResidents} />
               <QuickAction label="Delete Flat" icon={<Trash2 className="h-5 w-5 text-red-500" />} danger onClick={onDeleteFlat} />
             </div>
           </div>
-        </div>
-
-        <div className="absolute bottom-0 left-0 right-0 border-t border-gray-100 bg-white p-6">
-          <button type="button" className="btn-primary w-full justify-center py-4 text-base" onClick={onEditFlat}>
-            Edit Flat
-          </button>
         </div>
       </div>
     </div>
@@ -1478,7 +1494,7 @@ function ResidentCard({
     : 'border-blue-100 bg-blue-50/30 text-blue-600';
 
   return (
-    <div className={cn('flex items-center justify-between rounded-xl border p-4', mobile ? 'rounded-2xl p-5' : '', toneClasses)}>
+    <div className={cn(MOBILE_SURFACE_CARD_CLASS, 'flex items-center justify-between', toneClasses)}>
       <div className="flex items-center gap-4">
         <div className={cn('flex h-12 w-12 items-center justify-center rounded-full', tone === 'owner' ? 'bg-emerald-100' : 'bg-blue-100')}>
           <User className="h-7 w-7" />
