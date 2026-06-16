@@ -161,6 +161,9 @@ export interface Owner {
   altPhone?: string;
   aadharNo?: string;
   panNo?: string;
+  isActive: boolean;
+  deactivatedAt?: string;
+  deactivationReason?: string;
   vehicles?: ResidentVehicle[];
   flatId: string;
   moveInDate?: string;
@@ -182,6 +185,8 @@ export interface Tenant {
   rentAmount?: number;
   deposit?: number;
   isActive: boolean;
+  deactivatedAt?: string;
+  deactivationReason?: string;
   vehicles?: ResidentVehicle[];
 }
 

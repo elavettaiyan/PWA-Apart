@@ -13,6 +13,7 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import {
   useCreateOwnerMutation,
+  useDeactivateOwnerMutation,
   useUpdateOwnerMutation,
   useCreateTenantMutation,
   useUpdateTenantMutation,
@@ -108,24 +109,28 @@ function buildTenantFormState(tenant?: Flat['tenant'] | null) {
 export function ManageFlatForm({ flat, onSaved }: ManageFlatFormProps) {
   const user = useAuthStore((state) => state.user);
   const isAdminManager = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'] as string[]).includes(user?.role || '');
+  const activeOwner = flat.owner?.isActive === false ? null : flat.owner || null;
   const activeTenant = flat.tenant?.isActive ? flat.tenant : null;
-  const canSelectTenant = Boolean(flat.owner || activeTenant);
+  const canSelectTenant = Boolean(activeOwner || activeTenant);
   const [residentMode, setResidentMode] = useState<'OWNER' | 'TENANT'>(activeTenant ? 'TENANT' : 'OWNER');
 
-  const [form, setForm] = useState(() => buildOwnerFormState(flat.owner));
-  const [ownerVehicles, setOwnerVehicles] = useState<VehicleDraft[]>(() => getVehicleDrafts(flat.owner?.vehicles, flat.owner));
+  const [form, setForm] = useState(() => buildOwnerFormState(activeOwner));
+  const [ownerVehicles, setOwnerVehicles] = useState<VehicleDraft[]>(() => getVehicleDrafts(activeOwner?.vehicles, activeOwner || undefined));
 
   const [tenantForm, setTenantForm] = useState(() => buildTenantFormState(activeTenant));
   const [tenantVehicles, setTenantVehicles] = useState<VehicleDraft[]>(() => getVehicleDrafts(activeTenant?.vehicles, activeTenant || undefined));
 
   const [showTenantRemoveConfirm, setShowTenantRemoveConfirm] = useState(false);
   const [tenantRemovalReason, setTenantRemovalReason] = useState('');
+  const [showOwnerDeactivateConfirm, setShowOwnerDeactivateConfirm] = useState(false);
+  const [ownerDeactivationReason, setOwnerDeactivationReason] = useState('');
 
-  const ownerMutation = flat.owner?.id ? useUpdateOwnerMutation(flat.owner.id) : useCreateOwnerMutation();
+  const ownerMutation = activeOwner?.id ? useUpdateOwnerMutation(activeOwner.id) : useCreateOwnerMutation();
   const tenantMutation = activeTenant?.id ? useUpdateTenantMutation(activeTenant.id) : useCreateTenantMutation();
+  const deactivateOwnerMutation = useDeactivateOwnerMutation();
   const removeTenantMutation = useRemoveTenantMutation();
   const resetOwnerLoginMutation = useMutation({
-    mutationFn: () => api.post(`/flats/owners/${flat.owner!.id}/reset-login`),
+    mutationFn: () => api.post(`/flats/owners/${activeOwner!.id}/reset-login`),
     onSuccess: () => toast.success('Login reset. Owner can log in with their phone number as password.'),
     onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to reset owner login'),
   });
@@ -138,9 +143,11 @@ export function ManageFlatForm({ flat, onSaved }: ManageFlatFormProps) {
   };
 
   useEffect(() => {
-    setForm(buildOwnerFormState(flat.owner));
-    setOwnerVehicles(getVehicleDrafts(flat.owner?.vehicles, flat.owner));
-  }, [flat.owner]);
+    setForm(buildOwnerFormState(activeOwner));
+    setOwnerVehicles(getVehicleDrafts(activeOwner?.vehicles, activeOwner || undefined));
+    setShowOwnerDeactivateConfirm(false);
+    setOwnerDeactivationReason('');
+  }, [activeOwner]);
 
   useEffect(() => {
     resetTenantForm();
@@ -156,21 +163,21 @@ export function ManageFlatForm({ flat, onSaved }: ManageFlatFormProps) {
     }
   }, [canSelectTenant, residentMode]);
 
-  const activeResident = residentMode === 'OWNER' ? flat.owner : activeTenant;
+  const activeResident = residentMode === 'OWNER' ? activeOwner : activeTenant;
   const residentIdLabel = useMemo(() => {
     const rawId = activeResident?.id || flat.id;
     return `#RH-${rawId.replace(/-/g, '').slice(0, 6).toUpperCase()}`;
   }, [activeResident?.id, flat.id]);
-  const residentInitial = (activeResident?.name || flat.owner?.name || activeTenant?.name || 'R').trim().charAt(0).toUpperCase();
+  const residentInitial = (activeResident?.name || activeOwner?.name || activeTenant?.name || 'R').trim().charAt(0).toUpperCase();
   const assignedFlatLabel = `${flat.flatNumber}${flat.block?.name ? ` • ${flat.block.name}` : ''}`;
   const residentAccessNote = useMemo(() => {
     if (residentMode === 'OWNER') {
-      if (!flat.owner) {
+      if (!activeOwner) {
         return 'When you provide both email and phone number, a login account will be automatically created. The default password will be the phone number.';
       }
 
-      if (flat.owner?.email) {
-        return flat.owner.userId
+      if (activeOwner?.email) {
+        return activeOwner.userId
           ? 'A login account is already linked for this owner. They should continue with their existing password, or use Reset Login to issue a new default password.'
           : 'A login account will be created for this owner when both email and phone number are provided. The default password will be the phone number.';
       }
@@ -183,7 +190,7 @@ export function ManageFlatForm({ flat, onSaved }: ManageFlatFormProps) {
     }
 
     return null;
-  }, [flat.owner, flat.tenant?.isActive, residentMode]);
+  }, [activeOwner, flat.tenant?.isActive, residentMode]);
 
   const handleOwnerSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -213,7 +220,7 @@ export function ManageFlatForm({ flat, onSaved }: ManageFlatFormProps) {
       vehicles: normalizeVehicleDrafts(ownerVehicles),
       aadharNo: form.aadharNo.trim() || undefined,
       panNo: form.panNo.trim() || undefined,
-      ...(flat.owner?.id ? {} : { flatId: flat.id }),
+      ...(activeOwner?.id ? {} : { flatId: flat.id }),
     };
 
     ownerMutation.mutate(payload, {
@@ -375,7 +382,7 @@ export function ManageFlatForm({ flat, onSaved }: ManageFlatFormProps) {
             <VehicleDetailsSection vehicles={ownerVehicles} onChange={setOwnerVehicles} />
 
             <div className="flex flex-col gap-3 border-t border-outline-variant/60 pt-5 sm:flex-row sm:justify-end">
-              {flat.owner?.id && flat.owner?.email && flat.owner?.phone && (
+              {activeOwner?.id && activeOwner?.email && activeOwner?.phone && (
                 <button type="button" className="btn-outline h-12 rounded-[22px]" disabled={resetOwnerLoginMutation.isPending} onClick={() => resetOwnerLoginMutation.mutate()}>
                   {resetOwnerLoginMutation.isPending ? 'Resetting...' : 'Reset Login'}
                 </button>
@@ -385,6 +392,45 @@ export function ManageFlatForm({ flat, onSaved }: ManageFlatFormProps) {
                 {ownerMutation.isPending ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
+
+            {isAdminManager && activeOwner?.id ? (
+              <div className="rounded-[24px] border border-error/20 bg-error-container/40 p-4 space-y-3">
+                <button type="button" className="flex items-center gap-2 px-1 text-base font-semibold text-error" onClick={() => setShowOwnerDeactivateConfirm((value) => !value)}>
+                  <TrashGlyph />
+                  Deactivate Resident
+                </button>
+                {showOwnerDeactivateConfirm ? (
+                  <>
+                    <p className="text-xs text-on-surface-variant">Deactivation requires zero outstanding dues. This will log the remarks, block resident login, and free the flat if no other active resident remains.</p>
+                    <textarea className="input min-h-[100px] !rounded-2xl" value={ownerDeactivationReason} onChange={(event) => setOwnerDeactivationReason(event.target.value)} placeholder="Explain why this owner is being deactivated." />
+                    <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                      <button type="button" className="btn-outline h-12 rounded-[22px]" onClick={() => { setShowOwnerDeactivateConfirm(false); setOwnerDeactivationReason(''); }} disabled={deactivateOwnerMutation.isPending}>
+                        <X className="h-4 w-4" />
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-danger h-12 rounded-[22px]"
+                        disabled={deactivateOwnerMutation.isPending || !ownerDeactivationReason.trim()}
+                        onClick={() => deactivateOwnerMutation.mutate({ ownerId: activeOwner.id, reason: ownerDeactivationReason.trim() }, {
+                          onSuccess: () => {
+                            toast.success('Owner deactivated');
+                            setShowOwnerDeactivateConfirm(false);
+                            setOwnerDeactivationReason('');
+                            onSaved();
+                          },
+                          onError: (e: any) => {
+                            toast.error(e.response?.data?.error || 'Failed to deactivate owner');
+                          },
+                        })}
+                      >
+                        {deactivateOwnerMutation.isPending ? 'Deactivating...' : 'Confirm Deactivate'}
+                      </button>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
           </form>
         ) : (
           <form onSubmit={handleTenantSubmit} className="space-y-5">
@@ -424,15 +470,15 @@ export function ManageFlatForm({ flat, onSaved }: ManageFlatFormProps) {
             {isAdminManager && flat.tenant?.id && flat.tenant?.isActive ? (
               <button type="button" className="flex items-center gap-2 px-1 text-base font-semibold text-error" onClick={() => setShowTenantRemoveConfirm((value) => !value)}>
                 <TrashGlyph />
-                Remove Resident from Hub
+                Deactivate Resident
               </button>
             ) : null}
 
             {isAdminManager && flat.tenant?.id && flat.tenant?.isActive && showTenantRemoveConfirm && (
               <div className="rounded-[24px] border border-error/20 bg-error-container/40 p-4 space-y-3">
-                <p className="text-sm font-semibold text-on-surface">Remove active tenant</p>
-                <p className="text-xs text-on-surface-variant">This will remove tenant access for the current society and send an email to the removed tenant.</p>
-                <textarea className="input min-h-[100px] !rounded-2xl" value={tenantRemovalReason} onChange={(event) => setTenantRemovalReason(event.target.value)} placeholder="Explain why this tenant is being removed." />
+                <p className="text-sm font-semibold text-on-surface">Deactivate active tenant</p>
+                <p className="text-xs text-on-surface-variant">Deactivation requires zero outstanding dues. This will log the remarks, block resident login, and free the flat if no other active resident remains.</p>
+                <textarea className="input min-h-[100px] !rounded-2xl" value={tenantRemovalReason} onChange={(event) => setTenantRemovalReason(event.target.value)} placeholder="Explain why this tenant is being deactivated." />
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
                   <button type="button" className="btn-outline h-12 rounded-[22px]" onClick={() => { setShowTenantRemoveConfirm(false); setTenantRemovalReason(''); }} disabled={removeTenantMutation.isPending}>
                     <X className="h-4 w-4" />
@@ -444,7 +490,7 @@ export function ManageFlatForm({ flat, onSaved }: ManageFlatFormProps) {
                     disabled={removeTenantMutation.isPending || !tenantRemovalReason.trim()}
                     onClick={() => removeTenantMutation.mutate({ tenantId: flat.tenant!.id, reason: tenantRemovalReason.trim() }, {
                       onSuccess: () => {
-                        toast.success('Tenant removed');
+                        toast.success('Tenant deactivated');
                         setShowTenantRemoveConfirm(false);
                         setTenantRemovalReason('');
                         onSaved();
@@ -454,7 +500,7 @@ export function ManageFlatForm({ flat, onSaved }: ManageFlatFormProps) {
                       }
                     })}
                   >
-                    {removeTenantMutation.isPending ? 'Removing...' : 'Confirm Remove'}
+                    {removeTenantMutation.isPending ? 'Deactivating...' : 'Confirm Deactivate'}
                   </button>
                 </div>
               </div>

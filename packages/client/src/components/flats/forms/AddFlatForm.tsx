@@ -11,6 +11,7 @@ import type { Block, Flat, FlatType } from '@/types';
 interface AddFlatFormProps {
   blocks: Block[];
   flat?: Flat | null;
+  initialBlockId?: string;
   onSuccess: () => void;
   onLimitReached: () => void;
   onDeleteRequest?: () => void;
@@ -27,7 +28,7 @@ const FLAT_TYPE_OPTIONS: Array<{ value: FlatType; label: string }> = [
   { value: 'OTHER', label: 'Other' },
 ];
 
-export function AddFlatForm({ blocks, flat, onSuccess, onLimitReached, onDeleteRequest }: AddFlatFormProps) {
+export function AddFlatForm({ blocks, flat, initialBlockId, onSuccess, onLimitReached, onDeleteRequest }: AddFlatFormProps) {
   const user = useAuthStore((state) => state.user);
   const [form, setForm] = useState({
     flatNumber: '',
@@ -37,7 +38,7 @@ export function AddFlatForm({ blocks, flat, onSuccess, onLimitReached, onDeleteR
     keyFeatures: [] as Array<'BALCONY' | 'CENTRAL_AC'>,
     parkingType: 'NONE' as 'NONE' | 'OPEN' | 'COVERED',
     parkingSlotNumber: '',
-    blockId: blocks[0]?.id || '',
+    blockId: initialBlockId || blocks[0]?.id || '',
   });
 
   const createMutation = useCreateFlatMutation();
@@ -76,16 +77,16 @@ export function AddFlatForm({ blocks, flat, onSuccess, onLimitReached, onDeleteR
       keyFeatures: flat?.keyFeatures || [],
       parkingType: flat?.parkingType || 'NONE',
       parkingSlotNumber: flat?.parkingSlotNumber || '',
-      blockId: flat?.blockId || blocks[0]?.id || '',
+      blockId: flat?.blockId || initialBlockId || blocks[0]?.id || '',
     });
-  }, [flat, blocks]);
+  }, [flat, blocks, initialBlockId]);
 
   useEffect(() => {
     // Blocks are loaded asynchronously; ensure blockId is set once data arrives.
     if (!form.blockId && blocks.length > 0) {
-      setForm((prev) => ({ ...prev, blockId: blocks[0].id }));
+      setForm((prev) => ({ ...prev, blockId: initialBlockId || blocks[0].id }));
     }
-  }, [blocks, form.blockId]);
+  }, [blocks, form.blockId, initialBlockId]);
 
   useEffect(() => {
     if (availableFlatTypes.length === 0) {

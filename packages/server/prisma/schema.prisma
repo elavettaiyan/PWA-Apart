@@ -306,6 +306,9 @@ model Owner {
   panNo       String?
   flatId      String   @unique
   moveInDate  DateTime?
+  isActive    Boolean  @default(true)
+  deactivatedAt DateTime?
+  deactivationReason String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -336,6 +339,8 @@ model Tenant {
   rentAmount  Float?
   deposit     Float?
   isActive    Boolean   @default(true)
+  deactivatedAt DateTime?
+  deactivationReason String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

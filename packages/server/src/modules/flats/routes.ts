@@ -227,6 +227,60 @@ async function getFlatLimitStatus(societyId: string) {
   };
 }
 
+async function getOutstandingFlatDue(flatId: string) {
+  const totals = await prisma.maintenanceBill.aggregate({
+    where: {
+      flatId,
+      status: { in: ['PENDING', 'OVERDUE', 'PARTIAL'] },
+    },
+    _sum: {
+      totalAmount: true,
+      paidAmount: true,
+    },
+  });
+
+  return Number(Math.max(0, (totals._sum.totalAmount || 0) - (totals._sum.paidAmount || 0)).toFixed(2));
+}
+
+async function shouldDeleteResidentMembership(
+  tx: Prisma.TransactionClient,
+  args: {
+    userId?: string | null;
+    societyId: string;
+    userRole?: string | null;
+    excludeOwnerId?: string | null;
+    excludeTenantId?: string | null;
+  },
+) {
+  if (!args.userId) return false;
+  if (args.userRole && !['OWNER', 'TENANT'].includes(args.userRole)) {
+    return false;
+  }
+
+  const [remainingOwner, remainingTenant] = await Promise.all([
+    tx.owner.findFirst({
+      where: {
+        userId: args.userId,
+        isActive: true,
+        ...(args.excludeOwnerId ? { id: { not: args.excludeOwnerId } } : {}),
+        flat: { block: { societyId: args.societyId } },
+      },
+      select: { id: true },
+    }),
+    tx.tenant.findFirst({
+      where: {
+        userId: args.userId,
+        isActive: true,
+        ...(args.excludeTenantId ? { id: { not: args.excludeTenantId } } : {}),
+        flat: { block: { societyId: args.societyId } },
+      },
+      select: { id: true },
+    }),
+  ]);
+
+  return !remainingOwner && !remainingTenant;
+}
+
 // ── GET MY FLAT (Owner/Tenant) ───────────────────────────
 router.get('/my-flat', [query('societyId').optional().isUUID(), query('year').optional().isInt({ min: 2020 })], validate, async (req: AuthRequest, res: Response) => {
   try {
@@ -414,6 +468,9 @@ router.get(
               panNo: true,
               altPhone: true,
               moveInDate: true,
+              isActive: true,
+              deactivatedAt: true,
+              deactivationReason: true,
               vehicles: { select: residentVehicleSelect, orderBy: { createdAt: 'asc' } },
             },
           },
@@ -430,6 +487,8 @@ router.get(
               rentAmount: true,
               deposit: true,
               isActive: true,
+              deactivatedAt: true,
+              deactivationReason: true,
               vehicles: { select: residentVehicleSelect, orderBy: { createdAt: 'asc' } },
             },
           },
@@ -503,9 +562,9 @@ router.post(
 
       const societyId = block.societyId;
       const limitStatus = await getFlatLimitStatus(societyId);
-      if (limitStatus.reached) {
+      if (limitStatus.reached && limitStatus.code === 'PREMIUM_FLAT_CAPACITY_REACHED') {
         return res.status(402).json({
-          error: limitStatus.code === 'FREE_TIER_LIMIT_REACHED' ? 'Free tier limit reached' : 'Premium flat capacity reached',
+          error: 'Premium flat capacity reached',
           code: limitStatus.code,
           message: limitStatus.message,
           minimumRequiredFlatCount: limitStatus.minimumRequiredFlatCount,
@@ -746,11 +805,14 @@ router.post(
       // SECURITY: Verify flat belongs to admin's society
       const flat = await prisma.flat.findUnique({
         where: { id: req.body.flatId },
-        include: { block: true },
+        include: { block: true, owner: { select: { id: true, isActive: true } } },
       });
       if (!flat) return res.status(404).json({ error: 'Flat not found' });
       if (req.user!.role !== 'SUPER_ADMIN' && flat.block.societyId !== req.user!.societyId) {
         return res.status(403).json({ error: 'Access denied' });
+      }
+      if (flat.owner?.isActive) {
+        return res.status(409).json({ error: 'This flat already has an active owner' });
       }
 
       // SECURITY: Whitelist allowed fields
@@ -765,6 +827,7 @@ router.post(
                 equals: normalizedEmail,
                 mode: 'insensitive',
               },
+              isActive: true,
               flat: { block: { societyId: flat.block.societyId } },
             },
             select: { id: true },
@@ -829,21 +892,39 @@ router.post(
           }
         }
 
-        const owner = await tx.owner.create({
-          data: {
-            name: req.body.name,
-            phone: req.body.phone,
-            email: req.body.email ? String(req.body.email).trim().toLowerCase() : null,
-            ...legacyVehicleFields,
-            altPhone: req.body.altPhone || null,
-            aadharNo: req.body.aadharNo || null,
-            panNo: req.body.panNo || null,
-            flatId: req.body.flatId,
-            moveInDate: req.body.moveInDate ? new Date(req.body.moveInDate) : null,
-            userId,
-            ...(vehicles.length ? { vehicles: { create: vehicles } } : {}),
-          },
-        });
+        const ownerData = {
+          name: req.body.name,
+          phone: req.body.phone,
+          email: req.body.email ? String(req.body.email).trim().toLowerCase() : null,
+          ...legacyVehicleFields,
+          altPhone: req.body.altPhone || null,
+          aadharNo: req.body.aadharNo || null,
+          panNo: req.body.panNo || null,
+          flatId: req.body.flatId,
+          moveInDate: req.body.moveInDate ? new Date(req.body.moveInDate) : null,
+          userId,
+          isActive: true,
+          deactivatedAt: null,
+          deactivationReason: null,
+        };
+
+        const owner = flat.owner?.id
+          ? await tx.owner.update({
+              where: { id: flat.owner.id },
+              data: {
+                ...ownerData,
+                vehicles: {
+                  deleteMany: {},
+                  ...(vehicles.length ? { create: vehicles } : {}),
+                },
+              },
+            })
+          : await tx.owner.create({
+              data: {
+                ...ownerData,
+                ...(vehicles.length ? { vehicles: { create: vehicles } } : {}),
+              },
+            });
 
         // Mark flat as occupied
         await tx.flat.update({
@@ -1020,6 +1101,97 @@ router.put(
       return res.json(owner);
     } catch (error) {
       return res.status(500).json({ error: 'Failed to update owner' });
+    }
+  },
+);
+
+router.delete(
+  '/owners/:id',
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
+  [
+    param('id').isUUID(),
+    body('reason').trim().notEmpty().withMessage('Reason is required'),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const existing = await prisma.owner.findUnique({
+        where: { id: req.params.id },
+        include: {
+          user: { select: { id: true, name: true, email: true, role: true } },
+          flat: { include: { block: { select: { societyId: true, name: true } }, tenant: { select: { id: true, isActive: true } } } },
+        },
+      });
+
+      if (!existing) return res.status(404).json({ error: 'Owner not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && existing.flat.block.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      if (!existing.isActive) {
+        return res.status(409).json({ error: 'Owner is already deactivated' });
+      }
+
+      const outstandingDue = await getOutstandingFlatDue(existing.flatId);
+      if (outstandingDue > 0) {
+        return res.status(409).json({ error: `Cannot deactivate resident while flat has outstanding dues of Rs. ${outstandingDue.toFixed(2)}.` });
+      }
+
+      const societyId = existing.flat.block.societyId;
+      const reason = String(req.body.reason || '').trim();
+      const society = await prisma.society.findUnique({ where: { id: societyId }, select: { name: true } });
+
+      await runMemberRemoval({
+        societyId,
+        societyName: society?.name || 'your society',
+        targetUserId: existing.userId,
+        targetRole: 'OWNER',
+        removedByUserId: req.user!.id,
+        removedByRole: req.user!.role as any,
+        reason,
+        source: 'FLAT_MANAGEMENT',
+        recipientEmail: null,
+        recipientName: existing.user?.name || existing.name,
+        ownerId: existing.id,
+        flatId: existing.flatId,
+        snapshot: {
+          name: existing.name,
+          email: existing.email,
+          phone: existing.phone,
+          flatNumber: existing.flat.flatNumber,
+          blockName: existing.flat.block.name,
+        },
+        removeData: async (tx) => {
+          await tx.owner.update({
+            where: { id: existing.id },
+            data: {
+              isActive: false,
+              deactivatedAt: new Date(),
+              deactivationReason: reason,
+            },
+          });
+
+          const hasActiveTenant = await tx.tenant.findFirst({
+            where: { flatId: existing.flatId, isActive: true },
+            select: { id: true },
+          });
+
+          await tx.flat.update({
+            where: { id: existing.flatId },
+            data: { isOccupied: !!hasActiveTenant },
+          });
+        },
+        deleteMembership: async (tx) => shouldDeleteResidentMembership(tx, {
+          userId: existing.userId,
+          societyId,
+          userRole: existing.user?.role,
+          excludeOwnerId: existing.id,
+        }),
+      });
+
+      return res.json({ message: 'Owner deactivated successfully' });
+    } catch (error: any) {
+      logger.error('Failed to deactivate owner', { error: error.message, ownerId: req.params.id });
+      return res.status(500).json({ error: 'Failed to deactivate owner' });
     }
   },
 );
@@ -1405,7 +1577,7 @@ router.delete(
       const existing = await prisma.tenant.findUnique({
         where: { id: req.params.id },
         include: {
-          user: { select: { id: true, name: true, email: true } },
+          user: { select: { id: true, name: true, email: true, role: true } },
           flat: { include: { block: { select: { societyId: true, name: true } }, owner: { select: { id: true, name: true } } } },
         },
       });
@@ -1413,6 +1585,14 @@ router.delete(
       if (!existing) return res.status(404).json({ error: 'Tenant not found' });
       if (req.user!.role !== 'SUPER_ADMIN' && existing.flat.block.societyId !== req.user!.societyId) {
         return res.status(403).json({ error: 'Access denied' });
+      }
+      if (!existing.isActive) {
+        return res.status(409).json({ error: 'Tenant is already deactivated' });
+      }
+
+      const outstandingDue = await getOutstandingFlatDue(existing.flatId);
+      if (outstandingDue > 0) {
+        return res.status(409).json({ error: `Cannot deactivate resident while flat has outstanding dues of Rs. ${outstandingDue.toFixed(2)}.` });
       }
 
       const societyId = existing.flat.block.societyId;
@@ -1428,7 +1608,7 @@ router.delete(
         removedByRole: req.user!.role as any,
         reason,
         source: 'FLAT_MANAGEMENT',
-        recipientEmail: existing.user?.email || existing.email || null,
+        recipientEmail: null,
         recipientName: existing.user?.name || existing.name,
         tenantId: existing.id,
         flatId: existing.flatId,
@@ -1443,11 +1623,15 @@ router.delete(
         removeData: async (tx) => {
           await tx.tenant.update({
             where: { id: existing.id },
-            data: { isActive: false, userId: null },
+            data: {
+              isActive: false,
+              deactivatedAt: new Date(),
+              deactivationReason: reason,
+            },
           });
 
           const hasActiveOwner = await tx.owner.findFirst({
-            where: { flatId: existing.flatId },
+            where: { flatId: existing.flatId, isActive: true },
             select: { id: true },
           });
 
@@ -1457,24 +1641,12 @@ router.delete(
           });
         },
         deleteMembership: async (tx) => {
-          if (!existing.userId) return false;
-
-          const [remainingOwner, remainingTenant] = await Promise.all([
-            tx.owner.findFirst({
-              where: { userId: existing.userId, flat: { block: { societyId } } },
-              select: { id: true },
-            }),
-            tx.tenant.findFirst({
-              where: {
-                userId: existing.userId,
-                flat: { block: { societyId } },
-                isActive: true,
-              },
-              select: { id: true },
-            }),
-          ]);
-
-          return !remainingOwner && !remainingTenant;
+          return shouldDeleteResidentMembership(tx, {
+            userId: existing.userId,
+            societyId,
+            userRole: existing.user?.role,
+            excludeTenantId: existing.id,
+          });
         },
       });
 
@@ -1484,10 +1656,10 @@ router.delete(
         societyId,
       });
 
-      return res.json({ message: 'Tenant removed successfully' });
+      return res.json({ message: 'Tenant deactivated successfully' });
     } catch (error: any) {
-      logger.error('Failed to remove tenant', { error: error.message, tenantId: req.params.id });
-      return res.status(500).json({ error: 'Failed to remove tenant' });
+      logger.error('Failed to deactivate tenant', { error: error.message, tenantId: req.params.id });
+      return res.status(500).json({ error: 'Failed to deactivate tenant' });
     }
   },
 );

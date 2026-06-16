@@ -110,6 +110,17 @@ export function useUpdateOwnerMutation(ownerId: string) {
   });
 }
 
+export function useDeactivateOwnerMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ownerId, reason }: { ownerId: string; reason: string }) =>
+      api.delete(`/flats/owners/${ownerId}`, { data: { reason } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['flats'] });
+    },
+  });
+}
+
 export function useCreateTenantMutation() {
   const queryClient = useQueryClient();
   return useMutation({

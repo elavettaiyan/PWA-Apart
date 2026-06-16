@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Building2,
-  CalendarDays,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -50,6 +49,10 @@ type ResidentEntry = {
   flat: Flat;
 };
 
+function getActiveOwner(flat: Flat) {
+  return flat.owner?.isActive === false ? null : flat.owner ?? null;
+}
+
 const ROWS_PER_PAGE_OPTIONS = [10, 20, 50];
 const RESIDENT_PICKER_PAGE_SIZE = 12;
 
@@ -90,14 +93,15 @@ export default function FlatsPage() {
   const residents = useMemo<ResidentEntry[]>(() => {
     return flats.flatMap((flat) => {
       const items: ResidentEntry[] = [];
+      const activeOwner = getActiveOwner(flat);
 
-      if (flat.owner) {
+      if (activeOwner) {
         items.push({
           id: `owner-${flat.id}`,
           relation: 'OWNER',
-          name: flat.owner.name,
-          phone: flat.owner.phone,
-          email: flat.owner.email,
+          name: activeOwner.name,
+          phone: activeOwner.phone,
+          email: activeOwner.email,
           flat,
         });
       }
@@ -121,12 +125,13 @@ export default function FlatsPage() {
 
   const filteredFlats = useMemo(() => {
     return flats.filter((flat) => {
+      const activeOwner = getActiveOwner(flat);
       const matchesBlock = selectedBlockId === 'all' || flat.blockId === selectedBlockId;
       const matchesSearch =
         !normalizedSearch ||
         flat.flatNumber.toLowerCase().includes(normalizedSearch) ||
-        flat.owner?.name?.toLowerCase().includes(normalizedSearch) ||
-        flat.owner?.phone?.toLowerCase().includes(normalizedSearch) ||
+        activeOwner?.name?.toLowerCase().includes(normalizedSearch) ||
+        activeOwner?.phone?.toLowerCase().includes(normalizedSearch) ||
         flat.tenant?.name?.toLowerCase().includes(normalizedSearch) ||
         flat.tenant?.phone?.toLowerCase().includes(normalizedSearch);
       return matchesBlock && matchesSearch;
@@ -513,11 +518,20 @@ export default function FlatsPage() {
                 </div>
 
                 <div className="hidden lg:block">
-                  <FlatsDesktopTable flats={paginatedFlats} selectedFlatId={selectedFlatId} onSelectFlat={setSelectedFlatId} onOpenMobileDetails={setMobileDetailFlatId} />
+                  <FlatsDesktopTable
+                    flats={paginatedFlats}
+                    selectedFlatId={selectedFlatId}
+                    onSelectFlat={setSelectedFlatId}
+                    onOpenMobileDetails={setMobileDetailFlatId}
+                    isAdmin={isAdmin}
+                    onAddFlat={() => setShowAddFlat(true)}
+                  />
                 </div>
                 <div className="lg:hidden">
                   <FlatsMobileList
                     flats={paginatedFlats}
+                    isAdmin={isAdmin}
+                    onAddFlat={() => setShowAddFlat(true)}
                     onOpenDetails={(flat) => {
                       setSelectedFlatId(flat.id);
                       setMobileDetailFlatId(flat.id);
@@ -651,6 +665,7 @@ export default function FlatsPage() {
       <Modal isOpen={showAddFlat} onClose={() => setShowAddFlat(false)} title="Add New Flat" size="xl">
         <AddFlatForm
           blocks={blocks}
+          initialBlockId={selectedBlockId !== 'all' ? selectedBlockId : undefined}
           onSuccess={() => {
             setShowAddFlat(false);
             queryClient.invalidateQueries({ queryKey: ['flats'] });
@@ -895,14 +910,25 @@ function FlatsDesktopTable({
   selectedFlatId,
   onSelectFlat,
   onOpenMobileDetails,
+  isAdmin,
+  onAddFlat,
 }: {
   flats: Flat[];
   selectedFlatId: string | null;
   onSelectFlat: (flatId: string) => void;
   onOpenMobileDetails: (flatId: string) => void;
+  isAdmin: boolean;
+  onAddFlat: () => void;
 }) {
   if (flats.length === 0) {
-    return <EmptyState icon={Building2} title="No flats found" description="Add a flat or change the active block filter to see flats here." />;
+    return (
+      <EmptyState
+        icon={Building2}
+        title="No flats found"
+        description="Add a flat or change the active block filter to see flats here."
+        action={isAdmin ? <ActionButton kind="primary" onClick={onAddFlat}>Add Flat</ActionButton> : undefined}
+      />
+    );
   }
 
   return (
@@ -919,9 +945,11 @@ function FlatsDesktopTable({
       </thead>
       <tbody className="divide-y divide-slate-100 text-sm">
         {flats.map((flat) => {
-          const residentName = flat.tenant?.isActive ? flat.tenant.name : flat.owner?.name;
-          const residentType = flat.tenant?.isActive ? 'Tenant' : flat.owner ? 'Owner' : null;
-          const residentPhone = flat.tenant?.isActive ? flat.tenant.phone : flat.owner?.phone;
+          const activeOwner = getActiveOwner(flat);
+          const residentName = flat.tenant?.isActive ? flat.tenant.name : activeOwner?.name;
+          const residentType = flat.tenant?.isActive ? 'Tenant' : activeOwner ? 'Owner' : null;
+          const residentPhone = flat.tenant?.isActive ? flat.tenant.phone : activeOwner?.phone;
+          const effectiveResidentName = flat.tenant?.isActive ? flat.tenant.name : activeOwner?.name;
           const isActive = selectedFlatId === flat.id;
 
           return (
@@ -931,9 +959,9 @@ function FlatsDesktopTable({
               <td className="px-6 py-4 text-slate-500">{flat.areaSqFt || '—'}</td>
               <td className="px-6 py-4"><StatusPill occupied={flat.isOccupied} /></td>
               <td className="px-6 py-4">
-                {residentName ? (
+                {effectiveResidentName ? (
                   <>
-                    <div className="font-bold text-slate-800">{residentName} <span className="font-normal text-slate-400">({residentType})</span></div>
+                    <div className="font-bold text-slate-800">{effectiveResidentName} <span className="font-normal text-slate-400">({residentType})</span></div>
                     <div className="text-xs text-slate-400">{residentPhone}</div>
                   </>
                 ) : (
@@ -961,16 +989,34 @@ function FlatsDesktopTable({
   );
 }
 
-function FlatsMobileList({ flats, onOpenDetails }: { flats: Flat[]; onOpenDetails: (flat: Flat) => void }) {
+function FlatsMobileList({
+  flats,
+  isAdmin,
+  onAddFlat,
+  onOpenDetails,
+}: {
+  flats: Flat[];
+  isAdmin: boolean;
+  onAddFlat: () => void;
+  onOpenDetails: (flat: Flat) => void;
+}) {
   if (flats.length === 0) {
-    return <EmptyState icon={Building2} title="No flats found" description="Add a flat or change the active block filter to see flats here." />;
+    return (
+      <EmptyState
+        icon={Building2}
+        title="No flats found"
+        description="Add a flat or change the active block filter to see flats here."
+        action={isAdmin ? <ActionButton kind="primary" onClick={onAddFlat}>Add Flat</ActionButton> : undefined}
+      />
+    );
   }
 
   return (
     <div className="space-y-3 p-4">
       {flats.map((flat) => {
-        const residentName = flat.tenant?.isActive ? flat.tenant.name : flat.owner?.name;
-        const residentType = flat.tenant?.isActive ? 'Tenant' : flat.owner ? 'Owner' : null;
+        const activeOwner = getActiveOwner(flat);
+        const residentName = flat.tenant?.isActive ? flat.tenant.name : activeOwner?.name;
+        const residentType = flat.tenant?.isActive ? 'Tenant' : activeOwner ? 'Owner' : null;
 
         return (
           <button key={flat.id} type="button" onClick={() => onOpenDetails(flat)} className="flex w-full items-center justify-between rounded-xl border border-slate-100 bg-white p-4 text-left">
@@ -1203,65 +1249,57 @@ function MobileResidentProfileScreen({
 
         <main className="space-y-6 px-4 pb-28 pt-5">
           <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-6 text-center shadow-sm">
-            <div className="relative mx-auto mb-4 w-fit">
-              <div className={cn('flex h-24 w-24 items-center justify-center rounded-full border-4 border-surface-container text-3xl font-bold', getResidentAvatarClass(resident, true))}>
-                {getResidentInitials(resident.name)}
-              </div>
-              <span className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full border-2 border-surface-container-lowest bg-secondary-container text-on-secondary-container shadow-sm">
-                <CheckMarkGlyph />
-              </span>
+            <div className={cn('mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full border-4 border-surface-container text-3xl font-bold', getResidentAvatarClass(resident, true))}>
+              {getResidentInitials(resident.name)}
             </div>
             <h2 className="text-[28px] font-bold text-on-surface">{resident.name}</h2>
-            <div className="mt-1 flex items-center justify-center gap-2 text-sm">
-              <span className="font-semibold text-secondary">{resident.relation === 'OWNER' ? 'Owner' : 'Tenant'}</span>
-              <span className="text-on-surface-variant">•</span>
-              <span className="text-on-surface-variant">Joined {formatResidentSince(resident)}</span>
-            </div>
-            <div className="mt-6 grid grid-cols-2 gap-4">
+            <p className="mt-1 text-sm text-on-surface-variant">Primary Resident • {resident.relation === 'OWNER' ? 'Owner' : 'Tenant'}</p>
+            <div className="mt-6 grid grid-cols-3 gap-3">
+              <button type="button" onClick={onEditResident} className="flex flex-col items-center gap-1 rounded-lg p-2 text-blue-600 hover:bg-slate-50">
+                <Pencil className="h-5 w-5" />
+                <span className="text-[10px] font-bold uppercase">Edit</span>
+              </button>
               <a href={resident.email ? `mailto:${resident.email}` : undefined} className={cn('flex items-center justify-center gap-2 rounded-xl bg-primary-container px-4 py-3 font-semibold text-on-primary-container', !resident.email && 'pointer-events-none opacity-40')}>
                 <MessageSquare className="h-5 w-5" />
-                <span>Message</span>
+                <span className="text-[10px] font-bold uppercase">Message</span>
               </a>
-              <a href={`tel:${resident.phone}`} className="flex items-center justify-center gap-2 rounded-xl border border-primary px-4 py-3 font-semibold text-primary">
+              <a href={`tel:${resident.phone}`} className="flex flex-col items-center justify-center gap-1 rounded-lg border border-primary px-4 py-3 text-primary">
                 <Phone className="h-5 w-5" />
-                <span>Call</span>
+                <span className="text-[10px] font-bold uppercase">Call</span>
               </a>
             </div>
           </section>
 
-          <ResidentProfileSection title="Property Assignment">
-            <ResidentProfileCard icon={<Building2 className="h-5 w-5" />} label="Block" value={resident.flat.block?.name || '—'} />
-            <ResidentProfileCard icon={<Building2 className="h-5 w-5" />} label="Flat No." value={resident.flat.flatNumber} />
-          </ResidentProfileSection>
-
-          <ResidentProfileSection title="Personal Details">
-            <ResidentProfileDetail icon={<Phone className="h-6 w-6 text-outline" />} label="Phone Number" value={formatResidentPhone(resident.phone)} divider />
-            {resident.email ? <ResidentProfileDetail icon={<Mail className="h-6 w-6 text-outline" />} label="Email Address" value={resident.email} divider /> : null}
-            <ResidentProfileDetail icon={<CalendarDays className="h-6 w-6 text-outline" />} label="Occupancy Since" value={formatResidentSince(resident)} />
-          </ResidentProfileSection>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
-              <p className="mb-1 text-sm text-on-surface-variant">Status</p>
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-secondary" />
-                <span className="font-semibold text-secondary">Active</span>
+          <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
+            <h3 className="mb-4 text-sm uppercase tracking-wider text-on-surface-variant">Flat Information</h3>
+            <div className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-3">
+              <div className="flex items-center gap-3">
+                <Building2 className="h-5 w-5 text-slate-400" />
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Block &amp; Flat</p>
+                  <p className="text-sm font-bold text-slate-800">{resident.flat.block?.name}, {resident.flat.flatNumber}</p>
+                </div>
               </div>
+              <ChevronRight className="h-4 w-4 text-slate-300" />
             </div>
-            <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
-              <p className="mb-1 text-sm text-on-surface-variant">Verification</p>
-              <div className="flex items-center gap-2">
-                <CheckMarkGlyph className="h-5 w-5 text-secondary" />
-                <span className="font-semibold text-on-surface">Verified</span>
-              </div>
-            </div>
-          </div>
-
-          <section className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm">
-            <ResidentListAction label="Payment History" icon={<CalendarDays className="h-5 w-5 text-primary" />} />
-            <ResidentListAction label="Documents" icon={<Mail className="h-5 w-5 text-primary" />} />
-            <ResidentListAction label="Unassign Resident" icon={<User className="h-5 w-5 text-error" />} danger onClick={onEditResident} />
           </section>
+
+          <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
+            <h3 className="mb-4 text-sm uppercase tracking-wider text-on-surface-variant">Contact Details</h3>
+            <div className="space-y-4">
+              {resident.email ? (
+                <ResidentDetailRow icon={<Mail className="h-5 w-5 text-slate-400" />} label="Email Address" value={resident.email} />
+              ) : null}
+              <ResidentDetailRow icon={<Phone className="h-5 w-5 text-slate-400" />} label="Phone Number" value={formatResidentPhone(resident.phone)} />
+            </div>
+          </section>
+
+          <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
+            <button type="button" onClick={onEditResident} className="flex w-full items-center justify-center gap-2 rounded-lg p-3 text-xs font-bold uppercase tracking-wider text-red-600 transition-colors hover:bg-red-50">
+              <Trash2 className="h-5 w-5" />
+              Deactivate Resident
+            </button>
+          </div>
         </main>
       </div>
     </div>
@@ -1313,7 +1351,7 @@ function DetailPanel({
               </div>
             </div>
 
-            <ResidentCard title="Owner" tone="owner" name={flat.owner?.name || '—'} phone={flat.owner?.phone || 'No owner'} email={flat.owner?.email} />
+            <ResidentCard title="Owner" tone="owner" name={getActiveOwner(flat)?.name || '—'} phone={getActiveOwner(flat)?.phone || 'No owner'} email={getActiveOwner(flat)?.email} />
             <ResidentCard title="Tenant" tone="tenant" name={flat.tenant?.isActive ? flat.tenant.name : '—'} phone={flat.tenant?.isActive ? flat.tenant.phone : 'No tenant'} email={flat.tenant?.isActive ? flat.tenant.email : undefined} />
 
             <div className="rounded-xl border border-slate-100 p-4 shadow-sm">
@@ -1394,7 +1432,7 @@ function MobileDetailScreen({
           </div>
 
           <div className="mt-4">
-            <ResidentCard title="Owner" tone="owner" name={flat.owner?.name || '—'} phone={flat.owner?.phone || 'No owner'} email={flat.owner?.email} mobile />
+            <ResidentCard title="Owner" tone="owner" name={getActiveOwner(flat)?.name || '—'} phone={getActiveOwner(flat)?.phone || 'No owner'} email={getActiveOwner(flat)?.email} mobile />
           </div>
           <div className="mt-4">
             <ResidentCard title="Tenant" tone="tenant" name={flat.tenant?.isActive ? flat.tenant.name : '—'} phone={flat.tenant?.isActive ? flat.tenant.phone : 'No tenant'} email={flat.tenant?.isActive ? flat.tenant.email : undefined} mobile />
@@ -1587,66 +1625,12 @@ function ResidentDetailRow({ icon, label, value }: { icon: React.ReactNode; labe
   );
 }
 
-function ResidentProfileSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
-      <h3 className="mb-4 text-sm uppercase tracking-wider text-on-surface-variant">{title}</h3>
-      <div className="space-y-4">{children}</div>
-    </section>
-  );
-}
-
-function ResidentProfileCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between rounded-lg bg-surface-container-low p-3">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-container/10 text-primary">{icon}</div>
-        <div>
-          <p className="text-sm text-on-surface-variant">{label}</p>
-          <p className="text-[18px] font-semibold text-on-surface">{value}</p>
-        </div>
-      </div>
-      <ChevronRight className="h-5 w-5 text-outline" />
-    </div>
-  );
-}
-
-function ResidentProfileDetail({ icon, label, value, divider = false }: { icon: React.ReactNode; label: string; value: string; divider?: boolean }) {
-  return (
-    <div className="flex items-center gap-4">
-      <div className="w-8 shrink-0">{icon}</div>
-      <div className={cn('flex-1', divider && 'border-b border-outline-variant pb-2')}>
-        <p className="text-sm text-on-surface-variant">{label}</p>
-        <p className="font-semibold text-on-surface">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-function ResidentListAction({ label, icon, danger = false, onClick }: { label: string; icon: React.ReactNode; danger?: boolean; onClick?: () => void }) {
-  return (
-    <button type="button" onClick={onClick} className={cn('flex w-full items-center justify-between border-b border-outline-variant p-4 text-left last:border-b-0 hover:bg-surface-container', danger && 'text-error')}>
-      <div className="flex items-center gap-3">
-        {icon}
-        <span className="text-[18px] font-medium">{label}</span>
-      </div>
-      <ChevronRight className="h-5 w-5 text-outline" />
-    </button>
-  );
-}
-
 function formatResidentPhone(phone: string) {
   const digits = phone.replace(/\D/g, '');
   if (digits.length === 10) {
     return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
   }
   return phone;
-}
-
-function formatResidentSince(resident: ResidentEntry) {
-  const rawDate = resident.relation === 'OWNER' ? resident.flat.owner?.moveInDate : resident.flat.tenant?.leaseStart;
-  if (!rawDate) return 'Recently';
-  return new Date(rawDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function getResidentInitials(name: string) {
@@ -1666,10 +1650,3 @@ function getResidentAvatarClass(resident: ResidentEntry, mobile = false) {
   return tenantPalette[index];
 }
 
-function CheckMarkGlyph({ className = 'h-4 w-4 text-secondary' }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
-  );
-}
