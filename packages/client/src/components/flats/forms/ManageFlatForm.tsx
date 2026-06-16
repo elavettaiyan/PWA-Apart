@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { CheckCircle2, Mail, Pencil, Phone, Plus, Save, Trash2, User, UserRound, X } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -25,6 +25,8 @@ import type { Flat, ResidentVehicle, VehicleType } from '@/types';
 interface ManageFlatFormProps {
   flat: Flat;
   onSaved: () => void;
+  initialResidentMode?: 'OWNER' | 'TENANT';
+  entryIntent?: 'default' | 'edit' | 'deactivate';
 }
 
 type VehicleDraft = {
@@ -106,13 +108,28 @@ function buildTenantFormState(tenant?: Flat['tenant'] | null) {
   };
 }
 
-export function ManageFlatForm({ flat, onSaved }: ManageFlatFormProps) {
+export function ManageFlatForm({
+  flat,
+  onSaved,
+  initialResidentMode,
+  entryIntent = 'default',
+}: ManageFlatFormProps) {
   const user = useAuthStore((state) => state.user);
   const isAdminManager = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'] as string[]).includes(user?.role || '');
   const activeOwner = flat.owner?.isActive === false ? null : flat.owner || null;
   const activeTenant = flat.tenant?.isActive ? flat.tenant : null;
   const canSelectTenant = Boolean(activeOwner || activeTenant);
-  const [residentMode, setResidentMode] = useState<'OWNER' | 'TENANT'>(activeTenant ? 'TENANT' : 'OWNER');
+  const [residentMode, setResidentMode] = useState<'OWNER' | 'TENANT'>(() => {
+    if (initialResidentMode === 'TENANT' && canSelectTenant) {
+      return 'TENANT';
+    }
+
+    if (initialResidentMode === 'OWNER') {
+      return 'OWNER';
+    }
+
+    return activeTenant ? 'TENANT' : 'OWNER';
+  });
 
   const [form, setForm] = useState(() => buildOwnerFormState(activeOwner));
   const [ownerVehicles, setOwnerVehicles] = useState<VehicleDraft[]>(() => getVehicleDrafts(activeOwner?.vehicles, activeOwner || undefined));
@@ -124,6 +141,10 @@ export function ManageFlatForm({ flat, onSaved }: ManageFlatFormProps) {
   const [tenantRemovalReason, setTenantRemovalReason] = useState('');
   const [showOwnerDeactivateConfirm, setShowOwnerDeactivateConfirm] = useState(false);
   const [ownerDeactivationReason, setOwnerDeactivationReason] = useState('');
+  const ownerDeactivateCardRef = useRef<HTMLDivElement | null>(null);
+  const tenantDeactivateCardRef = useRef<HTMLDivElement | null>(null);
+  const ownerDeactivationTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const tenantDeactivationTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const ownerMutation = activeOwner?.id ? useUpdateOwnerMutation(activeOwner.id) : useCreateOwnerMutation();
   const tenantMutation = activeTenant?.id ? useUpdateTenantMutation(activeTenant.id) : useCreateTenantMutation();
@@ -154,14 +175,58 @@ export function ManageFlatForm({ flat, onSaved }: ManageFlatFormProps) {
   }, [activeTenant, flat.id]);
 
   useEffect(() => {
+    if (initialResidentMode === 'TENANT' && canSelectTenant) {
+      setResidentMode('TENANT');
+      return;
+    }
+
+    if (initialResidentMode === 'OWNER') {
+      setResidentMode('OWNER');
+      return;
+    }
+
     setResidentMode(activeTenant ? 'TENANT' : 'OWNER');
-  }, [activeTenant, flat.id]);
+  }, [activeTenant, canSelectTenant, flat.id, initialResidentMode]);
 
   useEffect(() => {
     if (!canSelectTenant && residentMode === 'TENANT') {
       setResidentMode('OWNER');
     }
   }, [canSelectTenant, residentMode]);
+
+  useEffect(() => {
+    const shouldOpenOwnerDeactivate = entryIntent === 'deactivate' && residentMode === 'OWNER' && Boolean(activeOwner?.id);
+    const shouldOpenTenantDeactivate = entryIntent === 'deactivate' && residentMode === 'TENANT' && Boolean(flat.tenant?.id && flat.tenant?.isActive);
+
+    setShowOwnerDeactivateConfirm(shouldOpenOwnerDeactivate);
+    if (!shouldOpenOwnerDeactivate) {
+      setOwnerDeactivationReason('');
+    }
+
+    setShowTenantRemoveConfirm(shouldOpenTenantDeactivate);
+    if (!shouldOpenTenantDeactivate) {
+      setTenantRemovalReason('');
+    }
+  }, [activeOwner?.id, entryIntent, flat.tenant?.id, flat.tenant?.isActive, residentMode]);
+
+  useEffect(() => {
+    if (entryIntent !== 'deactivate') {
+      return;
+    }
+
+    const targetCard = residentMode === 'OWNER' ? ownerDeactivateCardRef.current : tenantDeactivateCardRef.current;
+    const targetTextarea = residentMode === 'OWNER' ? ownerDeactivationTextareaRef.current : tenantDeactivationTextareaRef.current;
+    const isOpen = residentMode === 'OWNER' ? showOwnerDeactivateConfirm : showTenantRemoveConfirm;
+
+    if (!isOpen || !targetCard) {
+      return;
+    }
+
+    targetCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    requestAnimationFrame(() => {
+      targetTextarea?.focus();
+    });
+  }, [entryIntent, residentMode, showOwnerDeactivateConfirm, showTenantRemoveConfirm]);
 
   const activeResident = residentMode === 'OWNER' ? activeOwner : activeTenant;
   const residentIdLabel = useMemo(() => {
@@ -393,8 +458,8 @@ export function ManageFlatForm({ flat, onSaved }: ManageFlatFormProps) {
               </button>
             </div>
 
-            {isAdminManager && activeOwner?.id ? (
-              <div className="rounded-[24px] border border-error/20 bg-error-container/40 p-4 space-y-3">
+            {entryIntent !== 'edit' && isAdminManager && activeOwner?.id ? (
+              <div ref={ownerDeactivateCardRef} className="rounded-[24px] border border-error/20 bg-error-container/40 p-4 space-y-3">
                 <button type="button" className="flex items-center gap-2 px-1 text-base font-semibold text-error" onClick={() => setShowOwnerDeactivateConfirm((value) => !value)}>
                   <TrashGlyph />
                   Deactivate Resident
@@ -402,7 +467,7 @@ export function ManageFlatForm({ flat, onSaved }: ManageFlatFormProps) {
                 {showOwnerDeactivateConfirm ? (
                   <>
                     <p className="text-xs text-on-surface-variant">Deactivation requires zero outstanding dues. This will log the remarks, block resident login, and free the flat if no other active resident remains.</p>
-                    <textarea className="input min-h-[100px] !rounded-2xl" value={ownerDeactivationReason} onChange={(event) => setOwnerDeactivationReason(event.target.value)} placeholder="Explain why this owner is being deactivated." />
+                    <textarea ref={ownerDeactivationTextareaRef} className="input min-h-[100px] !rounded-2xl" value={ownerDeactivationReason} onChange={(event) => setOwnerDeactivationReason(event.target.value)} placeholder="Explain why this owner is being deactivated." />
                     <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
                       <button type="button" className="btn-outline h-12 rounded-[22px]" onClick={() => { setShowOwnerDeactivateConfirm(false); setOwnerDeactivationReason(''); }} disabled={deactivateOwnerMutation.isPending}>
                         <X className="h-4 w-4" />
@@ -467,18 +532,18 @@ export function ManageFlatForm({ flat, onSaved }: ManageFlatFormProps) {
 
             <VehicleDetailsSection vehicles={tenantVehicles} onChange={setTenantVehicles} />
 
-            {isAdminManager && flat.tenant?.id && flat.tenant?.isActive ? (
+            {entryIntent !== 'edit' && isAdminManager && flat.tenant?.id && flat.tenant?.isActive ? (
               <button type="button" className="flex items-center gap-2 px-1 text-base font-semibold text-error" onClick={() => setShowTenantRemoveConfirm((value) => !value)}>
                 <TrashGlyph />
                 Deactivate Resident
               </button>
             ) : null}
 
-            {isAdminManager && flat.tenant?.id && flat.tenant?.isActive && showTenantRemoveConfirm && (
-              <div className="rounded-[24px] border border-error/20 bg-error-container/40 p-4 space-y-3">
+            {entryIntent !== 'edit' && isAdminManager && flat.tenant?.id && flat.tenant?.isActive && showTenantRemoveConfirm && (
+              <div ref={tenantDeactivateCardRef} className="rounded-[24px] border border-error/20 bg-error-container/40 p-4 space-y-3">
                 <p className="text-sm font-semibold text-on-surface">Deactivate active tenant</p>
                 <p className="text-xs text-on-surface-variant">Deactivation requires zero outstanding dues. This will log the remarks, block resident login, and free the flat if no other active resident remains.</p>
-                <textarea className="input min-h-[100px] !rounded-2xl" value={tenantRemovalReason} onChange={(event) => setTenantRemovalReason(event.target.value)} placeholder="Explain why this tenant is being deactivated." />
+                <textarea ref={tenantDeactivationTextareaRef} className="input min-h-[100px] !rounded-2xl" value={tenantRemovalReason} onChange={(event) => setTenantRemovalReason(event.target.value)} placeholder="Explain why this tenant is being deactivated." />
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
                   <button type="button" className="btn-outline h-12 rounded-[22px]" onClick={() => { setShowTenantRemoveConfirm(false); setTenantRemovalReason(''); }} disabled={removeTenantMutation.isPending}>
                     <X className="h-4 w-4" />
@@ -565,67 +630,71 @@ function VehicleDetailsSection({
 
   return (
     <section className="space-y-3 rounded-[24px] border border-outline-variant/70 bg-white p-4 sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-bold uppercase tracking-[0.12em] text-on-surface-variant">Vehicle Details</p>
-          <p className="mt-1 text-sm text-on-surface-variant">Add any number of registered vehicles for this resident.</p>
-        </div>
-        <button type="button" className="btn-outline h-11 rounded-[20px] px-4" onClick={addVehicle}>
-          <Plus className="h-4 w-4" />
-          Add Vehicle
-        </button>
+      <div>
+        <p className="text-sm font-bold uppercase tracking-[0.12em] text-on-surface-variant">Vehicle Details</p>
       </div>
 
       {vehicles.length === 0 ? (
-        <div className="rounded-[20px] border border-dashed border-outline-variant/80 bg-surface-container-low px-4 py-6 text-sm text-on-surface-variant">
-          No vehicles added yet.
+        <div className="flex justify-center rounded-[20px] border border-dashed border-outline-variant/80 bg-surface-container-low px-4 py-8">
+          <button type="button" className="btn-outline h-11 rounded-[20px] px-4" onClick={addVehicle}>
+            <Plus className="h-4 w-4" />
+            Add Vehicle
+          </button>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-[20px] border border-outline-variant/70">
-          <div className="hidden grid-cols-[180px_minmax(0,1fr)_56px] gap-3 bg-surface-container-low px-4 py-3 text-xs font-bold uppercase tracking-[0.12em] text-on-surface-variant sm:grid">
+        <div className="space-y-3">
+          <div className="overflow-hidden rounded-[20px] border border-outline-variant/70">
+            <div className="hidden grid-cols-[180px_minmax(0,1fr)_56px] gap-3 bg-surface-container-low px-4 py-3 text-xs font-bold uppercase tracking-[0.12em] text-on-surface-variant sm:grid">
             <span>Vehicle Type</span>
             <span>Registration Number</span>
             <span className="text-center">Remove</span>
-          </div>
-          <div className="divide-y divide-outline-variant/60 bg-surface-container-lowest">
-            {vehicles.map((vehicle) => (
-              <div key={vehicle.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[180px_minmax(0,1fr)_56px] sm:items-center">
-                <div>
-                  <label className="label !mb-2 !normal-case !tracking-normal sm:hidden">Vehicle Type</label>
-                  <div className="relative">
-                    <select
-                      className="input appearance-none !h-14 !rounded-2xl !border-outline-variant/80 !bg-surface-container-low pr-10 text-base"
-                      value={vehicle.type}
-                      onChange={(event) => updateVehicle(vehicle.id, 'type', event.target.value)}
+            </div>
+            <div className="divide-y divide-outline-variant/60 bg-surface-container-lowest">
+              {vehicles.map((vehicle) => (
+                <div key={vehicle.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[180px_minmax(0,1fr)_56px] sm:items-center">
+                  <div>
+                    <label className="label !mb-2 !normal-case !tracking-normal sm:hidden">Vehicle Type</label>
+                    <div className="relative">
+                      <select
+                        className="input appearance-none !h-14 !rounded-2xl !border-outline-variant/80 !bg-surface-container-low pr-10 text-base"
+                        value={vehicle.type}
+                        onChange={(event) => updateVehicle(vehicle.id, 'type', event.target.value)}
+                      >
+                        {VEHICLE_TYPE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                      <UserRound className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-outline opacity-0" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label !mb-2 !normal-case !tracking-normal sm:hidden">Registration Number</label>
+                    <input
+                      className="input !h-14 !rounded-2xl !border-outline-variant/80 !bg-surface-container-low text-base uppercase"
+                      value={vehicle.registrationNumber}
+                      onChange={(event) => updateVehicle(vehicle.id, 'registrationNumber', event.target.value.toUpperCase())}
+                      placeholder="TN 01 AB 1234"
+                    />
+                  </div>
+                  <div className="flex items-center justify-end sm:justify-center">
+                    <button
+                      type="button"
+                      className="flex h-11 w-11 items-center justify-center rounded-2xl border border-outline-variant/80 bg-white text-on-surface-variant transition-colors hover:border-error/30 hover:text-error"
+                      onClick={() => removeVehicle(vehicle.id)}
+                      aria-label="Remove vehicle"
                     >
-                      {VEHICLE_TYPE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                    <UserRound className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-outline opacity-0" />
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
-                <div>
-                  <label className="label !mb-2 !normal-case !tracking-normal sm:hidden">Registration Number</label>
-                  <input
-                    className="input !h-14 !rounded-2xl !border-outline-variant/80 !bg-surface-container-low text-base uppercase"
-                    value={vehicle.registrationNumber}
-                    onChange={(event) => updateVehicle(vehicle.id, 'registrationNumber', event.target.value.toUpperCase())}
-                    placeholder="TN 01 AB 1234"
-                  />
-                </div>
-                <div className="flex items-center justify-end sm:justify-center">
-                  <button
-                    type="button"
-                    className="flex h-11 w-11 items-center justify-center rounded-2xl border border-outline-variant/80 bg-white text-on-surface-variant transition-colors hover:border-error/30 hover:text-error"
-                    onClick={() => removeVehicle(vehicle.id)}
-                    aria-label="Remove vehicle"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+          <div className="flex justify-center">
+            <button type="button" className="btn-outline h-11 rounded-[20px] px-4" onClick={addVehicle}>
+              <Plus className="h-4 w-4" />
+              Add Vehicle
+            </button>
           </div>
         </div>
       )}

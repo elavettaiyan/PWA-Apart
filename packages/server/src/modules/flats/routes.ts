@@ -560,18 +560,6 @@ router.post(
         return res.status(403).json({ error: 'Access denied' });
       }
 
-      const societyId = block.societyId;
-      const limitStatus = await getFlatLimitStatus(societyId);
-      if (limitStatus.reached && limitStatus.code === 'PREMIUM_FLAT_CAPACITY_REACHED') {
-        return res.status(402).json({
-          error: 'Premium flat capacity reached',
-          code: limitStatus.code,
-          message: limitStatus.message,
-          minimumRequiredFlatCount: limitStatus.minimumRequiredFlatCount,
-          includedFlatCount: limitStatus.includedFlatCount,
-        });
-      }
-
       // SECURITY: Whitelist allowed fields
       const flat = await prisma.flat.create({
         data: {

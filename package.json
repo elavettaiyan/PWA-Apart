@@ -12,6 +12,7 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "cd packages/server && npm run dev",
     "dev:client": "cd packages/client && npm run dev",
+    "build:run": "sh scripts/build-run-local.sh",
     "build": "npm run build:server && npm run build:client",
     "build:server": "npm --prefix packages/server run generate && npm --prefix packages/server run build",
     "build:client": "npm --prefix packages/client run build",

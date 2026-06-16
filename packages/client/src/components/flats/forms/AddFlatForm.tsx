@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Building2, ChevronDown, ChevronsUpDown, Info, Save, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -30,6 +30,7 @@ const FLAT_TYPE_OPTIONS: Array<{ value: FlatType; label: string }> = [
 
 export function AddFlatForm({ blocks, flat, initialBlockId, onSuccess, onLimitReached, onDeleteRequest }: AddFlatFormProps) {
   const user = useAuthStore((state) => state.user);
+  const flatNumberInputRef = useRef<HTMLInputElement | null>(null);
   const [form, setForm] = useState({
     flatNumber: '',
     floor: '1',
@@ -98,6 +99,14 @@ export function AddFlatForm({ blocks, flat, initialBlockId, onSuccess, onLimitRe
     }
   }, [availableFlatTypes, form.type]);
 
+  useEffect(() => {
+    if (isEditing) {
+      return;
+    }
+
+    flatNumberInputRef.current?.focus();
+  }, [isEditing]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.blockId) {
@@ -118,11 +127,7 @@ export function AddFlatForm({ blocks, flat, initialBlockId, onSuccess, onLimitRe
           onSuccess();
         },
         onError: (e: any) => {
-          if (!isEditing && (e.response?.data?.code === 'FREE_TIER_LIMIT_REACHED' || e.response?.data?.code === 'PREMIUM_FLAT_CAPACITY_REACHED')) {
-            onLimitReached();
-          } else {
-            toast.error(e.response?.data?.error || 'Failed');
-          }
+          toast.error(e.response?.data?.error || 'Failed');
         },
       }
     );
@@ -162,6 +167,7 @@ export function AddFlatForm({ blocks, flat, initialBlockId, onSuccess, onLimitRe
               <div>
                 <label className="label !mb-2 !normal-case !tracking-normal">Flat Number</label>
                 <input
+                  ref={flatNumberInputRef}
                   className="input !h-14 !rounded-2xl !border-outline-variant/80 !bg-surface-container-low text-base"
                   value={form.flatNumber}
                   onChange={(e) => setForm({ ...form, flatNumber: e.target.value })}
