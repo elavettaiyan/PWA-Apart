@@ -41,6 +41,7 @@ coverage/
 
 # Misc
 .turbo/
+*.tsbuildinfo
 check_pg.js
 pg_status.txt
 packages/client/Screenshot_20260321_192113.png

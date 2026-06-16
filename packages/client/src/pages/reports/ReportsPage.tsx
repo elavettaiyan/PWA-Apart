@@ -518,18 +518,21 @@ function DefaultersTab() {
             </tr>
           </thead>
           <tbody>
-            {data?.defaulters?.map((d: any, i: number) => (
+            {data?.defaulters?.map((d: any, i: number) => {
+              const activeOwner = d.flat.owner?.isActive === false ? null : d.flat.owner;
+              return (
               <tr key={i}>
                 <td>
                   <p className="font-medium">{d.flat.flatNumber}</p>
                   <p className="text-xs text-on-surface-variant">{d.flat.block?.name}</p>
                 </td>
-                <td>{d.flat.owner?.name || '-'}</td>
-                <td className="text-sm text-on-surface-variant">{d.flat.owner?.phone}</td>
+                <td>{activeOwner?.name || '-'}</td>
+                <td className="text-sm text-on-surface-variant">{activeOwner?.phone}</td>
                 <td><span className="badge badge-danger">{d.bills.length} months</span></td>
                 <td className="font-bold text-rose-900">{formatCurrency(d.totalOutstanding)}</td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

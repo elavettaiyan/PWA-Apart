@@ -34,6 +34,7 @@ export default function MyFlatPage() {
     [currentYear],
   );
   const isTenantSelfView = residentRelation === 'TENANT';
+  const activeOwner = flat?.owner?.isActive === false ? null : flat?.owner || null;
 
   if (isLoading) return <PageLoader />;
 
@@ -82,9 +83,9 @@ export default function MyFlatPage() {
 
         {/* Owner / Tenant Info */}
         <div className="space-y-6">
-          {flat.owner && (
+          {activeOwner && (
             <OwnerCard
-              owner={flat.owner}
+              owner={activeOwner}
               canSelfEdit={residentRelation === 'OWNER'}
               onPhoneUpdated={(phone) => {
                 if (user) {

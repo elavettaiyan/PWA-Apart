@@ -4,6 +4,8 @@ import logger from './logger';
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const FROM_EMAIL = process.env.FROM_EMAIL || 'DwellHub <noreply@dwellhub.in>';
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+const ANDROID_APP_URL = process.env.ANDROID_APP_URL || 'https://play.google.com/store/apps/details?id=com.resilynk.mobile&pcampaignid=web_share';
+const IOS_APP_URL = process.env.IOS_APP_URL || 'https://apps.apple.com/in/app/dwell-hub/id6764814825';
 
 // Resend throws if key is empty — defer creation until first use
 let resend: Resend | null = null;
@@ -343,6 +345,103 @@ export async function sendRegistrationEmail(to: string, userName: string, societ
   } catch (err: any) {
     if (err.message?.startsWith('Failed to send email:')) throw err;
     logger.error('Resend: failed to send registration email', { to, error: err.message });
+    throw new Error(`Failed to send email: ${err.message}`);
+  }
+}
+
+export interface ResidentOnboardingEmailData {
+  userName: string;
+  societyName: string;
+  flatNumber: string;
+  blockName?: string | null;
+  relation: 'OWNER' | 'TENANT';
+  loginEmail: string;
+  phoneNumber: string;
+  accountCreated: boolean;
+  mode?: 'created' | 'linked' | 'reset';
+}
+
+export async function sendResidentOnboardingEmail(to: string, data: ResidentOnboardingEmailData) {
+  const safeUserName = escapeHtml(data.userName);
+  const safeSocietyName = escapeHtml(data.societyName);
+  const safeFlatLabel = escapeHtml(`${data.blockName ? `${data.blockName}, ` : ''}${data.flatNumber}`);
+  const safeLoginEmail = escapeHtml(data.loginEmail);
+  const safePhoneNumber = escapeHtml(data.phoneNumber);
+  const relationLabel = data.relation === 'OWNER' ? 'Owner' : 'Tenant';
+  const loginUrl = `${CLIENT_URL}/login`;
+  const forgotPasswordUrl = `${CLIENT_URL}/forgot-password`;
+  const mode = data.mode || (data.accountCreated ? 'created' : 'linked');
+  const passwordMessage = mode === 'reset'
+    ? `Your login has been reset. Use your email address as the username and your phone number <strong>${safePhoneNumber}</strong> as the new default password.`
+    : data.accountCreated
+      ? `Your account has been created. Use your email address as the username and your phone number <strong>${safePhoneNumber}</strong> as the default password for the first login.`
+      : 'Your access has been mapped to an existing Dwell Hub account. Use your existing password to sign in. If you do not remember it, use the reset password link below.';
+  const heading = mode === 'reset' ? 'Your Dwell Hub login was reset' : 'Welcome to your community portal';
+  const intro = mode === 'reset'
+    ? `Your <strong>${relationLabel}</strong> login for <strong>${safeFlatLabel}</strong> in <strong>${safeSocietyName}</strong> has been reset by the community administration.`
+    : `You have been added as a <strong>${relationLabel}</strong> for <strong>${safeFlatLabel}</strong> in <strong>${safeSocietyName}</strong>.`;
+  const subject = mode === 'reset'
+    ? `Dwell Hub login reset for ${data.flatNumber}`
+    : `Welcome to Dwell Hub - ${relationLabel} access for ${data.flatNumber}`;
+
+  try {
+    const { error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject,
+      html: `
+        <div style="font-family: 'Inter', Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 40px 20px; background: #ffffff;">
+          <div style="text-align: center; margin-bottom: 32px;">
+            <h1 style="color: #171C3F; font-size: 28px; margin: 0;">Dwell Hub</h1>
+            <p style="color: #6b7280; font-size: 14px; margin: 4px 0 0;">Resident Access Details</p>
+          </div>
+          <div style="background: #f9fafb; border-radius: 12px; padding: 32px; border: 1px solid #e5e7eb;">
+            <h2 style="color: #111827; font-size: 20px; margin: 0 0 16px;">${heading}</h2>
+            <p style="color: #4b5563; line-height: 1.6; margin: 0 0 8px;">Hi ${safeUserName},</p>
+            <p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">${intro}</p>
+
+            <div style="background: #ffffff; border-radius: 8px; padding: 20px; border: 1px solid #e5e7eb; margin-bottom: 20px;">
+              <p style="color: #6b7280; font-size: 13px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.08em;">Login Details</p>
+              <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                <tr>
+                  <td style="color: #6b7280; padding: 8px 0;">Username</td>
+                  <td style="color: #111827; padding: 8px 0; text-align: right; font-weight: 600;">${safeLoginEmail}</td>
+                </tr>
+                <tr>
+                  <td style="color: #6b7280; padding: 8px 0;">Default Password</td>
+                  <td style="color: #111827; padding: 8px 0; text-align: right; font-weight: 600;">${mode === 'reset' || data.accountCreated ? safePhoneNumber : 'Use existing password'}</td>
+                </tr>
+              </table>
+            </div>
+
+            <div style="background: #eff6ff; border-radius: 8px; padding: 18px 20px; border: 1px solid #bfdbfe; margin-bottom: 20px;">
+              <p style="color: #1d4ed8; font-size: 13px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">Important Instructions</p>
+              <ul style="color: #1e3a8a; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px;">
+                <li>${passwordMessage}</li>
+                <li>For security, please change your password immediately after your first successful login.</li>
+                <li>If you forget your password, use the <a href="${forgotPasswordUrl}" style="color: #1d4ed8;">Reset Password</a> option on the login screen.</li>
+              </ul>
+            </div>
+
+            <div style="background: #ffffff; border-radius: 8px; padding: 20px; border: 1px solid #e5e7eb; margin-bottom: 24px;">
+              <p style="color: #6b7280; font-size: 13px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.08em;">App Links</p>
+              <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <a href="${ANDROID_APP_URL}" style="background: #171C3F; color: #ffffff; padding: 12px 18px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">Android App</a>
+                <a href="${IOS_APP_URL}" style="background: #ffffff; color: #171C3F; padding: 12px 18px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block; border: 1px solid #cbd5e1;">iOS App</a>
+                <a href="${loginUrl}" style="background: #ffffff; color: #171C3F; padding: 12px 18px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block; border: 1px solid #cbd5e1;">Web Login</a>
+              </div>
+            </div>
+          </div>
+          <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 32px 0 0;">This is an automated onboarding email from Dwell Hub.</p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      throw new Error(`Failed to send email: ${error.message}`);
+    }
+  } catch (err: any) {
+    logger.error('Resend: failed to send resident onboarding email', { to, error: err.message, relation: data.relation });
     throw new Error(`Failed to send email: ${err.message}`);
   }
 }

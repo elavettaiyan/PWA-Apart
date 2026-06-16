@@ -21,7 +21,7 @@ import {
 } from '../../lib/useDictation';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import type { ConfigurableMenuRole, MenuVisibilityResponse, NavigationMenuId, PremiumStatusResponse } from '../../types';
+import type { ConfigurableMenuRole, FlatType, MenuVisibilityResponse, NavigationMenuId, PremiumStatusResponse } from '../../types';
 import { SOCIETY_ADMINS } from '../../types';
 import ManageStaffPanel from '../../components/settings/ManageStaffPanel';
 
@@ -59,6 +59,17 @@ interface TestResult {
     error?: string;
   };
 }
+
+const FLAT_TYPE_OPTIONS: Array<{ value: FlatType; label: string }> = [
+  { value: 'ONE_BHK', label: '1 BHK' },
+  { value: 'TWO_BHK', label: '2 BHK' },
+  { value: 'THREE_BHK', label: '3 BHK' },
+  { value: 'FOUR_BHK', label: '4 BHK' },
+  { value: 'STUDIO', label: 'Studio' },
+  { value: 'PENTHOUSE', label: 'Penthouse' },
+  { value: 'SHOP', label: 'Shop' },
+  { value: 'OTHER', label: 'Other' },
+];
 
 export default function SettingsPage() {
   const legalBaseUrl = 'https://dwellhub.in';
@@ -227,6 +238,8 @@ export default function SettingsPage() {
     name: '', communityType: 'APARTMENT', address: '', city: '', state: '', pincode: '', totalUnits: '',
   });
   const [cpDirty, setCpDirty] = useState(false);
+  const [configuredFlatTypes, setConfiguredFlatTypes] = useState<FlatType[]>([]);
+  const [flatTypesDirty, setFlatTypesDirty] = useState(false);
 
   useEffect(() => {
     if (communityProfile) {
@@ -241,6 +254,13 @@ export default function SettingsPage() {
       });
     }
   }, [communityProfile]);
+
+  useEffect(() => {
+    if (societySettings) {
+      setConfiguredFlatTypes(Array.isArray(societySettings.configuredFlatTypes) ? societySettings.configuredFlatTypes : []);
+      setFlatTypesDirty(false);
+    }
+  }, [societySettings]);
 
   const cpMutation = useMutation({
     mutationFn: (payload: any) => api.put('/settings/community-profile', payload),
@@ -276,6 +296,19 @@ export default function SettingsPage() {
     else payload.totalUnits = null;
 
     cpMutation.mutate(payload);
+  };
+
+  const toggleConfiguredFlatType = (flatType: FlatType) => {
+    setConfiguredFlatTypes((current) => (
+      current.includes(flatType)
+        ? current.filter((value) => value !== flatType)
+        : [...current, flatType]
+    ));
+    setFlatTypesDirty(true);
+  };
+
+  const handleFlatTypesSave = () => {
+    settingsMutation.mutate({ configuredFlatTypes });
   };
 
   const handleChange = (field: string, value: string | number) => {
@@ -501,6 +534,54 @@ export default function SettingsPage() {
               placeholder="e.g., 120"
             />
             <p className="text-xs text-on-surface-variant mt-1">Total flats, villas, or units in this community</p>
+          </div>
+          <div className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-4">
+            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+              <div>
+                <label className="label">Available Flat Types</label>
+                <p className="text-xs text-on-surface-variant">Choose which flat types can be used in Flats & Residents when adding or editing units.</p>
+              </div>
+              {flatTypesDirty ? (
+                <span className="text-xs text-warning flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> Unsaved flat type changes
+                </span>
+              ) : null}
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {FLAT_TYPE_OPTIONS.map((option) => {
+                const active = configuredFlatTypes.includes(option.value);
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => toggleConfiguredFlatType(option.value)}
+                    className={cn(
+                      'rounded-xl border px-4 py-3 text-sm font-semibold transition-colors',
+                      active
+                        ? 'border-blue-600 bg-blue-50 text-blue-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-4 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleFlatTypesSave}
+                disabled={settingsMutation.isPending || !flatTypesDirty}
+                className="btn-secondary"
+              >
+                {settingsMutation.isPending ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+                ) : (
+                  'Save Flat Types'
+                )}
+              </button>
+              <span className="text-xs text-on-surface-variant">Leave all unchecked to allow every flat type.</span>
+            </div>
           </div>
           <div className="flex items-center gap-3 pt-2">
             <button

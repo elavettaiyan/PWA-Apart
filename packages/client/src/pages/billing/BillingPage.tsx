@@ -671,7 +671,9 @@ export default function BillingPage() {
         <>
         {/* Mobile card view */}
         <div className="sm:hidden space-y-3">
-          {displayedBills.map((bill) => (
+          {displayedBills.map((bill) => {
+            const activeOwner = bill.flat?.owner?.isActive === false ? null : bill.flat?.owner;
+            return (
             <div key={bill.id} className="card overflow-hidden">
               {/* Row 1 – Flat info & status */}
               <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3">
@@ -682,7 +684,7 @@ export default function BillingPage() {
                     </p>
                   </div>
                   <p className="text-xs text-on-surface-variant mt-0.5">
-                    {ownerFacingBillingView ? `Due ${formatDate(bill.dueDate)}` : `${bill.flat?.owner?.name || '—'} · ${getMonthName(bill.month)} ${bill.year}`}
+                    {ownerFacingBillingView ? `Due ${formatDate(bill.dueDate)}` : `${activeOwner?.name || '—'} · ${getMonthName(bill.month)} ${bill.year}`}
                   </p>
                 </div>
                 <span className={cn('badge shrink-0', getStatusColor(bill.status))}>{bill.status}</span>
@@ -732,7 +734,8 @@ export default function BillingPage() {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Desktop table view */}
@@ -752,7 +755,9 @@ export default function BillingPage() {
               </tr>
             </thead>
             <tbody>
-              {displayedBills.map((bill) => (
+              {displayedBills.map((bill) => {
+                const activeOwner = bill.flat?.owner?.isActive === false ? null : bill.flat?.owner;
+                return (
                 <tr key={bill.id}>
                   <td>
                     <p className="text-sm whitespace-nowrap">{getMonthName(bill.month)} {bill.year}</p>
@@ -767,8 +772,8 @@ export default function BillingPage() {
                   )}
                   {!ownerFacingBillingView && (
                     <td>
-                      <p className="text-sm">{bill.flat?.owner?.name || '-'}</p>
-                      <p className="text-xs text-on-surface-variant">{bill.flat?.owner?.phone}</p>
+                      <p className="text-sm">{activeOwner?.name || '-'}</p>
+                      <p className="text-xs text-on-surface-variant">{activeOwner?.phone}</p>
                     </td>
                   )}
                   {ownerFacingBillingView && <td className="whitespace-nowrap">{formatDate(bill.dueDate)}</td>}
@@ -805,7 +810,8 @@ export default function BillingPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -29,13 +29,6 @@ const REGISTER_COMMUNITY_RESTRICTION: RestrictionMessage = {
   webUrl: WEB_APP_URL,
 };
 
-const FLATS_RESTRICTION: RestrictionMessage = {
-  title: 'Manage flats on the web app',
-  description: 'Flats & Residents setup is not available in the iOS app. Please use the web app to add flats, assign residents, and finish setup.',
-  actionLabel: 'Open web app',
-  webUrl: WEB_APP_URL,
-};
-
 const ASSETS_RESTRICTION: RestrictionMessage = {
   title: 'Manage assets on the web app',
   description: 'Asset setup is not available in the iOS app. Please use the web app to add assets and manage service records.',
@@ -49,10 +42,9 @@ const IOS_RESTRICTIONS: PlatformRestrictionConfig = {
   },
   routes: {
     '/register': REGISTER_COMMUNITY_RESTRICTION,
-    '/flats': FLATS_RESTRICTION,
     '/assets': ASSETS_RESTRICTION,
   },
-  menus: ['flats', 'assets'],
+  menus: ['assets'],
   sections: {
     'settings-premium-plan': true,
   },
