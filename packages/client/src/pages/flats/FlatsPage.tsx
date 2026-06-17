@@ -1519,6 +1519,9 @@ function ResidentCard({
   const toneClasses = tone === 'owner'
     ? 'border-emerald-100 bg-emerald-50/50 text-emerald-600'
     : 'border-blue-100 bg-blue-50/30 text-blue-600';
+  const phoneDigits = phone.replace(/\D/g, '');
+  const canCall = phoneDigits.length >= 10;
+  const callHref = canCall ? `tel:${phoneDigits}` : undefined;
 
   return (
     <div className={cn(MOBILE_SURFACE_CARD_CLASS, 'flex items-center justify-between', toneClasses)}>
@@ -1529,13 +1532,29 @@ function ResidentCard({
         <div>
           <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-widest">{title}</span>
           <h4 className="font-bold text-slate-900">{name}</h4>
-          <p className="text-xs text-slate-500">{phone}</p>
+          {canCall && callHref ? (
+            <a href={callHref} className="text-xs font-medium text-blue-600 underline-offset-2 hover:underline">
+              {formatResidentPhone(phone)}
+            </a>
+          ) : (
+            <p className="text-xs text-slate-500">{phone}</p>
+          )}
           {email ? <p className="text-xs text-slate-400">{email}</p> : null}
         </div>
       </div>
-      <button type="button" className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-100 bg-white shadow-sm">
-        <Phone className="h-5 w-5 text-blue-600" />
-      </button>
+      {canCall && callHref ? (
+        <a
+          href={callHref}
+          aria-label={`Call ${name}`}
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-100 bg-white shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
+        >
+          <Phone className="h-5 w-5 text-blue-600" />
+        </a>
+      ) : (
+        <button type="button" disabled className="flex h-10 w-10 cursor-not-allowed items-center justify-center rounded-xl border border-gray-100 bg-white shadow-sm opacity-50">
+          <Phone className="h-5 w-5 text-slate-400" />
+        </button>
+      )}
     </div>
   );
 }
