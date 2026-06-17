@@ -928,7 +928,7 @@ function SearchBar({ value, onChange }: { value: string; onChange: (value: strin
       <Search className="mr-3 h-5 w-5 text-slate-400" />
       <input
         type="text"
-        className="w-full border-0 bg-transparent p-0 text-sm text-slate-700 placeholder:text-slate-400 focus:ring-0"
+        className="min-w-0 w-full appearance-none border-0 bg-transparent p-0 text-sm text-slate-700 placeholder:text-slate-400 outline-none shadow-none ring-0 focus:border-0 focus:outline-none focus:ring-0"
         placeholder="Search by flat no., resident name or phone..."
         value={value}
         onChange={(event) => onChange(event.target.value)}
