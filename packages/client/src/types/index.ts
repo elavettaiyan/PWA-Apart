@@ -17,7 +17,6 @@ export type NavigationMenuId =
   | 'billing'
   | 'complaints'
   | 'gate-management'
-  | 'entry-activity'
   | 'expenses'
   | 'reports'
   | 'settings'

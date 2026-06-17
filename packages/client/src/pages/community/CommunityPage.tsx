@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BellRing, CalendarDays, CheckCheck, CheckCircle2, Clock3, History, MapPin, Megaphone, Pencil, Pin, Plus, RotateCcw, ShieldCheck, Trash2, XCircle } from 'lucide-react';
+import { BellRing, CalendarDays, Car, CheckCheck, CheckCircle2, Clock3, History, LogOut, MapPin, Megaphone, Package, Pencil, Phone, Pin, Plus, RotateCcw, ShieldCheck, Trash2, UserRound, XCircle } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import Modal from '../../components/ui/Modal';
 import { EmptyState, PageLoader } from '../../components/ui/Loader';
 import api from '../../lib/api';
+import { getDisplayUserForView, isOwnerViewActive } from '../../lib/ownerView';
 import { cn } from '../../lib/utils';
 import { formatDateTime, getStatusColor } from '../../lib/utils';
 import { useAuthStore } from '../../store/authStore';
-import { SOCIETY_MANAGERS, type Announcement, type ApprovalRequest, type SocietyEvent } from '../../types';
+import { SOCIETY_MANAGERS, type Announcement, type ApprovalRequest, type Delivery, type SocietyEvent, type Visitor } from '../../types';
 import { AnnouncementForm } from '../announcements/AnnouncementsPage';
 import { EventForm } from '../events/EventsPage';
 
@@ -36,6 +37,20 @@ type CommunityFeedItem =
     bucket: CommunityTab;
     sortTimestamp: number;
     approval: ApprovalRequest;
+  }
+  | {
+    id: string;
+    kind: 'visitor';
+    bucket: CommunityTab;
+    sortTimestamp: number;
+    visitor: Visitor;
+  }
+  | {
+    id: string;
+    kind: 'delivery';
+    bucket: CommunityTab;
+    sortTimestamp: number;
+    delivery: Delivery;
   };
 
 const COMMUNITY_TABS: Array<{ id: CommunityTab; label: string; icon: typeof Megaphone }> = [
@@ -69,6 +84,14 @@ function getApprovalBucket(approval: ApprovalRequest): CommunityTab {
   return approval.status === 'PENDING' ? 'inbox' : 'history';
 }
 
+function getVisitorBucket(visitor: Visitor): CommunityTab {
+  return visitor.status === 'ACTIVE' ? 'inbox' : 'history';
+}
+
+function getDeliveryBucket(): CommunityTab {
+  return 'history';
+}
+
 function canReviewApproval(approval: ApprovalRequest, userRole?: string | null) {
   if (!userRole) return false;
   return userRole === 'SUPER_ADMIN' || approval.approverRoles.includes(userRole as any);
@@ -91,6 +114,16 @@ function getApprovalSummary(approval: ApprovalRequest) {
   return `Profile updates were requested for ${approval.tenant?.name || 'the tenant'} in ${flatLabel}.`;
 }
 
+function getInitials(name?: string): string {
+  if (!name) return '?';
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('');
+}
+
 export default function CommunityPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showAnnouncementCreate, setShowAnnouncementCreate] = useState(false);
@@ -98,10 +131,15 @@ export default function CommunityPage() {
   const [viewAnnouncement, setViewAnnouncement] = useState<Announcement | null>(null);
   const [viewEvent, setViewEvent] = useState<SocietyEvent | null>(null);
   const [viewApproval, setViewApproval] = useState<ApprovalRequest | null>(null);
+  const [viewVisitor, setViewVisitor] = useState<Visitor | null>(null);
+  const [viewDelivery, setViewDelivery] = useState<Delivery | null>(null);
   const [editingEvent, setEditingEvent] = useState<SocietyEvent | null>(null);
   const queryClient = useQueryClient();
-  const user = useAuthStore((state) => state.user);
+  const { user, viewMode } = useAuthStore();
+  const displayUser = getDisplayUserForView(user, viewMode);
+  const ownerViewActive = isOwnerViewActive(user, viewMode);
   const canManage = user?.role === 'SUPER_ADMIN' || SOCIETY_MANAGERS.includes((user?.role || '') as any);
+  const canMarkOutVisitors = ['SUPER_ADMIN', 'SERVICE_STAFF', 'ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'].includes(displayUser?.role || '');
   const activeTab = useMemo(() => getCommunityTab(searchParams.get('tab')), [searchParams]);
 
   const { data: announcements = [], isLoading: announcementsLoading } = useQuery<Announcement[]>({
@@ -117,6 +155,16 @@ export default function CommunityPage() {
   const { data: approvals = [], isLoading: approvalsLoading } = useQuery<ApprovalRequest[]>({
     queryKey: ['approvals'],
     queryFn: async () => (await api.get('/approvals')).data,
+  });
+
+  const { data: visitors = [], isLoading: visitorsLoading } = useQuery<Visitor[]>({
+    queryKey: ['visitors', 'community', ownerViewActive ? 'owner-view' : 'role-view'],
+    queryFn: async () => (await api.get(`/visitors?limit=100${ownerViewActive ? '&ownerView=true' : ''}`)).data,
+  });
+
+  const { data: deliveries = [], isLoading: deliveriesLoading } = useQuery<Delivery[]>({
+    queryKey: ['deliveries', 'community', ownerViewActive ? 'owner-view' : 'role-view'],
+    queryFn: async () => (await api.get(`/deliveries?limit=100${ownerViewActive ? '&ownerView=true' : ''}`)).data,
   });
 
   const readStateMutation = useMutation({
@@ -194,6 +242,16 @@ export default function CommunityPage() {
     onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to reject request'),
   });
 
+  const checkoutVisitorMutation = useMutation({
+    mutationFn: (visitorId: string) => api.patch(`/visitors/${visitorId}/checkout`),
+    onSuccess: () => {
+      toast.success('Visitor marked as left');
+      queryClient.invalidateQueries({ queryKey: ['visitors'] });
+      invalidateDashboardShortcuts(queryClient);
+    },
+    onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to mark visitor out'),
+  });
+
   const feedItems = useMemo<CommunityFeedItem[]>(() => {
     const announcementItems: CommunityFeedItem[] = announcements.map((announcement) => ({
       id: `announcement-${announcement.id}`,
@@ -221,7 +279,23 @@ export default function CommunityPage() {
       approval,
     }));
 
-    return [...announcementItems, ...eventItems, ...approvalItems]
+    const visitorItems: CommunityFeedItem[] = visitors.map((visitor) => ({
+      id: `visitor-${visitor.id}`,
+      kind: 'visitor',
+      bucket: getVisitorBucket(visitor),
+      sortTimestamp: new Date(visitor.status === 'ACTIVE' ? visitor.checkedInAt : (visitor.checkedOutAt || visitor.checkedInAt)).getTime(),
+      visitor,
+    }));
+
+    const deliveryItems: CommunityFeedItem[] = deliveries.map((delivery) => ({
+      id: `delivery-${delivery.id}`,
+      kind: 'delivery',
+      bucket: getDeliveryBucket(),
+      sortTimestamp: new Date(delivery.deliveredAt).getTime(),
+      delivery,
+    }));
+
+    return [...announcementItems, ...eventItems, ...approvalItems, ...visitorItems, ...deliveryItems]
       .filter((item) => item.bucket === activeTab)
       .sort((left, right) => {
         if (activeTab === 'inbox') {
@@ -239,10 +313,10 @@ export default function CommunityPage() {
           if (left.kind === 'event' && right.kind === 'event') {
             return left.sortTimestamp - right.sortTimestamp;
           }
-          if (left.kind === 'approval' && right.kind === 'event') {
+          if ((left.kind === 'approval' || left.kind === 'visitor') && right.kind === 'event') {
             return -1;
           }
-          if (left.kind === 'event' && right.kind === 'approval') {
+          if (left.kind === 'event' && (right.kind === 'approval' || right.kind === 'visitor')) {
             return 1;
           }
           return right.sortTimestamp - left.sortTimestamp;
@@ -250,9 +324,9 @@ export default function CommunityPage() {
 
         return right.sortTimestamp - left.sortTimestamp;
       });
-  }, [activeTab, announcements, approvals, events]);
+  }, [activeTab, announcements, approvals, deliveries, events, visitors]);
 
-  if (announcementsLoading || eventsLoading || approvalsLoading) {
+  if (announcementsLoading || eventsLoading || approvalsLoading || visitorsLoading || deliveriesLoading) {
     return <PageLoader />;
   }
 
@@ -261,7 +335,7 @@ export default function CommunityPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Inbox</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Unread announcements, upcoming events, and approval requests are grouped here.</p>
+          <p className="text-sm text-on-surface-variant mt-1">Announcements, events, approvals, active visitors, and delivery updates are grouped here.</p>
         </div>
         {canManage ? (
           <div className="flex flex-wrap gap-2">
@@ -308,8 +382,8 @@ export default function CommunityPage() {
           icon={activeTab === 'inbox' ? Megaphone : CalendarDays}
           title={activeTab === 'inbox' ? 'Inbox is clear' : 'No history yet'}
           description={activeTab === 'inbox'
-            ? 'Unread announcements, upcoming events, and approval requests will appear here.'
-            : 'Read announcements, past events, and processed approvals will appear here.'}
+            ? 'Unread announcements, upcoming events, pending approvals, and active visitors will appear here.'
+            : 'Read announcements, past events, processed approvals, visitor exits, and deliveries will appear here.'}
         />
       ) : (
         <div className="space-y-3">
@@ -464,7 +538,7 @@ export default function CommunityPage() {
                 </div>
               ) : null}
             </article>
-          ) : (
+          ) : item.kind === 'approval' ? (
             <article
               key={item.id}
               className="cursor-pointer overflow-hidden rounded-2xl bg-white transition-all active:scale-[0.99]"
@@ -539,6 +613,91 @@ export default function CommunityPage() {
                 ) : null}
               </div>
             </article>
+          ) : item.kind === 'visitor' ? (
+            <article
+              key={item.id}
+              className="cursor-pointer overflow-hidden rounded-2xl bg-white transition-all active:scale-[0.99]"
+              style={{ boxShadow: '0 1px 8px -2px rgba(0,0,0,0.04)' }}
+              onClick={() => setViewVisitor(item.visitor)}
+            >
+              <div className="flex gap-3 p-4">
+                <div className={cn(
+                  'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold',
+                  item.visitor.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500',
+                )}>
+                  {getInitials(item.visitor.visitorName)}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Visitor</span>
+                        <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', item.visitor.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500')}>
+                          {item.visitor.status}
+                        </span>
+                      </div>
+                      <h2 className="mt-2 truncate text-[15px] font-semibold leading-snug text-[#0F172A]">{item.visitor.visitorName}</h2>
+                      <p className="mt-0.5 text-[12px] text-[#94A3B8]">
+                        {item.visitor.flat?.block?.name ? `${item.visitor.flat.block.name} - ` : ''}{item.visitor.flat?.flatNumber || 'Flat'}
+                        {item.visitor.flat?.residentName ? ` · ${item.visitor.flat.residentName}` : ''}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="mt-1.5 line-clamp-2 whitespace-pre-wrap text-[13px] leading-relaxed text-[#64748B]">
+                    {item.visitor.purpose || 'Visitor checked in'} · In: {formatDateTime(item.visitor.checkedInAt)}
+                    {item.visitor.checkedOutAt ? ` · Out: ${formatDateTime(item.visitor.checkedOutAt)}` : ''}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1 px-3 pb-2.5" onClick={(event) => event.stopPropagation()}>
+                {item.visitor.status === 'ACTIVE' && canMarkOutVisitors ? (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-medium text-emerald-600 transition hover:bg-emerald-100"
+                    onClick={() => checkoutVisitorMutation.mutate(item.visitor.id)}
+                    disabled={checkoutVisitorMutation.isPending}
+                  >
+                    <LogOut className="h-3 w-3" />
+                    {checkoutVisitorMutation.isPending && checkoutVisitorMutation.variables === item.visitor.id ? 'Marking Out...' : 'Mark Out'}
+                  </button>
+                ) : null}
+              </div>
+            </article>
+          ) : (
+            <article
+              key={item.id}
+              className="cursor-pointer overflow-hidden rounded-2xl bg-white transition-all active:scale-[0.99]"
+              style={{ boxShadow: '0 1px 8px -2px rgba(0,0,0,0.04)' }}
+              onClick={() => setViewDelivery(item.delivery)}
+            >
+              <div className="flex gap-3 p-4">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                  <Package className="h-4 w-4" />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Delivery</span>
+                      </div>
+                      <h2 className="mt-2 truncate text-[15px] font-semibold leading-snug text-[#0F172A]">{item.delivery.deliveryType.replace('_', ' ')}</h2>
+                      <p className="mt-0.5 text-[12px] text-[#94A3B8]">
+                        {item.delivery.flat?.block?.name ? `${item.delivery.flat.block.name} - ` : ''}{item.delivery.flat?.flatNumber || 'Flat'}
+                        {item.delivery.flat?.residentName ? ` · ${item.delivery.flat.residentName}` : ''}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="mt-1.5 line-clamp-2 whitespace-pre-wrap text-[13px] leading-relaxed text-[#64748B]">
+                    {item.delivery.deliveryPersonName}{item.delivery.companyName ? ` · ${item.delivery.companyName}` : ''} · {formatDateTime(item.delivery.deliveredAt)}
+                  </p>
+                </div>
+              </div>
+            </article>
           ))}
         </div>
       )}
@@ -607,6 +766,62 @@ export default function CommunityPage() {
                 Flat: {viewApproval.flat.block?.name ? `${viewApproval.flat.block.name} - ` : ''}{viewApproval.flat.flatNumber}
               </div>
             ) : null}
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal isOpen={!!viewVisitor} onClose={() => setViewVisitor(null)} title={viewVisitor?.visitorName || 'Visitor'} size="lg">
+        {viewVisitor ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Visitor</span>
+              <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', viewVisitor.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600')}>
+                {viewVisitor.status}
+              </span>
+            </div>
+            <div className="space-y-2 text-sm text-slate-600">
+              <p>
+                Flat: {viewVisitor.flat?.block?.name ? `${viewVisitor.flat.block.name} - ` : ''}{viewVisitor.flat?.flatNumber || 'Unknown'}
+                {viewVisitor.flat?.residentName ? ` · ${viewVisitor.flat.residentName}` : ''}
+              </p>
+              {viewVisitor.purpose ? <p className="inline-flex items-center gap-2"><UserRound className="h-4 w-4 text-slate-400" /> {viewVisitor.purpose}</p> : null}
+              {viewVisitor.mobile ? <p className="inline-flex items-center gap-2"><Phone className="h-4 w-4 text-slate-400" /> {viewVisitor.mobile}</p> : null}
+              {viewVisitor.vehicleNumber ? <p className="inline-flex items-center gap-2"><Car className="h-4 w-4 text-slate-400" /> {viewVisitor.vehicleNumber}</p> : null}
+              <p>In: {formatDateTime(viewVisitor.checkedInAt)}</p>
+              {viewVisitor.checkedOutAt ? <p>Out: {formatDateTime(viewVisitor.checkedOutAt)}</p> : null}
+            </div>
+            {viewVisitor.photoUrl ? <img src={viewVisitor.photoUrl} alt={viewVisitor.visitorName} className="h-48 w-full rounded-xl object-cover" /> : null}
+            {viewVisitor.status === 'ACTIVE' && canMarkOutVisitors ? (
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100"
+                onClick={() => checkoutVisitorMutation.mutate(viewVisitor.id)}
+                disabled={checkoutVisitorMutation.isPending}
+              >
+                <LogOut className="h-4 w-4" />
+                {checkoutVisitorMutation.isPending && checkoutVisitorMutation.variables === viewVisitor.id ? 'Marking Out...' : 'Mark Out'}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal isOpen={!!viewDelivery} onClose={() => setViewDelivery(null)} title={viewDelivery?.deliveryType.replace('_', ' ') || 'Delivery'} size="lg">
+        {viewDelivery ? (
+          <div className="space-y-4">
+            <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Delivery</span>
+            <div className="space-y-2 text-sm text-slate-600">
+              <p>
+                Flat: {viewDelivery.flat?.block?.name ? `${viewDelivery.flat.block.name} - ` : ''}{viewDelivery.flat?.flatNumber || 'Unknown'}
+                {viewDelivery.flat?.residentName ? ` · ${viewDelivery.flat.residentName}` : ''}
+              </p>
+              <p>{viewDelivery.deliveryPersonName}{viewDelivery.companyName ? ` · ${viewDelivery.companyName}` : ''}</p>
+              {viewDelivery.mobile ? <p className="inline-flex items-center gap-2"><Phone className="h-4 w-4 text-slate-400" /> {viewDelivery.mobile}</p> : null}
+              {viewDelivery.vehicleNumber ? <p className="inline-flex items-center gap-2"><Car className="h-4 w-4 text-slate-400" /> {viewDelivery.vehicleNumber}</p> : null}
+              <p>At: {formatDateTime(viewDelivery.deliveredAt)}</p>
+              {viewDelivery.notes ? <p>Notes: {viewDelivery.notes}</p> : null}
+            </div>
+            {viewDelivery.photoUrl ? <img src={viewDelivery.photoUrl} alt={viewDelivery.deliveryPersonName} className="h-48 w-full rounded-xl object-cover" /> : null}
           </div>
         ) : null}
       </Modal>

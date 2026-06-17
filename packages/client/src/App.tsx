@@ -24,7 +24,6 @@ import ChangePasswordSettingsPage from './pages/settings/ChangePasswordSettingsP
 import RegisterPage from './pages/auth/RegisterPage';
 import StaffPage from './pages/staff/StaffPage';
 import GateManagementPage from './pages/security/GateManagementPage';
-import EntryActivityPage from './pages/security/EntryActivityPage';
 import AssetsPage from './pages/assets/AssetsPage';
 import CrmSocietiesPage from './pages/crm/CrmSocietiesPage';
 import CrmSocietyDetailPage from './pages/crm/CrmSocietyDetailPage';
@@ -151,7 +150,7 @@ export default function App() {
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
         <Route path="/staff" element={<RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_ADMINS]}><StaffPage /></RoleRoute>} />
         <Route path="/gate-management" element={user?.role === 'SERVICE_STAFF' ? <SecurityServiceStaffRoute><GateManagementPage /></SecurityServiceStaffRoute> : <RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_MANAGERS]}><GateManagementPage /></RoleRoute>} />
-        <Route path="/entry-activity" element={user?.role === 'SERVICE_STAFF' ? <SecurityServiceStaffRoute><EntryActivityPage /></SecurityServiceStaffRoute> : <ProtectedRoute><EntryActivityPage /></ProtectedRoute>} />
+        <Route path="/entry-activity" element={<Navigate to="/community?tab=inbox" replace />} />
         <Route path="/settings/change-password" element={<ProtectedRoute><ChangePasswordSettingsPage /></ProtectedRoute>} />
         <Route path="/crm" element={<RoleRoute roles={['SUPER_ADMIN']}><CrmSocietiesPage /></RoleRoute>} />
         <Route path="/crm/:id" element={<RoleRoute roles={['SUPER_ADMIN']}><CrmSocietyDetailPage /></RoleRoute>} />

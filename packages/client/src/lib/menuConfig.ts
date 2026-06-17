@@ -17,7 +17,6 @@ export const NAVIGATION_MENU_CATALOG = [
   { id: 'billing', label: 'Billing', href: '/billing' },
   { id: 'complaints', label: 'Complaints', href: '/complaints' },
   { id: 'gate-management', label: 'Gate Management', href: '/gate-management' },
-  { id: 'entry-activity', label: 'Entry Activity', href: '/entry-activity' },
   { id: 'expenses', label: 'Expenses', href: '/expenses' },
   { id: 'assets', label: 'Assets', href: '/assets' },
   { id: 'reports', label: 'Reports', href: '/reports' },
@@ -36,21 +35,21 @@ const BASELINE_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, NavigationMenuId[]
 };
 
 const DEFAULT_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, NavigationMenuId[]> = {
-  ADMIN: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'assets', 'reports', 'settings'],
-  SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'assets', 'reports', 'settings'],
-  JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'assets'],
+  ADMIN: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'expenses', 'assets', 'reports', 'settings'],
+  SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'assets', 'reports', 'settings'],
+  JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'assets'],
   TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
-  OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints', 'entry-activity'],
-  TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints', 'entry-activity'],
+  OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
+  TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
 };
 
 const ALLOWED_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, NavigationMenuId[]> = {
-  ADMIN: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'assets', 'reports', 'settings'],
-  SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'assets', 'reports', 'settings'],
-  JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'entry-activity', 'expenses', 'assets', 'reports'],
-  TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'entry-activity', 'expenses', 'reports'],
-  OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints', 'entry-activity'],
-  TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints', 'entry-activity'],
+  ADMIN: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'expenses', 'assets', 'reports', 'settings'],
+  SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'expenses', 'assets', 'reports', 'settings'],
+  JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'expenses', 'assets', 'reports'],
+  TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
+  OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
+  TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
 };
 
 const ROLE_LABELS: Record<ConfigurableMenuRole, string> = {
@@ -65,6 +64,7 @@ const ROLE_LABELS: Record<ConfigurableMenuRole, string> = {
 const LEGACY_MENU_ID_MAP: Partial<Record<string, NavigationMenuId>> = {
   announcements: 'community',
   events: 'community',
+  'entry-activity': 'community',
 };
 
 function normalizeMenuIds(menuIds: readonly string[]): NavigationMenuId[] {
@@ -174,7 +174,7 @@ export function getVisibleMenuIdsForUser(user?: User | null, menuVisibility?: Me
   }
 
   if (isSecurityServiceStaff(user)) {
-    return filterRestrictedMenus(['gate-management', 'entry-activity']);
+    return filterRestrictedMenus(['gate-management', 'community']);
   }
 
   if (isNonSecurityServiceStaff(user)) {
