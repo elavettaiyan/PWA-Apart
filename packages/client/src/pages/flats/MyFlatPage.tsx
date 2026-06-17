@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Building2,
@@ -244,7 +244,22 @@ function OwnerDetailsCard({
   const [form, setForm] = useState(() => createResidentProfileForm(owner));
   const [vehicles, setVehicles] = useState<VehicleDraft[]>(() => getVehicleDrafts(owner.vehicles, owner));
   const [activeEditor, setActiveEditor] = useState<null | 'occupation' | 'phone' | 'household' | 'vehicles' | 'pets'>(null);
-
+  
+  const photoMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('photo', file);
+      formData.append('relation', 'OWNER');
+      return (await api.patch('/flats/my-flat/resident/photo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })).data;
+    },
+    onSuccess: () => {
+      toast.success('Profile photo updated');
+      queryClient.invalidateQueries({ queryKey: ['my-flat'] });
+    },
+    onError: (error: any) => toast.error(getApiErrorMessage(error, 'Failed to update profile photo')),
+  });
   useEffect(() => {
     setForm(createResidentProfileForm(owner));
     setVehicles(getVehicleDrafts(owner.vehicles, owner));
@@ -291,17 +306,13 @@ function OwnerDetailsCard({
       </div>
 
       <div className="mb-6 flex flex-col items-center gap-4 md:mb-7">
-        <div className="relative">
-          <div className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-slate-200 bg-slate-100 text-slate-500">
-            <UserRound className="h-10 w-10" />
-          </div>
-          <button
-            type="button"
-            className="absolute bottom-0 right-0 flex h-10 w-10 items-center justify-center rounded-full bg-blue-700 text-white shadow-lg transition hover:bg-blue-800"
-          >
-            <Camera className="h-4 w-4" />
-          </button>
-        </div>
+        <ResidentPhotoField
+          name={owner.name}
+          photoUrl={owner.photoUrl}
+          canEdit={canSelfEdit}
+          isUploading={photoMutation.isPending}
+          onSelectFile={(file) => photoMutation.mutate(file)}
+        />
       </div>
 
       <div className="space-y-5">
@@ -704,6 +715,22 @@ function TenantDetailsCard({
   const [profileForm, setProfileForm] = useState(() => createResidentProfileForm(tenant));
   const [vehicles, setVehicles] = useState<VehicleDraft[]>(() => getVehicleDrafts(tenant.vehicles, tenant));
   const [activeProfileEditor, setActiveProfileEditor] = useState<null | 'occupation' | 'household' | 'vehicles' | 'pets'>(null);
+  
+  const photoMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('photo', file);
+      formData.append('relation', 'TENANT');
+      return (await api.patch('/flats/my-flat/resident/photo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })).data;
+    },
+    onSuccess: () => {
+      toast.success('Profile photo updated');
+      queryClient.invalidateQueries({ queryKey: ['my-flat'] });
+    },
+    onError: (error: any) => toast.error(getApiErrorMessage(error, 'Failed to update profile photo')),
+  });
 
   useEffect(() => {
     setProfileForm(createResidentProfileForm(tenant));
@@ -812,6 +839,16 @@ function TenantDetailsCard({
           </div>
         ) : null}
       </div>
+      
+      <div className="mb-6 flex flex-col items-center gap-4 md:mb-7">
+        <ResidentPhotoField
+          name={tenant.name}
+          photoUrl={tenant.photoUrl}
+          canEdit={allowSelfProfileEdit}
+          isUploading={photoMutation.isPending}
+          onSelectFile={(file) => photoMutation.mutate(file)}
+        />
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <StaticField label="Name" value={tenant.name} icon={<User className="h-4 w-4" />} />
@@ -821,6 +858,25 @@ function TenantDetailsCard({
         <StaticField label="Lease End" value={formatOptionalDate(tenant.leaseEnd || tenant.leaseEndDate)} icon={<Calendar className="h-4 w-4" />} />
         <StaticField label="Rent" value={tenant.rentAmount ? formatCurrency(tenant.rentAmount) : '—'} />
       </div>
+      
+      {supportsPets ? (
+        <div className="mt-5 border-t border-slate-200 pt-5">
+          <EditableTextField
+            label="Pets"
+            icon={<PawPrint className="h-4 w-4" />}
+            value={profileForm.pets}
+            displayValue={tenant.pets || '—'}
+            canEdit={allowSelfProfileEdit}
+            isEditing={activeProfileEditor === 'pets'}
+            onStartEdit={() => setActiveProfileEditor('pets')}
+            onCancelEdit={() => {
+              setProfileForm((current) => ({ ...current, pets: tenant.pets || '' }));
+              setActiveProfileEditor(null);
+            }}
+            onChange={(value) => setProfileForm((current) => ({ ...current, pets: value }))}
+          />
+        </div>
+      ) : null}
 
       {allowSelfProfileEdit ? (
         <div className="mt-6 space-y-5 border-t border-slate-200 pt-5">
@@ -872,23 +928,6 @@ function TenantDetailsCard({
             onChange={setVehicles}
           />
 
-          {supportsPets ? (
-            <EditableTextField
-              label="Pets"
-              icon={<PawPrint className="h-4 w-4" />}
-              value={profileForm.pets}
-              displayValue={tenant.pets || '—'}
-              canEdit
-              isEditing={activeProfileEditor === 'pets'}
-              onStartEdit={() => setActiveProfileEditor('pets')}
-              onCancelEdit={() => {
-                setProfileForm((current) => ({ ...current, pets: tenant.pets || '' }));
-                setActiveProfileEditor(null);
-              }}
-              onChange={(value) => setProfileForm((current) => ({ ...current, pets: value }))}
-            />
-          ) : null}
-
           <button type="button" className="btn-primary w-full md:w-auto" disabled={residentMutation.isPending || !activeProfileEditor} onClick={() => residentMutation.mutate()}>
             {residentMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : 'Save Tenant Details'}
           </button>
@@ -907,6 +946,61 @@ function TenantDetailsCard({
         </div>
       ) : null}
     </section>
+  );
+}
+
+function ResidentPhotoField({
+  name,
+  photoUrl,
+  canEdit,
+  isUploading,
+  onSelectFile,
+}: {
+  name: string;
+  photoUrl?: string | null;
+  canEdit: boolean;
+  isUploading: boolean;
+  onSelectFile: (file: File) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <div className="relative">
+        {photoUrl ? (
+          <img src={photoUrl} alt={name} className="h-24 w-24 rounded-full border-2 border-slate-200 object-cover" />
+        ) : (
+          <div className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-slate-200 bg-slate-100 text-slate-500">
+            <UserRound className="h-10 w-10" />
+          </div>
+        )}
+        {canEdit ? (
+          <>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = '';
+                if (!file) return;
+                onSelectFile(file);
+              }}
+            />
+            <button
+              type="button"
+              className="absolute bottom-0 right-0 flex h-10 w-10 items-center justify-center rounded-full bg-blue-700 text-white shadow-lg transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-blue-400"
+              onClick={() => inputRef.current?.click()}
+              disabled={isUploading}
+            >
+              {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+            </button>
+          </>
+        ) : null}
+      </div>
+      {canEdit ? <p className="text-xs text-slate-500">Add from camera or photo library</p> : null}
+    </div>
   );
 }
 

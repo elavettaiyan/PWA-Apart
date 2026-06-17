@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import type { Prisma } from '@prisma/client';
 import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest, SOCIETY_MANAGERS } from '../../middleware/auth';
+import { getFileUrl, upload } from '../../middleware/upload';
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 import { sendResidentOnboardingEmail } from '../../config/email';
@@ -1885,6 +1886,68 @@ router.post(
 );
 
 // ── OWNER: UPDATE OWN FLAT'S TENANT ─────────────────────
+router.patch(
+  '/my-flat/resident/photo',
+  upload.single('photo'),
+  [
+    body('relation').optional().isIn(['OWNER', 'TENANT']).withMessage('Invalid resident relation'),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'Profile photo is required' });
+      }
+
+      const userId = req.user!.id;
+      const societyId = req.user!.societyId;
+      const requestedRelation = req.body.relation as 'OWNER' | 'TENANT' | undefined;
+      if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+
+      const photoUrl = getFileUrl(req.file);
+
+      const owner = requestedRelation === 'TENANT'
+        ? null
+        : await prisma.owner.findFirst({
+            where: { userId, flat: { block: { societyId } } },
+            select: { id: true, photoUrl: true },
+          });
+
+      if (owner) {
+        const resident = await prisma.owner.update({
+          where: { id: owner.id },
+          data: { photoUrl },
+        });
+
+        return res.json({ relation: 'OWNER', resident });
+      }
+
+      if (requestedRelation === 'OWNER') {
+        return res.status(404).json({ error: 'No owner record linked to your account' });
+      }
+
+      const tenant = await prisma.tenant.findFirst({
+        where: { userId, flat: { block: { societyId } }, isActive: true },
+        select: { id: true, photoUrl: true },
+      });
+
+      if (!tenant) {
+        return res.status(404).json({ error: 'No resident record linked to your account' });
+      }
+
+      const resident = await prisma.tenant.update({
+        where: { id: tenant.id },
+        data: { photoUrl },
+      });
+
+      return res.json({ relation: 'TENANT', resident });
+    } catch (error: any) {
+      logger.error('Failed to update resident photo', { error: error.message });
+      return res.status(500).json({ error: 'Failed to update resident photo' });
+    }
+  },
+);
+
 router.put(
   '/my-flat/resident',
   [

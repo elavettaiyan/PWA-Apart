@@ -321,6 +321,7 @@ model Owner {
   name        String
   email       String?
   phone       String
+  photoUrl    String?
   occupation  String?
   householdAdults Int?
   householdKids Int?
@@ -356,6 +357,7 @@ model Tenant {
   name        String
   email       String?
   phone       String
+  photoUrl    String?
   occupation  String?
   householdAdults Int?
   householdKids Int?

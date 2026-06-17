@@ -219,6 +219,7 @@ export interface Owner {
   name: string;
   email?: string;
   phone: string;
+  photoUrl?: string | null;
   occupation?: string | null;
   householdAdults?: number | null;
   householdKids?: number | null;
@@ -245,6 +246,7 @@ export interface Tenant {
   name: string;
   email?: string;
   phone: string;
+  photoUrl?: string | null;
   occupation?: string | null;
   householdAdults?: number | null;
   householdKids?: number | null;
