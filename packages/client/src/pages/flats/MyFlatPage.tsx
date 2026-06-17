@@ -1012,6 +1012,13 @@ function AddTenantCard() {
         deposit: data.deposit || undefined,
       }),
     onSuccess: (res) => {
+      if (res.status === 202 || res.data?.status === 'PENDING') {
+        toast.success(res.data?.message || 'Tenant registration submitted for approval.', { duration: 5000 });
+        setShowForm(false);
+        queryClient.invalidateQueries({ queryKey: ['approvals'] });
+        return;
+      }
+
       const msg = res.data.userCreated
         ? 'Tenant added! They can log in with their email & phone number as password.'
         : 'Tenant added successfully.';

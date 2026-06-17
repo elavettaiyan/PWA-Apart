@@ -1736,6 +1736,7 @@ router.post(
     body('name').trim().notEmpty().withMessage('Tenant name is required'),
     body('phone').trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
     body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email'),
+    body('approvalComment').optional({ values: 'falsy' }).trim().isLength({ max: 500 }).withMessage('Approval comment is too long'),
     body('leaseStart').optional({ values: 'falsy' }).isISO8601(),
     body('leaseEnd').optional({ values: 'falsy' }).isISO8601(),
     body('rentAmount').optional({ values: 'falsy' }).isFloat({ min: 0 }),
@@ -1756,6 +1757,38 @@ router.post(
       if (!owner) return res.status(403).json({ error: 'You are not an owner in this society' });
       if (owner.flat.tenant && owner.flat.tenant.isActive) {
         return res.status(409).json({ error: 'This flat already has an active tenant. Remove the existing tenant first.' });
+      }
+
+      const approvalConfig = await getApprovalConfig(societyId, 'TENANT_REGISTRATION');
+      if (approvalConfig.enabled) {
+        const normalizedEmail = req.body.email ? String(req.body.email).trim().toLowerCase() : null;
+        const approvalRequest = await createTenantRegistrationApproval({
+          societyId,
+          requestedById: req.user!.id,
+          requesterName: req.user!.email,
+          requesterComment: req.body.approvalComment || null,
+          flatId: owner.flat.id,
+          pendingData: {
+            name: req.body.name,
+            phone: req.body.phone,
+            email: normalizedEmail,
+            altPhone: null,
+            aadharNo: null,
+            flatId: owner.flat.id,
+            leaseStart: req.body.leaseStart ? new Date(req.body.leaseStart).toISOString() : new Date().toISOString(),
+            leaseEnd: req.body.leaseEnd ? new Date(req.body.leaseEnd).toISOString() : null,
+            rentAmount: req.body.rentAmount ? parseFloat(req.body.rentAmount) : null,
+            deposit: req.body.deposit ? parseFloat(req.body.deposit) : null,
+            vehicles: [],
+          },
+        });
+
+        return res.status(202).json({
+          message: 'Tenant registration submitted for approval',
+          approvalRequestId: approvalRequest.id,
+          status: approvalRequest.status,
+          approverRoles: approvalRequest.approverRoles,
+        });
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -1836,6 +1869,9 @@ router.post(
           : null,
       });
     } catch (error: any) {
+      if (error.message === 'PENDING_APPROVAL_EXISTS') {
+        return res.status(409).json({ error: 'A tenant registration approval is already pending for this flat' });
+      }
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'This flat already has a tenant' });
       }
