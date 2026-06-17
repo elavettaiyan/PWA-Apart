@@ -10,6 +10,7 @@ import logger from '../../config/logger';
 import { sendResidentOnboardingEmail } from '../../config/email';
 import { runMemberRemoval } from '../members/removal';
 import { computeTrialStatus, TRIAL_FLAT_LIMIT } from '../premium/routes';
+import { createTenantProfileChangeApproval, createTenantRegistrationApproval, getApprovalConfig } from '../approvals/service';
 
 const router = Router();
 const FLAT_FEATURES = ['BALCONY', 'CENTRAL_AC'] as const;
@@ -1339,6 +1340,7 @@ router.post(
     body('name').trim().notEmpty().withMessage('Tenant name is required'),
     body('phone').trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
     body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email address'),
+    body('approvalComment').optional({ values: 'falsy' }).trim().isLength({ max: 500 }).withMessage('Approval comment is too long'),
     body('vehicles').optional().isArray({ max: 10 }).withMessage('Vehicles must be an array'),
     body('vehicles.*.type').optional().isIn(VEHICLE_TYPES).withMessage('Invalid vehicle type'),
     body('vehicles.*.registrationNumber').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Vehicle registration number is too long'),
@@ -1366,6 +1368,38 @@ router.post(
       }
       if (flat.tenant?.isActive) {
         return res.status(409).json({ error: 'This flat already has an active tenant' });
+      }
+
+      const approvalConfig = await getApprovalConfig(flat.block.societyId, 'TENANT_REGISTRATION');
+      if (approvalConfig.enabled) {
+        const normalizedEmail = req.body.email ? String(req.body.email).trim().toLowerCase() : null;
+        const approvalRequest = await createTenantRegistrationApproval({
+          societyId: flat.block.societyId,
+          requestedById: req.user!.id,
+          requesterName: req.user!.email,
+          requesterComment: req.body.approvalComment || null,
+          flatId: req.body.flatId,
+          pendingData: {
+            name: req.body.name,
+            phone: req.body.phone,
+            email: normalizedEmail,
+            altPhone: req.body.altPhone || null,
+            aadharNo: req.body.aadharNo || null,
+            flatId: req.body.flatId,
+            leaseStart: new Date(req.body.leaseStart).toISOString(),
+            leaseEnd: req.body.leaseEnd ? new Date(req.body.leaseEnd).toISOString() : null,
+            rentAmount: req.body.rentAmount ? parseFloat(req.body.rentAmount) : null,
+            deposit: req.body.deposit ? parseFloat(req.body.deposit) : null,
+            vehicles,
+          },
+        });
+
+        return res.status(202).json({
+          message: 'Tenant registration submitted for approval',
+          approvalRequestId: approvalRequest.id,
+          status: approvalRequest.status,
+          approverRoles: approvalRequest.approverRoles,
+        });
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -1479,6 +1513,9 @@ router.post(
           : null,
       });
     } catch (error: any) {
+      if (error.message === 'PENDING_APPROVAL_EXISTS') {
+        return res.status(409).json({ error: 'A tenant registration approval is already pending for this flat' });
+      }
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'This flat already has a tenant' });
       }
@@ -1827,6 +1864,7 @@ router.put(
     body('vehicles').optional().isArray({ max: 10 }).withMessage('Vehicles must be an array'),
     body('vehicles.*.type').optional().isIn(['TWO_WHEELER', 'THREE_WHEELER', 'FOUR_WHEELER']).withMessage('Invalid vehicle type'),
     body('vehicles.*.registrationNumber').optional().trim().isLength({ min: 1, max: 30 }).withMessage('Vehicle registration number is required'),
+    body('approvalComment').optional({ values: 'falsy' }).trim().isLength({ max: 500 }).withMessage('Approval comment is too long'),
   ],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -1901,7 +1939,7 @@ router.put(
 
       const tenant = await prisma.tenant.findFirst({
         where: { userId, flat: { block: { societyId } }, isActive: true },
-        select: { id: true },
+        select: { id: true, flatId: true },
       });
 
       if (requestedRelation === 'OWNER') {
@@ -1909,6 +1947,33 @@ router.put(
       }
 
       if (!tenant) return res.status(404).json({ error: 'No resident record linked to your account' });
+
+      const tenantApprovalConfig = await getApprovalConfig(societyId, 'TENANT_PROFILE_CHANGE');
+      if (tenantApprovalConfig.enabled) {
+        const approvalRequest = await createTenantProfileChangeApproval({
+          societyId,
+          requestedById: userId,
+          requesterName: req.user!.email,
+          tenantId: tenant.id,
+          flatId: tenant.flatId,
+          requesterComment: req.body.approvalComment || null,
+          pendingData: {
+            occupation: req.body.occupation !== undefined ? (normalizeResidentTextValue(req.body.occupation) ?? null) : null,
+            householdAdults: normalizeOptionalResidentCount(req.body.householdAdults) ?? null,
+            householdKids: normalizeOptionalResidentCount(req.body.householdKids) ?? null,
+            householdSeniors: normalizeOptionalResidentCount(req.body.householdSeniors) ?? null,
+            pets: req.body.pets !== undefined ? (normalizeResidentTextValue(req.body.pets) ?? null) : null,
+            vehicles: normalizedVehicles || [],
+          },
+        });
+
+        return res.status(202).json({
+          message: 'Resident profile change submitted for approval',
+          approvalRequestId: approvalRequest.id,
+          status: approvalRequest.status,
+          approverRoles: approvalRequest.approverRoles,
+        });
+      }
 
       const resident = await prisma.tenant.update({
         where: { id: tenant.id },
@@ -1937,7 +2002,10 @@ router.put(
       }
 
       return res.json({ relation: 'TENANT', resident });
-    } catch (error) {
+    } catch (error: any) {
+      if (error.message === 'PENDING_APPROVAL_EXISTS') {
+        return res.status(409).json({ error: 'A tenant profile change approval is already pending' });
+      }
       return res.status(500).json({ error: 'Failed to update resident details' });
     }
   },

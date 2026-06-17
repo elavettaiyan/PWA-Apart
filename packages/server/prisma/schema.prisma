@@ -142,6 +142,25 @@ enum EventStatus {
   COMPLETED
 }
 
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ApprovalActionType {
+  TENANT_REGISTRATION
+  TENANT_PROFILE_CHANGE
+}
+
+enum ApprovalAuditAction {
+  REQUESTED
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
 enum AssetType {
   LIFT
   WATER_TANK
@@ -222,6 +241,8 @@ model Society {
   deliveries         Delivery[]
   pushDevices        PushNotificationDevice[]
   notifications      UserNotification[]
+  approvalConfigs    ApprovalConfig[]
+  approvalRequests   ApprovalRequest[]
   announcementBroadcasts AnnouncementBroadcast[]
   events             SocietyEvent[]
   memberRemovalAudits MemberRemovalAudit[]
@@ -280,6 +301,7 @@ model Flat {
   block       Block    @relation(fields: [blockId], references: [id], onDelete: Cascade)
   owner       Owner?
   tenant      Tenant?
+  approvalRequests ApprovalRequest[]
   bills       MaintenanceBill[]
   advanceBalances AdvanceBalance[]
   complaints  Complaint[]
@@ -358,6 +380,7 @@ model Tenant {
   user        User?     @relation(fields: [userId], references: [id])
   userId      String?
   vehicles    ResidentVehicle[]
+  approvalRequests ApprovalRequest[]
 
   @@index([userId])
   @@index([email])
@@ -414,6 +437,11 @@ model User {
   capturedDeliveries Delivery[] @relation("DeliveryCapturedBy")
   pushDevices       PushNotificationDevice[]
   notifications     UserNotification[]
+  approvalRequests  ApprovalRequest[] @relation("ApprovalRequester")
+  approvedRequests  ApprovalRequest[] @relation("ApprovalApprover")
+  rejectedRequests  ApprovalRequest[] @relation("ApprovalRejector")
+  relatedApprovalRequests ApprovalRequest[] @relation("ApprovalRelatedUser")
+  approvalAuditLogs ApprovalAuditLog[] @relation("ApprovalAuditActor")
   announcementBroadcasts AnnouncementBroadcast[] @relation("AnnouncementBroadcastCreator")
   announcementReads AnnouncementReadState[]
   createdEvents     SocietyEvent[] @relation("SocietyEventCreator")
@@ -465,6 +493,81 @@ model UserNotification {
   @@index([societyId])
   @@index([userId, societyId, createdAt])
   @@map("user_notifications")
+}
+
+model ApprovalConfig {
+  id            String             @id @default(uuid())
+  societyId     String
+  actionType    ApprovalActionType
+  enabled       Boolean            @default(false)
+  approverRoles String             @default("[]")
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  society       Society            @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  @@unique([societyId, actionType])
+  @@index([societyId])
+  @@map("approval_configs")
+}
+
+model ApprovalRequest {
+  id               String             @id @default(uuid())
+  societyId        String
+  actionType       ApprovalActionType
+  status           ApprovalStatus     @default(PENDING)
+  requestedById    String
+  approvedById     String?
+  rejectedById     String?
+  flatId           String?
+  tenantId         String?
+  relatedUserId    String?
+  requesterComment String?
+  decisionComment  String?
+  pendingData      Json
+  approvedAt       DateTime?
+  rejectedAt       DateTime?
+  cancelledAt      DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  society          Society            @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  requestedBy      User               @relation("ApprovalRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  approvedBy       User?              @relation("ApprovalApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  rejectedBy       User?              @relation("ApprovalRejector", fields: [rejectedById], references: [id], onDelete: SetNull)
+  flat             Flat?              @relation(fields: [flatId], references: [id], onDelete: SetNull)
+  tenant           Tenant?            @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  relatedUser      User?              @relation("ApprovalRelatedUser", fields: [relatedUserId], references: [id], onDelete: SetNull)
+  auditLogs        ApprovalAuditLog[]
+
+  @@index([societyId])
+  @@index([status])
+  @@index([actionType])
+  @@index([requestedById])
+  @@index([approvedById])
+  @@index([rejectedById])
+  @@index([flatId])
+  @@index([tenantId])
+  @@index([societyId, status, createdAt])
+  @@map("approval_requests")
+}
+
+model ApprovalAuditLog {
+  id                String              @id @default(uuid())
+  approvalRequestId String
+  action            ApprovalAuditAction
+  actorId           String?
+  comment           String?
+  snapshot          Json?
+  createdAt         DateTime            @default(now())
+
+  approvalRequest   ApprovalRequest     @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
+  actor             User?               @relation("ApprovalAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([approvalRequestId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("approval_audit_logs")
 }
 
 model AnnouncementBroadcast {

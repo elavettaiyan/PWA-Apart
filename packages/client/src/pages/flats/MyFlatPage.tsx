@@ -742,7 +742,7 @@ function TenantDetailsCard({
 
   const residentMutation = useMutation({
     mutationFn: async () => {
-      return (await api.put('/flats/my-flat/resident', {
+      const response = await api.put('/flats/my-flat/resident', {
         relation: 'TENANT',
         occupation: profileForm.occupation.trim() || null,
         householdAdults: parseOptionalCount(profileForm.householdAdults),
@@ -750,9 +750,21 @@ function TenantDetailsCard({
         householdSeniors: parseOptionalCount(profileForm.householdSeniors),
         pets: supportsPets ? profileForm.pets.trim() || null : null,
         vehicles: normalizeVehicleDrafts(vehicles),
-      })).data;
+      });
+
+      return {
+        status: response.status,
+        data: response.data,
+      };
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
+      if (response.status === 202 || response.data?.status === 'PENDING') {
+        toast.success(response.data?.message || 'Resident profile change submitted for approval');
+        setActiveProfileEditor(null);
+        queryClient.invalidateQueries({ queryKey: ['approvals'] });
+        return;
+      }
+
       toast.success('Resident details updated');
       setActiveProfileEditor(null);
       queryClient.invalidateQueries({ queryKey: ['my-flat'] });

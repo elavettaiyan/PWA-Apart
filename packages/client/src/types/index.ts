@@ -107,6 +107,57 @@ export interface SocietySettings {
   manualBillSelection: boolean;
 }
 
+export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+export type ApprovalActionType = 'TENANT_REGISTRATION' | 'TENANT_PROFILE_CHANGE';
+export type ApprovalAuditAction = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+
+export interface ApprovalConfig {
+  societyId: string;
+  actionType: ApprovalActionType;
+  enabled: boolean;
+  approverRoles: Role[];
+  updatedAt: string | null;
+}
+
+export interface ApprovalAuditLog {
+  id: string;
+  approvalRequestId: string;
+  action: ApprovalAuditAction;
+  actorId?: string | null;
+  actor?: Pick<User, 'id' | 'name' | 'email' | 'role'> | null;
+  comment?: string | null;
+  snapshot?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface ApprovalRequest {
+  id: string;
+  societyId: string;
+  actionType: ApprovalActionType;
+  status: ApprovalStatus;
+  requestedById: string;
+  approvedById?: string | null;
+  rejectedById?: string | null;
+  flatId?: string | null;
+  tenantId?: string | null;
+  relatedUserId?: string | null;
+  requesterComment?: string | null;
+  decisionComment?: string | null;
+  pendingData: Record<string, unknown>;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  cancelledAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  approverRoles: Role[];
+  requestedBy?: Pick<User, 'id' | 'name' | 'email' | 'role'>;
+  approvedBy?: Pick<User, 'id' | 'name' | 'email' | 'role'> | null;
+  rejectedBy?: Pick<User, 'id' | 'name' | 'email' | 'role'> | null;
+  flat?: (Flat & { block?: Block }) | null;
+  tenant?: Pick<Tenant, 'id' | 'name' | 'email' | 'phone' | 'isActive'> | null;
+  auditLogs?: ApprovalAuditLog[];
+}
+
 // ─── BLOCK ──────────────────────────────────────────────
 
 export interface Block {

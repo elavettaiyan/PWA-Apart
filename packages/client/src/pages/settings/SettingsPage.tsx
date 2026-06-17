@@ -21,8 +21,8 @@ import {
 } from '../../lib/useDictation';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import type { ConfigurableMenuRole, FlatType, MenuVisibilityResponse, NavigationMenuId, PremiumStatusResponse } from '../../types';
-import { SOCIETY_ADMINS } from '../../types';
+import type { ApprovalActionType, ApprovalConfig, ConfigurableMenuRole, FlatType, MenuVisibilityResponse, NavigationMenuId, PremiumStatusResponse, Role } from '../../types';
+import { ALL_SOCIETY_ROLES, SOCIETY_ADMINS } from '../../types';
 import ManageStaffPanel from '../../components/settings/ManageStaffPanel';
 
 
@@ -69,6 +69,19 @@ const FLAT_TYPE_OPTIONS: Array<{ value: FlatType; label: string }> = [
   { value: 'PENTHOUSE', label: 'Penthouse' },
   { value: 'SHOP', label: 'Shop' },
   { value: 'OTHER', label: 'Other' },
+];
+
+const APPROVAL_WORKFLOW_OPTIONS: Array<{ actionType: ApprovalActionType; title: string; description: string }> = [
+  {
+    actionType: 'TENANT_REGISTRATION',
+    title: 'Tenant Registration',
+    description: 'Require committee review before a new tenant is added to a flat.',
+  },
+  {
+    actionType: 'TENANT_PROFILE_CHANGE',
+    title: 'Tenant Profile Change',
+    description: 'Require approval before tenant self-service profile changes are applied.',
+  },
 ];
 
 export default function SettingsPage() {
@@ -155,6 +168,29 @@ export default function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['society-settings', activeSocietyId] });
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save settings'),
+  });
+
+  const { data: tenantRegistrationApprovalConfig } = useQuery<ApprovalConfig>({
+    queryKey: ['approval-config', activeSocietyId, 'TENANT_REGISTRATION'],
+    queryFn: async () => (await api.get('/approvals/config/TENANT_REGISTRATION')).data,
+    enabled: isAdmin && !!activeSocietyId,
+  });
+
+  const { data: tenantProfileChangeApprovalConfig } = useQuery<ApprovalConfig>({
+    queryKey: ['approval-config', activeSocietyId, 'TENANT_PROFILE_CHANGE'],
+    queryFn: async () => (await api.get('/approvals/config/TENANT_PROFILE_CHANGE')).data,
+    enabled: isAdmin && !!activeSocietyId,
+  });
+
+  const approvalConfigMutation = useMutation({
+    mutationFn: async ({ actionType, enabled, approverRoles }: { actionType: ApprovalActionType; enabled: boolean; approverRoles: Role[] }) => (
+      await api.put(`/approvals/config/${actionType}`, { enabled, approverRoles })
+    ).data as ApprovalConfig,
+    onSuccess: (config) => {
+      queryClient.setQueryData(['approval-config', activeSocietyId, config.actionType], config);
+      toast.success('Approval workflow updated');
+    },
+    onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to update approval workflow'),
   });
 
   // Populate form when data loads
@@ -785,6 +821,57 @@ export default function SettingsPage() {
           savingRole={menuVisibilityMutation.isPending ? menuVisibilityMutation.variables?.role : null}
           onToggleMenu={(role, visibleMenuIds) => menuVisibilityMutation.mutate({ role, visibleMenuIds })}
         />
+      </SettingsAccordion>
+
+      <SettingsAccordion
+        title="Approval Workflows"
+        description="Configure which resident actions need committee approval"
+        icon={CheckCircle2}
+        iconWrapperClassName="group-open:bg-sky-100"
+        iconClassName="group-open:text-sky-800"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-on-surface-variant">These controls affect whether tenant registrations and tenant self-service profile changes are applied immediately or routed through Inbox for review.</p>
+
+          {APPROVAL_WORKFLOW_OPTIONS.map((workflow) => {
+            const config = workflow.actionType === 'TENANT_REGISTRATION'
+              ? tenantRegistrationApprovalConfig
+              : tenantProfileChangeApprovalConfig;
+
+            return (
+              <ApprovalWorkflowCard
+                key={workflow.actionType}
+                title={workflow.title}
+                description={workflow.description}
+                config={config || {
+                  societyId: activeSocietyId,
+                  actionType: workflow.actionType,
+                  enabled: false,
+                  approverRoles: ['ADMIN', 'SECRETARY'],
+                  updatedAt: null,
+                }}
+                saving={approvalConfigMutation.isPending && approvalConfigMutation.variables?.actionType === workflow.actionType}
+                onToggleEnabled={(enabled) => approvalConfigMutation.mutate({
+                  actionType: workflow.actionType,
+                  enabled,
+                  approverRoles: config?.approverRoles || ['ADMIN', 'SECRETARY'],
+                })}
+                onToggleRole={(role) => {
+                  const currentRoles: Role[] = config?.approverRoles?.length ? config.approverRoles : ['ADMIN', 'SECRETARY'];
+                  const nextRoles = currentRoles.includes(role)
+                    ? currentRoles.filter((value) => value !== role)
+                    : [...currentRoles, role];
+
+                  approvalConfigMutation.mutate({
+                    actionType: workflow.actionType,
+                    enabled: config?.enabled ?? false,
+                    approverRoles: nextRoles.length > 0 ? nextRoles : ['ADMIN', 'SECRETARY'],
+                  });
+                }}
+              />
+            );
+          })}
+        </div>
       </SettingsAccordion>
 
       {!isSectionRestricted('settings-premium-plan') && (
@@ -1616,6 +1703,75 @@ function ProfileSummaryItem({
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-on-surface-variant">{label}</p>
       <p className="mt-2 text-sm font-medium text-on-surface">{value}</p>
     </div>
+  );
+}
+
+function ApprovalWorkflowCard({
+  title,
+  description,
+  config,
+  saving,
+  onToggleEnabled,
+  onToggleRole,
+}: {
+  title: string;
+  description: string;
+  config: ApprovalConfig;
+  saving: boolean;
+  onToggleEnabled: (enabled: boolean) => void;
+  onToggleRole: (role: Role) => void;
+}) {
+  return (
+    <section className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-on-surface">{title}</h3>
+          <p className="mt-1 text-sm text-on-surface-variant">{description}</p>
+          <p className="mt-2 text-xs text-on-surface-variant">
+            {config.updatedAt ? `Last updated ${new Date(config.updatedAt).toLocaleString()}` : 'Using default configuration'}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onToggleEnabled(!config.enabled)}
+          disabled={saving}
+          className={cn(
+            'inline-flex min-w-[132px] items-center justify-center rounded-xl border px-4 py-2 text-sm font-semibold transition-colors',
+            config.enabled
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+          )}
+        >
+          {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : config.enabled ? 'Approval On' : 'Approval Off'}
+        </button>
+      </div>
+
+      <div className="mt-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">Approver Roles</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {ALL_SOCIETY_ROLES.map((role) => {
+            const active = config.approverRoles.includes(role);
+            return (
+              <button
+                key={role}
+                type="button"
+                onClick={() => onToggleRole(role)}
+                disabled={saving}
+                className={cn(
+                  'rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
+                  active
+                    ? 'border-blue-600 bg-blue-50 text-blue-700'
+                    : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50',
+                )}
+              >
+                {role.replace(/_/g, ' ')}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
   );
 }
 

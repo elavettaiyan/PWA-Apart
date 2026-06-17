@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BellRing, CalendarDays, CheckCheck, Clock3, History, MapPin, Megaphone, Pencil, Pin, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { BellRing, CalendarDays, CheckCheck, CheckCircle2, Clock3, History, MapPin, Megaphone, Pencil, Pin, Plus, RotateCcw, ShieldCheck, Trash2, XCircle } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import Modal from '../../components/ui/Modal';
@@ -9,7 +9,7 @@ import api from '../../lib/api';
 import { cn } from '../../lib/utils';
 import { formatDateTime, getStatusColor } from '../../lib/utils';
 import { useAuthStore } from '../../store/authStore';
-import { SOCIETY_MANAGERS, type Announcement, type SocietyEvent } from '../../types';
+import { SOCIETY_MANAGERS, type Announcement, type ApprovalRequest, type SocietyEvent } from '../../types';
 import { AnnouncementForm } from '../announcements/AnnouncementsPage';
 import { EventForm } from '../events/EventsPage';
 
@@ -29,6 +29,13 @@ type CommunityFeedItem =
     bucket: CommunityTab;
     sortTimestamp: number;
     event: SocietyEvent;
+  }
+  | {
+    id: string;
+    kind: 'approval';
+    bucket: CommunityTab;
+    sortTimestamp: number;
+    approval: ApprovalRequest;
   };
 
 const COMMUNITY_TABS: Array<{ id: CommunityTab; label: string; icon: typeof Megaphone }> = [
@@ -58,12 +65,39 @@ function getEventBucket(event: SocietyEvent): CommunityTab {
   return 'history';
 }
 
+function getApprovalBucket(approval: ApprovalRequest): CommunityTab {
+  return approval.status === 'PENDING' ? 'inbox' : 'history';
+}
+
+function canReviewApproval(approval: ApprovalRequest, userRole?: string | null) {
+  if (!userRole) return false;
+  return userRole === 'SUPER_ADMIN' || approval.approverRoles.includes(userRole as any);
+}
+
+function getApprovalTitle(actionType: ApprovalRequest['actionType']) {
+  return actionType === 'TENANT_REGISTRATION' ? 'Tenant registration' : 'Tenant profile change';
+}
+
+function getApprovalSummary(approval: ApprovalRequest) {
+  const flatLabel = approval.flat?.block?.name
+    ? `${approval.flat.block.name} - ${approval.flat.flatNumber}`
+    : approval.flat?.flatNumber || 'flat';
+
+  if (approval.actionType === 'TENANT_REGISTRATION') {
+    const tenantName = typeof approval.pendingData?.name === 'string' ? approval.pendingData.name : approval.tenant?.name || 'A tenant';
+    return `${tenantName} was submitted for ${flatLabel}.`;
+  }
+
+  return `Profile updates were requested for ${approval.tenant?.name || 'the tenant'} in ${flatLabel}.`;
+}
+
 export default function CommunityPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showAnnouncementCreate, setShowAnnouncementCreate] = useState(false);
   const [showEventCreate, setShowEventCreate] = useState(false);
   const [viewAnnouncement, setViewAnnouncement] = useState<Announcement | null>(null);
   const [viewEvent, setViewEvent] = useState<SocietyEvent | null>(null);
+  const [viewApproval, setViewApproval] = useState<ApprovalRequest | null>(null);
   const [editingEvent, setEditingEvent] = useState<SocietyEvent | null>(null);
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
@@ -78,6 +112,11 @@ export default function CommunityPage() {
   const { data: events = [], isLoading: eventsLoading } = useQuery<SocietyEvent[]>({
     queryKey: ['events'],
     queryFn: async () => (await api.get('/events')).data,
+  });
+
+  const { data: approvals = [], isLoading: approvalsLoading } = useQuery<ApprovalRequest[]>({
+    queryKey: ['approvals'],
+    queryFn: async () => (await api.get('/approvals')).data,
   });
 
   const readStateMutation = useMutation({
@@ -133,6 +172,28 @@ export default function CommunityPage() {
     onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to send reminders'),
   });
 
+  const approveApprovalMutation = useMutation({
+    mutationFn: (approvalId: string) => api.patch(`/approvals/${approvalId}/approve`),
+    onSuccess: () => {
+      toast.success('Approval completed');
+      queryClient.invalidateQueries({ queryKey: ['approvals'] });
+      queryClient.invalidateQueries({ queryKey: ['my-flat'] });
+      queryClient.invalidateQueries({ queryKey: ['flats'] });
+      invalidateDashboardShortcuts(queryClient);
+    },
+    onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to approve request'),
+  });
+
+  const rejectApprovalMutation = useMutation({
+    mutationFn: (approvalId: string) => api.patch(`/approvals/${approvalId}/reject`),
+    onSuccess: () => {
+      toast.success('Approval rejected');
+      queryClient.invalidateQueries({ queryKey: ['approvals'] });
+      invalidateDashboardShortcuts(queryClient);
+    },
+    onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to reject request'),
+  });
+
   const feedItems = useMemo<CommunityFeedItem[]>(() => {
     const announcementItems: CommunityFeedItem[] = announcements.map((announcement) => ({
       id: `announcement-${announcement.id}`,
@@ -152,7 +213,15 @@ export default function CommunityPage() {
       event,
     }));
 
-    return [...announcementItems, ...eventItems]
+    const approvalItems: CommunityFeedItem[] = approvals.map((approval) => ({
+      id: `approval-${approval.id}`,
+      kind: 'approval',
+      bucket: getApprovalBucket(approval),
+      sortTimestamp: new Date(approval.createdAt).getTime(),
+      approval,
+    }));
+
+    return [...announcementItems, ...eventItems, ...approvalItems]
       .filter((item) => item.bucket === activeTab)
       .sort((left, right) => {
         if (activeTab === 'inbox') {
@@ -170,14 +239,20 @@ export default function CommunityPage() {
           if (left.kind === 'event' && right.kind === 'event') {
             return left.sortTimestamp - right.sortTimestamp;
           }
+          if (left.kind === 'approval' && right.kind === 'event') {
+            return -1;
+          }
+          if (left.kind === 'event' && right.kind === 'approval') {
+            return 1;
+          }
           return right.sortTimestamp - left.sortTimestamp;
         }
 
         return right.sortTimestamp - left.sortTimestamp;
       });
-  }, [activeTab, announcements, events]);
+  }, [activeTab, announcements, approvals, events]);
 
-  if (announcementsLoading || eventsLoading) {
+  if (announcementsLoading || eventsLoading || approvalsLoading) {
     return <PageLoader />;
   }
 
@@ -186,7 +261,7 @@ export default function CommunityPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Inbox</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Unread announcements, upcoming events, and future approval activity will be grouped here.</p>
+          <p className="text-sm text-on-surface-variant mt-1">Unread announcements, upcoming events, and approval requests are grouped here.</p>
         </div>
         {canManage ? (
           <div className="flex flex-wrap gap-2">
@@ -233,7 +308,7 @@ export default function CommunityPage() {
           icon={activeTab === 'inbox' ? Megaphone : CalendarDays}
           title={activeTab === 'inbox' ? 'Inbox is clear' : 'No history yet'}
           description={activeTab === 'inbox'
-            ? 'Unread announcements, upcoming events, and approval activity will appear here.'
+            ? 'Unread announcements, upcoming events, and approval requests will appear here.'
             : 'Read announcements, past events, and processed approvals will appear here.'}
         />
       ) : (
@@ -314,7 +389,7 @@ export default function CommunityPage() {
                 ) : null}
               </div>
             </article>
-          ) : (
+          ) : item.kind === 'event' ? (
             <article
               key={item.id}
               className="bg-white rounded-2xl overflow-hidden transition-all cursor-pointer active:scale-[0.99]"
@@ -389,6 +464,81 @@ export default function CommunityPage() {
                 </div>
               ) : null}
             </article>
+          ) : (
+            <article
+              key={item.id}
+              className="cursor-pointer overflow-hidden rounded-2xl bg-white transition-all active:scale-[0.99]"
+              style={{ boxShadow: '0 1px 8px -2px rgba(0,0,0,0.04)' }}
+              onClick={() => setViewApproval(item.approval)}
+            >
+              <div className="flex gap-3 p-4">
+                <div className={cn(
+                  'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full',
+                  item.approval.status === 'PENDING'
+                    ? 'bg-amber-50 text-amber-600'
+                    : item.approval.status === 'APPROVED'
+                      ? 'bg-emerald-50 text-emerald-600'
+                      : 'bg-slate-100 text-slate-500',
+                )}>
+                  <ShieldCheck className="h-4 w-4" />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Approval</span>
+                        <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', item.approval.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-700' : item.approval.status === 'REJECTED' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700')}>
+                          {item.approval.status}
+                        </span>
+                      </div>
+                      <h2 className="mt-2 truncate text-[15px] font-semibold leading-snug text-[#0F172A]">{getApprovalTitle(item.approval.actionType)}</h2>
+                      <p className="mt-0.5 text-[12px] text-[#94A3B8]">
+                        {item.approval.requestedBy?.name || 'Resident'} · {formatDateTime(item.approval.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="mt-1.5 line-clamp-2 whitespace-pre-wrap text-[13px] leading-relaxed text-[#64748B]">{getApprovalSummary(item.approval)}</p>
+                  {item.approval.requesterComment ? (
+                    <p className="mt-2 text-xs text-slate-500">Comment: {item.approval.requesterComment}</p>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1 px-3 pb-2.5" onClick={(event) => event.stopPropagation()}>
+                {item.approval.status === 'PENDING' && canReviewApproval(item.approval, user?.role) ? (
+                  <>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-medium text-emerald-600 transition hover:bg-emerald-100"
+                      onClick={() => approveApprovalMutation.mutate(item.approval.id)}
+                      disabled={approveApprovalMutation.isPending}
+                    >
+                      <CheckCircle2 className="h-3 w-3" />
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1.5 text-[11px] font-medium text-rose-600 transition hover:bg-rose-100"
+                      onClick={() => rejectApprovalMutation.mutate(item.approval.id)}
+                      disabled={rejectApprovalMutation.isPending}
+                    >
+                      <XCircle className="h-3 w-3" />
+                      Reject
+                    </button>
+                  </>
+                ) : item.approval.status === 'APPROVED' ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-medium text-emerald-600">
+                    <CheckCircle2 className="h-3 w-3" /> Approved
+                  </span>
+                ) : item.approval.status === 'REJECTED' ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1.5 text-[11px] font-medium text-rose-600">
+                    <XCircle className="h-3 w-3" /> Rejected
+                  </span>
+                ) : null}
+              </div>
+            </article>
           ))}
         </div>
       )}
@@ -435,6 +585,28 @@ export default function CommunityPage() {
                 <span>{viewEvent.place}</span>
               </div>
             </div>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal isOpen={!!viewApproval} onClose={() => setViewApproval(null)} title={viewApproval ? getApprovalTitle(viewApproval.actionType) : 'Approval'} size="lg">
+        {viewApproval ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Approval</span>
+              <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', viewApproval.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-700' : viewApproval.status === 'REJECTED' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700')}>
+                {viewApproval.status}
+              </span>
+            </div>
+            <p className="text-sm text-[#94A3B8]">{viewApproval.requestedBy?.name || 'Resident'} · {formatDateTime(viewApproval.createdAt)}</p>
+            <p className="text-sm leading-relaxed text-[#334155]">{getApprovalSummary(viewApproval)}</p>
+            {viewApproval.requesterComment ? <p className="text-sm text-slate-600">Requester comment: {viewApproval.requesterComment}</p> : null}
+            {viewApproval.decisionComment ? <p className="text-sm text-slate-600">Decision comment: {viewApproval.decisionComment}</p> : null}
+            {viewApproval.flat ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                Flat: {viewApproval.flat.block?.name ? `${viewApproval.flat.block.name} - ` : ''}{viewApproval.flat.flatNumber}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </Modal>

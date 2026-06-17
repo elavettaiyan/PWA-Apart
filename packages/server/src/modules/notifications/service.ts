@@ -266,6 +266,63 @@ export async function sendPushToFlatResidents(societyId: string, flatId: string,
   return sendPushToSocietyUsers(societyId, userIds, payload);
 }
 
+function formatApprovalActionLabel(actionType: string) {
+  switch (actionType) {
+    case 'TENANT_REGISTRATION':
+      return 'tenant registration';
+    case 'TENANT_PROFILE_CHANGE':
+      return 'tenant profile change';
+    default:
+      return 'approval request';
+  }
+}
+
+export async function notifyApprovalRequestCreated(input: {
+  societyId: string;
+  requestId: string;
+  actionType: string;
+  requesterName: string;
+  approverRoles: string[];
+  flatLabel?: string | null;
+}) {
+  const subject = formatApprovalActionLabel(input.actionType);
+  const flatSuffix = input.flatLabel ? ` for ${input.flatLabel}` : '';
+
+  return sendPushToSocietyRoles(input.societyId, input.approverRoles, {
+    title: 'Approval request pending',
+    body: `${input.requesterName} requested ${subject}${flatSuffix}.`,
+    path: '/community?tab=inbox',
+    route: '/community?tab=inbox',
+    type: 'approval.requested',
+    entityId: input.requestId,
+  });
+}
+
+export async function notifyApprovalRequestResolved(input: {
+  societyId: string;
+  requestId: string;
+  requesterUserId: string;
+  actionType: string;
+  status: 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  decisionByName: string;
+}) {
+  const subject = formatApprovalActionLabel(input.actionType);
+  const resolutionLabel = input.status === 'APPROVED'
+    ? 'approved'
+    : input.status === 'REJECTED'
+      ? 'rejected'
+      : 'cancelled';
+
+  return sendPushToSocietyUsers(input.societyId, [input.requesterUserId], {
+    title: `Approval ${resolutionLabel}`,
+    body: `${subject.charAt(0).toUpperCase()}${subject.slice(1)} was ${resolutionLabel} by ${input.decisionByName}.`,
+    path: '/community?tab=history',
+    route: '/community?tab=history',
+    type: `approval.${resolutionLabel}`,
+    entityId: input.requestId,
+  });
+}
+
 export async function notifyNewComplaint(complaintId: string) {
   const complaint = await prisma.complaint.findUnique({
     where: { id: complaintId },
