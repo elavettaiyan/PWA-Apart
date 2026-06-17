@@ -11,7 +11,7 @@ import { isNonSecurityServiceStaff, isSecurityServiceStaff } from './serviceStaf
 
 export const NAVIGATION_MENU_CATALOG = [
   { id: 'dashboard', label: 'Dashboard', href: '/' },
-  { id: 'community', label: 'Community', href: '/community' },
+  { id: 'community', label: 'Inbox', href: '/community' },
   { id: 'flats', label: 'Flats & Residents', href: '/flats' },
   { id: 'my-flat', label: 'My Flat', href: '/my-flat' },
   { id: 'billing', label: 'Billing', href: '/billing' },

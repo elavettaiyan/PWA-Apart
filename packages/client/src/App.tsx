@@ -135,8 +135,8 @@ export default function App() {
 
         <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
         <Route path="/community" element={<ProtectedRoute><CommunityPage /></ProtectedRoute>} />
-        <Route path="/announcements" element={<Navigate to="/community?tab=announcements" replace />} />
-        <Route path="/events" element={<Navigate to="/community?tab=events" replace />} />
+        <Route path="/announcements" element={<Navigate to="/community?tab=inbox" replace />} />
+        <Route path="/events" element={<Navigate to="/community?tab=inbox" replace />} />
         <Route path="/flats" element={<RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_MANAGERS]}><RestrictionAwareContent path="/flats"><FlatsPage /></RestrictionAwareContent></RoleRoute>} />
         <Route path="/my-flat" element={<ProtectedRoute><MyFlatPage /></ProtectedRoute>} />
         <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />

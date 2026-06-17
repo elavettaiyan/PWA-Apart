@@ -324,7 +324,7 @@ export default function EventsPage({ embedded = false }: { embedded?: boolean })
   );
 }
 
-function EventForm({ event, onSuccess }: { event?: SocietyEvent; onSuccess: () => void }) {
+export function EventForm({ event, onSuccess }: { event?: SocietyEvent; onSuccess: () => void }) {
   const initialStart = toDateTimeParts(event?.startAt);
   const initialEnd = toDateTimeParts(event?.endAt);
   const [title, setTitle] = useState(event?.title || '');

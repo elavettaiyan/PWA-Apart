@@ -335,7 +335,7 @@ function ResidentDashboard() {
               <CalendarDays className="w-3.5 h-3.5 text-violet-500 absolute -right-1 -bottom-1 bg-white rounded-full p-0.5" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-on-surface">Announcements & Events</p>
+              <p className="text-sm font-semibold text-on-surface">Inbox</p>
               <p className="text-xs text-on-surface-variant mt-0.5">
                 {data?.unreadAnnouncements ?? 0} unread · {data?.upcomingEvents ?? 0} upcoming
               </p>
@@ -462,7 +462,7 @@ function AdminDashboard() {
               <CalendarDays className="w-4 h-4 text-violet-500 absolute -right-1 -bottom-1 bg-white rounded-full p-0.5 shadow-sm" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-bold text-on-surface">Announcements & Events</p>
+              <p className="text-sm font-bold text-on-surface">Inbox</p>
               <p className="text-xs text-slate-500 mt-0.5">
                 {data?.unreadAnnouncements || 0} unread announcements · {data?.upcomingEvents || 0} upcoming events
               </p>

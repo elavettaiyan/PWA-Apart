@@ -255,7 +255,7 @@ export default function AnnouncementsPage({ embedded = false }: { embedded?: boo
   );
 }
 
-function AnnouncementForm({ onSuccess }: { onSuccess: () => void }) {
+export function AnnouncementForm({ onSuccess }: { onSuccess: () => void }) {
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [images, setImages] = useState<File[]>([]);
