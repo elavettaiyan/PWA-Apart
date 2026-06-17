@@ -94,6 +94,19 @@ export interface Society {
   totalFlats: number;
 }
 
+export interface SocietySettings {
+  id: string;
+  societyId: string;
+  lateFeeEnabled: boolean;
+  partialPaymentAllowed: boolean;
+  advancePaymentAllowed: boolean;
+  autoAdjustAdvance: boolean;
+  supportsPets: boolean;
+  configuredFlatTypes: FlatType[];
+  forceOldestDueSettlement: boolean;
+  manualBillSelection: boolean;
+}
+
 // ─── BLOCK ──────────────────────────────────────────────
 
 export interface Block {
@@ -156,6 +169,11 @@ export interface Owner {
   name: string;
   email?: string;
   phone: string;
+  occupation?: string | null;
+  householdAdults?: number | null;
+  householdKids?: number | null;
+  householdSeniors?: number | null;
+  pets?: string | null;
   carNumber?: string;
   twoWheelerNumber?: string;
   altPhone?: string;
@@ -177,6 +195,11 @@ export interface Tenant {
   name: string;
   email?: string;
   phone: string;
+  occupation?: string | null;
+  householdAdults?: number | null;
+  householdKids?: number | null;
+  householdSeniors?: number | null;
+  pets?: string | null;
   carNumber?: string;
   twoWheelerNumber?: string;
   flatId: string;

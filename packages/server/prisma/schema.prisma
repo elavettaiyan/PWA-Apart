@@ -299,6 +299,11 @@ model Owner {
   name        String
   email       String?
   phone       String
+  occupation  String?
+  householdAdults Int?
+  householdKids Int?
+  householdSeniors Int?
+  pets        String?
   carNumber   String?
   twoWheelerNumber String?
   altPhone    String?
@@ -329,6 +334,11 @@ model Tenant {
   name        String
   email       String?
   phone       String
+  occupation  String?
+  householdAdults Int?
+  householdKids Int?
+  householdSeniors Int?
+  pets        String?
   carNumber   String?
   twoWheelerNumber String?
   altPhone    String?
@@ -627,6 +637,7 @@ model SocietySettings {
   partialPaymentAllowed   Boolean  @default(true)
   advancePaymentAllowed   Boolean  @default(true)
   autoAdjustAdvance       Boolean  @default(true)
+  supportsPets            Boolean  @default(false)
   configuredFlatTypes     FlatType[] @default([])
   forceOldestDueSettlement Boolean @default(true)
   manualBillSelection     Boolean  @default(false)

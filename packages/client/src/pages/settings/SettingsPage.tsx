@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Settings, CreditCard, Eye, EyeOff, CheckCircle2, XCircle,
   Loader2, Zap, ToggleLeft, ToggleRight, ShieldCheck, Globe, Clock,
-  Users, ChevronDown, Building2, AlertTriangle, Mail, Trash2,
+  Users, ChevronDown, Building2, AlertTriangle, Mail, Trash2, Pencil,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -238,8 +238,10 @@ export default function SettingsPage() {
     name: '', communityType: 'APARTMENT', address: '', city: '', state: '', pincode: '', totalUnits: '',
   });
   const [cpDirty, setCpDirty] = useState(false);
+  const [communitySettingsSaving, setCommunitySettingsSaving] = useState(false);
   const [configuredFlatTypes, setConfiguredFlatTypes] = useState<FlatType[]>([]);
   const [flatTypesDirty, setFlatTypesDirty] = useState(false);
+  const [isCommunityInfoEditing, setIsCommunityInfoEditing] = useState(false);
 
   useEffect(() => {
     if (communityProfile) {
@@ -277,12 +279,27 @@ export default function SettingsPage() {
     setCpDirty(true);
   };
 
-  const handleCpSave = () => {
-    if (!cpForm.name.trim()) return toast.error('Community name is required');
-    if (!cpForm.address.trim()) return toast.error('Address is required');
-    if (!cpForm.city.trim()) return toast.error('City is required');
-    if (!cpForm.state.trim()) return toast.error('State is required');
-    if (cpForm.pincode && !/^\d{6}$/.test(cpForm.pincode)) return toast.error('Pincode must be 6 digits');
+  const buildCommunityProfilePayload = () => {
+    if (!cpForm.name.trim()) {
+      toast.error('Community name is required');
+      return null;
+    }
+    if (!cpForm.address.trim()) {
+      toast.error('Address is required');
+      return null;
+    }
+    if (!cpForm.city.trim()) {
+      toast.error('City is required');
+      return null;
+    }
+    if (!cpForm.state.trim()) {
+      toast.error('State is required');
+      return null;
+    }
+    if (cpForm.pincode && !/^\d{6}$/.test(cpForm.pincode)) {
+      toast.error('Pincode must be 6 digits');
+      return null;
+    }
 
     const payload: any = {
       name: cpForm.name.trim(),
@@ -292,10 +309,83 @@ export default function SettingsPage() {
       state: cpForm.state.trim(),
       pincode: cpForm.pincode.trim(),
     };
+
     if (cpForm.totalUnits.trim()) payload.totalUnits = parseInt(cpForm.totalUnits, 10);
     else payload.totalUnits = null;
 
-    cpMutation.mutate(payload);
+    return payload;
+  };
+
+  const resetCommunityProfileForm = () => {
+    setCpForm({
+      name: communityProfile?.name || '',
+      communityType: communityProfile?.communityType || 'APARTMENT',
+      address: communityProfile?.address || '',
+      city: communityProfile?.city || '',
+      state: communityProfile?.state || '',
+      pincode: communityProfile?.pincode || '',
+      totalUnits: communityProfile?.totalUnits != null ? String(communityProfile.totalUnits) : '',
+    });
+    setCpDirty(false);
+  };
+
+  const handleCommunityInfoSave = () => {
+    const payload = buildCommunityProfilePayload();
+    if (!payload) {
+      return;
+    }
+
+    cpMutation.mutate(payload, {
+      onSuccess: () => {
+        setIsCommunityInfoEditing(false);
+      },
+    });
+  };
+
+  const handleCommunityInfoCancel = () => {
+    resetCommunityProfileForm();
+    setIsCommunityInfoEditing(false);
+  };
+
+  const handleCpSave = async () => {
+    const payload = cpDirty ? buildCommunityProfilePayload() : null;
+    if (cpDirty && !payload) {
+      return;
+    }
+
+    if (!cpDirty && !housingSettingsDirty) {
+      return;
+    }
+
+    setCommunitySettingsSaving(true);
+
+    try {
+      const requests: Promise<any>[] = [];
+
+      if (cpDirty) {
+        requests.push(api.put('/settings/community-profile', payload));
+      }
+
+      if (housingSettingsDirty) {
+        requests.push(api.put('/settings/society-settings', {
+          configuredFlatTypes,
+          supportsPets: !!billingSettings?.supportsPets,
+        }));
+      }
+
+      await Promise.all(requests);
+
+      queryClient.invalidateQueries({ queryKey: ['community-profile'] });
+      queryClient.invalidateQueries({ queryKey: ['society-settings', activeSocietyId] });
+      setCpDirty(false);
+      setFlatTypesDirty(false);
+      setIsCommunityInfoEditing(false);
+      toast.success('Settings saved');
+    } catch (e: any) {
+      toast.error(e.response?.data?.error || 'Failed to save settings');
+    } finally {
+      setCommunitySettingsSaving(false);
+    }
   };
 
   const toggleConfiguredFlatType = (flatType: FlatType) => {
@@ -307,9 +397,7 @@ export default function SettingsPage() {
     setFlatTypesDirty(true);
   };
 
-  const handleFlatTypesSave = () => {
-    settingsMutation.mutate({ configuredFlatTypes });
-  };
+  const housingSettingsDirty = flatTypesDirty || (!!billingSettings && !!societySettings && !!billingSettings.supportsPets !== !!societySettings.supportsPets);
 
   const handleChange = (field: string, value: string | number) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -462,92 +550,148 @@ export default function SettingsPage() {
         iconWrapperClassName="group-open:bg-blue-100"
         iconClassName="group-open:text-blue-800"
       >
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="label">Community Name</label>
-              <input
-                className="input"
-                value={cpForm.name}
-                onChange={(e) => handleCpChange('name', e.target.value)}
-                placeholder="e.g., Green Valley Residences"
-              />
-            </div>
-            <div>
-              <label className="label">Community Type</label>
-              <select
-                className="input"
-                value={cpForm.communityType}
-                onChange={(e) => handleCpChange('communityType', e.target.value)}
-              >
-                <option value="APARTMENT">Apartment / Society</option>
-                <option value="VILLA">Villa Community</option>
-                <option value="GATED_COMMUNITY">Gated Community</option>
-                <option value="TOWNSHIP">Township</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="label">Address</label>
-            <input
-              className="input"
-              value={cpForm.address}
-              onChange={(e) => handleCpChange('address', e.target.value)}
-              placeholder="Full street address"
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="label">City</label>
-              <input
-                className="input"
-                value={cpForm.city}
-                onChange={(e) => handleCpChange('city', e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="label">State</label>
-              <input
-                className="input"
-                value={cpForm.state}
-                onChange={(e) => handleCpChange('state', e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="label">Pincode</label>
-              <input
-                className="input"
-                value={cpForm.pincode}
-                onChange={(e) => handleCpChange('pincode', e.target.value)}
-                maxLength={6}
-              />
-            </div>
-          </div>
-          <div className="md:w-1/3">
-            <label className="label">Total Units</label>
-            <input
-              className="input"
-              type="number"
-              min={0}
-              value={cpForm.totalUnits}
-              onChange={(e) => handleCpChange('totalUnits', e.target.value)}
-              placeholder="e.g., 120"
-            />
-            <p className="text-xs text-on-surface-variant mt-1">Total flats, villas, or units in this community</p>
-          </div>
-          <div className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-4">
-            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div className="space-y-5">
+          <section className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5">
+            <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <label className="label">Available Flat Types</label>
-                <p className="text-xs text-on-surface-variant">Choose which flat types can be used in Flats & Residents when adding or editing units.</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Community Info</p>
+                <h3 className="mt-1 text-base font-semibold text-on-surface">Company Profile</h3>
+                <p className="mt-1 text-sm text-on-surface-variant">Maintain the main identity, address, and unit count for this community.</p>
               </div>
-              {flatTypesDirty ? (
-                <span className="text-xs text-warning flex items-center gap-1">
-                  <Clock className="w-3 h-3" /> Unsaved flat type changes
-                </span>
+              {!isCommunityInfoEditing ? (
+                <button
+                  type="button"
+                  onClick={() => setIsCommunityInfoEditing(true)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-outline-variant/20 bg-white text-slate-500 transition hover:border-primary/20 hover:text-primary"
+                  aria-label="Edit company profile"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
               ) : null}
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+
+            {isCommunityInfoEditing ? (
+              <>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="label">Community Name</label>
+                    <input
+                      className="input"
+                      value={cpForm.name}
+                      onChange={(e) => handleCpChange('name', e.target.value)}
+                      placeholder="e.g., Green Valley Residences"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Community Type</label>
+                    <select
+                      className="input"
+                      value={cpForm.communityType}
+                      onChange={(e) => handleCpChange('communityType', e.target.value)}
+                    >
+                      <option value="APARTMENT">Apartment / Society</option>
+                      <option value="VILLA">Villa Community</option>
+                      <option value="GATED_COMMUNITY">Gated Community</option>
+                      <option value="TOWNSHIP">Township</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <label className="label">Address</label>
+                  <input
+                    className="input"
+                    value={cpForm.address}
+                    onChange={(e) => handleCpChange('address', e.target.value)}
+                    placeholder="Full street address"
+                  />
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div>
+                    <label className="label">City</label>
+                    <input
+                      className="input"
+                      value={cpForm.city}
+                      onChange={(e) => handleCpChange('city', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">State</label>
+                    <input
+                      className="input"
+                      value={cpForm.state}
+                      onChange={(e) => handleCpChange('state', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Pincode</label>
+                    <input
+                      className="input"
+                      value={cpForm.pincode}
+                      onChange={(e) => handleCpChange('pincode', e.target.value)}
+                      maxLength={6}
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-4 md:w-1/3">
+                  <label className="label">Total Units</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min={0}
+                    value={cpForm.totalUnits}
+                    onChange={(e) => handleCpChange('totalUnits', e.target.value)}
+                    placeholder="e.g., 120"
+                  />
+                  <p className="mt-1 text-xs text-on-surface-variant">Total flats, villas, or units in this community</p>
+                </div>
+
+                <div className="mt-5 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleCommunityInfoSave}
+                    disabled={cpMutation.isPending || !cpDirty}
+                    className="btn-primary"
+                  >
+                    {cpMutation.isPending ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+                    ) : (
+                      'Save Company Profile'
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCommunityInfoCancel}
+                    disabled={cpMutation.isPending}
+                    className="btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <ProfileSummaryItem label="Community Name" value={cpForm.name || 'Not set'} />
+                <ProfileSummaryItem label="Community Type" value={formatCommunityType(cpForm.communityType)} />
+                <ProfileSummaryItem label="Total Units" value={cpForm.totalUnits || 'Not set'} />
+                <ProfileSummaryItem label="Address" value={cpForm.address || 'Not set'} className="md:col-span-2 xl:col-span-3" />
+                <ProfileSummaryItem label="City" value={cpForm.city || 'Not set'} />
+                <ProfileSummaryItem label="State" value={cpForm.state || 'Not set'} />
+                <ProfileSummaryItem label="Pincode" value={cpForm.pincode || 'Not set'} />
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5">
+            <div className="mb-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Available Flat Types</p>
+              <h3 className="mt-1 text-base font-semibold text-on-surface">Unit type configuration</h3>
+              <p className="mt-1 text-sm text-on-surface-variant">Choose which flat types can be used in Flats & Residents when adding or editing units.</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               {FLAT_TYPE_OPTIONS.map((option) => {
                 const active = configuredFlatTypes.includes(option.value);
                 return (
@@ -567,39 +711,42 @@ export default function SettingsPage() {
                 );
               })}
             </div>
-            <div className="mt-4 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleFlatTypesSave}
-                disabled={settingsMutation.isPending || !flatTypesDirty}
-                className="btn-secondary"
-              >
-                {settingsMutation.isPending ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
-                ) : (
-                  'Save Flat Types'
-                )}
-              </button>
-              <span className="text-xs text-on-surface-variant">Leave all unchecked to allow every flat type.</span>
+          </section>
+
+          <section className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5">
+            <div className="mb-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">General Settings</p>
+              <h3 className="mt-1 text-base font-semibold text-on-surface">Resident profile preferences</h3>
+              <p className="mt-1 text-sm text-on-surface-variant">Control shared profile options that affect resident-facing forms and views.</p>
             </div>
-          </div>
+
+            <div className="rounded-xl border border-outline-variant/40 bg-white p-4">
+              <label className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="font-semibold text-on-surface">Supports Pets</div>
+                  <div className="text-sm text-on-surface-variant">Show pet details in resident-facing profile forms and views.</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={!!billingSettings?.supportsPets}
+                  onChange={(e) => setBillingSettings({ ...(billingSettings || {}), supportsPets: e.target.checked })}
+                />
+              </label>
+            </div>
+          </section>
+
           <div className="flex items-center gap-3 pt-2">
             <button
               onClick={handleCpSave}
-              disabled={cpMutation.isPending || !cpDirty}
+              disabled={communitySettingsSaving || (!cpDirty && !housingSettingsDirty)}
               className="btn-primary"
             >
-              {cpMutation.isPending ? (
+              {communitySettingsSaving ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
               ) : (
                 'Save Profile'
               )}
             </button>
-            {cpDirty && (
-              <span className="text-xs text-warning flex items-center gap-1">
-                <Clock className="w-3 h-3" /> Unsaved changes
-              </span>
-            )}
           </div>
         </div>
       </SettingsAccordion>
@@ -1165,6 +1312,7 @@ export default function SettingsPage() {
                     onChange={(e) => setBillingSettings({ ...billingSettings, autoAdjustAdvance: e.target.checked })}
                   />
                 </label>
+
               </div>
 
               <div className="flex items-center gap-3 pt-2">
@@ -1436,6 +1584,38 @@ function SettingsAccordion({
       </summary>
       <div className="border-t border-outline-variant/10 px-5 py-5">{children}</div>
     </details>
+  );
+}
+
+function formatCommunityType(value: string) {
+  switch (value) {
+    case 'APARTMENT':
+      return 'Apartment / Society';
+    case 'VILLA':
+      return 'Villa Community';
+    case 'GATED_COMMUNITY':
+      return 'Gated Community';
+    case 'TOWNSHIP':
+      return 'Township';
+    default:
+      return value || 'Not set';
+  }
+}
+
+function ProfileSummaryItem({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn('rounded-xl border border-outline-variant/20 bg-white px-4 py-3', className)}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-on-surface-variant">{label}</p>
+      <p className="mt-2 text-sm font-medium text-on-surface">{value}</p>
+    </div>
   );
 }
 

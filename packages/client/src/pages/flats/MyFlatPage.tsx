@@ -1,13 +1,95 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, User, Phone, Mail, Home, Calendar, UserPlus, Pencil, Trash2, Loader2, Info } from 'lucide-react';
+import {
+  Building2,
+  Camera,
+  Calendar,
+  CarFront,
+  CirclePlus,
+  Home,
+  Info,
+  Loader2,
+  Mail,
+  PawPrint,
+  Pencil,
+  Phone,
+  Trash2,
+  User,
+  UserRound,
+  Users,
+  BriefcaseBusiness,
+  Bike,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
-import { formatCurrency, formatDate, getMonthName, getStatusColor, cn, isValidEmailAddress, isValidIndianMobileNumber, normalizeEmail, normalizeIndianMobileNumber } from '../../lib/utils';
+import {
+  cn,
+  formatCurrency,
+  formatDate,
+  getMonthName,
+  getStatusColor,
+  isValidEmailAddress,
+  isValidIndianMobileNumber,
+  normalizeEmail,
+  normalizeIndianMobileNumber,
+} from '../../lib/utils';
 import { PageLoader } from '../../components/ui/Loader';
 import { useAuthStore } from '../../store/authStore';
 import { isOwnerViewActive } from '../../lib/ownerView';
-import type { Flat, MaintenanceBill, PaymentMethod } from '../../types';
+import type {
+  Flat,
+  MaintenanceBill,
+  Owner,
+  PaymentMethod,
+  ResidentVehicle,
+  SocietySettings,
+  Tenant,
+  VehicleType,
+} from '../../types';
+
+const SHELL_CARD_CLASS = 'rounded-[22px] border border-slate-200/80 bg-white shadow-[0_4px_12px_rgba(15,23,42,0.04)]';
+const FIELD_LABEL_CLASS = 'text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400';
+const FIELD_VALUE_CLASS = 'text-[15px] font-semibold text-slate-900';
+
+type VehicleDraft = {
+  id: string;
+  type: VehicleType;
+  registrationNumber: string;
+};
+
+type ResidentProfileFormState = {
+  phone: string;
+  occupation: string;
+  householdAdults: string;
+  householdKids: string;
+  householdSeniors: string;
+  pets: string;
+};
+
+type ResidentLike = {
+  name: string;
+  phone?: string;
+  email?: string | null;
+  occupation?: string | null;
+  householdAdults?: number | null;
+  householdKids?: number | null;
+  householdSeniors?: number | null;
+  pets?: string | null;
+  carNumber?: string | null;
+  twoWheelerNumber?: string | null;
+  vehicles?: ResidentVehicle[];
+};
+
+type TenantCardResident = Tenant & {
+  leaseStartDate?: string;
+  leaseEndDate?: string;
+};
+
+const VEHICLE_TYPE_OPTIONS: Array<{ value: VehicleType; label: string }> = [
+  { value: 'FOUR_WHEELER', label: 'Car' },
+  { value: 'TWO_WHEELER', label: 'Two Wheeler' },
+  { value: 'THREE_WHEELER', label: 'Three Wheeler' },
+];
 
 export default function MyFlatPage() {
   const currentYear = new Date().getFullYear();
@@ -15,12 +97,12 @@ export default function MyFlatPage() {
   const { user, viewMode, setUser } = useAuthStore();
   const isOwner = user?.role === 'OWNER' || isOwnerViewActive(user, viewMode);
   const residentRelation = !isOwner && user?.flatRelation === 'TENANT' ? 'TENANT' : 'OWNER';
+  const activeSocietyId = user?.activeSocietyId || user?.societyId || '';
 
   const { data: flat, isLoading, error } = useQuery<Flat>({
-    queryKey: ['my-flat', user?.activeSocietyId || user?.societyId || 'no-society', selectedYear],
+    queryKey: ['my-flat', activeSocietyId || 'no-society', selectedYear],
     queryFn: async () => {
       const searchParams = new URLSearchParams({ year: String(selectedYear) });
-      const activeSocietyId = user?.activeSocietyId || user?.societyId;
       if (activeSocietyId) {
         searchParams.set('societyId', activeSocietyId);
       }
@@ -29,295 +111,168 @@ export default function MyFlatPage() {
     enabled: !!user,
   });
 
-  const yearOptions = useMemo(
-    () => Array.from({ length: 6 }, (_, index) => currentYear - index),
-    [currentYear],
-  );
-  const isTenantSelfView = residentRelation === 'TENANT';
+  const { data: societySettings } = useQuery<SocietySettings>({
+    queryKey: ['society-settings', activeSocietyId || 'no-society'],
+    queryFn: async () => (await api.get('/settings/society-settings')).data,
+    enabled: !!activeSocietyId,
+  });
+
+  const yearOptions = useMemo(() => Array.from({ length: 6 }, (_, index) => currentYear - index), [currentYear]);
   const activeOwner = flat?.owner?.isActive === false ? null : flat?.owner || null;
+  const supportsPets = societySettings?.supportsPets === true;
+  const canEditOwnerProfile = residentRelation === 'OWNER';
+  const canEditTenantProfile = residentRelation === 'TENANT';
 
   if (isLoading) return <PageLoader />;
 
   if (error || !flat) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-on-surface-variant">
-        <Building2 className="w-12 h-12 mb-4 text-outline/40" />
+        <Building2 className="mb-4 h-12 w-12 text-outline/40" />
         <h2 className="text-lg font-semibold text-on-surface-variant">No Flat Found</h2>
-        <p className="text-sm mt-1">Your account is not linked to any flat. Contact your admin.</p>
+        <p className="mt-1 text-sm">Your account is not linked to any flat. Contact your admin.</p>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="page-header">
+    <div className="space-y-6 md:space-y-7">
+      <div className="space-y-1 md:hidden">
+        <h1 className="text-[2rem] font-bold tracking-tight text-slate-900">My Flat</h1>
+        <p className="text-sm text-slate-500">{flat.block?.name} · {flat.flatNumber}</p>
+      </div>
+
+      <div className="hidden items-start justify-between md:flex">
         <div>
           <p className="section-label mb-1">Your Space</p>
           <h1 className="page-title">My Flat</h1>
-          <p className="text-xs text-on-surface-variant mt-0.5">
-            {flat.block?.name} - {flat.flatNumber}
-          </p>
+          <p className="mt-1 text-sm text-slate-500">Flat, owner profile and billing overview</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Flat Details */}
-        <div className="card-elevated p-6">
-          <h2 className="text-lg font-bold text-primary mb-4 flex items-center gap-2 editorial-title">
-            <div className="w-8 h-8 rounded-xl bg-primary-container flex items-center justify-center">
-              <Home className="w-4 h-4 text-on-primary-container" />
-            </div>
-            Flat Details
-          </h2>
-          <div className="space-y-3 text-sm">
-            <Row label="Flat Number" value={flat.flatNumber} />
-            <Row label="Block" value={flat.block?.name} />
-            <Row label="Society" value={flat.block?.society?.name} />
-            <Row label="Floor" value={flat.floor} />
-            <Row label="BHK Type" value={flat.type?.replace('_', ' ')} />
-            {flat.areaSqFt && <Row label="Area" value={`${flat.areaSqFt} sq.ft.`} />}
-            <Row label="Parking" value={getParkingLabel(flat.parkingType, flat.parkingSlotNumber)} />
-            <Row label="Status" value={flat.isOccupied ? 'Occupied' : 'Vacant'} />
-          </div>
-        </div>
-
-        {/* Owner / Tenant Info */}
-        <div className="space-y-6">
-          {activeOwner && (
-            <OwnerCard
-              owner={activeOwner}
-              canSelfEdit={residentRelation === 'OWNER'}
-              onPhoneUpdated={(phone) => {
-                if (user) {
-                  setUser({ ...user, phone });
-                }
-              }}
-            />
-          )}
-
-          {flat.tenant && flat.tenant.isActive !== false ? (
-            <TenantCard tenant={flat.tenant} isOwner={isOwner} allowSelfVehicleEdit={isTenantSelfView} />
-          ) : isOwner ? (
-            <AddTenantCard />
-          ) : null}
-        </div>
+      <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
+        <FlatDetailsCard flat={flat} />
+        {activeOwner ? (
+          <OwnerDetailsCard
+            owner={activeOwner}
+            supportsPets={supportsPets}
+            canSelfEdit={canEditOwnerProfile}
+            onPhoneUpdated={(phone) => {
+              if (user) {
+                setUser({ ...user, phone });
+              }
+            }}
+          />
+        ) : null}
       </div>
 
-      {/* Bill Summary */}
-      {flat.bills && flat.bills.length > 0 && (
-        <div className="mt-6">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-on-surface">Bill Summary</h2>
-            <select className="select w-32" value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}>
-              {yearOptions.map((year) => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
-          </div>
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Month</th>
-                  <th>Due Date</th>
-                  <th>Amount</th>
-                  <th>Paid</th>
-                  <th>Balance</th>
-                  <th>Payment Date</th>
-                  <th>Payment Mode</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {flat.bills.map((bill: MaintenanceBill) => {
-                  const latestPayment = bill.payments?.[0];
-
-                  return (
-                  <tr key={bill.id}>
-                    <td className="font-medium">{getMonthName(bill.month)} {bill.year}</td>
-                    <td>{formatDate(bill.dueDate)}</td>
-                    <td>{formatCurrency(bill.totalAmount)}</td>
-                    <td className="text-emerald-900">{formatCurrency(bill.paidAmount)}</td>
-                    <td className="text-error">{formatCurrency(bill.totalAmount - bill.paidAmount)}</td>
-                    <td>{latestPayment?.paidAt ? formatDate(latestPayment.paidAt) : '—'}</td>
-                    <td>{latestPayment ? getPaymentMethodLabel(latestPayment.method) : '—'}</td>
-                    <td>
-                      <span className={cn('badge', getStatusColor(bill.status))}>
-                        {bill.status}
-                      </span>
-                    </td>
-                  </tr>
-                )})}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {flat.bills && flat.bills.length === 0 && (
-        <div className="mt-6 card p-6 text-sm text-on-surface-variant">
-          No bill transactions found for {selectedYear}.
-        </div>
-      )}
-    </div>
-  );
-}
-
-function getPaymentMethodLabel(method: PaymentMethod) {
-  const labels: Record<PaymentMethod, string> = {
-    PHONEPE: 'PhonePe',
-    CASH: 'Cash',
-    CHEQUE: 'Cheque',
-    BANK_TRANSFER: 'Bank Transfer',
-    UPI_OTHER: 'UPI',
-    ADVANCE: 'Advance',
-  };
-
-  return labels[method] || method;
-}
-
-function Row({ label, value, icon }: { label: string; value: string | number | null | undefined; icon?: React.ReactNode }) {
-  return (
-    <div className="flex justify-between items-center py-1.5 border-b border-outline-variant/5 last:border-0">
-      <span className="text-on-surface-variant">{label}</span>
-      <span className="font-medium text-on-surface flex items-center gap-1.5">
-        {icon} {value || '—'}
-      </span>
-    </div>
-  );
-}
-
-function getParkingLabel(parkingType?: 'NONE' | 'OPEN' | 'COVERED', parkingSlotNumber?: string) {
-  if (!parkingType || parkingType === 'NONE') {
-    return 'None';
-  }
-
-  return `${parkingType}${parkingSlotNumber ? ` - Slot ${parkingSlotNumber}` : ''}`;
-}
-
-function EditableResidentRow({
-  label,
-  value,
-  icon,
-  canEdit = true,
-  isEditing,
-  inputValue,
-  placeholder,
-  inputMode,
-  maxLength,
-  onStartEdit,
-  onCancel,
-  onChange,
-  onSave,
-  isSaving,
-}: {
-  label: string;
-  value: string | null | undefined;
-  icon?: React.ReactNode;
-  canEdit?: boolean;
-  isEditing: boolean;
-  inputValue: string;
-  placeholder?: string;
-  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
-  maxLength?: number;
-  onStartEdit: () => void;
-  onCancel: () => void;
-  onChange: (value: string) => void;
-  onSave: () => void;
-  isSaving: boolean;
-}) {
-  if (!isEditing) {
-    return (
-      <div className="flex justify-between items-center py-1.5 border-b border-outline-variant/5 last:border-0 gap-3">
-        <span className="text-on-surface-variant">{label}</span>
-        <span className="font-medium text-on-surface flex items-center gap-1.5">
-          {icon} {value || '—'}
-          {canEdit ? (
-            <button type="button" className="text-primary hover:text-primary/80" onClick={onStartEdit} aria-label={`Edit ${label}`}>
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-          ) : null}
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="py-2 border-b border-outline-variant/5 last:border-0 space-y-2">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-on-surface-variant">{label}</span>
-        <button type="button" className="text-primary hover:text-primary/80" onClick={onCancel} aria-label={`Cancel editing ${label}`}>
-          <Pencil className="w-3.5 h-3.5" />
-        </button>
-      </div>
-      <div className="flex items-center gap-2">
-        <input
-          className="input flex-1"
-          value={inputValue}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={placeholder}
-          inputMode={inputMode}
-          maxLength={maxLength}
+      {flat.tenant && flat.tenant.isActive !== false ? (
+        <TenantDetailsCard
+          tenant={flat.tenant as TenantCardResident}
+          isOwner={isOwner}
+          allowSelfProfileEdit={canEditTenantProfile}
+          supportsPets={supportsPets}
         />
-        <button type="button" className="btn-primary" disabled={isSaving} onClick={onSave}>
-          {isSaving ? 'Saving...' : 'Save'}
-        </button>
-      </div>
+      ) : isOwner ? (
+        <AddTenantCard />
+      ) : null}
+
+      <BillSummarySection flat={flat} selectedYear={selectedYear} setSelectedYear={setSelectedYear} yearOptions={yearOptions} />
     </div>
   );
 }
 
-function OwnerCard({
+function FlatDetailsCard({ flat }: { flat: Flat }) {
+  return (
+    <section className={cn(SHELL_CARD_CLASS, 'p-6 md:p-7')}>
+      <div className="mb-6 flex items-center gap-3">
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+          <Home className="h-5 w-5" />
+        </div>
+        <h2 className="text-2xl font-bold tracking-tight text-slate-900">Flat Details</h2>
+      </div>
+
+      <div className="space-y-0">
+        <FlatRow label="Flat Number" value={flat.flatNumber} />
+        <FlatRow label="Block" value={flat.block?.name || '—'} />
+        <FlatRow label="Society" value={flat.block?.society?.name || '—'} />
+        <FlatRow label="Floor" value={String(flat.floor)} />
+        <FlatRow label="BHK Type" value={flat.type.replace(/_/g, ' ')} />
+        <FlatRow label="Area" value={flat.areaSqFt ? `${flat.areaSqFt} sq.ft.` : '—'} />
+        <FlatRow label="Parking" value={getParkingLabel(flat.parkingType, flat.parkingSlotNumber)} />
+        <FlatRow label="Status" value={<OccupiedBadge occupied={flat.isOccupied} />} last />
+      </div>
+    </section>
+  );
+}
+
+function FlatRow({ label, value, last = false }: { label: string; value: React.ReactNode; last?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-4">
+      <span className="text-[15px] text-slate-500">{label}</span>
+      <div className="text-right text-[15px] font-semibold text-slate-900">{value}</div>
+    </div>
+  );
+}
+
+function OccupiedBadge({ occupied }: { occupied: boolean }) {
+  return occupied ? (
+    <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-700">
+      <span className="h-2 w-2 rounded-full bg-emerald-600" />
+      Occupied
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+      <span className="h-2 w-2 rounded-full bg-slate-500" />
+      Vacant
+    </span>
+  );
+}
+
+function OwnerDetailsCard({
   owner,
+  supportsPets,
   canSelfEdit,
   onPhoneUpdated,
 }: {
-  owner: { name: string; phone?: string; email?: string; carNumber?: string; twoWheelerNumber?: string };
+  owner: Owner;
+  supportsPets: boolean;
   canSelfEdit: boolean;
   onPhoneUpdated: (phone: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const [editingField, setEditingField] = useState<'phone' | 'carNumber' | 'twoWheelerNumber' | null>(null);
-  const [form, setForm] = useState({
-    phone: owner.phone || '',
-    carNumber: owner.carNumber || '',
-    twoWheelerNumber: owner.twoWheelerNumber || '',
-  });
+  const [form, setForm] = useState(() => createResidentProfileForm(owner));
+  const [vehicles, setVehicles] = useState<VehicleDraft[]>(() => getVehicleDrafts(owner.vehicles, owner));
+  const [activeEditor, setActiveEditor] = useState<null | 'occupation' | 'phone' | 'household' | 'vehicles' | 'pets'>(null);
 
   useEffect(() => {
-    setForm({
-      phone: owner.phone || '',
-      carNumber: owner.carNumber || '',
-      twoWheelerNumber: owner.twoWheelerNumber || '',
-    });
-    setEditingField(null);
-  }, [owner.phone, owner.carNumber, owner.twoWheelerNumber]);
+    setForm(createResidentProfileForm(owner));
+    setVehicles(getVehicleDrafts(owner.vehicles, owner));
+    setActiveEditor(null);
+  }, [owner]);
 
   const mutation = useMutation({
-    mutationFn: async (field: 'phone' | 'carNumber' | 'twoWheelerNumber') => {
-      const payload: Record<string, string> = {};
-      payload.relation = 'OWNER';
-
-      if (field === 'phone') {
-        const normalizedPhone = normalizeIndianMobileNumber(form.phone);
-        if (!isValidIndianMobileNumber(normalizedPhone)) {
-          throw new Error('Phone number must be a valid 10-digit Indian mobile number.');
-        }
-        payload.phone = normalizedPhone;
-      } else if (field === 'carNumber') {
-        payload.carNumber = form.carNumber.trim();
-      } else {
-        payload.twoWheelerNumber = form.twoWheelerNumber.trim();
+    mutationFn: async () => {
+      const normalizedPhone = normalizeIndianMobileNumber(form.phone);
+      if (!isValidIndianMobileNumber(normalizedPhone)) {
+        throw new Error('Phone number must be a valid 10-digit Indian mobile number.');
       }
 
-      return (await api.put('/flats/my-flat/resident', payload)).data;
+      return (await api.put('/flats/my-flat/resident', {
+        relation: 'OWNER',
+        phone: normalizedPhone,
+        occupation: form.occupation.trim() || null,
+        householdAdults: parseOptionalCount(form.householdAdults),
+        householdKids: parseOptionalCount(form.householdKids),
+        householdSeniors: parseOptionalCount(form.householdSeniors),
+        pets: supportsPets ? form.pets.trim() || null : null,
+        vehicles: normalizeVehicleDrafts(vehicles),
+      })).data;
     },
-    onSuccess: (_data, field) => {
-      if (field === 'phone') {
-        onPhoneUpdated(normalizeIndianMobileNumber(form.phone));
-      }
-      setEditingField(null);
-      toast.success('Resident details updated');
+    onSuccess: () => {
+      onPhoneUpdated(normalizeIndianMobileNumber(form.phone));
+      toast.success('Owner details updated');
+      setActiveEditor(null);
       queryClient.invalidateQueries({ queryKey: ['my-flat'] });
     },
     onError: (error: any) => {
@@ -327,73 +282,622 @@ function OwnerCard({
   });
 
   return (
-    <div className="card-elevated p-6">
-      <h2 className="text-lg font-bold text-primary mb-4 flex items-center gap-2 editorial-title">
-        <div className="w-8 h-8 rounded-xl bg-secondary-container flex items-center justify-center">
-          <User className="w-4 h-4 text-on-secondary-container" />
+    <section className={cn(SHELL_CARD_CLASS, 'p-6 md:p-7')}>
+      <div className="mb-6 flex items-center gap-3">
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+          <User className="h-5 w-5" />
         </div>
-        Owner
-      </h2>
-      <div className="space-y-3 text-sm">
-        <Row label="Name" value={owner.name} />
-        <EditableResidentRow
-          label="Phone"
-          value={owner.phone}
-          icon={<Phone className="w-3.5 h-3.5" />}
+        <h2 className="text-2xl font-bold tracking-tight text-slate-900">Owner</h2>
+      </div>
+
+      <div className="mb-6 flex flex-col items-center gap-4 md:mb-7">
+        <div className="relative">
+          <div className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-slate-200 bg-slate-100 text-slate-500">
+            <UserRound className="h-10 w-10" />
+          </div>
+          <button
+            type="button"
+            className="absolute bottom-0 right-0 flex h-10 w-10 items-center justify-center rounded-full bg-blue-700 text-white shadow-lg transition hover:bg-blue-800"
+          >
+            <Camera className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-5">
+        <StaticField label="Name" value={owner.name} />
+
+        <EditableTextField
+          label="Occupation"
+          icon={<BriefcaseBusiness className="h-4 w-4" />}
+          value={form.occupation}
+          displayValue={owner.occupation || '—'}
           canEdit={canSelfEdit}
-          isEditing={editingField === 'phone'}
-          inputValue={form.phone}
+          isEditing={activeEditor === 'occupation'}
+          onStartEdit={() => setActiveEditor('occupation')}
+          onCancelEdit={() => {
+            setForm((current) => ({ ...current, occupation: owner.occupation || '' }));
+            setActiveEditor(null);
+          }}
+          onSave={() => mutation.mutate()}
+          isSaving={mutation.isPending}
+          onChange={(value) => setForm((current) => ({ ...current, occupation: value }))}
+        />
+
+        <EditableTextField
+          label="Phone"
+          icon={<Phone className="h-4 w-4" />}
+          value={form.phone}
+          displayValue={owner.phone || '—'}
+          canEdit={canSelfEdit}
+          isEditing={activeEditor === 'phone'}
+          onStartEdit={() => setActiveEditor('phone')}
+          onCancelEdit={() => {
+            setForm((current) => ({ ...current, phone: owner.phone || '' }));
+            setActiveEditor(null);
+          }}
+          onSave={() => mutation.mutate()}
+          isSaving={mutation.isPending}
           inputMode="numeric"
           maxLength={10}
-          placeholder="9876543210"
-          onStartEdit={() => canSelfEdit && setEditingField('phone')}
-          onCancel={() => {
-            setEditingField(null);
-            setForm((current) => ({ ...current, phone: owner.phone || '' }));
-          }}
           onChange={(value) => setForm((current) => ({ ...current, phone: value }))}
-          onSave={() => mutation.mutate('phone')}
-          isSaving={mutation.isPending && editingField === 'phone'}
         />
-        <Row label="Email" value={owner.email} icon={<Mail className="w-3.5 h-3.5" />} />
-        <EditableResidentRow
-          label="Car"
-          value={owner.carNumber}
+
+        <StaticField label="Email" value={owner.email || '—'} icon={<Mail className="h-4 w-4" />} />
+
+        <FamilyMembersField
+          adults={form.householdAdults}
+          kids={form.householdKids}
+          seniors={form.householdSeniors}
           canEdit={canSelfEdit}
-          isEditing={editingField === 'carNumber'}
-          inputValue={form.carNumber}
-          placeholder="Optional"
-          onStartEdit={() => canSelfEdit && setEditingField('carNumber')}
-          onCancel={() => {
-            setEditingField(null);
-            setForm((current) => ({ ...current, carNumber: owner.carNumber || '' }));
+          isEditing={activeEditor === 'household'}
+          onStartEdit={() => setActiveEditor('household')}
+          onCancelEdit={() => {
+            setForm((current) => ({
+              ...current,
+              householdAdults: owner.householdAdults != null ? String(owner.householdAdults) : '',
+              householdKids: owner.householdKids != null ? String(owner.householdKids) : '',
+              householdSeniors: owner.householdSeniors != null ? String(owner.householdSeniors) : '',
+            }));
+            setActiveEditor(null);
           }}
-          onChange={(value) => setForm((current) => ({ ...current, carNumber: value }))}
-          onSave={() => mutation.mutate('carNumber')}
-          isSaving={mutation.isPending && editingField === 'carNumber'}
+          onSave={() => mutation.mutate()}
+          isSaving={mutation.isPending}
+          onAdultsChange={(value) => setForm((current) => ({ ...current, householdAdults: value }))}
+          onKidsChange={(value) => setForm((current) => ({ ...current, householdKids: value }))}
+          onSeniorsChange={(value) => setForm((current) => ({ ...current, householdSeniors: value }))}
         />
-        <EditableResidentRow
-          label="Two Wheeler"
-          value={owner.twoWheelerNumber}
+
+        <VehicleDetailsField
+          vehicles={vehicles}
           canEdit={canSelfEdit}
-          isEditing={editingField === 'twoWheelerNumber'}
-          inputValue={form.twoWheelerNumber}
-          placeholder="Optional"
-          onStartEdit={() => canSelfEdit && setEditingField('twoWheelerNumber')}
-          onCancel={() => {
-            setEditingField(null);
-            setForm((current) => ({ ...current, twoWheelerNumber: owner.twoWheelerNumber || '' }));
+          isEditing={activeEditor === 'vehicles'}
+          onStartEdit={() => setActiveEditor('vehicles')}
+          onCancelEdit={() => {
+            setVehicles(getVehicleDrafts(owner.vehicles, owner));
+            setActiveEditor(null);
           }}
-          onChange={(value) => setForm((current) => ({ ...current, twoWheelerNumber: value }))}
-          onSave={() => mutation.mutate('twoWheelerNumber')}
-          isSaving={mutation.isPending && editingField === 'twoWheelerNumber'}
+          onSave={() => mutation.mutate()}
+          isSaving={mutation.isPending}
+          onChange={setVehicles}
         />
+
+        {supportsPets ? (
+          <EditableTextField
+            label="Pets"
+            icon={<PawPrint className="h-4 w-4" />}
+            value={form.pets}
+            displayValue={owner.pets || '—'}
+            canEdit={canSelfEdit}
+            isEditing={activeEditor === 'pets'}
+            onStartEdit={() => setActiveEditor('pets')}
+            onCancelEdit={() => {
+              setForm((current) => ({ ...current, pets: owner.pets || '' }));
+              setActiveEditor(null);
+            }}
+            onSave={() => mutation.mutate()}
+            isSaving={mutation.isPending}
+            onChange={(value) => setForm((current) => ({ ...current, pets: value }))}
+          />
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function StaticField({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <p className={FIELD_LABEL_CLASS}>{label}</p>
+      <div className="flex items-center gap-2 text-slate-900">
+        {icon ? <span className="text-slate-400">{icon}</span> : null}
+        <p className={FIELD_VALUE_CLASS}>{value}</p>
       </div>
     </div>
   );
 }
 
-// ── TENANT FORM (shared by Add & Edit) ──────────────────
+function EditableTextField({
+  label,
+  value,
+  displayValue,
+  canEdit,
+  isEditing,
+  onStartEdit,
+  onCancelEdit,
+  onSave,
+  isSaving = false,
+  onChange,
+  icon,
+  inputMode,
+  maxLength,
+}: {
+  label: string;
+  value: string;
+  displayValue: string;
+  canEdit: boolean;
+  isEditing: boolean;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSave?: () => void;
+  isSaving?: boolean;
+  onChange: (value: string) => void;
+  icon?: React.ReactNode;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
+  maxLength?: number;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <p className={FIELD_LABEL_CLASS}>{label}</p>
+      {canEdit && isEditing ? (
+        <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+          <div className="flex items-center gap-3">
+            {icon ? <span className="text-slate-400">{icon}</span> : null}
+            <input
+              className="w-full border-0 bg-transparent p-0 text-[15px] font-semibold text-slate-900 placeholder:text-slate-300 focus:ring-0"
+              value={value}
+              onChange={(event) => onChange(event.target.value)}
+              inputMode={inputMode}
+              maxLength={maxLength}
+              placeholder="Optional"
+            />
+          </div>
+          {onSave ? (
+            <div className="flex items-center justify-end gap-3">
+              <button type="button" className="text-xs font-semibold text-slate-500" onClick={onCancelEdit}>Cancel</button>
+              <button type="button" className="btn-primary px-4 py-2 text-sm" disabled={isSaving} onClick={onSave}>
+                {isSaving ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : 'Save'}
+              </button>
+            </div>
+          ) : (
+            <div className="flex justify-end">
+              <button type="button" className="text-xs font-semibold text-slate-500" onClick={onCancelEdit}>Cancel</button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-slate-900">
+            {icon ? <span className="text-slate-400">{icon}</span> : null}
+            <p className={FIELD_VALUE_CLASS}>{displayValue}</p>
+          </div>
+          {canEdit ? (
+            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" onClick={onStartEdit}>
+              <Pencil className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FamilyMembersField({
+  adults,
+  kids,
+  seniors,
+  canEdit,
+  isEditing,
+  onStartEdit,
+  onCancelEdit,
+  onSave,
+  isSaving = false,
+  onAdultsChange,
+  onKidsChange,
+  onSeniorsChange,
+}: {
+  adults: string;
+  kids: string;
+  seniors: string;
+  canEdit: boolean;
+  isEditing: boolean;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSave?: () => void;
+  isSaving?: boolean;
+  onAdultsChange: (value: string) => void;
+  onKidsChange: (value: string) => void;
+  onSeniorsChange: (value: string) => void;
+}) {
+  const summary = [
+    adults ? `${adults} Adults` : null,
+    kids ? `${kids} Kid${kids === '1' ? '' : 's'}` : null,
+    seniors ? `${seniors} Senior` : null,
+  ].filter(Boolean).join('   ');
+
+  return (
+    <div className="space-y-1.5">
+      <p className={FIELD_LABEL_CLASS}>Family Members</p>
+      {canEdit && isEditing ? (
+        <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <CountInput label="Adults" value={adults} onChange={onAdultsChange} />
+            <CountInput label="Kids" value={kids} onChange={onKidsChange} />
+            <CountInput label="Senior" value={seniors} onChange={onSeniorsChange} />
+          </div>
+          <div className="flex items-center justify-end gap-3">
+            <button type="button" className="text-xs font-semibold text-slate-500" onClick={onCancelEdit}>Cancel</button>
+            {onSave ? (
+              <button type="button" className="btn-primary px-4 py-2 text-sm" disabled={isSaving} onClick={onSave}>
+                {isSaving ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : 'Save'}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-4 text-slate-900">
+            <span className="inline-flex items-center gap-2"><Users className="h-4 w-4 text-slate-400" /> <span className={FIELD_VALUE_CLASS}>{summary || '—'}</span></span>
+          </div>
+          {canEdit ? (
+            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" onClick={onStartEdit}>
+              <Pencil className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CountInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="space-y-1">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{label}</span>
+      <input
+        className="input !h-11 !rounded-xl"
+        value={value}
+        onChange={(event) => onChange(event.target.value.replace(/[^0-9]/g, ''))}
+        inputMode="numeric"
+        placeholder="0"
+      />
+    </label>
+  );
+}
+
+function VehicleDetailsField({
+  vehicles,
+  canEdit,
+  isEditing,
+  onStartEdit,
+  onCancelEdit,
+  onSave,
+  isSaving = false,
+  onChange,
+}: {
+  vehicles: VehicleDraft[];
+  canEdit: boolean;
+  isEditing: boolean;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSave?: () => void;
+  isSaving?: boolean;
+  onChange: (vehicles: VehicleDraft[]) => void;
+}) {
+  const groupedVehicles = getVehicleDisplayGroups(vehicles);
+
+  const updateVehicle = (vehicleId: string, key: 'type' | 'registrationNumber', value: string) => {
+    onChange(vehicles.map((vehicle) => (vehicle.id === vehicleId ? { ...vehicle, [key]: value } : vehicle)));
+  };
+
+  const addVehicle = (type?: VehicleType) => {
+    onChange([
+      ...vehicles,
+      {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        type: type || 'FOUR_WHEELER',
+        registrationNumber: '',
+      },
+    ]);
+  };
+
+  const removeVehicle = (vehicleId: string) => {
+    onChange(vehicles.filter((vehicle) => vehicle.id !== vehicleId));
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <p className={FIELD_LABEL_CLASS}>Vehicle Details</p>
+      {canEdit && isEditing ? (
+        <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+          {vehicles.length === 0 ? (
+            <p className="text-sm text-slate-400">No vehicles registered yet.</p>
+          ) : (
+            vehicles.map((vehicle) => (
+              <div key={vehicle.id} className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-[140px_minmax(0,1fr)_44px] sm:items-center">
+                <select className="input !h-11 !rounded-xl" value={vehicle.type} onChange={(event) => updateVehicle(vehicle.id, 'type', event.target.value)}>
+                  {VEHICLE_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <input
+                  className="input !h-11 !rounded-xl uppercase"
+                  value={vehicle.registrationNumber}
+                  onChange={(event) => updateVehicle(vehicle.id, 'registrationNumber', event.target.value.toUpperCase())}
+                  placeholder="TN 01 AB 1234"
+                />
+                <button type="button" className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-error" onClick={() => removeVehicle(vehicle.id)}>
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))
+          )}
+          <div className="flex flex-wrap gap-3">
+            <button type="button" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700" onClick={() => addVehicle('FOUR_WHEELER')}>
+              <CirclePlus className="h-4 w-4" /> Add Car
+            </button>
+            <button type="button" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700" onClick={() => addVehicle('TWO_WHEELER')}>
+              <CirclePlus className="h-4 w-4" /> Add Two Wheeler
+            </button>
+          </div>
+          <div className="flex items-center justify-end gap-3">
+            <button type="button" className="text-xs font-semibold text-slate-500" onClick={onCancelEdit}>Cancel</button>
+            {onSave ? (
+              <button type="button" className="btn-primary px-4 py-2 text-sm" disabled={isSaving} onClick={onSave}>
+                {isSaving ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : 'Save'}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1 space-y-2">
+              <VehicleDisplayRow icon={<CarFront className="h-4 w-4" />} label={groupedVehicles.car || '—'} muted={!groupedVehicles.car} />
+              <VehicleDisplayRow icon={<Bike className="h-4 w-4" />} label={groupedVehicles.twoWheeler || 'No two wheeler registered'} muted={!groupedVehicles.twoWheeler} />
+            </div>
+            {canEdit ? (
+              <button type="button" className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" onClick={onStartEdit}>
+                <Pencil className="h-4 w-4" />
+              </button>
+            ) : null}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VehicleDisplayRow({ icon, label, muted = false }: { icon: React.ReactNode; label: string; muted?: boolean }) {
+  return (
+    <div className={cn('flex items-center gap-2', muted ? 'text-slate-400 italic' : 'text-slate-900')}>
+      <span className="text-slate-400">{icon}</span>
+      <span className={cn(FIELD_VALUE_CLASS, muted && 'text-slate-400 italic font-medium')}>{label}</span>
+    </div>
+  );
+}
+
+function TenantDetailsCard({
+  tenant,
+  isOwner,
+  allowSelfProfileEdit,
+  supportsPets,
+}: {
+  tenant: TenantCardResident;
+  isOwner: boolean;
+  allowSelfProfileEdit: boolean;
+  supportsPets: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [editingTenant, setEditingTenant] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [profileForm, setProfileForm] = useState(() => createResidentProfileForm(tenant));
+  const [vehicles, setVehicles] = useState<VehicleDraft[]>(() => getVehicleDrafts(tenant.vehicles, tenant));
+  const [activeProfileEditor, setActiveProfileEditor] = useState<null | 'occupation' | 'household' | 'vehicles' | 'pets'>(null);
+
+  useEffect(() => {
+    setProfileForm(createResidentProfileForm(tenant));
+    setVehicles(getVehicleDrafts(tenant.vehicles, tenant));
+    setActiveProfileEditor(null);
+  }, [tenant]);
+
+  const updateMutation = useMutation({
+    mutationFn: (data: TenantFormData) =>
+      api.put('/flats/my-flat/tenant', {
+        name: data.name,
+        phone: data.phone,
+        email: data.email || undefined,
+        leaseStart: data.leaseStart || undefined,
+        leaseEnd: data.leaseEnd || undefined,
+        rentAmount: data.rentAmount !== '' ? data.rentAmount : undefined,
+        deposit: data.deposit !== '' ? data.deposit : undefined,
+      }),
+    onSuccess: () => {
+      toast.success('Tenant updated');
+      setEditingTenant(false);
+      queryClient.invalidateQueries({ queryKey: ['my-flat'] });
+    },
+    onError: (e: any) => toast.error(getApiErrorMessage(e, 'Failed to update tenant')),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: () => api.delete('/flats/my-flat/tenant'),
+    onSuccess: () => {
+      toast.success('Tenant removed');
+      setShowRemoveConfirm(false);
+      queryClient.invalidateQueries({ queryKey: ['my-flat'] });
+    },
+    onError: (e: any) => toast.error(getApiErrorMessage(e, 'Failed to remove tenant')),
+  });
+
+  const residentMutation = useMutation({
+    mutationFn: async () => {
+      return (await api.put('/flats/my-flat/resident', {
+        relation: 'TENANT',
+        occupation: profileForm.occupation.trim() || null,
+        householdAdults: parseOptionalCount(profileForm.householdAdults),
+        householdKids: parseOptionalCount(profileForm.householdKids),
+        householdSeniors: parseOptionalCount(profileForm.householdSeniors),
+        pets: supportsPets ? profileForm.pets.trim() || null : null,
+        vehicles: normalizeVehicleDrafts(vehicles),
+      })).data;
+    },
+    onSuccess: () => {
+      toast.success('Resident details updated');
+      setActiveProfileEditor(null);
+      queryClient.invalidateQueries({ queryKey: ['my-flat'] });
+    },
+    onError: (error: any) => toast.error(getApiErrorMessage(error, 'Failed to update resident details')),
+  });
+
+  const toDateStr = (dateValue: string | null | undefined) => (dateValue ? new Date(dateValue).toISOString().split('T')[0] : '');
+
+  if (editingTenant) {
+    return (
+      <section className={cn(SHELL_CARD_CLASS, 'p-6 md:p-7')}>
+        <h2 className="mb-4 text-2xl font-bold tracking-tight text-slate-900">Edit Tenant</h2>
+        <TenantForm
+          initial={{
+            name: tenant.name || '',
+            phone: tenant.phone || '',
+            email: tenant.email || '',
+            leaseStart: toDateStr(tenant.leaseStart || tenant.leaseStartDate),
+            leaseEnd: toDateStr(tenant.leaseEnd || tenant.leaseEndDate),
+            rentAmount: tenant.rentAmount?.toString() || '',
+            deposit: tenant.deposit?.toString() || '',
+          }}
+          onSubmit={(data) => updateMutation.mutate(data)}
+          onCancel={() => setEditingTenant(false)}
+          isPending={updateMutation.isPending}
+          submitLabel="Save Changes"
+        />
+      </section>
+    );
+  }
+
+  return (
+    <section className={cn(SHELL_CARD_CLASS, 'p-6 md:p-7')}>
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <h2 className="text-2xl font-bold tracking-tight text-slate-900">Tenant</h2>
+        {isOwner ? (
+          <div className="flex items-center gap-2">
+            <button type="button" className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700" onClick={() => setEditingTenant(true)}>
+              Edit
+            </button>
+            <button type="button" className="rounded-xl border border-red-200 px-3 py-2 text-sm font-semibold text-red-600" onClick={() => setShowRemoveConfirm(true)}>
+              Remove
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <StaticField label="Name" value={tenant.name} icon={<User className="h-4 w-4" />} />
+        <StaticField label="Email" value={tenant.email || '—'} icon={<Mail className="h-4 w-4" />} />
+        <StaticField label="Phone" value={tenant.phone || '—'} icon={<Phone className="h-4 w-4" />} />
+        <StaticField label="Lease Start" value={formatOptionalDate(tenant.leaseStart || tenant.leaseStartDate)} icon={<Calendar className="h-4 w-4" />} />
+        <StaticField label="Lease End" value={formatOptionalDate(tenant.leaseEnd || tenant.leaseEndDate)} icon={<Calendar className="h-4 w-4" />} />
+        <StaticField label="Rent" value={tenant.rentAmount ? formatCurrency(tenant.rentAmount) : '—'} />
+      </div>
+
+      {allowSelfProfileEdit ? (
+        <div className="mt-6 space-y-5 border-t border-slate-200 pt-5">
+          <EditableTextField
+            label="Occupation"
+            icon={<BriefcaseBusiness className="h-4 w-4" />}
+            value={profileForm.occupation}
+            displayValue={tenant.occupation || '—'}
+            canEdit
+            isEditing={activeProfileEditor === 'occupation'}
+            onStartEdit={() => setActiveProfileEditor('occupation')}
+            onCancelEdit={() => {
+              setProfileForm((current) => ({ ...current, occupation: tenant.occupation || '' }));
+              setActiveProfileEditor(null);
+            }}
+            onChange={(value) => setProfileForm((current) => ({ ...current, occupation: value }))}
+          />
+
+          <FamilyMembersField
+            adults={profileForm.householdAdults}
+            kids={profileForm.householdKids}
+            seniors={profileForm.householdSeniors}
+            canEdit
+            isEditing={activeProfileEditor === 'household'}
+            onStartEdit={() => setActiveProfileEditor('household')}
+            onCancelEdit={() => {
+              setProfileForm((current) => ({
+                ...current,
+                householdAdults: tenant.householdAdults != null ? String(tenant.householdAdults) : '',
+                householdKids: tenant.householdKids != null ? String(tenant.householdKids) : '',
+                householdSeniors: tenant.householdSeniors != null ? String(tenant.householdSeniors) : '',
+              }));
+              setActiveProfileEditor(null);
+            }}
+            onAdultsChange={(value) => setProfileForm((current) => ({ ...current, householdAdults: value }))}
+            onKidsChange={(value) => setProfileForm((current) => ({ ...current, householdKids: value }))}
+            onSeniorsChange={(value) => setProfileForm((current) => ({ ...current, householdSeniors: value }))}
+          />
+
+          <VehicleDetailsField
+            vehicles={vehicles}
+            canEdit
+            isEditing={activeProfileEditor === 'vehicles'}
+            onStartEdit={() => setActiveProfileEditor('vehicles')}
+            onCancelEdit={() => {
+              setVehicles(getVehicleDrafts(tenant.vehicles, tenant));
+              setActiveProfileEditor(null);
+            }}
+            onChange={setVehicles}
+          />
+
+          {supportsPets ? (
+            <EditableTextField
+              label="Pets"
+              icon={<PawPrint className="h-4 w-4" />}
+              value={profileForm.pets}
+              displayValue={tenant.pets || '—'}
+              canEdit
+              isEditing={activeProfileEditor === 'pets'}
+              onStartEdit={() => setActiveProfileEditor('pets')}
+              onCancelEdit={() => {
+                setProfileForm((current) => ({ ...current, pets: tenant.pets || '' }));
+                setActiveProfileEditor(null);
+              }}
+              onChange={(value) => setProfileForm((current) => ({ ...current, pets: value }))}
+            />
+          ) : null}
+
+          <button type="button" className="btn-primary w-full md:w-auto" disabled={residentMutation.isPending || !activeProfileEditor} onClick={() => residentMutation.mutate()}>
+            {residentMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : 'Save Tenant Details'}
+          </button>
+        </div>
+      ) : null}
+
+      {showRemoveConfirm ? (
+        <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4">
+          <p className="mb-3 text-sm font-medium text-red-700">Are you sure you want to remove this tenant?</p>
+          <div className="flex items-center gap-2">
+            <button type="button" className="btn-danger btn-sm" disabled={removeMutation.isPending} onClick={() => removeMutation.mutate()}>
+              {removeMutation.isPending ? 'Removing...' : 'Yes, Remove'}
+            </button>
+            <button type="button" className="btn-secondary btn-sm" onClick={() => setShowRemoveConfirm(false)}>Cancel</button>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 interface TenantFormData {
   name: string;
   phone: string;
@@ -405,6 +909,329 @@ interface TenantFormData {
 }
 
 const emptyForm: TenantFormData = { name: '', phone: '', email: '', leaseStart: '', leaseEnd: '', rentAmount: '', deposit: '' };
+
+function TenantForm({
+  initial,
+  onSubmit,
+  onCancel,
+  isPending,
+  submitLabel,
+}: {
+  initial: TenantFormData;
+  onSubmit: (data: TenantFormData) => void;
+  onCancel: () => void;
+  isPending: boolean;
+  submitLabel: string;
+}) {
+  const [form, setForm] = useState<TenantFormData>(initial);
+  const set = (field: keyof TenantFormData, value: string) => setForm((current) => ({ ...current, [field]: value }));
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <label className="space-y-1.5">
+          <span className={FIELD_LABEL_CLASS}>Name</span>
+          <input className="input" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Tenant name" />
+        </label>
+        <label className="space-y-1.5">
+          <span className={FIELD_LABEL_CLASS}>Phone</span>
+          <input className="input" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="10-digit mobile" inputMode="numeric" maxLength={10} />
+        </label>
+        <label className="space-y-1.5">
+          <span className={FIELD_LABEL_CLASS}>Email</span>
+          <input className="input" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="tenant@email.com" />
+        </label>
+        <label className="space-y-1.5">
+          <span className={FIELD_LABEL_CLASS}>Lease Start</span>
+          <input className="input" type="date" value={form.leaseStart} onChange={(e) => set('leaseStart', e.target.value)} />
+        </label>
+        <label className="space-y-1.5">
+          <span className={FIELD_LABEL_CLASS}>Lease End</span>
+          <input className="input" type="date" value={form.leaseEnd} onChange={(e) => set('leaseEnd', e.target.value)} />
+        </label>
+        <label className="space-y-1.5">
+          <span className={FIELD_LABEL_CLASS}>Rent Amount</span>
+          <input className="input" type="number" value={form.rentAmount} onChange={(e) => set('rentAmount', e.target.value)} placeholder="Monthly rent" />
+        </label>
+        <label className="space-y-1.5">
+          <span className={FIELD_LABEL_CLASS}>Deposit</span>
+          <input className="input" type="number" value={form.deposit} onChange={(e) => set('deposit', e.target.value)} placeholder="Security deposit" />
+        </label>
+      </div>
+
+      {form.email && form.phone ? (
+        <div className="flex items-start gap-2 rounded-xl bg-slate-100 p-3 text-xs text-slate-700">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>A login account will be created for the tenant. Default password is the phone number.</span>
+        </div>
+      ) : null}
+
+      <div className="flex items-center gap-3 pt-2">
+        <button
+          className="btn-primary"
+          disabled={isPending || !form.name.trim() || !form.phone.trim()}
+          onClick={() => {
+            const normalized = normalizeTenantForm(form);
+            if (!normalized) return;
+            onSubmit(normalized);
+          }}
+        >
+          {isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : submitLabel}
+        </button>
+        <button className="btn-secondary" onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function AddTenantCard() {
+  const queryClient = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+
+  const addMutation = useMutation({
+    mutationFn: (data: TenantFormData) =>
+      api.post('/flats/my-flat/tenant', {
+        name: data.name,
+        phone: data.phone,
+        email: data.email || undefined,
+        leaseStart: data.leaseStart || undefined,
+        leaseEnd: data.leaseEnd || undefined,
+        rentAmount: data.rentAmount || undefined,
+        deposit: data.deposit || undefined,
+      }),
+    onSuccess: (res) => {
+      const msg = res.data.userCreated
+        ? 'Tenant added! They can log in with their email & phone number as password.'
+        : 'Tenant added successfully.';
+      toast.success(msg, { duration: 5000 });
+      setShowForm(false);
+      queryClient.invalidateQueries({ queryKey: ['my-flat'] });
+    },
+    onError: (e: any) => toast.error(getApiErrorMessage(e, 'Failed to add tenant')),
+  });
+
+  if (!showForm) {
+    return (
+      <section className={cn(SHELL_CARD_CLASS, 'p-6 md:p-7')}>
+        <div className="text-center">
+          <User className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+          <p className="mb-4 text-sm text-slate-500">No tenant is linked to this flat.</p>
+          <button className="btn-primary" onClick={() => setShowForm(true)}>
+            Add Tenant
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className={cn(SHELL_CARD_CLASS, 'p-6 md:p-7')}>
+      <h2 className="mb-4 text-2xl font-bold tracking-tight text-slate-900">Add Tenant</h2>
+      <TenantForm
+        initial={emptyForm}
+        onSubmit={(data) => addMutation.mutate(data)}
+        onCancel={() => setShowForm(false)}
+        isPending={addMutation.isPending}
+        submitLabel="Add Tenant"
+      />
+    </section>
+  );
+}
+
+function BillSummarySection({
+  flat,
+  selectedYear,
+  setSelectedYear,
+  yearOptions,
+}: {
+  flat: Flat;
+  selectedYear: number;
+  setSelectedYear: (value: number) => void;
+  yearOptions: number[];
+}) {
+  const bills = flat.bills || [];
+
+  return (
+    <section className={cn(SHELL_CARD_CLASS, 'overflow-hidden')}>
+      <div className="flex flex-col gap-4 border-b border-slate-200 px-6 py-5 md:flex-row md:items-center md:justify-between md:px-7">
+        <h2 className="text-2xl font-bold tracking-tight text-slate-900">Bill Summary</h2>
+        <div className="relative w-[112px]">
+          <select
+            className="select !h-11 !rounded-xl !border-slate-200 !bg-slate-50 px-4 pr-9 font-semibold"
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+          >
+            {yearOptions.map((year) => (
+              <option key={year} value={year}>{year}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {bills.length > 0 ? (
+        <>
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Month</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Due Date</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Amount</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Paid</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Balance</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Payment Date</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Payment Mode</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {bills.map((bill) => {
+                  const latestPayment = bill.payments?.[0];
+                  return (
+                    <tr key={bill.id} className="hover:bg-slate-50/80">
+                      <td className="px-6 py-5 text-[15px] font-semibold text-slate-900">{getMonthName(bill.month)} {bill.year}</td>
+                      <td className="px-6 py-5 text-[15px] text-slate-600">{formatDate(bill.dueDate)}</td>
+                      <td className="px-6 py-5 text-[15px] font-semibold text-slate-900">{formatCurrency(bill.totalAmount)}</td>
+                      <td className="px-6 py-5 text-[15px] text-slate-600">{formatCurrency(bill.paidAmount)}</td>
+                      <td className="px-6 py-5 text-[15px] font-semibold text-slate-900">{formatCurrency(bill.totalAmount - bill.paidAmount)}</td>
+                      <td className="px-6 py-5 text-[15px] text-slate-400">{latestPayment?.paidAt ? formatDate(latestPayment.paidAt) : '—'}</td>
+                      <td className="px-6 py-5 text-[15px] text-slate-400">{latestPayment ? getPaymentMethodLabel(latestPayment.method) : '—'}</td>
+                      <td className="px-6 py-5"><BillStatusBadge status={bill.status} /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="divide-y divide-slate-200 md:hidden">
+            {bills.map((bill) => (
+              <MobileBillCard key={bill.id} bill={bill} />
+            ))}
+            <button type="button" className="w-full px-6 py-5 text-center text-sm font-semibold text-blue-700">
+              View All Billing History
+            </button>
+          </div>
+
+          <div className="hidden items-center justify-between border-t border-slate-200 bg-slate-50 px-6 py-4 md:flex">
+            <p className="text-xs font-medium text-slate-500">Showing {bills.length} bills for the year {selectedYear}</p>
+            <div className="flex items-center gap-2">
+              <button type="button" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400" disabled>
+                ‹
+              </button>
+              <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg bg-blue-700 px-2 text-sm font-semibold text-white">1</span>
+              <button type="button" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400" disabled>
+                ›
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="px-6 py-10 text-sm text-slate-500">No bill transactions found for {selectedYear}.</div>
+      )}
+    </section>
+  );
+}
+
+function MobileBillCard({ bill }: { bill: MaintenanceBill }) {
+  return (
+    <div className="space-y-4 px-6 py-5">
+      <MobileBillRow label="Month" value={`${getMonthName(bill.month)} ${bill.year}`} emphasized />
+      <MobileBillRow label="Due Date" value={formatDate(bill.dueDate)} />
+      <MobileBillRow label="Amount" value={formatCurrency(bill.totalAmount)} emphasized />
+      <MobileBillRow label="Status" value={<BillStatusBadge status={bill.status} />} />
+    </div>
+  );
+}
+
+function MobileBillRow({ label, value, emphasized = false }: { label: string; value: React.ReactNode; emphasized?: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="text-[15px] text-slate-500">{label}</span>
+      <div className={cn('text-right text-[16px] text-slate-900', emphasized && 'font-bold')}>{value}</div>
+    </div>
+  );
+}
+
+function BillStatusBadge({ status }: { status: MaintenanceBill['status'] }) {
+  const classes = {
+    PENDING: 'border-amber-200 bg-amber-50 text-amber-700',
+    PARTIAL: 'border-blue-200 bg-blue-50 text-blue-700',
+    PAID: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    OVERDUE: 'border-red-200 bg-red-600 text-white md:bg-red-50 md:text-red-700',
+  } satisfies Record<MaintenanceBill['status'], string>;
+
+  return (
+    <span className={cn('inline-flex rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.08em]', classes[status])}>
+      {status}
+    </span>
+  );
+}
+
+function createResidentProfileForm(resident: ResidentLike): ResidentProfileFormState {
+  return {
+    phone: resident.phone || '',
+    occupation: resident.occupation || '',
+    householdAdults: resident.householdAdults != null ? String(resident.householdAdults) : '',
+    householdKids: resident.householdKids != null ? String(resident.householdKids) : '',
+    householdSeniors: resident.householdSeniors != null ? String(resident.householdSeniors) : '',
+    pets: resident.pets || '',
+  };
+}
+
+function createVehicleDraft(vehicle?: ResidentVehicle): VehicleDraft {
+  return {
+    id: vehicle?.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type: vehicle?.type || 'FOUR_WHEELER',
+    registrationNumber: vehicle?.registrationNumber || '',
+  };
+}
+
+function getVehicleDrafts(existingVehicles?: ResidentVehicle[], fallback?: { carNumber?: string | null; twoWheelerNumber?: string | null }) {
+  if (existingVehicles?.length) {
+    return existingVehicles.map((vehicle) => createVehicleDraft(vehicle));
+  }
+
+  const drafts: VehicleDraft[] = [];
+  if (fallback?.carNumber) {
+    drafts.push(createVehicleDraft({ id: `legacy-car-${fallback.carNumber}`, type: 'FOUR_WHEELER', registrationNumber: fallback.carNumber }));
+  }
+  if (fallback?.twoWheelerNumber) {
+    drafts.push(createVehicleDraft({ id: `legacy-two-${fallback.twoWheelerNumber}`, type: 'TWO_WHEELER', registrationNumber: fallback.twoWheelerNumber }));
+  }
+  return drafts;
+}
+
+function normalizeVehicleDrafts(vehicles: VehicleDraft[]) {
+  const seen = new Set<string>();
+  const normalized: Array<{ type: VehicleType; registrationNumber: string }> = [];
+
+  for (const vehicle of vehicles) {
+    const registrationNumber = vehicle.registrationNumber.trim().toUpperCase();
+    if (!registrationNumber) continue;
+    const key = `${vehicle.type}:${registrationNumber}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push({ type: vehicle.type, registrationNumber });
+  }
+
+  return normalized;
+}
+
+function getVehicleDisplayGroups(vehicles: VehicleDraft[]) {
+  const carVehicles = vehicles.filter((vehicle) => vehicle.type === 'FOUR_WHEELER' && vehicle.registrationNumber.trim());
+  const twoWheelers = vehicles.filter((vehicle) => vehicle.type === 'TWO_WHEELER' && vehicle.registrationNumber.trim());
+
+  return {
+    car: carVehicles.length ? carVehicles.map((vehicle) => vehicle.registrationNumber.trim()).join(', ') : '',
+    twoWheeler: twoWheelers.length ? twoWheelers.map((vehicle) => vehicle.registrationNumber.trim()).join(', ') : '',
+  };
+}
+
+function parseOptionalCount(value: string) {
+  if (!value.trim()) return null;
+  return Number(value);
+}
 
 function getApiErrorMessage(error: any, fallback: string): string {
   return error?.response?.data?.error || error?.response?.data?.errors?.[0]?.msg || fallback;
@@ -443,301 +1270,26 @@ function normalizeTenantForm(form: TenantFormData): TenantFormData | null {
   };
 }
 
-function TenantForm({ initial, onSubmit, onCancel, isPending, submitLabel }: {
-  initial: TenantFormData;
-  onSubmit: (data: TenantFormData) => void;
-  onCancel: () => void;
-  isPending: boolean;
-  submitLabel: string;
-}) {
-  const [form, setForm] = useState<TenantFormData>(initial);
-  const set = (field: keyof TenantFormData, value: string) => setForm((f) => ({ ...f, [field]: value }));
+function getPaymentMethodLabel(method: PaymentMethod) {
+  const labels: Record<PaymentMethod, string> = {
+    PHONEPE: 'PhonePe',
+    CASH: 'Cash',
+    CHEQUE: 'Cheque',
+    BANK_TRANSFER: 'Bank Transfer',
+    UPI_OTHER: 'UPI',
+    ADVANCE: 'Advance',
+  };
 
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="label">Name *</label>
-          <input className="input" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Tenant name" />
-        </div>
-        <div>
-          <label className="label">Phone *</label>
-          <input className="input" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="10-digit mobile" inputMode="numeric" maxLength={10} />
-        </div>
-        <div>
-          <label className="label">Email</label>
-          <input className="input" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="tenant@email.com" />
-        </div>
-        <div>
-          <label className="label">Lease Start</label>
-          <input className="input" type="date" value={form.leaseStart} onChange={(e) => set('leaseStart', e.target.value)} />
-        </div>
-        <div>
-          <label className="label">Lease End</label>
-          <input className="input" type="date" value={form.leaseEnd} onChange={(e) => set('leaseEnd', e.target.value)} />
-        </div>
-        <div>
-          <label className="label">Rent Amount</label>
-          <input className="input" type="number" value={form.rentAmount} onChange={(e) => set('rentAmount', e.target.value)} placeholder="Monthly rent" />
-        </div>
-        <div>
-          <label className="label">Deposit</label>
-          <input className="input" type="number" value={form.deposit} onChange={(e) => set('deposit', e.target.value)} placeholder="Security deposit" />
-        </div>
-      </div>
-
-      {form.email && form.phone && (
-        <div className="flex items-start gap-2 bg-slate-100 text-slate-700 text-xs rounded-lg p-3">
-          <Info className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>A login account will be created for the tenant. Default password is the phone number.</span>
-        </div>
-      )}
-
-      <div className="flex items-center gap-3 pt-2">
-        <button
-          className="btn-primary"
-          disabled={isPending || !form.name.trim() || !form.phone.trim()}
-          onClick={() => {
-            const normalized = normalizeTenantForm(form);
-            if (!normalized) return;
-            onSubmit(normalized);
-          }}
-        >
-          {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : submitLabel}
-        </button>
-        <button className="btn-secondary" onClick={onCancel}>Cancel</button>
-      </div>
-    </div>
-  );
+  return labels[method] || method;
 }
 
-// ── ADD TENANT CARD (Owner only, no active tenant) ──────
-function AddTenantCard() {
-  const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-
-  const addMutation = useMutation({
-    mutationFn: (data: TenantFormData) =>
-      api.post('/flats/my-flat/tenant', {
-        name: data.name,
-        phone: data.phone,
-        email: data.email || undefined,
-        leaseStart: data.leaseStart || undefined,
-        leaseEnd: data.leaseEnd || undefined,
-        rentAmount: data.rentAmount || undefined,
-        deposit: data.deposit || undefined,
-      }),
-    onSuccess: (res) => {
-      const msg = res.data.userCreated
-        ? 'Tenant added! They can log in with their email & phone number as password.'
-        : 'Tenant added successfully.';
-      toast.success(msg, { duration: 5000 });
-      setShowForm(false);
-      queryClient.invalidateQueries({ queryKey: ['my-flat'] });
-    },
-    onError: (e: any) => toast.error(getApiErrorMessage(e, 'Failed to add tenant')),
-  });
-
-  if (!showForm) {
-    return (
-      <div className="card p-6">
-        <div className="text-center py-4">
-          <User className="w-10 h-10 text-outline/40 mx-auto mb-2" />
-          <p className="text-sm text-on-surface-variant mb-4">No tenant in this flat</p>
-          <button className="btn-primary" onClick={() => setShowForm(true)}>
-            <UserPlus className="w-4 h-4" /> Add Tenant
-          </button>
-        </div>
-      </div>
-    );
+function getParkingLabel(parkingType?: 'NONE' | 'OPEN' | 'COVERED', parkingSlotNumber?: string) {
+  if (!parkingType || parkingType === 'NONE') {
+    return 'None';
   }
-
-  return (
-    <div className="card p-6">
-      <h2 className="text-lg font-semibold text-on-surface mb-4 flex items-center gap-2">
-        <UserPlus className="w-5 h-5 text-primary" /> Add Tenant
-      </h2>
-      <TenantForm
-        initial={emptyForm}
-        onSubmit={(data) => addMutation.mutate(data)}
-        onCancel={() => setShowForm(false)}
-        isPending={addMutation.isPending}
-        submitLabel="Add Tenant"
-      />
-    </div>
-  );
+  return `${parkingType}${parkingSlotNumber ? ` - Slot ${parkingSlotNumber}` : ''}`;
 }
 
-// ── TENANT CARD (displays tenant info, with edit/remove for owner) ──
-function TenantCard({ tenant, isOwner, allowSelfVehicleEdit = false }: { tenant: any; isOwner: boolean; allowSelfVehicleEdit?: boolean }) {
-  const queryClient = useQueryClient();
-  const [editing, setEditing] = useState(false);
-  const [editingField, setEditingField] = useState<'carNumber' | 'twoWheelerNumber' | null>(null);
-  const [residentForm, setResidentForm] = useState({
-    carNumber: tenant.carNumber || '',
-    twoWheelerNumber: tenant.twoWheelerNumber || '',
-  });
-  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
-
-  useEffect(() => {
-    setResidentForm({
-      carNumber: tenant.carNumber || '',
-      twoWheelerNumber: tenant.twoWheelerNumber || '',
-    });
-    setEditingField(null);
-  }, [tenant.carNumber, tenant.twoWheelerNumber]);
-
-  const updateMutation = useMutation({
-    mutationFn: (data: TenantFormData) =>
-      api.put('/flats/my-flat/tenant', {
-        name: data.name,
-        phone: data.phone,
-        email: data.email || undefined,
-        leaseStart: data.leaseStart || undefined,
-        leaseEnd: data.leaseEnd || undefined,
-        rentAmount: data.rentAmount !== '' ? data.rentAmount : undefined,
-        deposit: data.deposit !== '' ? data.deposit : undefined,
-      }),
-    onSuccess: () => {
-      toast.success('Tenant updated');
-      setEditing(false);
-      queryClient.invalidateQueries({ queryKey: ['my-flat'] });
-    },
-    onError: (e: any) => toast.error(getApiErrorMessage(e, 'Failed to update tenant')),
-  });
-
-  const removeMutation = useMutation({
-    mutationFn: () => api.delete('/flats/my-flat/tenant'),
-    onSuccess: () => {
-      toast.success('Tenant removed');
-      setShowRemoveConfirm(false);
-      queryClient.invalidateQueries({ queryKey: ['my-flat'] });
-    },
-    onError: (e: any) => toast.error(getApiErrorMessage(e, 'Failed to remove tenant')),
-  });
-
-  const residentMutation = useMutation({
-    mutationFn: async (field: 'carNumber' | 'twoWheelerNumber') => {
-      const payload: Record<string, string> = field === 'carNumber'
-        ? { relation: 'TENANT', carNumber: residentForm.carNumber.trim() }
-        : { relation: 'TENANT', twoWheelerNumber: residentForm.twoWheelerNumber.trim() };
-
-      return (await api.put('/flats/my-flat/resident', payload)).data;
-    },
-    onSuccess: () => {
-      setEditingField(null);
-      toast.success('Resident details updated');
-      queryClient.invalidateQueries({ queryKey: ['my-flat'] });
-    },
-    onError: (error: any) => toast.error(getApiErrorMessage(error, 'Failed to update resident details')),
-  });
-
-  const toDateStr = (d: string | null | undefined) => (d ? new Date(d).toISOString().split('T')[0] : '');
-
-  if (editing) {
-    return (
-      <div className="card p-6">
-        <h2 className="text-lg font-semibold text-on-surface mb-4 flex items-center gap-2">
-          <Pencil className="w-5 h-5 text-primary" /> Edit Tenant
-        </h2>
-        <TenantForm
-          initial={{
-            name: tenant.name || '',
-            phone: tenant.phone || '',
-            email: tenant.email || '',
-            leaseStart: toDateStr(tenant.leaseStart || tenant.leaseStartDate),
-            leaseEnd: toDateStr(tenant.leaseEnd || tenant.leaseEndDate),
-            rentAmount: tenant.rentAmount?.toString() || '',
-            deposit: tenant.deposit?.toString() || '',
-          }}
-          onSubmit={(data) => updateMutation.mutate(data)}
-          onCancel={() => setEditing(false)}
-          isPending={updateMutation.isPending}
-          submitLabel="Save Changes"
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="card p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-on-surface flex items-center gap-2">
-          <User className="w-5 h-5 text-primary" /> Tenant
-        </h2>
-        {isOwner && (
-          <div className="flex items-center gap-2">
-            <button className="text-xs text-primary hover:text-primary font-medium flex items-center gap-1" onClick={() => setEditing(true)}>
-              <Pencil className="w-3.5 h-3.5" /> Edit
-            </button>
-            <button className="text-xs text-error hover:text-on-error-container font-medium flex items-center gap-1" onClick={() => setShowRemoveConfirm(true)}>
-              <Trash2 className="w-3.5 h-3.5" /> Remove
-            </button>
-          </div>
-        )}
-      </div>
-      <div className="space-y-3 text-sm">
-        <Row label="Name" value={tenant.name} />
-        <Row label="Phone" value={tenant.phone} icon={<Phone className="w-3.5 h-3.5" />} />
-        <Row label="Email" value={tenant.email} icon={<Mail className="w-3.5 h-3.5" />} />
-        {allowSelfVehicleEdit ? (
-          <EditableResidentRow
-            label="Car"
-            value={tenant.carNumber}
-            isEditing={editingField === 'carNumber'}
-            inputValue={residentForm.carNumber}
-            placeholder="Optional"
-            onStartEdit={() => setEditingField('carNumber')}
-            onCancel={() => {
-              setEditingField(null);
-              setResidentForm((current) => ({ ...current, carNumber: tenant.carNumber || '' }));
-            }}
-            onChange={(value) => setResidentForm((current) => ({ ...current, carNumber: value }))}
-            onSave={() => residentMutation.mutate('carNumber')}
-            isSaving={residentMutation.isPending && editingField === 'carNumber'}
-          />
-        ) : tenant.carNumber ? <Row label="Car" value={tenant.carNumber} /> : null}
-        {allowSelfVehicleEdit ? (
-          <EditableResidentRow
-            label="Two Wheeler"
-            value={tenant.twoWheelerNumber}
-            isEditing={editingField === 'twoWheelerNumber'}
-            inputValue={residentForm.twoWheelerNumber}
-            placeholder="Optional"
-            onStartEdit={() => setEditingField('twoWheelerNumber')}
-            onCancel={() => {
-              setEditingField(null);
-              setResidentForm((current) => ({ ...current, twoWheelerNumber: tenant.twoWheelerNumber || '' }));
-            }}
-            onChange={(value) => setResidentForm((current) => ({ ...current, twoWheelerNumber: value }))}
-            onSave={() => residentMutation.mutate('twoWheelerNumber')}
-            isSaving={residentMutation.isPending && editingField === 'twoWheelerNumber'}
-          />
-        ) : tenant.twoWheelerNumber ? <Row label="Two Wheeler" value={tenant.twoWheelerNumber} /> : null}
-        <Row label="Lease Start" value={formatDate(tenant.leaseStart || tenant.leaseStartDate)} icon={<Calendar className="w-3.5 h-3.5" />} />
-        {(tenant.leaseEnd || tenant.leaseEndDate) && (
-          <Row label="Lease End" value={formatDate(tenant.leaseEnd || tenant.leaseEndDate)} icon={<Calendar className="w-3.5 h-3.5" />} />
-        )}
-        {tenant.rentAmount && <Row label="Rent" value={formatCurrency(tenant.rentAmount)} />}
-        {tenant.deposit && <Row label="Deposit" value={formatCurrency(tenant.deposit)} />}
-      </div>
-
-      {/* Remove confirmation */}
-      {showRemoveConfirm && (
-        <div className="mt-4 p-3 bg-error-container rounded-lg border border-error/20">
-          <p className="text-sm text-error mb-3">Are you sure you want to remove this tenant?</p>
-          <div className="flex items-center gap-2">
-            <button
-              className="btn-sm bg-error text-white hover:bg-error/90 rounded-lg px-3 py-1.5 text-xs font-medium"
-              disabled={removeMutation.isPending}
-              onClick={() => removeMutation.mutate()}
-            >
-              {removeMutation.isPending ? 'Removing...' : 'Yes, Remove'}
-            </button>
-            <button className="btn-sm btn-secondary text-xs" onClick={() => setShowRemoveConfirm(false)}>Cancel</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+function formatOptionalDate(value: string | Date | null | undefined) {
+  return value ? formatDate(value) : '—';
 }

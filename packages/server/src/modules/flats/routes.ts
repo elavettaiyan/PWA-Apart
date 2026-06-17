@@ -142,7 +142,11 @@ router.use(authenticate);
 
 function buildMyFlatInclude(year?: number): Prisma.FlatInclude {
   return {
-    block: { include: { society: { select: { id: true, name: true } } } },
+    block: {
+      include: {
+        society: { select: { id: true, name: true } },
+      },
+    },
     owner: {
       include: {
         vehicles: { select: residentVehicleSelect, orderBy: { createdAt: 'asc' } },
@@ -177,6 +181,42 @@ function buildMyFlatInclude(year?: number): Prisma.FlatInclude {
       },
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
     },
+  };
+}
+
+function normalizeResidentTextValue(value: unknown) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+  return normalized ? normalized : null;
+}
+
+function normalizeOptionalResidentCount(value: unknown) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null || value === '') {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function deriveLegacyVehicleNumbers(vehicles: Array<{ type: 'TWO_WHEELER' | 'THREE_WHEELER' | 'FOUR_WHEELER'; registrationNumber: string }>) {
+  const firstFourWheeler = vehicles.find((vehicle) => vehicle.type === 'FOUR_WHEELER')?.registrationNumber || null;
+  const firstTwoWheeler = vehicles.find((vehicle) => vehicle.type === 'TWO_WHEELER')?.registrationNumber || null;
+
+  return {
+    carNumber: firstFourWheeler,
+    twoWheelerNumber: firstTwoWheeler,
   };
 }
 
@@ -1777,8 +1817,16 @@ router.put(
   [
     body('relation').optional().isIn(['OWNER', 'TENANT']).withMessage('Invalid resident relation'),
     body('phone').optional().trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
+    body('occupation').optional({ values: 'falsy' }).trim().isLength({ max: 120 }).withMessage('Occupation is too long'),
+    body('householdAdults').optional({ values: 'null' }).isInt({ min: 0, max: 20 }).withMessage('Adults count must be between 0 and 20'),
+    body('householdKids').optional({ values: 'null' }).isInt({ min: 0, max: 20 }).withMessage('Kids count must be between 0 and 20'),
+    body('householdSeniors').optional({ values: 'null' }).isInt({ min: 0, max: 20 }).withMessage('Senior citizens count must be between 0 and 20'),
+    body('pets').optional({ values: 'falsy' }).trim().isLength({ max: 200 }).withMessage('Pets details are too long'),
     body('carNumber').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Car number is too long'),
     body('twoWheelerNumber').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Two wheeler number is too long'),
+    body('vehicles').optional().isArray({ max: 10 }).withMessage('Vehicles must be an array'),
+    body('vehicles.*.type').optional().isIn(['TWO_WHEELER', 'THREE_WHEELER', 'FOUR_WHEELER']).withMessage('Invalid vehicle type'),
+    body('vehicles.*.registrationNumber').optional().trim().isLength({ min: 1, max: 30 }).withMessage('Vehicle registration number is required'),
   ],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -1787,6 +1835,16 @@ router.put(
       const societyId = req.user!.societyId;
       const requestedRelation = req.body.relation as 'OWNER' | 'TENANT' | undefined;
       if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+
+      const normalizedVehicles = Array.isArray(req.body.vehicles)
+        ? req.body.vehicles
+            .map((vehicle: { type: 'TWO_WHEELER' | 'THREE_WHEELER' | 'FOUR_WHEELER'; registrationNumber: string }) => ({
+              type: vehicle.type,
+              registrationNumber: normalizeRegistrationValue(vehicle.registrationNumber) || '',
+            }))
+            .filter((vehicle: { registrationNumber: string }) => vehicle.registrationNumber)
+        : undefined;
+      const legacyVehicles = normalizedVehicles ? deriveLegacyVehicleNumbers(normalizedVehicles) : null;
 
       const owner = requestedRelation === 'TENANT'
         ? null
@@ -1801,10 +1859,28 @@ router.put(
             where: { id: owner.id },
             data: {
               phone: req.body.phone,
-              carNumber: req.body.carNumber !== undefined ? normalizeRegistrationValue(req.body.carNumber) : undefined,
-              twoWheelerNumber: req.body.twoWheelerNumber !== undefined ? normalizeRegistrationValue(req.body.twoWheelerNumber) : undefined,
+              occupation: req.body.occupation !== undefined ? normalizeResidentTextValue(req.body.occupation) : undefined,
+              householdAdults: normalizeOptionalResidentCount(req.body.householdAdults),
+              householdKids: normalizeOptionalResidentCount(req.body.householdKids),
+              householdSeniors: normalizeOptionalResidentCount(req.body.householdSeniors),
+              pets: req.body.pets !== undefined ? normalizeResidentTextValue(req.body.pets) : undefined,
+              carNumber: normalizedVehicles ? legacyVehicles?.carNumber : (req.body.carNumber !== undefined ? normalizeRegistrationValue(req.body.carNumber) : undefined),
+              twoWheelerNumber: normalizedVehicles ? legacyVehicles?.twoWheelerNumber : (req.body.twoWheelerNumber !== undefined ? normalizeRegistrationValue(req.body.twoWheelerNumber) : undefined),
             },
           });
+
+          if (normalizedVehicles) {
+            await tx.residentVehicle.deleteMany({ where: { ownerId: owner.id } });
+            if (normalizedVehicles.length > 0) {
+              await tx.residentVehicle.createMany({
+                data: normalizedVehicles.map((vehicle: { type: 'TWO_WHEELER' | 'THREE_WHEELER' | 'FOUR_WHEELER'; registrationNumber: string }) => ({
+                  ownerId: owner.id,
+                  type: vehicle.type,
+                  registrationNumber: vehicle.registrationNumber,
+                })),
+              });
+            }
+          }
 
           if (owner.userId && req.body.phone !== undefined) {
             await tx.user.update({
@@ -1837,10 +1913,28 @@ router.put(
       const resident = await prisma.tenant.update({
         where: { id: tenant.id },
         data: {
-          carNumber: req.body.carNumber !== undefined ? normalizeRegistrationValue(req.body.carNumber) : undefined,
-          twoWheelerNumber: req.body.twoWheelerNumber !== undefined ? normalizeRegistrationValue(req.body.twoWheelerNumber) : undefined,
+          occupation: req.body.occupation !== undefined ? normalizeResidentTextValue(req.body.occupation) : undefined,
+          householdAdults: normalizeOptionalResidentCount(req.body.householdAdults),
+          householdKids: normalizeOptionalResidentCount(req.body.householdKids),
+          householdSeniors: normalizeOptionalResidentCount(req.body.householdSeniors),
+          pets: req.body.pets !== undefined ? normalizeResidentTextValue(req.body.pets) : undefined,
+          carNumber: normalizedVehicles ? legacyVehicles?.carNumber : (req.body.carNumber !== undefined ? normalizeRegistrationValue(req.body.carNumber) : undefined),
+          twoWheelerNumber: normalizedVehicles ? legacyVehicles?.twoWheelerNumber : (req.body.twoWheelerNumber !== undefined ? normalizeRegistrationValue(req.body.twoWheelerNumber) : undefined),
         },
       });
+
+      if (normalizedVehicles) {
+        await prisma.residentVehicle.deleteMany({ where: { tenantId: tenant.id } });
+        if (normalizedVehicles.length > 0) {
+          await prisma.residentVehicle.createMany({
+            data: normalizedVehicles.map((vehicle: { type: 'TWO_WHEELER' | 'THREE_WHEELER' | 'FOUR_WHEELER'; registrationNumber: string }) => ({
+              tenantId: tenant.id,
+              type: vehicle.type,
+              registrationNumber: vehicle.registrationNumber,
+            })),
+          });
+        }
+      }
 
       return res.json({ relation: 'TENANT', resident });
     } catch (error) {
