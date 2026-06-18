@@ -1203,7 +1203,7 @@ function BillSummarySection({
                   const latestPayment = bill.payments?.[0];
                   return (
                     <tr key={bill.id} className="hover:bg-slate-50/80">
-                      <td className="px-6 py-5 text-[15px] font-semibold text-slate-900">{getMonthName(bill.month)} {bill.year}</td>
+                      <td className="px-6 py-5 text-[15px] font-semibold text-slate-900">{bill.title || (bill.month && bill.year ? `${getMonthName(bill.month)} ${bill.year}` : 'Custom Billing')}</td>
                       <td className="px-6 py-5 text-[15px] text-slate-600">{formatDate(bill.dueDate)}</td>
                       <td className="px-6 py-5 text-[15px] font-semibold text-slate-900">{formatCurrency(bill.totalAmount)}</td>
                       <td className="px-6 py-5 text-[15px] text-slate-600">{formatCurrency(bill.paidAmount)}</td>
@@ -1250,7 +1250,7 @@ function BillSummarySection({
 function MobileBillCard({ bill }: { bill: MaintenanceBill }) {
   return (
     <div className="space-y-4 px-6 py-5">
-      <MobileBillRow label="Month" value={`${getMonthName(bill.month)} ${bill.year}`} emphasized />
+      <MobileBillRow label="Month" value={bill.title || (bill.month && bill.year ? `${getMonthName(bill.month)} ${bill.year}` : 'Custom Billing')} emphasized />
       <MobileBillRow label="Due Date" value={formatDate(bill.dueDate)} />
       <MobileBillRow label="Amount" value={formatCurrency(bill.totalAmount)} emphasized />
       <MobileBillRow label="Status" value={<BillStatusBadge status={bill.status} />} />

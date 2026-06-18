@@ -396,6 +396,12 @@ async function markBulkPaymentsFailed(merchantTransId: string, phonepePayload: u
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
+function formatBillLabel(bill: { title?: string | null; month?: number | null; year?: number | null }) {
+  if (bill.title) return bill.title;
+  if (bill.month && bill.year) return `${MONTH_NAMES[bill.month - 1]} ${bill.year}`;
+  return 'Billing due';
+}
+
 /** Fire-and-forget receipt email for a successfully processed payment. */
 async function sendReceiptForPayment(paymentId: string) {
   try {
@@ -438,7 +444,7 @@ async function sendReceiptForPayment(paymentId: string) {
       flatNumber: flat.flatNumber,
       blockName: flat.block.name,
       societyName: flat.block.society.name,
-      billMonth: `${MONTH_NAMES[bill.month - 1]} ${bill.year}`,
+      billMonth: formatBillLabel(bill),
       amount: payment.amount,
       totalAmount: bill.totalAmount,
       paidAmount: bill.paidAmount,
@@ -1668,8 +1674,9 @@ router.get(
           const society = p.bill.flat.block.society.name.replace(/,/g, ' ');
           const block = p.bill.flat.block.name.replace(/,/g, ' ');
           const flat = p.bill.flat.flatNumber.replace(/,/g, ' ');
-          const month = MONTH_NAMES_REPORT[p.bill.month - 1];
-          return `${date},${society},${block},${flat},${month},${p.bill.year},${p.amount.toFixed(2)},${p.merchantTransId ?? ''},${p.transactionId ?? ''},${p.gatewayRefId ?? ''},${p.status}`;
+          const month = p.bill.month ? MONTH_NAMES_REPORT[p.bill.month - 1] : 'Custom';
+          const year = p.bill.year ?? '';
+          return `${date},${society},${block},${flat},${month},${year},${p.amount.toFixed(2)},${p.merchantTransId ?? ''},${p.transactionId ?? ''},${p.gatewayRefId ?? ''},${p.status}`;
         }).join('\n');
 
         const today = new Date().toISOString().slice(0, 10);

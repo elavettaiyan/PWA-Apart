@@ -26,6 +26,12 @@ interface ReportResponse {
   pages: number;
 }
 
+function getBillPeriodLabel(bill: PaymentHistoryItem['bill']) {
+  if (bill.title) return bill.title;
+  if (bill.month && bill.year) return `${getMonthName(bill.month)} ${bill.year}`;
+  return 'Custom Billing';
+}
+
 export default function PaymentReportPage() {
   const navigate = useNavigate();
   const { user, viewMode } = useAuthStore();
@@ -188,7 +194,7 @@ export default function PaymentReportPage() {
                       <span className="text-base-content/50 ml-1 text-xs">{p.bill.flat.block.name}</span>
                     </td>
                     <td className="whitespace-nowrap">
-                      {getMonthName(p.bill.month)} {p.bill.year}
+                      {getBillPeriodLabel(p.bill)}
                     </td>
                     <td className="text-right font-medium">{formatCurrency(p.amount)}</td>
                     <td>
@@ -219,7 +225,7 @@ export default function PaymentReportPage() {
                       {p.bill.flat.flatNumber} · {p.bill.flat.block.name}
                     </p>
                     <p className="text-sm text-base-content/60">
-                      {getMonthName(p.bill.month)} {p.bill.year}
+                      {getBillPeriodLabel(p.bill)}
                     </p>
                   </div>
                   <div className="text-right">

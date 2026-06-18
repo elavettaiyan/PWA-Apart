@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { Response, Router } from 'express';
 import { body, param, query } from 'express-validator';
 import prisma from '../../config/database';
@@ -40,6 +41,10 @@ const ALL_FLAT_TYPES = [
   'SHOP',
   'OTHER',
 ] as const;
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const BILL_KINDS = ['MAINTENANCE', 'OPENING_BALANCE', 'SPECIAL'] as const;
+const BILL_LINE_ITEM_CATEGORIES = ['MAINTENANCE_COMPONENT', 'OPENING_BALANCE', 'FINE', 'DAMAGE', 'COMMON_ITEM_BREAKAGE', 'OTHER'] as const;
+const CUSTOM_BILLING_MODES = ['OPENING_BALANCE', 'STANDALONE_SPECIAL', 'ATTACH_TO_BILL'] as const;
 
 function getSocietyId(req: AuthRequest) {
   return req.user!.role === 'SUPER_ADMIN'
@@ -74,6 +79,72 @@ function normalizeSharedConfig(societyId: string, configs: Array<any>) {
       (primaryConfig?.repairFund ?? 0) +
       (primaryConfig?.otherCharges ?? 0),
   };
+}
+
+function buildMaintenanceLineItems(config: {
+  baseAmount: number;
+  waterCharge: number;
+  parkingCharge: number;
+  sinkingFund: number;
+  repairFund: number;
+  otherCharges: number;
+}) {
+  return [
+    { label: 'Base Maintenance', amount: Number(config.baseAmount || 0) },
+    { label: 'Water Charge', amount: Number(config.waterCharge || 0) },
+    { label: 'Parking Charge', amount: Number(config.parkingCharge || 0) },
+    { label: 'Sinking Fund', amount: Number(config.sinkingFund || 0) },
+    { label: 'Repair Fund', amount: Number(config.repairFund || 0) },
+    { label: 'Other Charges', amount: Number(config.otherCharges || 0) },
+  ]
+    .filter((item) => item.amount > 0)
+    .map((item, index) => ({
+      label: item.label,
+      amount: item.amount,
+      category: 'MAINTENANCE_COMPONENT' as const,
+      sortOrder: index,
+    }));
+}
+
+function normalizeBillStatus(totalAmount: number, paidAmount: number, dueDate: Date) {
+  if (paidAmount >= totalAmount) return 'PAID';
+  if (paidAmount > 0) return 'PARTIAL';
+  return dueDate.getTime() < Date.now() ? 'OVERDUE' : 'PENDING';
+}
+
+function buildBillLabel(bill: {
+  billKind?: string | null;
+  title?: string | null;
+  month?: number | null;
+  year?: number | null;
+  appliesToMonth?: number | null;
+  appliesToYear?: number | null;
+}) {
+  if (bill.title) return bill.title;
+  const labelMonth = bill.appliesToMonth ?? bill.month;
+  const labelYear = bill.appliesToYear ?? bill.year;
+
+  if (bill.billKind === 'OPENING_BALANCE') return 'Opening Balance';
+  if (bill.billKind === 'SPECIAL') return labelMonth && labelYear ? `Special Bill - ${labelMonth}/${labelYear}` : 'Special Bill';
+  return labelMonth && labelYear ? `Monthly Maintenance - ${labelMonth}/${labelYear}` : 'Maintenance Bill';
+}
+
+function buildBillPeriodText(bill: {
+  billKind?: string | null;
+  title?: string | null;
+  month?: number | null;
+  year?: number | null;
+  appliesToMonth?: number | null;
+  appliesToYear?: number | null;
+}) {
+  const labelMonth = bill.appliesToMonth ?? bill.month;
+  const labelYear = bill.appliesToYear ?? bill.year;
+  if (labelMonth && labelYear) return `${MONTH_NAMES[labelMonth - 1]} ${labelYear}`;
+  return buildBillLabel(bill);
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
 // ── GET MAINTENANCE CONFIGS ─────────────────────────────
@@ -303,12 +374,11 @@ router.post(
           continue;
         }
 
-        // Check if bill already exists
-        const existing = await prisma.maintenanceBill.findUnique({
-          where: { flatId_month_year: { flatId: flat.id, month, year } },
+        const existingMaintenanceBill = await prisma.maintenanceBill.findFirst({
+          where: { flatId: flat.id, month, year, billKind: 'MAINTENANCE' },
         });
 
-        if (existing) {
+        if (existingMaintenanceBill) {
           errors.push(`Bill already exists for ${flat.flatNumber} - ${month}/${year}`);
           continue;
         }
@@ -324,22 +394,38 @@ router.post(
         const dueDay = Math.min(Math.max(cfg.dueDay, 1), 28);
         const dueDate = new Date(year, month - 1, dueDay);
 
-        const bill = await prisma.maintenanceBill.create({
-          data: {
-            flatId: flat.id,
-            month,
-            year,
-            baseAmount: cfg.baseAmount,
-            waterCharge: cfg.waterCharge,
-            parkingCharge: cfg.parkingCharge,
-            sinkingFund: cfg.sinkingFund,
-            repairFund: cfg.repairFund,
-            otherCharges: cfg.otherCharges,
-            totalAmount,
-            dueDate,
-            status: 'PENDING',
-          },
-        });
+        let bill;
+        try {
+          bill = await prisma.maintenanceBill.create({
+            data: {
+              flatId: flat.id,
+              month,
+              year,
+              appliesToMonth: month,
+              appliesToYear: year,
+              billKind: 'MAINTENANCE',
+              title: `Monthly Maintenance - ${month}/${year}`,
+              baseAmount: cfg.baseAmount,
+              waterCharge: cfg.waterCharge,
+              parkingCharge: cfg.parkingCharge,
+              sinkingFund: cfg.sinkingFund,
+              repairFund: cfg.repairFund,
+              otherCharges: cfg.otherCharges,
+              totalAmount,
+              dueDate,
+              status: 'PENDING',
+              lineItems: {
+                create: buildMaintenanceLineItems(cfg),
+              },
+            },
+          });
+        } catch (error) {
+          if (isUniqueConstraintError(error)) {
+            errors.push(`Bill already exists for ${flat.flatNumber} - ${month}/${year}`);
+            continue;
+          }
+          throw error;
+        }
 
         // Auto-apply advance balance if society setting enabled
         try {
@@ -419,6 +505,162 @@ router.post(
   },
 );
 
+router.post(
+  '/custom',
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
+  [
+    body('mode').isIn(CUSTOM_BILLING_MODES as unknown as string[]),
+    body('amount').isFloat({ min: 1 }),
+    body('flatId').optional().isUUID(),
+    body('billId').optional().isUUID(),
+    body('title').optional().isString().isLength({ min: 1, max: 120 }),
+    body('description').optional().isString().isLength({ max: 500 }),
+    body('notes').optional().isString().isLength({ max: 1000 }),
+    body('dueDate').optional().isISO8601(),
+    body('category').optional().isIn(BILL_LINE_ITEM_CATEGORIES as unknown as string[]),
+    body('appliesToMonth').optional().isInt({ min: 1, max: 12 }),
+    body('appliesToYear').optional().isInt({ min: 2020 }),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { mode, amount, flatId, billId, title, description, notes, dueDate, appliesToMonth, appliesToYear } = req.body;
+      const category = req.body.category || (mode === 'OPENING_BALANCE' ? 'OPENING_BALANCE' : 'OTHER');
+
+      if (mode === 'ATTACH_TO_BILL') {
+        if (!billId) return res.status(400).json({ error: 'Bill ID is required' });
+
+        const bill = await prisma.maintenanceBill.findUnique({
+          where: { id: billId },
+          include: { flat: { include: { block: true } }, lineItems: { orderBy: { sortOrder: 'asc' } } },
+        });
+
+        if (!bill) return res.status(404).json({ error: 'Bill not found' });
+        if (req.user!.role !== 'SUPER_ADMIN' && bill.flat.block.societyId !== req.user!.societyId) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+
+        const nextTotalAmount = Number((Number(bill.totalAmount) + Number(amount)).toFixed(2));
+        const nextOtherCharges = Number((Number(bill.otherCharges) + Number(amount)).toFixed(2));
+        const nextStatus = normalizeBillStatus(nextTotalAmount, Number(bill.paidAmount), bill.dueDate);
+        const lineItemLabel = title || description || 'Special Charge';
+
+        const updatedBill = await prisma.$transaction(async (tx) => {
+          await tx.maintenanceBillLineItem.create({
+            data: {
+              billId: bill.id,
+              label: lineItemLabel,
+              category,
+              amount: Number(amount),
+              notes,
+              sortOrder: bill.lineItems.length,
+            },
+          });
+
+          return tx.maintenanceBill.update({
+            where: { id: bill.id },
+            data: {
+              description: description || bill.description,
+              otherCharges: nextOtherCharges,
+              totalAmount: nextTotalAmount,
+              status: nextStatus as any,
+            },
+            include: {
+              flat: { include: { block: true, owner: true, tenant: true } },
+              payments: { orderBy: { createdAt: 'desc' } },
+              lineItems: { orderBy: { sortOrder: 'asc' } },
+            },
+          });
+        });
+
+        return res.status(201).json(updatedBill);
+      }
+
+      if (!flatId) return res.status(400).json({ error: 'Flat ID is required' });
+
+      const flat = await prisma.flat.findUnique({
+        where: { id: flatId },
+        include: { block: true },
+      });
+
+      if (!flat) return res.status(404).json({ error: 'Flat not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && flat.block.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if (mode === 'OPENING_BALANCE') {
+        const existingOpeningBalance = await prisma.maintenanceBill.findFirst({
+          where: { flatId, billKind: 'OPENING_BALANCE' },
+        });
+
+        if (existingOpeningBalance) {
+          return res.status(400).json({ error: 'Opening balance already exists for this flat' });
+        }
+      }
+
+      const resolvedDueDate = dueDate ? new Date(dueDate) : new Date();
+      const effectiveAppliesToMonth = appliesToMonth ?? (mode === 'OPENING_BALANCE' ? null : resolvedDueDate.getMonth() + 1);
+      const effectiveAppliesToYear = appliesToYear ?? (mode === 'OPENING_BALANCE' ? null : resolvedDueDate.getFullYear());
+      const resolvedTitle = title || (mode === 'OPENING_BALANCE' ? 'Opening Balance' : 'Special Bill');
+      const baseAmount = mode === 'OPENING_BALANCE' ? Number(amount) : 0;
+      const otherCharges = mode === 'OPENING_BALANCE' ? 0 : Number(amount);
+
+      let createdBill;
+      try {
+        createdBill = await prisma.maintenanceBill.create({
+          data: {
+            flatId,
+            month: null,
+            year: null,
+            billKind: mode === 'OPENING_BALANCE' ? 'OPENING_BALANCE' : 'SPECIAL',
+            title: resolvedTitle,
+            description,
+            baseAmount,
+            waterCharge: 0,
+            parkingCharge: 0,
+            sinkingFund: 0,
+            repairFund: 0,
+            otherCharges,
+            totalAmount: Number(amount),
+            dueDate: resolvedDueDate,
+            status: normalizeBillStatus(Number(amount), 0, resolvedDueDate) as any,
+            notes,
+            appliesToMonth: effectiveAppliesToMonth,
+            appliesToYear: effectiveAppliesToYear,
+            createdById: req.user?.id,
+            lineItems: {
+              create: [
+                {
+                  label: resolvedTitle,
+                  category,
+                  amount: Number(amount),
+                  notes,
+                  sortOrder: 0,
+                },
+              ],
+            },
+          },
+          include: {
+            flat: { include: { block: true, owner: true, tenant: true } },
+            payments: { orderBy: { createdAt: 'desc' } },
+            lineItems: { orderBy: { sortOrder: 'asc' } },
+          },
+        });
+      } catch (error) {
+        if (isUniqueConstraintError(error) && mode === 'OPENING_BALANCE') {
+          return res.status(400).json({ error: 'Opening balance already exists for this flat' });
+        }
+        throw error;
+      }
+
+      return res.status(201).json(createdBill);
+    } catch (error) {
+      logger.error('Failed to create custom bill', error);
+      return res.status(500).json({ error: 'Failed to create custom bill' });
+    }
+  },
+);
+
 router.get(
   '/owner-summary',
   [
@@ -468,6 +710,8 @@ router.get(
           select: {
             month: true,
             year: true,
+            appliesToMonth: true,
+            appliesToYear: true,
             totalAmount: true,
             paidAmount: true,
           },
@@ -486,7 +730,7 @@ router.get(
       );
       const monthDueAmount = Number(
         bills
-          .filter((bill) => bill.month === month && bill.year === year)
+          .filter((bill) => (bill.appliesToMonth ?? bill.month) === month && (bill.appliesToYear ?? bill.year) === year)
           .reduce((sum, bill) => sum + Math.max(0, Number(bill.totalAmount) - Number(bill.paidAmount)), 0)
           .toFixed(2),
       );
@@ -514,6 +758,7 @@ router.get(
     query('month').optional().isInt({ min: 1, max: 12 }),
     query('year').optional().isInt({ min: 2020 }),
     query('status').optional().isIn(['PENDING', 'PARTIAL', 'PAID', 'OVERDUE']),
+    query('billKind').optional().isIn(BILL_KINDS as unknown as string[]),
     query('flatId').optional().isUUID(),
     query('ownerView').optional().isBoolean(),
   ],
@@ -536,6 +781,7 @@ router.get(
       if (req.query.month) where.month = parseInt(req.query.month as string);
       if (req.query.year) where.year = parseInt(req.query.year as string);
       if (req.query.status) where.status = req.query.status;
+      if (req.query.billKind) where.billKind = req.query.billKind;
       if (req.query.flatId) where.flatId = req.query.flatId;
       const ownerViewRequested = req.query.ownerView === 'true';
 
@@ -546,6 +792,7 @@ router.get(
         && !ownerViewRequested
         && where.month === undefined
         && where.year === undefined
+        && where.billKind === undefined
       ) {
         const now = new Date();
         where.month = now.getMonth() + 1;
@@ -618,6 +865,10 @@ router.get(
           params.push(where.status);
           conditions.push(`b.status::text = $${params.length}`);
         }
+        if (where.billKind) {
+          params.push(where.billKind);
+          conditions.push(`b."billKind"::text = $${params.length}`);
+        }
         if (where.flatId) {
           params.push(where.flatId);
           conditions.push(`b."flatId" = $${params.length}`);
@@ -626,6 +877,7 @@ router.get(
         const sql = `
           SELECT
             b.id, b."flatId", b.month, b.year,
+            b."billKind", b.title, b.description, b."appliesToMonth", b."appliesToYear",
             b."totalAmount", b."paidAmount", b.status, b."dueDate",
             f."flatNumber",
             bl.name AS "blockName",
@@ -635,7 +887,7 @@ router.get(
           JOIN blocks bl ON bl.id = f."blockId"
           LEFT JOIN owners o ON o."flatId" = f.id
           WHERE ${conditions.join(' AND ')}
-          ORDER BY b.year DESC, b.month DESC
+          ORDER BY b."dueDate" DESC, b."createdAt" DESC
         `;
 
         const rows: any[] = await prisma.$queryRawUnsafe(sql, ...params);
@@ -645,6 +897,11 @@ router.get(
           flatId: r.flatId,
           month: r.month,
           year: r.year,
+          billKind: r.billKind,
+          title: r.title,
+          description: r.description,
+          appliesToMonth: r.appliesToMonth,
+          appliesToYear: r.appliesToYear,
           totalAmount: Number(r.totalAmount),
           paidAmount: Number(r.paidAmount),
           status: r.status,
@@ -667,7 +924,7 @@ router.get(
               },
             },
           },
-          orderBy: [{ year: 'desc' }, { month: 'desc' }],
+          orderBy: [{ dueDate: 'desc' }, { createdAt: 'desc' }],
         });
         payload = bills;
       }
@@ -730,6 +987,7 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
       include: {
         flat: { include: { block: true, owner: true, tenant: true } },
         payments: { orderBy: { createdAt: 'desc' } },
+        lineItems: { orderBy: { sortOrder: 'asc' } },
       },
     });
 
@@ -842,7 +1100,7 @@ router.post(
               flatNumber: flat.flatNumber,
               blockName: flat.block.name,
               societyName: flat.block.society.name,
-              billMonth: `${MONTH_NAMES[fullBill.month - 1]} ${fullBill.year}`,
+              billMonth: buildBillPeriodText(fullBill),
               amount,
               totalAmount: fullBill.totalAmount,
               paidAmount: fullBill.paidAmount,

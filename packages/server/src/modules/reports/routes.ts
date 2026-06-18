@@ -62,6 +62,140 @@ function getProratedCollectedAmount(componentAmount: number, totalAmount: number
   return (Math.min(paidAmount, totalAmount) * componentAmount) / totalAmount;
 }
 
+function createBilledIncomeBreakdown() {
+  return {
+    baseAmount: 0,
+    waterCharge: 0,
+    parkingCharge: 0,
+    sinkingFund: 0,
+    repairFund: 0,
+    otherCharges: 0,
+    lateFee: 0,
+    openingBalance: 0,
+    specialCharges: 0,
+  };
+}
+
+function createBillKindBreakdown() {
+  return {
+    maintenance: 0,
+    openingBalance: 0,
+    special: 0,
+  };
+}
+
+function createSpecialChargeBreakdown() {
+  return {
+    openingBalance: 0,
+    fine: 0,
+    damage: 0,
+    commonItemBreakage: 0,
+    other: 0,
+  };
+}
+
+function applyBillBreakdown(
+  bill: {
+    billKind?: 'MAINTENANCE' | 'OPENING_BALANCE' | 'SPECIAL';
+    baseAmount: number;
+    waterCharge: number;
+    parkingCharge: number;
+    sinkingFund: number;
+    repairFund: number;
+    otherCharges: number;
+    lateFee: number;
+    totalAmount: number;
+    lineItems?: Array<{ category: 'MAINTENANCE_COMPONENT' | 'OPENING_BALANCE' | 'FINE' | 'DAMAGE' | 'COMMON_ITEM_BREAKAGE' | 'OTHER'; label: string; amount: number }>;
+  },
+  billedIncomeByComponent: ReturnType<typeof createBilledIncomeBreakdown>,
+  billedIncomeByKind: ReturnType<typeof createBillKindBreakdown>,
+  specialChargeBreakdown: ReturnType<typeof createSpecialChargeBreakdown>,
+) {
+  if (!bill.lineItems?.length) {
+    billedIncomeByComponent.baseAmount += bill.baseAmount;
+    billedIncomeByComponent.waterCharge += bill.waterCharge;
+    billedIncomeByComponent.parkingCharge += bill.parkingCharge;
+    billedIncomeByComponent.sinkingFund += bill.sinkingFund;
+    billedIncomeByComponent.repairFund += bill.repairFund;
+    billedIncomeByComponent.otherCharges += bill.otherCharges;
+    billedIncomeByComponent.lateFee += bill.lateFee;
+
+    if (bill.billKind === 'OPENING_BALANCE') {
+      billedIncomeByComponent.openingBalance += bill.totalAmount;
+      billedIncomeByKind.openingBalance += bill.totalAmount;
+      specialChargeBreakdown.openingBalance += bill.totalAmount;
+    } else if (bill.billKind === 'SPECIAL') {
+      billedIncomeByComponent.specialCharges += bill.totalAmount;
+      billedIncomeByKind.special += bill.totalAmount;
+      specialChargeBreakdown.other += bill.totalAmount;
+    } else {
+      billedIncomeByKind.maintenance += bill.totalAmount;
+    }
+    return;
+  }
+
+  let maintenanceAmount = 0;
+  let openingBalanceAmount = 0;
+  let specialAmount = 0;
+
+  bill.lineItems.forEach((item) => {
+    switch (item.category) {
+      case 'MAINTENANCE_COMPONENT': {
+        maintenanceAmount += item.amount;
+        const normalized = item.label.toLowerCase();
+        if (normalized.includes('base')) billedIncomeByComponent.baseAmount += item.amount;
+        else if (normalized.includes('water')) billedIncomeByComponent.waterCharge += item.amount;
+        else if (normalized.includes('parking')) billedIncomeByComponent.parkingCharge += item.amount;
+        else if (normalized.includes('sinking')) billedIncomeByComponent.sinkingFund += item.amount;
+        else if (normalized.includes('repair')) billedIncomeByComponent.repairFund += item.amount;
+        else billedIncomeByComponent.otherCharges += item.amount;
+        break;
+      }
+      case 'OPENING_BALANCE':
+        openingBalanceAmount += item.amount;
+        billedIncomeByComponent.openingBalance += item.amount;
+        specialChargeBreakdown.openingBalance += item.amount;
+        break;
+      case 'FINE':
+        specialAmount += item.amount;
+        billedIncomeByComponent.specialCharges += item.amount;
+        specialChargeBreakdown.fine += item.amount;
+        break;
+      case 'DAMAGE':
+        specialAmount += item.amount;
+        billedIncomeByComponent.specialCharges += item.amount;
+        specialChargeBreakdown.damage += item.amount;
+        break;
+      case 'COMMON_ITEM_BREAKAGE':
+        specialAmount += item.amount;
+        billedIncomeByComponent.specialCharges += item.amount;
+        specialChargeBreakdown.commonItemBreakage += item.amount;
+        break;
+      case 'OTHER':
+        if (bill.billKind === 'SPECIAL') {
+          specialAmount += item.amount;
+          billedIncomeByComponent.specialCharges += item.amount;
+          specialChargeBreakdown.other += item.amount;
+        } else {
+          maintenanceAmount += item.amount;
+          billedIncomeByComponent.otherCharges += item.amount;
+        }
+        break;
+      default:
+        break;
+    }
+  });
+
+  billedIncomeByComponent.lateFee += bill.lateFee;
+  if (bill.lateFee > 0) {
+    maintenanceAmount += bill.lateFee;
+  }
+
+  billedIncomeByKind.maintenance += maintenanceAmount;
+  billedIncomeByKind.openingBalance += openingBalanceAmount;
+  billedIncomeByKind.special += specialAmount;
+}
+
 function getAgingBucket(dueDate: Date, asOfDate: Date) {
   const dayMs = 24 * 60 * 60 * 1000;
   const daysPastDue = Math.floor((asOfDate.getTime() - dueDate.getTime()) / dayMs);
@@ -874,6 +1008,8 @@ router.get(
           flat: { block: { societyId: societyId! } },
         },
         select: {
+          billKind: true,
+          title: true,
           totalAmount: true,
           paidAmount: true,
           dueDate: true,
@@ -884,6 +1020,13 @@ router.get(
           repairFund: true,
           otherCharges: true,
           lateFee: true,
+          lineItems: {
+            select: {
+              category: true,
+              label: true,
+              amount: true,
+            },
+          },
         },
       });
 
@@ -916,15 +1059,9 @@ router.get(
       });
 
       const billedIncomeByMonth: Record<string, number> = {};
-      const billedIncomeByComponent = {
-        baseAmount: 0,
-        waterCharge: 0,
-        parkingCharge: 0,
-        sinkingFund: 0,
-        repairFund: 0,
-        otherCharges: 0,
-        lateFee: 0,
-      };
+      const billedIncomeByComponent = createBilledIncomeBreakdown();
+      const billedIncomeByKind = createBillKindBreakdown();
+      const specialChargeBreakdown = createSpecialChargeBreakdown();
       const reserveFunds = {
         sinkingFundBilled: 0,
         repairFundBilled: 0,
@@ -936,13 +1073,7 @@ router.get(
 
       billedBills.forEach((bill) => {
         addToBucket(billedIncomeByMonth, getMonthKey(bill.dueDate), bill.totalAmount);
-        billedIncomeByComponent.baseAmount += bill.baseAmount;
-        billedIncomeByComponent.waterCharge += bill.waterCharge;
-        billedIncomeByComponent.parkingCharge += bill.parkingCharge;
-        billedIncomeByComponent.sinkingFund += bill.sinkingFund;
-        billedIncomeByComponent.repairFund += bill.repairFund;
-        billedIncomeByComponent.otherCharges += bill.otherCharges;
-        billedIncomeByComponent.lateFee += bill.lateFee;
+        applyBillBreakdown(bill, billedIncomeByComponent, billedIncomeByKind, specialChargeBreakdown);
 
         const sinkingFundCollected = getProratedCollectedAmount(bill.sinkingFund, bill.totalAmount, bill.paidAmount);
         const repairFundCollected = getProratedCollectedAmount(bill.repairFund, bill.totalAmount, bill.paidAmount);
@@ -1031,6 +1162,8 @@ router.get(
           total: totalBilledIncome,
           byMonth: billedIncomeByMonth,
           byComponent: billedIncomeByComponent,
+          byKind: billedIncomeByKind,
+          bySpecialCategory: specialChargeBreakdown,
         },
         collectedIncome: {
           total: totalCollectedIncome,
@@ -1079,6 +1212,13 @@ router.get(
           flat: { block: { societyId: societyId! } },
         },
         include: {
+          lineItems: {
+            select: {
+              category: true,
+              label: true,
+              amount: true,
+            },
+          },
           flat: {
             include: {
               block: { select: { name: true } },
@@ -1119,6 +1259,13 @@ router.get(
       const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
       const netProfitLoss = totalBilledIncome - totalExpenses;
       const cashSurplus = totalCollectedIncome - totalExpenses;
+      const billedIncomeByComponent = createBilledIncomeBreakdown();
+      const billedIncomeByKind = createBillKindBreakdown();
+      const specialChargeBreakdown = createSpecialChargeBreakdown();
+
+      billedBills.forEach((bill) => {
+        applyBillBreakdown(bill, billedIncomeByComponent, billedIncomeByKind, specialChargeBreakdown);
+      });
 
       const receivableBills = billedBills.filter((bill) => ['PENDING', 'OVERDUE', 'PARTIAL'].includes(bill.status));
       const agingBuckets = {
@@ -1152,6 +1299,9 @@ router.get(
             NetProfitLoss: netProfitLoss,
             CashSurplus: cashSurplus,
             Receivables: receivableBills.reduce((sum, bill) => sum + getOutstandingAmount(bill.totalAmount, bill.paidAmount), 0),
+            MaintenanceBilling: billedIncomeByKind.maintenance,
+            OpeningBalanceBilling: billedIncomeByKind.openingBalance,
+            SpecialChargeBilling: billedIncomeByKind.special,
           }],
         },
         {
@@ -1159,6 +1309,8 @@ router.get(
           rows: billedBills.map((bill) => ({
             Flat: bill.flat.flatNumber,
             Block: bill.flat.block.name,
+            BillKind: bill.billKind,
+            Title: bill.title || '',
             DueDate: formatExcelDate(bill.dueDate),
             TotalAmount: bill.totalAmount,
             PaidAmount: bill.paidAmount,
@@ -1172,6 +1324,18 @@ router.get(
             LateFee: bill.lateFee,
             Status: bill.status,
           })),
+        },
+        {
+          name: 'Billing Categories',
+          rows: [
+            { Category: 'Maintenance', Amount: billedIncomeByKind.maintenance },
+            { Category: 'Opening Balance', Amount: billedIncomeByKind.openingBalance },
+            { Category: 'Special Charges', Amount: billedIncomeByKind.special },
+            { Category: 'Fines', Amount: specialChargeBreakdown.fine },
+            { Category: 'Damage', Amount: specialChargeBreakdown.damage },
+            { Category: 'Common Item Breakage', Amount: specialChargeBreakdown.commonItemBreakage },
+            { Category: 'Other Special', Amount: specialChargeBreakdown.other },
+          ],
         },
         {
           name: 'Collections',

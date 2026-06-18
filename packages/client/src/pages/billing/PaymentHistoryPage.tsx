@@ -45,6 +45,12 @@ interface HistoryResponse {
   pages: number;
 }
 
+function getBillPeriodLabel(bill: PaymentHistoryItem['bill']) {
+  if (bill.title) return bill.title;
+  if (bill.month && bill.year) return `${getMonthName(bill.month)} ${bill.year}`;
+  return 'Custom Billing';
+}
+
 export default function PaymentHistoryPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -70,7 +76,7 @@ export default function PaymentHistoryPage() {
       '',
       `Society: ${bill.flat.block.society?.name || '-'}`,
       `Flat: ${bill.flat.flatNumber}, ${bill.flat.block.name}`,
-      `Bill Period: ${getMonthName(bill.month)} ${bill.year}`,
+      `Bill Period: ${getBillPeriodLabel(bill)}`,
       `Payment Date: ${receipt.paidAt ? formatDate(receipt.paidAt) : formatDate(receipt.createdAt ?? '')}`,
       `Payment Method: ${METHOD_LABELS[receipt.method] ?? receipt.method}`,
       `Transaction Ref: ${receipt.transactionId || receipt.receiptNo || receipt.merchantTransId || '-'}`,
@@ -274,7 +280,7 @@ export default function PaymentHistoryPage() {
                       </td>
                     )}
                     <td className="whitespace-nowrap">
-                      {getMonthName(p.bill.month)} {p.bill.year}
+                      {getBillPeriodLabel(p.bill)}
                     </td>
                     <td className="text-right font-medium">{formatCurrency(p.amount)}</td>
                     <td>{METHOD_LABELS[p.method] ?? p.method}</td>
@@ -333,7 +339,7 @@ export default function PaymentHistoryPage() {
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <p className="font-medium">
-                      {getMonthName(p.bill.month)} {p.bill.year}
+                      {getBillPeriodLabel(p.bill)}
                     </p>
                     {isAdmin && (
                       <p className="text-sm text-base-content/60">

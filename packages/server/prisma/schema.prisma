@@ -51,6 +51,21 @@ enum BillStatus {
   OVERDUE
 }
 
+enum BillKind {
+  MAINTENANCE
+  OPENING_BALANCE
+  SPECIAL
+}
+
+enum BillLineItemCategory {
+  MAINTENANCE_COMPONENT
+  OPENING_BALANCE
+  FINE
+  DAMAGE
+  COMMON_ITEM_BREAKAGE
+  OTHER
+}
+
 enum LateFeeMode {
   PER_DAY
   ONE_TIME_PER_BILL
@@ -761,8 +776,11 @@ model SocietySettings {
 model MaintenanceBill {
   id            String      @id @default(uuid())
   flatId        String
-  month         Int
-  year          Int
+  month         Int?
+  year          Int?
+  billKind      BillKind    @default(MAINTENANCE)
+  title         String?
+  description   String?
   baseAmount    Float
   waterCharge   Float       @default(0)
   parkingCharge Float       @default(0)
@@ -775,19 +793,41 @@ model MaintenanceBill {
   dueDate       DateTime
   status        BillStatus  @default(PENDING)
   notes         String?
+  appliesToMonth Int?
+  appliesToYear  Int?
+  createdById    String?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
   flat          Flat        @relation(fields: [flatId], references: [id], onDelete: Cascade)
   payments      Payment[]
+  lineItems     MaintenanceBillLineItem[]
 
-  @@unique([flatId, month, year])
   @@index([flatId])
   @@index([flatId, status])
+  @@index([flatId, billKind])
   @@index([year, month])
   @@index([status])
   @@index([dueDate])
   @@map("maintenance_bills")
+}
+
+model MaintenanceBillLineItem {
+  id          String               @id @default(uuid())
+  billId      String
+  label       String
+  category    BillLineItemCategory
+  amount      Float
+  sortOrder   Int                  @default(0)
+  notes       String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  bill        MaintenanceBill      @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@index([billId, sortOrder])
+  @@index([category])
+  @@map("maintenance_bill_line_items")
 }
 
 // ─── PAYMENT ────────────────────────────────────────────

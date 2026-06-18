@@ -271,6 +271,9 @@ export interface Tenant {
 
 export type BillStatus = 'PENDING' | 'PARTIAL' | 'PAID' | 'OVERDUE';
 export type LateFeeMode = 'PER_DAY' | 'ONE_TIME_PER_BILL';
+export type BillKind = 'MAINTENANCE' | 'OPENING_BALANCE' | 'SPECIAL';
+export type BillLineItemCategory = 'MAINTENANCE_COMPONENT' | 'OPENING_BALANCE' | 'FINE' | 'DAMAGE' | 'COMMON_ITEM_BREAKAGE' | 'OTHER';
+export type CustomBillingMode = 'OPENING_BALANCE' | 'STANDALONE_SPECIAL' | 'ATTACH_TO_BILL';
 
 export interface MaintenanceConfig {
   id: string;
@@ -324,11 +327,24 @@ export interface OwnerBillingSummary {
   netPayableAmount: number;
 }
 
+export interface MaintenanceBillLineItem {
+  id: string;
+  billId: string;
+  label: string;
+  category: BillLineItemCategory;
+  amount: number;
+  sortOrder: number;
+  notes?: string;
+}
+
 export interface MaintenanceBill {
   id: string;
   flatId: string;
-  month: number;
-  year: number;
+  month: number | null;
+  year: number | null;
+  billKind?: BillKind;
+  title?: string | null;
+  description?: string | null;
   baseAmount: number;
   waterCharge: number;
   parkingCharge: number;
@@ -340,6 +356,9 @@ export interface MaintenanceBill {
   paidAmount: number;
   dueDate: string;
   status: BillStatus;
+  appliesToMonth?: number | null;
+  appliesToYear?: number | null;
+  lineItems?: MaintenanceBillLineItem[];
   flat?: Flat;
   payments?: Payment[];
 }
@@ -365,8 +384,10 @@ export interface Payment {
 
 export interface PaymentHistoryItem extends Payment {
   bill: {
-    month: number;
-    year: number;
+    month: number | null;
+    year: number | null;
+    billKind?: BillKind;
+    title?: string | null;
     baseAmount: number;
     waterCharge: number;
     parkingCharge: number;
@@ -664,6 +685,20 @@ export interface PnLReport {
       repairFund: number;
       otherCharges: number;
       lateFee: number;
+      openingBalance: number;
+      specialCharges: number;
+    };
+    byKind: {
+      maintenance: number;
+      openingBalance: number;
+      special: number;
+    };
+    bySpecialCategory: {
+      openingBalance: number;
+      fine: number;
+      damage: number;
+      commonItemBreakage: number;
+      other: number;
     };
   };
   collectedIncome: { total: number; byMonth: Record<string, number> };

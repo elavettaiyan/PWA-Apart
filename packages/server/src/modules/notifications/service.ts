@@ -18,6 +18,12 @@ export const DEFAULT_COMMUNITY_AUDIENCE_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SE
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+function formatBillLabel(bill: { title?: string | null; month?: number | null; year?: number | null }) {
+  if (bill.title) return bill.title;
+  if (bill.month && bill.year) return `${MONTH_NAMES[bill.month - 1]} ${bill.year}`;
+  return 'Billing due';
+}
+
 const COMPLAINT_SPECIALIZATION_BY_CATEGORY: Record<string, string> = {
   Plumbing: 'Plumber',
   Electrical: 'Electrician',
@@ -423,7 +429,7 @@ export async function notifyBillGenerated(billId: string) {
 
   return sendPushToFlatResidents(bill.flat.block.societyId, bill.flatId, {
     title: 'Maintenance bill generated',
-    body: `${bill.flat.block.name} ${bill.flat.flatNumber}: ${MONTH_NAMES[bill.month - 1]} ${bill.year} bill of INR ${bill.totalAmount.toFixed(0)} is now available.`,
+    body: `${bill.flat.block.name} ${bill.flat.flatNumber}: ${formatBillLabel(bill)} bill of INR ${bill.totalAmount.toFixed(0)} is now available.`,
     path: '/billing',
     route: '/billing',
     type: 'billing.generated',
@@ -537,7 +543,7 @@ export async function sendMaintenanceDueReminders(societyId: string, dueInDays =
         billCount: flatBills.length,
         outstandingAmount: totalOutstanding,
         dueBills: flatBills.map((bill) => ({
-          monthLabel: `${MONTH_NAMES[bill.month - 1]} ${bill.year}`,
+          monthLabel: formatBillLabel(bill),
           dueDate: bill.dueDate,
           outstandingAmount: Math.max(bill.totalAmount - bill.paidAmount, 0),
           status: bill.status,

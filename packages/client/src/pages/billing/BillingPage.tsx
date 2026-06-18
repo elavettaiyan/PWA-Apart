@@ -11,17 +11,47 @@ import { initPhonePeSdk, startPhonePeCheckout } from '../../lib/phonePeNative';
 import { isNativeAndroid, isNativeIos } from '../../lib/platform';
 import { useAuthStore } from '../../store/authStore';
 import { isOwnerViewActive } from '../../lib/ownerView';
-import type { BillingGenerationResult, LateFeeMode, MaintenanceBill, MaintenanceConfigSummary, OwnerBillingSummary } from '../../types';
+import type {
+  BillKind,
+  BillLineItemCategory,
+  BillingGenerationResult,
+  CustomBillingMode,
+  FlatOption,
+  LateFeeMode,
+  MaintenanceBill,
+  MaintenanceBillLineItem,
+  MaintenanceConfigSummary,
+  OwnerBillingSummary,
+} from '../../types';
 
 const currentDate = new Date();
 const yearOptions = Array.from({ length: 5 }, (_, index) => currentDate.getFullYear() - 1 + index);
 type BillingStatusFilter = 'ALL' | 'PENDING' | 'OVERDUE' | 'PARTIAL' | 'PAID';
+type BillingKindFilter = 'ALL' | BillKind;
 const billingStatusOptions: Array<{ value: BillingStatusFilter; label: string }> = [
   { value: 'ALL', label: 'All Status' },
   { value: 'PENDING', label: 'Pending' },
   { value: 'PARTIAL', label: 'Partial' },
   { value: 'OVERDUE', label: 'Overdue' },
   { value: 'PAID', label: 'Paid' },
+];
+const billingKindOptions: Array<{ value: BillingKindFilter; label: string }> = [
+  { value: 'ALL', label: 'All Bills' },
+  { value: 'MAINTENANCE', label: 'Maintenance' },
+  { value: 'OPENING_BALANCE', label: 'Opening Balance' },
+  { value: 'SPECIAL', label: 'Special Bills' },
+];
+const customBillingModeOptions: Array<{ value: CustomBillingMode; label: string }> = [
+  { value: 'OPENING_BALANCE', label: 'Opening Balance' },
+  { value: 'STANDALONE_SPECIAL', label: 'Standalone Special Bill' },
+  { value: 'ATTACH_TO_BILL', label: 'Attach Charge To Bill' },
+];
+const customChargeCategoryOptions: Array<{ value: Exclude<BillLineItemCategory, 'MAINTENANCE_COMPONENT'>; label: string }> = [
+  { value: 'OPENING_BALANCE', label: 'Opening Balance' },
+  { value: 'FINE', label: 'Fine' },
+  { value: 'DAMAGE', label: 'Damage' },
+  { value: 'COMMON_ITEM_BREAKAGE', label: 'Common Item Breakage' },
+  { value: 'OTHER', label: 'Other' },
 ];
 
 type BillingConfigFormState = {
@@ -36,6 +66,18 @@ type BillingConfigFormState = {
   lateFeeAmount: number | '';
   gracePeriodDays: number | '';
   dueDay: number | '';
+};
+
+type CustomBillingFormState = {
+  mode: CustomBillingMode;
+  flatId: string;
+  billId: string;
+  title: string;
+  description: string;
+  notes: string;
+  amount: string;
+  dueDate: string;
+  category: Exclude<BillLineItemCategory, 'MAINTENANCE_COMPONENT'>;
 };
 
 function buildConfigForm(summary?: MaintenanceConfigSummary): BillingConfigFormState {
@@ -70,17 +112,73 @@ function normalizeBillingConfigForm(value: BillingConfigFormState) {
   };
 }
 
+function buildCustomBillingForm(mode: CustomBillingMode = 'OPENING_BALANCE'): CustomBillingFormState {
+  const now = new Date();
+  const dueDate = now.toISOString().slice(0, 10);
+  return {
+    mode,
+    flatId: '',
+    billId: '',
+    title: mode === 'OPENING_BALANCE' ? 'Opening Balance' : '',
+    description: '',
+    notes: '',
+    amount: '',
+    dueDate,
+    category: mode === 'OPENING_BALANCE' ? 'OPENING_BALANCE' : 'OTHER',
+  };
+}
+
+function getBillPeriodLabel(bill: Pick<MaintenanceBill, 'month' | 'year' | 'appliesToMonth' | 'appliesToYear'>) {
+  const month = bill.appliesToMonth ?? bill.month;
+  const year = bill.appliesToYear ?? bill.year;
+  return month && year ? `${getMonthName(month)} ${year}` : null;
+}
+
+function getBillDisplayTitle(bill: MaintenanceBill) {
+  if (bill.title) return bill.title;
+  if (bill.billKind === 'OPENING_BALANCE') return 'Opening Balance';
+  if (bill.billKind === 'SPECIAL') return 'Special Bill';
+  return getBillPeriodLabel(bill) || 'Maintenance Bill';
+}
+
+function getBillKindLabel(billKind?: BillKind) {
+  switch (billKind) {
+    case 'OPENING_BALANCE':
+      return 'Opening Balance';
+    case 'SPECIAL':
+      return 'Special';
+    default:
+      return 'Maintenance';
+  }
+}
+
+function getBillLineItems(bill: MaintenanceBill): MaintenanceBillLineItem[] {
+  if (bill.lineItems?.length) return bill.lineItems;
+  return [
+    { id: `${bill.id}-base`, billId: bill.id, label: 'Base Maintenance', category: 'MAINTENANCE_COMPONENT' as const, amount: bill.baseAmount, sortOrder: 0 },
+    { id: `${bill.id}-water`, billId: bill.id, label: 'Water Charge', category: 'MAINTENANCE_COMPONENT' as const, amount: bill.waterCharge, sortOrder: 1 },
+    { id: `${bill.id}-parking`, billId: bill.id, label: 'Parking Charge', category: 'MAINTENANCE_COMPONENT' as const, amount: bill.parkingCharge, sortOrder: 2 },
+    { id: `${bill.id}-sinking`, billId: bill.id, label: 'Sinking Fund', category: 'MAINTENANCE_COMPONENT' as const, amount: bill.sinkingFund, sortOrder: 3 },
+    { id: `${bill.id}-repair`, billId: bill.id, label: 'Repair Fund', category: 'MAINTENANCE_COMPONENT' as const, amount: bill.repairFund, sortOrder: 4 },
+    { id: `${bill.id}-other`, billId: bill.id, label: 'Other Charges', category: 'OTHER' as const, amount: bill.otherCharges, sortOrder: 5 },
+    { id: `${bill.id}-late`, billId: bill.id, label: 'Late Fee', category: 'OTHER' as const, amount: bill.lateFee, sortOrder: 6 },
+  ].filter((item) => item.amount > 0);
+}
+
 export default function BillingPage() {
   const [month, setMonth] = useState(currentDate.getMonth() + 1);
   const [year, setYear] = useState(currentDate.getFullYear());
   const [statusFilter, setStatusFilter] = useState<BillingStatusFilter>('ALL');
+  const [billKindFilter, setBillKindFilter] = useState<BillingKindFilter>('ALL');
   const [showGenerate, setShowGenerate] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
+  const [showCustomBilling, setShowCustomBilling] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [showBillDetails, setShowBillDetails] = useState(false);
   const [selectedBill, setSelectedBill] = useState<MaintenanceBill | null>(null);
   const [generationResult, setGenerationResult] = useState<BillingGenerationResult | null>(null);
   const [configForm, setConfigForm] = useState<BillingConfigFormState>(buildConfigForm());
+  const [customBillingForm, setCustomBillingForm] = useState<CustomBillingFormState>(buildCustomBillingForm());
   const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
   const [paymentAmount, setPaymentAmount] = useState('');
   const navigate = useNavigate();
@@ -92,22 +190,41 @@ export default function BillingPage() {
   const isFinancialAdmin = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'] as string[]).includes(user?.role || '');
   const residentBillingView = ownerViewActive || user?.role === 'OWNER' || user?.role === 'TENANT';
   const ownerFacingBillingView = residentBillingView;
-  const shouldApplyMonthYear = ownerFacingBillingView ? false : isFinancialAdmin;
+  const shouldApplyMonthYear = ownerFacingBillingView ? false : isFinancialAdmin && (billKindFilter === 'ALL' || billKindFilter === 'MAINTENANCE');
   const billsBaseKey = ['bills', user?.id || 'anonymous', user?.societyId || 'no-society'];
   const billsQueryKey = [
     ...billsBaseKey,
     ownerViewActive ? 'owner-view' : isFinancialAdmin ? 'admin' : 'resident',
     ownerViewActive ? user?.flat?.id || 'no-flat' : 'role-scope',
+    ownerFacingBillingView ? 'ALL' : billKindFilter,
     shouldApplyMonthYear ? month : 'all-months',
     shouldApplyMonthYear ? year : 'all-years',
   ];
   const configBaseKey = ['billing-config', user?.id || 'anonymous', user?.societyId || 'no-society'];
 
-  const billsEndpoint = ownerViewActive
-    ? '/billing?ownerView=true'
-    : shouldApplyMonthYear
-    ? `/billing?month=${month}&year=${year}`
-    : '/billing';
+  const billsEndpoint = (() => {
+    if (ownerFacingBillingView) {
+      return ownerViewActive ? '/billing?ownerView=true' : '/billing';
+    }
+
+    if (ownerViewActive) {
+      const params = new URLSearchParams({ ownerView: 'true' });
+      if (billKindFilter !== 'ALL') params.set('billKind', billKindFilter);
+      return `/billing?${params.toString()}`;
+    }
+
+    const params = new URLSearchParams();
+    if (shouldApplyMonthYear) {
+      params.set('month', String(month));
+      params.set('year', String(year));
+    }
+    if (billKindFilter !== 'ALL') {
+      params.set('billKind', billKindFilter);
+    }
+
+    const query = params.toString();
+    return query ? `/billing?${query}` : '/billing';
+  })();
   const pendingStatuses = new Set(['PENDING', 'OVERDUE', 'PARTIAL']);
 
   const { data: bills = [], isLoading } = useQuery<MaintenanceBill[]>({
@@ -129,21 +246,29 @@ export default function BillingPage() {
     enabled: !!user && ownerFacingBillingView,
   });
 
+  const { data: flatOptions = [] } = useQuery<FlatOption[]>({
+    queryKey: ['flat-options', user?.societyId || 'no-society'],
+    queryFn: async () => (await api.get('/flats/options')).data,
+    enabled: isFinancialAdmin && !ownerFacingBillingView,
+  });
+
   const scopedBills = ownerFacingBillingView
     ? bills
     : isFinancialAdmin
-    ? bills.filter((bill) => bill.month === month && bill.year === year)
+    ? bills
     : bills.filter((bill) => pendingStatuses.has(bill.status));
   const displayedBills = statusFilter === 'ALL' ? scopedBills : scopedBills.filter((bill) => bill.status === statusFilter);
   const selectableBillIds = displayedBills.filter((bill) => bill.status !== 'PAID').map((bill) => bill.id);
   const selectableBillIdsKey = selectableBillIds.join(',');
   const manualBillSelectionEnabled = societySettings?.manualBillSelection !== false;
-  const totalOutstanding = Number(displayedBills.reduce((sum, bill) => sum + Math.max(0, bill.totalAmount - bill.paidAmount), 0).toFixed(2));
-  const residentFlatId = displayedBills[0]?.flatId;
+  const totalOutstanding = Number((ownerFacingBillingView ? bills : displayedBills).reduce((sum, bill) => sum + Math.max(0, bill.totalAmount - bill.paidAmount), 0).toFixed(2));
+  const residentFlatId = bills[0]?.flatId;
   const statusFilterLabel = billingStatusOptions.find((option) => option.value === statusFilter)?.label || 'All Status';
+  const billKindFilterLabel = billingKindOptions.find((option) => option.value === billKindFilter)?.label || 'All Bills';
   const billingDescription = ownerFacingBillingView
     ? 'Review monthly dues, payment history, and the amount currently payable.'
     : 'Track maintenance generation, collections, and pending balances across the society.';
+  const attachableBills = bills.filter((bill) => bill.billKind !== 'OPENING_BALANCE');
 
   useEffect(() => {
     const selectable = new Set(selectableBillIds);
@@ -178,6 +303,11 @@ export default function BillingPage() {
     setShowConfig(true);
   };
 
+  const openCustomBillingModal = (mode: CustomBillingMode = 'OPENING_BALANCE') => {
+    setCustomBillingForm(buildCustomBillingForm(mode));
+    setShowCustomBilling(true);
+  };
+
   const configMutation = useMutation({
     mutationFn: (data: BillingConfigFormState) => api.post('/billing/config', { ...normalizeBillingConfigForm(data), societyId: user?.societyId }),
     onSuccess: () => {
@@ -186,6 +316,36 @@ export default function BillingPage() {
       setShowConfig(false);
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save maintenance settings'),
+  });
+
+  const customBillingMutation = useMutation({
+    mutationFn: (form: CustomBillingFormState) => {
+      const payload: Record<string, unknown> = {
+        mode: form.mode,
+        amount: Number(form.amount),
+        title: form.title || undefined,
+        description: form.description || undefined,
+        notes: form.notes || undefined,
+        category: form.mode === 'OPENING_BALANCE' ? 'OPENING_BALANCE' : form.category,
+      };
+
+      if (form.mode === 'ATTACH_TO_BILL') {
+        payload.billId = form.billId;
+      } else {
+        payload.flatId = form.flatId;
+        payload.dueDate = form.dueDate || undefined;
+      }
+
+      return api.post('/billing/custom', payload);
+    },
+    onSuccess: () => {
+      toast.success('Custom billing saved');
+      queryClient.invalidateQueries({ queryKey: billsBaseKey });
+      queryClient.invalidateQueries({ queryKey: ['owner-billing-summary'] });
+      setShowCustomBilling(false);
+      setCustomBillingForm(buildCustomBillingForm());
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save custom billing'),
   });
 
   const generateMutation = useMutation({
@@ -494,6 +654,14 @@ export default function BillingPage() {
             <>
               <button
                 type="button"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                onClick={() => openCustomBillingModal('OPENING_BALANCE')}
+              >
+                <Plus className="h-4 w-4" />
+                Add Bill
+              </button>
+              <button
+                type="button"
                 className="inline-flex items-center gap-2 rounded-lg border border-blue-600 bg-white px-4 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-50"
                 onClick={() => navigate('/payments/report')}
               >
@@ -642,6 +810,13 @@ export default function BillingPage() {
                 </select>
               </>
             ) : null}
+            {!ownerFacingBillingView ? (
+              <select className="select w-44 rounded-xl bg-surface-container-lowest text-sm" value={billKindFilter} onChange={(e) => setBillKindFilter(e.target.value as BillingKindFilter)}>
+                {billingKindOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            ) : null}
             <select className="select w-36 rounded-xl bg-surface-container-lowest text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as BillingStatusFilter)}>
               {billingStatusOptions.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -665,7 +840,10 @@ export default function BillingPage() {
               </button>
             </div>
           ) : (
-            <p className="text-sm text-on-surface-variant">Showing {displayedBills.length} bill{displayedBills.length === 1 ? '' : 's'} for {getMonthName(month)} {year}</p>
+            <p className="text-sm text-on-surface-variant">
+              Showing {displayedBills.length} bill{displayedBills.length === 1 ? '' : 's'}
+              {shouldApplyMonthYear ? ` for ${getMonthName(month)} ${year}` : ` in ${billKindFilterLabel}`}
+            </p>
           )}
         </div>
 
@@ -677,7 +855,9 @@ export default function BillingPage() {
               description={
                 ownerFacingBillingView
                   ? `No ${statusFilterLabel.toLowerCase()} bills found for this account.`
-                  : `No ${statusFilterLabel.toLowerCase()} bills for ${getMonthName(month)} ${year}.`
+                  : shouldApplyMonthYear
+                  ? `No ${statusFilterLabel.toLowerCase()} bills for ${getMonthName(month)} ${year}.`
+                  : `No ${statusFilterLabel.toLowerCase()} ${billKindFilterLabel.toLowerCase()} found.`
               }
               action={isFinancialAdmin && !ownerViewActive ? (
                 <button className="btn-primary" onClick={() => (canGenerateBills ? setShowGenerate(true) : openConfigModal())}>
@@ -696,11 +876,14 @@ export default function BillingPage() {
                     <div className="flex items-start justify-between gap-3 px-4 py-4">
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-semibold text-on-surface">
-                          {ownerFacingBillingView ? `${getMonthName(bill.month)} ${bill.year}` : <>{bill.flat?.flatNumber}<span className="ml-1 text-xs font-normal text-on-surface-variant">{bill.flat?.block?.name}</span></>}
+                          {ownerFacingBillingView ? getBillDisplayTitle(bill) : <>{bill.flat?.flatNumber}<span className="ml-1 text-xs font-normal text-on-surface-variant">{bill.flat?.block?.name}</span></>}
                         </p>
                         <p className="mt-1 text-xs text-on-surface-variant">
-                          {ownerFacingBillingView ? `Due ${formatDate(bill.dueDate)}` : `${activeOwner?.name || '—'} · ${getMonthName(bill.month)} ${bill.year}`}
+                          {ownerFacingBillingView
+                            ? `${getBillPeriodLabel(bill) ? `${getBillPeriodLabel(bill)} · ` : ''}Due ${formatDate(bill.dueDate)}`
+                            : `${activeOwner?.name || '—'}${getBillPeriodLabel(bill) ? ` · ${getBillPeriodLabel(bill)}` : ''}`}
                         </p>
+                        <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-outline">{getBillKindLabel(bill.billKind)}</p>
                       </div>
                       <span className={cn('badge shrink-0', getStatusColor(bill.status))}>{bill.status}</span>
                     </div>
@@ -774,13 +957,18 @@ export default function BillingPage() {
                     return (
                       <tr key={bill.id}>
                         <td>
-                          <p className="whitespace-nowrap text-sm font-medium text-on-surface">{getMonthName(bill.month)} {bill.year}</p>
+                          <div>
+                            <p className="whitespace-nowrap text-sm font-medium text-on-surface">{getBillDisplayTitle(bill)}</p>
+                            {getBillPeriodLabel(bill) ? <p className="text-xs text-on-surface-variant">{getBillPeriodLabel(bill)}</p> : null}
+                            {ownerFacingBillingView ? <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-outline">{getBillKindLabel(bill.billKind)}</p> : null}
+                          </div>
                         </td>
                         {!ownerFacingBillingView ? (
                           <td>
                             <div>
                               <p className="font-medium text-primary">{bill.flat?.flatNumber}</p>
                               <p className="text-xs text-on-surface-variant">{bill.flat?.block?.name}</p>
+                              <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-outline">{getBillKindLabel(bill.billKind)}</p>
                             </div>
                           </td>
                         ) : null}
@@ -895,6 +1083,17 @@ export default function BillingPage() {
         />
       </Modal>
 
+      <Modal isOpen={showCustomBilling} onClose={() => setShowCustomBilling(false)} title="Add Flat Billing">
+        <UnifiedBillingForm
+          value={customBillingForm}
+          flats={flatOptions}
+          bills={attachableBills}
+          onChange={setCustomBillingForm}
+          onSubmit={() => customBillingMutation.mutate(customBillingForm)}
+          isPending={customBillingMutation.isPending}
+        />
+      </Modal>
+
       {/* Record Payment Modal */}
       <Modal isOpen={showPayment} onClose={() => setShowPayment(false)} title="Record Payment">
         {selectedBill && (
@@ -914,25 +1113,19 @@ export default function BillingPage() {
 
 function BillDetailsContent({ bill }: { bill: MaintenanceBill }) {
   const balance = Math.max(0, bill.totalAmount - bill.paidAmount);
-  const chargeItems = [
-    { label: 'Base Maintenance', amount: bill.baseAmount },
-    { label: 'Water Charge', amount: bill.waterCharge },
-    { label: 'Parking Charge', amount: bill.parkingCharge },
-    { label: 'Sinking Fund', amount: bill.sinkingFund },
-    { label: 'Repair Fund', amount: bill.repairFund },
-    { label: 'Other Charges', amount: bill.otherCharges },
-    { label: 'Late Fee', amount: bill.lateFee },
-  ].filter((item) => item.amount > 0);
+  const chargeItems = getBillLineItems(bill);
 
   const chargeSubtotal = chargeItems.reduce((sum, item) => sum + item.amount, 0);
+  const billPeriod = getBillPeriodLabel(bill);
 
   return (
     <div className="space-y-4 text-sm">
       <div className="rounded-xl bg-surface-container-low p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-semibold text-on-surface">{getMonthName(bill.month)} {bill.year}</p>
-            <p className="text-on-surface-variant">Due {formatDate(bill.dueDate)}</p>
+            <p className="font-semibold text-on-surface">{getBillDisplayTitle(bill)}</p>
+            <p className="text-on-surface-variant">{billPeriod ? `${billPeriod} · ` : ''}Due {formatDate(bill.dueDate)}</p>
+            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-outline">{getBillKindLabel(bill.billKind)}</p>
           </div>
           <span className={cn('badge', getStatusColor(bill.status))}>{bill.status}</span>
         </div>
@@ -959,6 +1152,178 @@ function BillDetailsContent({ bill }: { bill: MaintenanceBill }) {
           <SummaryRow label="Paid Amount" value={formatCurrency(bill.paidAmount)} />
           <SummaryRow label="Balance Due" value={formatCurrency(balance)} emphasized />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function UnifiedBillingForm({
+  value,
+  flats,
+  bills,
+  onChange,
+  onSubmit,
+  isPending,
+}: {
+  value: CustomBillingFormState;
+  flats: FlatOption[];
+  bills: MaintenanceBill[];
+  onChange: (value: CustomBillingFormState) => void;
+  onSubmit: () => void;
+  isPending: boolean;
+}) {
+  const attachMode = value.mode === 'ATTACH_TO_BILL';
+  const openingBalanceMode = value.mode === 'OPENING_BALANCE';
+
+  const setField = <K extends keyof CustomBillingFormState>(field: K, fieldValue: CustomBillingFormState[K]) => {
+    if (field === 'mode') {
+      const nextMode = fieldValue as CustomBillingMode;
+      const nextForm = buildCustomBillingForm(nextMode);
+      nextForm.flatId = value.flatId;
+      nextForm.billId = value.billId;
+      onChange(nextForm);
+      return;
+    }
+
+    if (field === 'flatId') {
+      onChange({ ...value, flatId: fieldValue as string, billId: '' });
+      return;
+    }
+
+    if (field === 'billId') {
+      const nextBillId = fieldValue as string;
+      const selectedBill = bills.find((bill) => bill.id === nextBillId);
+      onChange({ ...value, billId: nextBillId, flatId: selectedBill?.flatId || value.flatId });
+      return;
+    }
+
+    onChange({ ...value, [field]: fieldValue });
+  };
+
+  const availableBills = bills.filter((bill) => bill.billKind !== 'OPENING_BALANCE');
+  const availableBillsForFlat = value.flatId ? availableBills.filter((bill) => bill.flatId === value.flatId) : availableBills;
+  const selectedAttachBill = availableBills.find((bill) => bill.id === value.billId) || null;
+
+  const handleSubmit = () => {
+    if (attachMode && !value.billId) {
+      toast.error('Select a bill to attach the charge');
+      return;
+    }
+    if (!attachMode && !value.flatId) {
+      toast.error('Select a flat');
+      return;
+    }
+    if (!value.amount || Number(value.amount) <= 0) {
+      toast.error('Enter a valid amount');
+      return;
+    }
+    if (!attachMode && !value.dueDate) {
+      toast.error('Select a due date');
+      return;
+    }
+    onSubmit();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="label">Billing Mode</label>
+        <select className="select" value={value.mode} onChange={(e) => setField('mode', e.target.value as CustomBillingMode)}>
+          {customBillingModeOptions.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {attachMode ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Flat</label>
+            <select className="select" value={value.flatId} onChange={(e) => setField('flatId', e.target.value)}>
+              <option value="">Select flat</option>
+              {flats.map((flat) => (
+                <option key={flat.id} value={flat.id}>{`${flat.blockName} • ${flat.flatNumber}${flat.residentName ? ` • ${flat.residentName}` : ''}`}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Target Bill</label>
+            <select className="select" value={value.billId} onChange={(e) => setField('billId', e.target.value)}>
+              <option value="">Select bill</option>
+              {availableBillsForFlat.map((bill) => (
+                <option key={bill.id} value={bill.id}>{`${getBillDisplayTitle(bill)}${getBillPeriodLabel(bill) ? ` • ${getBillPeriodLabel(bill)}` : ''}`}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <label className="label">Flat</label>
+          <select className="select" value={value.flatId} onChange={(e) => setField('flatId', e.target.value)}>
+            <option value="">Select flat</option>
+            {flats.map((flat) => (
+              <option key={flat.id} value={flat.id}>{`${flat.blockName} • ${flat.flatNumber}${flat.residentName ? ` • ${flat.residentName}` : ''}`}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {attachMode && selectedAttachBill ? (
+        <div className="rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm">
+          <p className="font-semibold text-on-surface">{getBillDisplayTitle(selectedAttachBill)}</p>
+          <p className="mt-1 text-on-surface-variant">
+            {selectedAttachBill.flat?.flatNumber ? `${selectedAttachBill.flat.flatNumber} • ` : ''}
+            {getBillPeriodLabel(selectedAttachBill) || getBillKindLabel(selectedAttachBill.billKind)}
+          </p>
+          <p className="mt-2 text-xs text-on-surface-variant">
+            Current due: {formatCurrency(Math.max(0, selectedAttachBill.totalAmount - selectedAttachBill.paidAmount))}
+          </p>
+        </div>
+      ) : null}
+
+      {!openingBalanceMode ? (
+        <div>
+          <label className="label">Category</label>
+          <select className="select" value={value.category} onChange={(e) => setField('category', e.target.value as CustomBillingFormState['category'])}>
+            {customChargeCategoryOptions.filter((option) => option.value !== 'OPENING_BALANCE').map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="label">Title</label>
+          <input className="input" value={value.title} onChange={(e) => setField('title', e.target.value)} placeholder={openingBalanceMode ? 'Opening Balance' : 'Special Bill Title'} />
+        </div>
+        <div>
+          <label className="label">Amount</label>
+          <input className="input" type="number" min={1} step="0.01" value={value.amount} onChange={(e) => setField('amount', e.target.value)} placeholder="0.00" />
+        </div>
+      </div>
+
+      {!attachMode ? (
+        <div>
+          <label className="label">Due Date</label>
+          <input className="input" type="date" value={value.dueDate} onChange={(e) => setField('dueDate', e.target.value)} />
+        </div>
+      ) : null}
+
+      <div>
+        <label className="label">Description</label>
+        <input className="input" value={value.description} onChange={(e) => setField('description', e.target.value)} placeholder="Short description for residents and admins" />
+      </div>
+
+      <div>
+        <label className="label">Notes</label>
+        <textarea className="input min-h-[96px]" value={value.notes} onChange={(e) => setField('notes', e.target.value)} placeholder="Internal notes or migration reference" />
+      </div>
+
+      <div className="flex justify-end gap-3 pt-2">
+        <button className="btn-secondary" type="button" disabled={isPending} onClick={handleSubmit}>
+          {isPending ? 'Saving...' : 'Save Billing'}
+        </button>
       </div>
     </div>
   );

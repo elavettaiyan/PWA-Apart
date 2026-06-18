@@ -665,6 +665,17 @@ function PnLTab({ from, to, setFrom, setTo }: { from: string; to: string; setFro
     { label: 'Other', value: data?.billedIncome?.byComponent.otherCharges || 0 },
     { label: 'Late Fee', value: data?.billedIncome?.byComponent.lateFee || 0 },
   ].filter((item) => item.value > 0);
+  const billKindBreakdownData = [
+    { label: 'Maintenance Bills', value: data?.billedIncome?.byKind?.maintenance || 0 },
+    { label: 'Opening Balances', value: data?.billedIncome?.byKind?.openingBalance || 0 },
+    { label: 'Special Charges', value: data?.billedIncome?.byKind?.special || 0 },
+  ].filter((item) => item.value > 0);
+  const specialChargeBreakdownData = [
+    { label: 'Fines', value: data?.billedIncome?.bySpecialCategory?.fine || 0 },
+    { label: 'Damage', value: data?.billedIncome?.bySpecialCategory?.damage || 0 },
+    { label: 'Common Item Breakage', value: data?.billedIncome?.bySpecialCategory?.commonItemBreakage || 0 },
+    { label: 'Other Special', value: data?.billedIncome?.bySpecialCategory?.other || 0 },
+  ].filter((item) => item.value > 0);
 
   return (
     <div>
@@ -838,6 +849,28 @@ function PnLTab({ from, to, setFrom, setTo }: { from: string; to: string; setFro
         </div>
 
         <div className="card p-6">
+          <h3 className="font-semibold text-on-surface mb-4">Billing Type Breakdown</h3>
+          <div className="space-y-3">
+            {billKindBreakdownData.map((item) => (
+              <div key={item.label} className="flex items-center justify-between gap-4 rounded-xl bg-surface-container-low px-4 py-3">
+                <p className="text-sm font-medium text-on-surface">{item.label}</p>
+                <p className="text-sm font-semibold text-on-surface-variant">{formatCurrency(item.value)}</p>
+              </div>
+            ))}
+            {specialChargeBreakdownData.length ? <div className="border-t border-outline-variant/15 pt-3" /> : null}
+            {specialChargeBreakdownData.map((item) => (
+              <div key={item.label} className="flex items-center justify-between gap-4 rounded-xl bg-white px-4 py-3 border border-outline-variant/10">
+                <p className="text-sm font-medium text-on-surface">{item.label}</p>
+                <p className="text-sm font-semibold text-on-surface-variant">{formatCurrency(item.value)}</p>
+              </div>
+            ))}
+            {!billKindBreakdownData.length && !specialChargeBreakdownData.length ? (
+              <p className="text-sm text-on-surface-variant">No opening balance or special charge billing in this period.</p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="card p-6 lg:col-span-2">
           <h3 className="font-semibold text-on-surface mb-4">Expense Breakdown by Category</h3>
           <div className="space-y-3">
             {data?.expenses?.byCategory?.map((cat: any, i: number) => {
