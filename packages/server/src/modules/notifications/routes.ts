@@ -53,8 +53,9 @@ router.get(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
-      const societyId = req.user?.societyId;
-      if (!societyId) {
+      const societyId = req.user?.activeSocietyId || req.user?.societyId;
+      const userId = req.user?.id;
+      if (!societyId || !userId) {
         return res.json([]);
       }
 
@@ -63,6 +64,7 @@ router.get(
 
       const notifications = await prisma.userNotification.findMany({
         where: {
+          userId,
           societyId,
         },
         orderBy: { createdAt: 'desc' },

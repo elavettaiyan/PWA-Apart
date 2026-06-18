@@ -71,6 +71,55 @@ function getLinkedMembershipRole(
   return fallbackRole;
 }
 
+async function resolveApprovalApproverUserIds(args: {
+  societyId: string;
+  flatId?: string | null;
+  approverRoles: Role[];
+  requesterUserId: string;
+}) {
+  const directRoles = args.approverRoles.filter((role) => role !== 'OWNER' && role !== 'TENANT');
+
+  const [memberships, flat] = await Promise.all([
+    directRoles.length > 0
+      ? prisma.userSocietyMembership.findMany({
+          where: {
+            societyId: args.societyId,
+            role: { in: directRoles },
+            user: { isActive: true },
+          },
+          select: { userId: true },
+        })
+      : Promise.resolve([]),
+    args.flatId && (args.approverRoles.includes('OWNER') || args.approverRoles.includes('TENANT'))
+      ? prisma.flat.findUnique({
+          where: { id: args.flatId },
+          select: {
+            owner: { select: { userId: true, isActive: true } },
+            tenant: { select: { userId: true, isActive: true } },
+          },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  const approverUserIds = new Set<string>();
+
+  for (const membership of memberships) {
+    if (membership.userId !== args.requesterUserId) {
+      approverUserIds.add(membership.userId);
+    }
+  }
+
+  if (args.approverRoles.includes('OWNER') && flat?.owner?.isActive !== false && flat?.owner?.userId && flat.owner.userId !== args.requesterUserId) {
+    approverUserIds.add(flat.owner.userId);
+  }
+
+  if (args.approverRoles.includes('TENANT') && flat?.tenant?.isActive && flat?.tenant?.userId && flat.tenant.userId !== args.requesterUserId) {
+    approverUserIds.add(flat.tenant.userId);
+  }
+
+  return [...approverUserIds];
+}
+
 async function findUserByEmailInsensitive(tx: Prisma.TransactionClient, email: string) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
 
@@ -142,6 +191,80 @@ function buildLegacyVehicleFields(vehicles: TenantRegistrationVehicle[]) {
     carNumber: vehicles.find((vehicle) => vehicle.type === 'FOUR_WHEELER')?.registrationNumber ?? null,
     twoWheelerNumber: vehicles.find((vehicle) => vehicle.type === 'TWO_WHEELER')?.registrationNumber ?? null,
   };
+}
+
+type ApprovalAccessRecord = {
+  requestedById: string;
+  approvedById?: string | null;
+  rejectedById?: string | null;
+  flat?: {
+    owner?: { userId?: string | null; isActive?: boolean | null } | null;
+    tenant?: { userId?: string | null; isActive?: boolean | null } | null;
+  } | null;
+};
+
+function getResidentScopedApproverUserIds(record: ApprovalAccessRecord, approverRoles: Role[]) {
+  const userIds = new Set<string>();
+
+  if (approverRoles.includes('OWNER') && record.flat?.owner?.isActive !== false && record.flat?.owner?.userId) {
+    userIds.add(record.flat.owner.userId);
+  }
+
+  if (approverRoles.includes('TENANT') && record.flat?.tenant?.isActive && record.flat?.tenant?.userId) {
+    userIds.add(record.flat.tenant.userId);
+  }
+
+  return [...userIds];
+}
+
+function canReviewRequest(args: {
+  userId: string;
+  userRole: string;
+  record: ApprovalAccessRecord;
+  approverRoles: Role[];
+}) {
+  if (args.record.requestedById === args.userId || args.record.approvedById === args.userId || args.record.rejectedById === args.userId) {
+    return true;
+  }
+
+  if (args.userRole === 'SUPER_ADMIN') {
+    return true;
+  }
+
+  if (args.approverRoles.includes(args.userRole as Role) && args.userRole !== 'OWNER' && args.userRole !== 'TENANT') {
+    return true;
+  }
+
+  if ((args.userRole === 'OWNER' || args.userRole === 'TENANT') && args.approverRoles.includes(args.userRole as Role)) {
+    return getResidentScopedApproverUserIds(args.record, args.approverRoles).includes(args.userId);
+  }
+
+  return false;
+}
+
+function canActOnRequest(args: {
+  actorId: string;
+  actorRole: string;
+  record: ApprovalAccessRecord;
+  approverRoles: Role[];
+}) {
+  if (args.record.requestedById === args.actorId) {
+    return false;
+  }
+
+  if (args.actorRole === 'SUPER_ADMIN') {
+    return true;
+  }
+
+  if (args.approverRoles.includes(args.actorRole as Role) && args.actorRole !== 'OWNER' && args.actorRole !== 'TENANT') {
+    return true;
+  }
+
+  if ((args.actorRole === 'OWNER' || args.actorRole === 'TENANT') && args.approverRoles.includes(args.actorRole as Role)) {
+    return getResidentScopedApproverUserIds(args.record, args.approverRoles).includes(args.actorId);
+  }
+
+  return false;
 }
 
 function parseTenantProfileChangePendingData(value: Prisma.JsonValue): TenantProfileChangePendingData {
@@ -246,6 +369,13 @@ export async function createTenantRegistrationApproval(args: {
     throw new Error('ACTIVE_TENANT_EXISTS');
   }
 
+  const approverUserIds = await resolveApprovalApproverUserIds({
+    societyId: args.societyId,
+    flatId: args.flatId,
+    approverRoles: config.approverRoles,
+    requesterUserId: args.requestedById,
+  });
+
   const approval = await prisma.$transaction(async (tx) => {
     const existingPending = await tx.approvalRequest.findFirst({
       where: {
@@ -294,7 +424,7 @@ export async function createTenantRegistrationApproval(args: {
     requestId: approval.id,
     actionType: approval.actionType,
     requesterName: args.requesterName,
-    approverRoles: config.approverRoles,
+    approverUserIds,
     flatLabel: approval.flat ? getFlatLabel(approval.flat) : null,
   });
 
@@ -332,6 +462,13 @@ export async function createTenantProfileChangeApproval(args: {
   if (!tenant || tenant.flat.block.societyId !== args.societyId || !tenant.isActive) {
     throw new Error('TENANT_NOT_FOUND');
   }
+
+  const approverUserIds = await resolveApprovalApproverUserIds({
+    societyId: args.societyId,
+    flatId: args.flatId,
+    approverRoles: config.approverRoles,
+    requesterUserId: args.requestedById,
+  });
 
   const approval = await prisma.$transaction(async (tx) => {
     const existingPending = await tx.approvalRequest.findFirst({
@@ -384,7 +521,7 @@ export async function createTenantProfileChangeApproval(args: {
     requestId: approval.id,
     actionType: approval.actionType,
     requesterName: args.requesterName,
-    approverRoles: config.approverRoles,
+    approverUserIds,
     flatLabel: approval.flat ? getFlatLabel(approval.flat) : null,
   });
 
@@ -540,10 +677,6 @@ async function applyApprovedTenantProfileChange(tx: Prisma.TransactionClient, ap
   return { tenant };
 }
 
-function canReviewRequest(userRole: string, approverRoles: Role[]) {
-  return userRole === 'SUPER_ADMIN' || approverRoles.includes(userRole as Role);
-}
-
 export async function listApprovalRequests(args: {
   societyId: string;
   userId: string;
@@ -562,7 +695,13 @@ export async function listApprovalRequests(args: {
         requestedBy: { select: { id: true, name: true, email: true, role: true } },
         approvedBy: { select: { id: true, name: true, email: true, role: true } },
         rejectedBy: { select: { id: true, name: true, email: true, role: true } },
-        flat: { include: { block: { select: { name: true } } } },
+        flat: {
+          include: {
+            block: { select: { name: true } },
+            owner: { select: { userId: true, isActive: true } },
+            tenant: { select: { userId: true, isActive: true } },
+          },
+        },
         tenant: { select: { id: true, name: true, email: true, phone: true, isActive: true } },
       },
       orderBy: [{ createdAt: 'desc' }],
@@ -574,7 +713,12 @@ export async function listApprovalRequests(args: {
 
   return records.filter((record) => {
     const approverRoles = configMap.get(record.actionType) || [...DEFAULT_APPROVER_ROLES];
-    return record.requestedById === args.userId || canReviewRequest(args.userRole, approverRoles);
+    return canReviewRequest({
+      userId: args.userId,
+      userRole: args.userRole,
+      record,
+      approverRoles,
+    });
   }).map((record) => ({
     ...record,
     approverRoles: configMap.get(record.actionType) || [...DEFAULT_APPROVER_ROLES],
@@ -593,7 +737,13 @@ export async function getApprovalRequestById(args: {
       requestedBy: { select: { id: true, name: true, email: true, role: true } },
       approvedBy: { select: { id: true, name: true, email: true, role: true } },
       rejectedBy: { select: { id: true, name: true, email: true, role: true } },
-      flat: { include: { block: { select: { name: true } } } },
+      flat: {
+        include: {
+          block: { select: { name: true } },
+          owner: { select: { userId: true, isActive: true } },
+          tenant: { select: { userId: true, isActive: true } },
+        },
+      },
       tenant: { select: { id: true, name: true, email: true, phone: true, isActive: true } },
       auditLogs: {
         include: {
@@ -609,7 +759,12 @@ export async function getApprovalRequestById(args: {
   }
 
   const config = await getApprovalConfig(args.societyId, record.actionType);
-  if (record.requestedById !== args.userId && !canReviewRequest(args.userRole, config.approverRoles)) {
+  if (!canReviewRequest({
+    userId: args.userId,
+    userRole: args.userRole,
+    record,
+    approverRoles: config.approverRoles,
+  })) {
     throw new Error('FORBIDDEN');
   }
 
@@ -631,6 +786,12 @@ export async function approveApprovalRequest(args: {
     where: { id: args.requestId },
     include: {
       requestedBy: { select: { id: true } },
+      flat: {
+        include: {
+          owner: { select: { userId: true, isActive: true } },
+          tenant: { select: { userId: true, isActive: true } },
+        },
+      },
     },
   });
 
@@ -643,7 +804,12 @@ export async function approveApprovalRequest(args: {
   }
 
   const config = await getApprovalConfig(args.societyId, existing.actionType);
-  if (!canReviewRequest(args.actorRole, config.approverRoles)) {
+  if (!canActOnRequest({
+    actorId: args.actorId,
+    actorRole: args.actorRole,
+    record: existing,
+    approverRoles: config.approverRoles,
+  })) {
     throw new Error('FORBIDDEN');
   }
 
@@ -734,6 +900,12 @@ export async function rejectApprovalRequest(args: {
     where: { id: args.requestId },
     include: {
       requestedBy: { select: { id: true } },
+      flat: {
+        include: {
+          owner: { select: { userId: true, isActive: true } },
+          tenant: { select: { userId: true, isActive: true } },
+        },
+      },
     },
   });
 
@@ -746,7 +918,12 @@ export async function rejectApprovalRequest(args: {
   }
 
   const config = await getApprovalConfig(args.societyId, existing.actionType);
-  if (!canReviewRequest(args.actorRole, config.approverRoles)) {
+  if (!canActOnRequest({
+    actorId: args.actorId,
+    actorRole: args.actorRole,
+    record: existing,
+    approverRoles: config.approverRoles,
+  })) {
     throw new Error('FORBIDDEN');
   }
 

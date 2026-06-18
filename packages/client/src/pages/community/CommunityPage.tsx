@@ -92,9 +92,10 @@ function getDeliveryBucket(): CommunityTab {
   return 'history';
 }
 
-function canReviewApproval(approval: ApprovalRequest, userRole?: string | null) {
-  if (!userRole) return false;
-  return userRole === 'SUPER_ADMIN' || approval.approverRoles.includes(userRole as any);
+function canReviewApproval(approval: ApprovalRequest, user?: { id?: string; role?: string | null } | null) {
+  if (!user?.role) return false;
+  if (approval.requestedById === user.id) return false;
+  return user.role === 'SUPER_ADMIN' || approval.approverRoles.includes(user.role as any);
 }
 
 function getApprovalTitle(actionType: ApprovalRequest['actionType']) {
@@ -138,6 +139,7 @@ export default function CommunityPage() {
   const { user, viewMode } = useAuthStore();
   const displayUser = getDisplayUserForView(user, viewMode);
   const ownerViewActive = isOwnerViewActive(user, viewMode);
+  const activeSocietyId = displayUser?.activeSocietyId || displayUser?.societyId || user?.activeSocietyId || user?.societyId || 'no-society';
   const canManage = user?.role === 'SUPER_ADMIN' || SOCIETY_MANAGERS.includes((user?.role || '') as any);
   const canMarkOutVisitors = ['SUPER_ADMIN', 'SERVICE_STAFF', 'ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'].includes(displayUser?.role || '');
   const activeTab = useMemo(() => getCommunityTab(searchParams.get('tab')), [searchParams]);
@@ -153,8 +155,9 @@ export default function CommunityPage() {
   });
 
   const { data: approvals = [], isLoading: approvalsLoading } = useQuery<ApprovalRequest[]>({
-    queryKey: ['approvals'],
+    queryKey: ['approvals', activeSocietyId, ownerViewActive ? 'owner-view' : 'role-view'],
     queryFn: async () => (await api.get('/approvals')).data,
+    enabled: !!user,
   });
 
   const { data: visitors = [], isLoading: visitorsLoading } = useQuery<Visitor[]>({
@@ -581,7 +584,7 @@ export default function CommunityPage() {
               </div>
 
               <div className="flex items-center gap-1 px-3 pb-2.5" onClick={(event) => event.stopPropagation()}>
-                {item.approval.status === 'PENDING' && canReviewApproval(item.approval, user?.role) ? (
+                {item.approval.status === 'PENDING' && canReviewApproval(item.approval, user) ? (
                   <>
                     <button
                       type="button"

@@ -282,13 +282,13 @@ export async function notifyApprovalRequestCreated(input: {
   requestId: string;
   actionType: string;
   requesterName: string;
-  approverRoles: string[];
+  approverUserIds: string[];
   flatLabel?: string | null;
 }) {
   const subject = formatApprovalActionLabel(input.actionType);
   const flatSuffix = input.flatLabel ? ` for ${input.flatLabel}` : '';
 
-  return sendPushToSocietyRoles(input.societyId, input.approverRoles, {
+  return sendPushToSocietyUsers(input.societyId, input.approverUserIds, {
     title: 'Approval request pending',
     body: `${input.requesterName} requested ${subject}${flatSuffix}.`,
     path: '/community?tab=inbox',
