@@ -3,6 +3,7 @@ import { ApprovalActionType, ApprovalStatus, Prisma, Role } from '@prisma/client
 import prisma from '../../config/database';
 import logger from '../../config/logger';
 import { sendResidentOnboardingEmail } from '../../config/email';
+import { COMMUNITY_READ_ITEM_TYPES, getCommunityItemReadStateMap } from '../communityReadState/service';
 import { notifyApprovalRequestCreated, notifyApprovalRequestResolved } from '../notifications/service';
 
 const DEFAULT_APPROVER_ROLES: Role[] = ['ADMIN', 'SECRETARY'];
@@ -711,7 +712,7 @@ export async function listApprovalRequests(args: {
 
   const configMap = new Map(configs.map((config) => [config.actionType, parseApproverRoles(config.approverRoles)]));
 
-  return records.filter((record) => {
+  const visibleRecords = records.filter((record) => {
     const approverRoles = configMap.get(record.actionType) || [...DEFAULT_APPROVER_ROLES];
     return canReviewRequest({
       userId: args.userId,
@@ -719,9 +720,19 @@ export async function listApprovalRequests(args: {
       record,
       approverRoles,
     });
-  }).map((record) => ({
+  });
+
+  const readStateMap = await getCommunityItemReadStateMap({
+    itemType: COMMUNITY_READ_ITEM_TYPES.APPROVAL,
+    userId: args.userId,
+    itemIds: visibleRecords.map((record) => record.id),
+  });
+
+  return visibleRecords.map((record) => ({
     ...record,
     approverRoles: configMap.get(record.actionType) || [...DEFAULT_APPROVER_ROLES],
+    isRead: readStateMap.has(record.id),
+    readAt: readStateMap.get(record.id)?.toISOString() || null,
   }));
 }
 
@@ -768,9 +779,17 @@ export async function getApprovalRequestById(args: {
     throw new Error('FORBIDDEN');
   }
 
+  const readStateMap = await getCommunityItemReadStateMap({
+    itemType: COMMUNITY_READ_ITEM_TYPES.APPROVAL,
+    userId: args.userId,
+    itemIds: [record.id],
+  });
+
   return {
     ...record,
     approverRoles: config.approverRoles,
+    isRead: readStateMap.has(record.id),
+    readAt: readStateMap.get(record.id)?.toISOString() || null,
   };
 }
 

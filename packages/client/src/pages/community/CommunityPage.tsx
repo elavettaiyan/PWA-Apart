@@ -80,16 +80,28 @@ function getEventBucket(event: SocietyEvent): CommunityTab {
   return 'history';
 }
 
+function getManualReadBucket(item: { isRead: boolean }): CommunityTab {
+  return item.isRead ? 'history' : 'inbox';
+}
+
 function getApprovalBucket(approval: ApprovalRequest): CommunityTab {
-  return approval.status === 'PENDING' ? 'inbox' : 'history';
+  if (approval.status === 'PENDING') {
+    return 'inbox';
+  }
+
+  if (approval.status === 'APPROVED') {
+    return getManualReadBucket(approval);
+  }
+
+  return 'history';
 }
 
 function getVisitorBucket(visitor: Visitor): CommunityTab {
   return visitor.status === 'ACTIVE' ? 'inbox' : 'history';
 }
 
-function getDeliveryBucket(): CommunityTab {
-  return 'history';
+function getDeliveryBucket(delivery: Delivery): CommunityTab {
+  return getManualReadBucket(delivery);
 }
 
 function canReviewApproval(approval: ApprovalRequest, user?: { id?: string; role?: string | null } | null) {
@@ -177,6 +189,18 @@ export default function CommunityPage() {
     onSuccess: (_, variables) => {
       toast.success(variables.isRead ? 'Marked as read' : 'Marked as unread');
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      invalidateDashboardShortcuts(queryClient);
+    },
+    onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to update read state'),
+  });
+
+  const communityItemReadStateMutation = useMutation({
+    mutationFn: ({ kind, itemId, isRead }: { kind: 'approval' | 'delivery'; itemId: string; isRead: boolean }) => (
+      api.patch(kind === 'approval' ? `/approvals/${itemId}/read-state` : `/deliveries/${itemId}/read-state`, { isRead })
+    ),
+    onSuccess: (_, variables) => {
+      toast.success(variables.isRead ? 'Marked as read' : 'Marked as unread');
+      queryClient.invalidateQueries({ queryKey: [variables.kind === 'approval' ? 'approvals' : 'deliveries'] });
       invalidateDashboardShortcuts(queryClient);
     },
     onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to update read state'),
@@ -293,7 +317,7 @@ export default function CommunityPage() {
     const deliveryItems: CommunityFeedItem[] = deliveries.map((delivery) => ({
       id: `delivery-${delivery.id}`,
       kind: 'delivery',
-      bucket: getDeliveryBucket(),
+      bucket: getDeliveryBucket(delivery),
       sortTimestamp: new Date(delivery.deliveredAt).getTime(),
       delivery,
     }));
@@ -385,8 +409,8 @@ export default function CommunityPage() {
           icon={activeTab === 'inbox' ? Megaphone : CalendarDays}
           title={activeTab === 'inbox' ? 'Inbox is clear' : 'No history yet'}
           description={activeTab === 'inbox'
-            ? 'Unread announcements, upcoming events, pending approvals, and active visitors will appear here.'
-            : 'Read announcements, past events, processed approvals, visitor exits, and deliveries will appear here.'}
+            ? 'Unread announcements, upcoming events, pending approvals, unread approved approvals, active visitors, and unread deliveries will appear here.'
+            : 'Read announcements, past events, processed approvals, visitor exits, and read deliveries will appear here.'}
         />
       ) : (
         <div className="space-y-3">
@@ -574,6 +598,7 @@ export default function CommunityPage() {
                         {item.approval.requestedBy?.name || 'Resident'} · {formatDateTime(item.approval.createdAt)}
                       </p>
                     </div>
+                    {item.approval.status === 'APPROVED' && !item.approval.isRead ? <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-blue-500" /> : null}
                   </div>
 
                   <p className="mt-1.5 line-clamp-2 whitespace-pre-wrap text-[13px] leading-relaxed text-[#64748B]">{getApprovalSummary(item.approval)}</p>
@@ -606,9 +631,20 @@ export default function CommunityPage() {
                     </button>
                   </>
                 ) : item.approval.status === 'APPROVED' ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-medium text-emerald-600">
-                    <CheckCircle2 className="h-3 w-3" /> Approved
-                  </span>
+                  <>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-medium text-emerald-600">
+                      <CheckCircle2 className="h-3 w-3" /> Approved
+                    </span>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-[#F8FAFC] px-3 py-1.5 text-[11px] font-medium text-[#64748B] transition hover:bg-[#F1F5F9]"
+                      onClick={() => communityItemReadStateMutation.mutate({ kind: 'approval', itemId: item.approval.id, isRead: !item.approval.isRead })}
+                      disabled={communityItemReadStateMutation.isPending}
+                    >
+                      {item.approval.isRead ? <RotateCcw className="h-3 w-3" /> : <CheckCheck className="h-3 w-3" />}
+                      {item.approval.isRead ? 'Unread' : 'Read'}
+                    </button>
+                  </>
                 ) : item.approval.status === 'REJECTED' ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1.5 text-[11px] font-medium text-rose-600">
                     <XCircle className="h-3 w-3" /> Rejected
@@ -693,12 +729,25 @@ export default function CommunityPage() {
                         {item.delivery.flat?.residentName ? ` · ${item.delivery.flat.residentName}` : ''}
                       </p>
                     </div>
+                    {!item.delivery.isRead ? <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-blue-500" /> : null}
                   </div>
 
                   <p className="mt-1.5 line-clamp-2 whitespace-pre-wrap text-[13px] leading-relaxed text-[#64748B]">
                     {item.delivery.deliveryPersonName}{item.delivery.companyName ? ` · ${item.delivery.companyName}` : ''} · {formatDateTime(item.delivery.deliveredAt)}
                   </p>
                 </div>
+              </div>
+
+              <div className="flex items-center gap-1 px-3 pb-2.5" onClick={(event) => event.stopPropagation()}>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-[#F8FAFC] px-3 py-1.5 text-[11px] font-medium text-[#64748B] transition hover:bg-[#F1F5F9]"
+                  onClick={() => communityItemReadStateMutation.mutate({ kind: 'delivery', itemId: item.delivery.id, isRead: !item.delivery.isRead })}
+                  disabled={communityItemReadStateMutation.isPending}
+                >
+                  {item.delivery.isRead ? <RotateCcw className="h-3 w-3" /> : <CheckCheck className="h-3 w-3" />}
+                  {item.delivery.isRead ? 'Unread' : 'Read'}
+                </button>
               </div>
             </article>
           ))}

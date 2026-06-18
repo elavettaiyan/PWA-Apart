@@ -446,6 +446,7 @@ model User {
   approvalAuditLogs ApprovalAuditLog[] @relation("ApprovalAuditActor")
   announcementBroadcasts AnnouncementBroadcast[] @relation("AnnouncementBroadcastCreator")
   announcementReads AnnouncementReadState[]
+  communityItemReadStates CommunityItemReadState[]
   createdEvents     SocietyEvent[] @relation("SocietyEventCreator")
   assignedServiceJobs ServiceJob[]
   performedCrmActions CrmActionLog[] @relation("CrmLogPerformer")
@@ -1036,6 +1037,22 @@ model Delivery {
   @@index([societyId, deliveryType])
   @@index([deliveredAt])
   @@map("deliveries")
+}
+
+model CommunityItemReadState {
+  itemType   String
+  itemId     String
+  userId     String
+  readAt     DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([itemType, itemId, userId])
+  @@index([userId])
+  @@index([itemType, userId, readAt])
+  @@map("community_item_read_states")
 }
 
 // ─── ASSOCIATION BYLAWS ─────────────────────────────────

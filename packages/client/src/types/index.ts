@@ -148,6 +148,8 @@ export interface ApprovalRequest {
   cancelledAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  isRead: boolean;
+  readAt?: string | null;
   approverRoles: Role[];
   requestedBy?: Pick<User, 'id' | 'name' | 'email' | 'role'>;
   approvedBy?: Pick<User, 'id' | 'name' | 'email' | 'role'> | null;
@@ -526,6 +528,8 @@ export interface Delivery {
   photoUrl?: string | null;
   deliveredAt: string;
   createdAt: string;
+  isRead: boolean;
+  readAt?: string | null;
   flat?: EntryFlatSummary | null;
   capturedBy?: { name: string };
 }
