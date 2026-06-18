@@ -151,19 +151,6 @@ export default function MyFlatPage() {
 
   return (
     <div className="space-y-6 md:space-y-7">
-      <div className="space-y-1 md:hidden">
-        <h1 className="text-[2rem] font-bold tracking-tight text-slate-900">My Flat</h1>
-        <p className="text-sm text-slate-500">{flat.block?.name} · {flat.flatNumber}</p>
-      </div>
-
-      <div className="hidden items-start justify-between md:flex">
-        <div>
-          <p className="section-label mb-1">Your Space</p>
-          <h1 className="page-title">My Flat</h1>
-          <p className="mt-1 text-sm text-slate-500">Flat, owner profile and billing overview</p>
-        </div>
-      </div>
-
       <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
         <FlatDetailsCard flat={flat} />
         {activeOwner ? (
