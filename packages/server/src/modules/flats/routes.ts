@@ -139,6 +139,32 @@ function getLinkedMembershipRole(
   return fallbackRole;
 }
 
+function getRequestSocietyId(req: AuthRequest) {
+  return req.user?.activeSocietyId || req.user?.societyId || null;
+}
+
+async function findActiveOwnerMappingForUser(userId: string, societyId: string, excludeFlatId?: string) {
+  return prisma.owner.findFirst({
+    where: {
+      userId,
+      isActive: true,
+      ...(excludeFlatId ? { flatId: { not: excludeFlatId } } : {}),
+      flat: {
+        block: {
+          societyId,
+        },
+      },
+    },
+    include: {
+      flat: {
+        include: {
+          block: { select: { name: true } },
+        },
+      },
+    },
+  });
+}
+
 // All routes require authentication
 router.use(authenticate);
 
@@ -573,6 +599,208 @@ router.get('/flats/:id', [param('id').isUUID()], validate, async (req: AuthReque
     return res.status(500).json({ error: 'Failed to fetch flat' });
   }
 });
+
+router.post(
+  '/flats/:id/assign-me',
+  authorize('ADMIN'),
+  [param('id').isUUID()],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const societyId = getRequestSocietyId(req);
+      if (!societyId) {
+        return res.status(400).json({ error: 'Society ID required' });
+      }
+
+      const flat = await prisma.flat.findUnique({
+        where: { id: req.params.id },
+        include: {
+          block: { select: { societyId: true, name: true, society: { select: { name: true } } } },
+          owner: { select: { id: true, userId: true, isActive: true } },
+        },
+      });
+
+      if (!flat) {
+        return res.status(404).json({ error: 'Flat not found' });
+      }
+
+      if (flat.block.societyId !== societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if (flat.owner?.isActive) {
+        if (flat.owner.userId === req.user!.id) {
+          return res.status(409).json({ error: 'This flat is already set as your flat.' });
+        }
+
+        return res.status(409).json({ error: 'This flat already has an active owner.' });
+      }
+
+      const existingOwnerMapping = await findActiveOwnerMappingForUser(req.user!.id, societyId, flat.id);
+      if (existingOwnerMapping) {
+        return res.status(409).json({
+          error: `You are already mapped to ${existingOwnerMapping.flat.block?.name ? `${existingOwnerMapping.flat.block.name} - ` : ''}${existingOwnerMapping.flat.flatNumber}. Remove that mapping before setting another flat as yours.`,
+        });
+      }
+
+      const userRecord = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          role: true,
+          societyId: true,
+          activeSocietyId: true,
+        },
+      });
+
+      if (!userRecord) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const normalizedPhone = normalizeIndianMobileNumber(userRecord.phone || '');
+      if (!INDIAN_MOBILE_REGEX.test(normalizedPhone)) {
+        return res.status(409).json({ error: 'Add a valid 10-digit mobile number to your profile before setting a flat as your own.' });
+      }
+
+      const owner = await prisma.$transaction(async (tx) => {
+        const ownerData = {
+          name: userRecord.name,
+          phone: normalizedPhone,
+          email: userRecord.email ? String(userRecord.email).trim().toLowerCase() : null,
+          flatId: flat.id,
+          moveInDate: new Date(),
+          userId: userRecord.id,
+          isActive: true,
+          deactivatedAt: null,
+          deactivationReason: null,
+        };
+
+        const createdOwner = flat.owner?.id
+          ? await tx.owner.update({
+              where: { id: flat.owner.id },
+              data: ownerData,
+            })
+          : await tx.owner.create({
+              data: ownerData,
+            });
+
+        await tx.flat.update({
+          where: { id: flat.id },
+          data: { isOccupied: true },
+        });
+
+        return createdOwner;
+      });
+
+      logger.info('Admin self-assigned flat', {
+        ownerId: owner.id,
+        flatId: flat.id,
+        userId: req.user!.id,
+      });
+
+      return res.status(201).json({ message: 'Flat set as your flat successfully', owner });
+    } catch (error: any) {
+      logger.error('Failed to self-assign flat', { error: error.message, flatId: req.params.id, userId: req.user?.id });
+      return res.status(500).json({ error: 'Failed to set this flat as your flat' });
+    }
+  },
+);
+
+router.delete(
+  '/flats/:id/assign-me',
+  authorize('ADMIN'),
+  [param('id').isUUID()],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const societyId = getRequestSocietyId(req);
+      if (!societyId) {
+        return res.status(400).json({ error: 'Society ID required' });
+      }
+
+      const existing = await prisma.owner.findFirst({
+        where: {
+          flatId: req.params.id,
+          isActive: true,
+        },
+        include: {
+          user: { select: { id: true, name: true, email: true, role: true } },
+          flat: { include: { block: { select: { societyId: true, name: true, society: { select: { name: true } } } }, tenant: { select: { id: true, isActive: true } } } },
+        },
+      });
+
+      if (!existing) {
+        return res.status(404).json({ error: 'Your flat mapping was not found' });
+      }
+
+      if (existing.flat.block.societyId !== societyId || existing.userId !== req.user!.id) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const outstandingDue = await getOutstandingFlatDue(existing.flatId);
+      if (outstandingDue > 0) {
+        return res.status(409).json({ error: `Cannot remove your flat mapping while the flat has outstanding dues of Rs. ${outstandingDue.toFixed(2)}.` });
+      }
+
+      await runMemberRemoval({
+        societyId,
+        societyName: existing.flat.block.society?.name || 'your society',
+        targetUserId: existing.userId,
+        targetRole: 'OWNER',
+        removedByUserId: req.user!.id,
+        removedByRole: req.user!.role as any,
+        reason: 'ADMIN_SELF_UNMAP',
+        source: 'FLAT_MANAGEMENT',
+        recipientEmail: null,
+        recipientName: existing.user?.name || existing.name,
+        ownerId: existing.id,
+        flatId: existing.flatId,
+        snapshot: {
+          name: existing.name,
+          email: existing.email,
+          phone: existing.phone,
+          flatNumber: existing.flat.flatNumber,
+          blockName: existing.flat.block.name,
+        },
+        removeData: async (tx) => {
+          await tx.owner.update({
+            where: { id: existing.id },
+            data: {
+              isActive: false,
+              deactivatedAt: new Date(),
+              deactivationReason: 'ADMIN_SELF_UNMAP',
+            },
+          });
+
+          const hasActiveTenant = await tx.tenant.findFirst({
+            where: { flatId: existing.flatId, isActive: true },
+            select: { id: true },
+          });
+
+          await tx.flat.update({
+            where: { id: existing.flatId },
+            data: { isOccupied: !!hasActiveTenant },
+          });
+        },
+        deleteMembership: false,
+      });
+
+      logger.info('Admin removed self flat mapping', {
+        ownerId: existing.id,
+        flatId: existing.flatId,
+        userId: req.user!.id,
+      });
+
+      return res.json({ message: 'Flat removed from your profile successfully' });
+    } catch (error: any) {
+      logger.error('Failed to remove self flat mapping', { error: error.message, flatId: req.params.id, userId: req.user?.id });
+      return res.status(500).json({ error: 'Failed to remove this flat from your profile' });
+    }
+  },
+);
 
 // ── CREATE FLAT ─────────────────────────────────────────
 router.post(

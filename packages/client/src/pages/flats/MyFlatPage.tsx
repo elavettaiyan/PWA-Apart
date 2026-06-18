@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import {
   Building2,
   Camera,
@@ -122,6 +123,7 @@ export default function MyFlatPage() {
   const supportsPets = societySettings?.supportsPets === true;
   const canEditOwnerProfile = residentRelation === 'OWNER';
   const canEditTenantProfile = residentRelation === 'TENANT';
+  const isAdminWithoutFlat = user?.role === 'ADMIN';
 
   if (isLoading) return <PageLoader />;
 
@@ -130,7 +132,19 @@ export default function MyFlatPage() {
       <div className="flex flex-col items-center justify-center py-20 text-on-surface-variant">
         <Building2 className="mb-4 h-12 w-12 text-outline/40" />
         <h2 className="text-lg font-semibold text-on-surface-variant">No Flat Found</h2>
-        <p className="mt-1 text-sm">Your account is not linked to any flat. Contact your admin.</p>
+        <p className="mt-1 text-sm">
+          {isAdminWithoutFlat
+            ? 'Your admin account is not linked to any flat yet. Configure it from Flats & Residents.'
+            : 'Your account is not linked to any flat. Contact your admin.'}
+        </p>
+        {isAdminWithoutFlat ? (
+          <Link
+            to="/flats"
+            className="mt-4 inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+          >
+            Open Flats & Residents
+          </Link>
+        ) : null}
       </div>
     );
   }

@@ -30,7 +30,7 @@ import {
   ManageFlatForm,
   UpgradePrompt,
 } from '../../components/flats';
-import { useBlocks, useFlats } from '../../hooks/flatsHooks';
+import { useAssignMyFlatMutation, useBlocks, useFlats, useUnmapMyFlatMutation } from '../../hooks/flatsHooks';
 import { openRazorpaySubscriptionCheckout } from '../../lib/razorpay';
 import { isNativeIos } from '../../lib/platform';
 import { useAuthStore } from '../../store/authStore';
@@ -92,10 +92,14 @@ export default function FlatsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
+  const setUser = useAuthStore((state) => state.setUser);
   const isAdmin = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'] as string[]).includes(user?.role || '');
+  const isSelfAssignEligibleAdmin = user?.role === 'ADMIN';
 
   const { data: flats = [], isLoading } = useFlats();
   const { data: blocks = [] } = useBlocks();
+  const assignMyFlatMutation = useAssignMyFlatMutation();
+  const unmapMyFlatMutation = useUnmapMyFlatMutation();
 
   const residents = useMemo<ResidentEntry[]>(() => {
     return flats.flatMap((flat) => {
@@ -170,6 +174,13 @@ export default function FlatsPage() {
   const selectedResident = useMemo(
     () => residents.find((resident) => resident.id === selectedResidentId) ?? null,
     [residents, selectedResidentId],
+  );
+
+  const selfAssignedFlat = useMemo(
+    () => (isSelfAssignEligibleAdmin && user?.id
+      ? flats.find((flat) => getActiveOwner(flat)?.userId === user.id) ?? null
+      : null),
+    [flats, isSelfAssignEligibleAdmin, user?.id],
   );
 
   const detailFlat = viewMode === 'residents' ? selectedResident?.flat ?? null : selectedFlat;
@@ -361,6 +372,49 @@ export default function FlatsPage() {
       toast.error(error.response?.data?.error || 'Failed to delete flat');
     },
   });
+
+  const refreshCurrentUser = async () => {
+    const { data } = await api.get('/auth/me');
+    setUser(data);
+  };
+
+  const handleAssignMyFlat = (flat: Flat | null) => {
+    if (!flat) {
+      toast.error('Select a flat first');
+      return;
+    }
+
+    assignMyFlatMutation.mutate(flat.id, {
+      onSuccess: async () => {
+        await refreshCurrentUser();
+        toast.success('Flat set as your flat');
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.error || 'Failed to set this flat as your flat');
+      },
+    });
+  };
+
+  const handleRemoveMyFlat = (flat: Flat | null) => {
+    if (!flat) {
+      toast.error('Select a flat first');
+      return;
+    }
+
+    if (!window.confirm(`Remove ${flat.flatNumber} as your flat?`)) {
+      return;
+    }
+
+    unmapMyFlatMutation.mutate(flat.id, {
+      onSuccess: async () => {
+        await refreshCurrentUser();
+        toast.success('Flat removed from your profile');
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.error || 'Failed to remove this flat from your profile');
+      },
+    });
+  };
 
   const openManageFlat = (
     flat: Flat | null,
@@ -641,7 +695,12 @@ export default function FlatsPage() {
           flat={detailFlat}
           resident={selectedResident}
           isAdmin={isAdmin}
+          canSetAsMyFlat={Boolean(isSelfAssignEligibleAdmin && !getActiveOwner(detailFlat) && !selfAssignedFlat)}
+          canRemoveMyFlat={Boolean(isSelfAssignEligibleAdmin && getActiveOwner(detailFlat)?.userId === user?.id)}
+          selfAssignBusy={assignMyFlatMutation.isPending || unmapMyFlatMutation.isPending}
           onClose={() => setSelectedFlatId(null)}
+          onSetAsMyFlat={() => handleAssignMyFlat(detailFlat)}
+          onRemoveMyFlat={() => handleRemoveMyFlat(detailFlat)}
           onEditFlat={() => openEditFlat(detailFlat)}
           onManageResidents={() => openManageFlat(detailFlat)}
           onDeleteFlat={() => setShowDeleteFlat(true)}
@@ -660,7 +719,13 @@ export default function FlatsPage() {
       {viewMode === 'flats' ? (
         <MobileDetailScreen
           flat={mobileDetailFlat}
+          isAdmin={isAdmin}
+          canSetAsMyFlat={Boolean(isSelfAssignEligibleAdmin && mobileDetailFlat && !getActiveOwner(mobileDetailFlat) && !selfAssignedFlat)}
+          canRemoveMyFlat={Boolean(isSelfAssignEligibleAdmin && mobileDetailFlat && getActiveOwner(mobileDetailFlat)?.userId === user?.id)}
+          selfAssignBusy={assignMyFlatMutation.isPending || unmapMyFlatMutation.isPending}
           onClose={() => setMobileDetailFlatId(null)}
+          onSetAsMyFlat={() => handleAssignMyFlat(mobileDetailFlat)}
+          onRemoveMyFlat={() => handleRemoveMyFlat(mobileDetailFlat)}
           onEditFlat={() => openEditFlat(mobileDetailFlat)}
           onManageResidents={() => openManageFlat(mobileDetailFlat)}
           onDeleteFlat={() => setShowDeleteFlat(true)}
@@ -1351,7 +1416,12 @@ function DetailPanel({
   flat,
   resident,
   isAdmin,
+  canSetAsMyFlat,
+  canRemoveMyFlat,
+  selfAssignBusy,
   onClose,
+  onSetAsMyFlat,
+  onRemoveMyFlat,
   onEditFlat,
   onManageResidents,
   onDeleteFlat,
@@ -1359,7 +1429,12 @@ function DetailPanel({
   flat: Flat | null;
   resident: ResidentEntry | null;
   isAdmin: boolean;
+  canSetAsMyFlat: boolean;
+  canRemoveMyFlat: boolean;
+  selfAssignBusy: boolean;
   onClose: () => void;
+  onSetAsMyFlat: () => void;
+  onRemoveMyFlat: () => void;
   onEditFlat: () => void;
   onManageResidents: () => void;
   onDeleteFlat: () => void;
@@ -1398,6 +1473,8 @@ function DetailPanel({
             <div className="rounded-xl border border-slate-100 p-4 shadow-sm">
               <h4 className="mb-3 text-sm font-bold text-slate-900">Quick Actions</h4>
               <div className="divide-y divide-slate-50">
+                {canSetAsMyFlat ? <QuickAction label={selfAssignBusy ? 'Setting as My Flat...' : 'Set as My Flat'} icon={<User className="h-5 w-5 text-slate-500" />} onClick={onSetAsMyFlat} disabled={selfAssignBusy} /> : null}
+                {canRemoveMyFlat ? <QuickAction label={selfAssignBusy ? 'Removing My Flat...' : 'Remove My Flat'} icon={<Trash2 className="h-5 w-5 text-red-500" />} onClick={onRemoveMyFlat} danger disabled={selfAssignBusy} /> : null}
                 <QuickAction label="Edit Flat" icon={<Building2 className="h-5 w-5 text-slate-500" />} onClick={onEditFlat} />
                 <QuickAction label="Manage Residents" icon={<Users className="h-5 w-5 text-slate-500" />} onClick={onManageResidents} />
                 {isAdmin ? <QuickAction label="Delete Flat" icon={<Trash2 className="h-5 w-5 text-red-500" />} danger onClick={onDeleteFlat} /> : null}
@@ -1420,13 +1497,25 @@ function DetailPanel({
 
 function MobileDetailScreen({
   flat,
+  isAdmin,
+  canSetAsMyFlat,
+  canRemoveMyFlat,
+  selfAssignBusy,
   onClose,
+  onSetAsMyFlat,
+  onRemoveMyFlat,
   onEditFlat,
   onManageResidents,
   onDeleteFlat,
 }: {
   flat: Flat | null;
+  isAdmin: boolean;
+  canSetAsMyFlat: boolean;
+  canRemoveMyFlat: boolean;
+  selfAssignBusy: boolean;
   onClose: () => void;
+  onSetAsMyFlat: () => void;
+  onRemoveMyFlat: () => void;
   onEditFlat: () => void;
   onManageResidents: () => void;
   onDeleteFlat: () => void;
@@ -1490,9 +1579,11 @@ function MobileDetailScreen({
             <h3 className="mb-1 text-lg font-bold text-slate-900">Quick Actions</h3>
             <p className="mb-4 text-xs text-slate-400">Flat management shortcuts</p>
             <div className="divide-y divide-gray-50">
+              {canSetAsMyFlat ? <QuickAction label={selfAssignBusy ? 'Setting as My Flat...' : 'Set as My Flat'} icon={<User className="h-5 w-5 text-slate-500" />} onClick={onSetAsMyFlat} disabled={selfAssignBusy} /> : null}
+              {canRemoveMyFlat ? <QuickAction label={selfAssignBusy ? 'Removing My Flat...' : 'Remove My Flat'} icon={<Trash2 className="h-5 w-5 text-red-500" />} onClick={onRemoveMyFlat} danger disabled={selfAssignBusy} /> : null}
               <QuickAction label="Edit Flat" icon={<Building2 className="h-5 w-5 text-slate-500" />} onClick={onEditFlat} />
               <QuickAction label="Manage Residents" icon={<Users className="h-5 w-5 text-slate-500" />} onClick={onManageResidents} />
-              <QuickAction label="Delete Flat" icon={<Trash2 className="h-5 w-5 text-red-500" />} danger onClick={onDeleteFlat} />
+              {isAdmin ? <QuickAction label="Delete Flat" icon={<Trash2 className="h-5 w-5 text-red-500" />} danger onClick={onDeleteFlat} /> : null}
             </div>
           </div>
         </div>
@@ -1559,9 +1650,9 @@ function ResidentCard({
   );
 }
 
-function QuickAction({ label, icon, onClick, danger = false }: { label: string; icon: React.ReactNode; onClick: () => void; danger?: boolean }) {
+function QuickAction({ label, icon, onClick, danger = false, disabled = false }: { label: string; icon: React.ReactNode; onClick: () => void; danger?: boolean; disabled?: boolean }) {
   return (
-    <button type="button" className="flex w-full items-center justify-between py-4 text-left" onClick={onClick}>
+    <button type="button" className="flex w-full items-center justify-between py-4 text-left disabled:cursor-not-allowed disabled:opacity-60" onClick={onClick} disabled={disabled}>
       <div className="flex items-center gap-3">
         {icon}
         <span className={cn('text-sm font-medium', danger ? 'text-red-500' : 'text-slate-700')}>{label}</span>

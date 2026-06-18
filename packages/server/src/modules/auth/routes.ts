@@ -18,6 +18,54 @@ const ACCOUNT_DELETION_ALLOWED_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SECRETARY', 'JO
 const REVIEW_DELETE_ACCOUNT_OTP = '123456';
 const OWNER_VIEW_ELIGIBLE_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'];
 
+function buildSocietyScopedUserPayload(args: {
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    phone?: string | null;
+    role: string;
+    specialization?: string | null;
+    societyId?: string | null;
+    activeSocietyId?: string | null;
+    mustChangePassword?: boolean | null;
+    skipAccountDeletionVerification?: boolean | null;
+    owners: Array<{ flat: any | null }>;
+    tenants: Array<{ flat: any | null }>;
+    societyMemberships: Array<{ societyId: string; role: string; society: { id: string; name: string } }>;
+  };
+}) {
+  const activeSocietyId = args.user.activeSocietyId || args.user.societyId || args.user.societyMemberships[0]?.societyId || null;
+  const flatFromOwners = args.user.owners.find((owner) => owner.flat?.block?.societyId === activeSocietyId)?.flat || null;
+  const flatFromTenants = args.user.tenants.find((tenant) => tenant.flat?.block?.societyId === activeSocietyId)?.flat || null;
+  const activeMembership = activeSocietyId
+    ? args.user.societyMemberships.find((membership) => membership.societyId === activeSocietyId)
+    : null;
+  const effectiveRole = args.user.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : (activeMembership?.role || args.user.role);
+  const canUseOwnerView = OWNER_VIEW_ELIGIBLE_ROLES.includes(effectiveRole) && Boolean(flatFromOwners);
+
+  return {
+    id: args.user.id,
+    email: args.user.email,
+    name: args.user.name,
+    phone: args.user.phone || undefined,
+    role: effectiveRole,
+    specialization: args.user.specialization,
+    societyId: activeSocietyId,
+    activeSocietyId,
+    flat: flatFromOwners || flatFromTenants || null,
+    flatRelation: flatFromOwners ? 'OWNER' : flatFromTenants ? 'TENANT' : null,
+    canUseOwnerView,
+    mustChangePassword: Boolean(args.user.mustChangePassword),
+    skipAccountDeletionVerification: Boolean(args.user.skipAccountDeletionVerification),
+    societies: args.user.societyMemberships.map((membership) => ({
+      id: membership.society.id,
+      name: membership.society.name,
+      role: membership.role,
+    })),
+  };
+}
+
 async function findUserByEmailInsensitive(tx: any, email: string, options: Record<string, any> = {}) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
 
@@ -734,16 +782,19 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
         specialization: true,
         societyId: true,
         activeSocietyId: true,
+        mustChangePassword: true,
         skipAccountDeletionVerification: true,
-        lastLogin: true,
-        createdAt: true,
         owners: { include: { flat: { include: { block: true } } } },
         tenants: { include: { flat: { include: { block: true } } } },
         societyMemberships: { include: { society: { select: { id: true, name: true } } } },
       },
     });
 
-    return res.json(user);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json(buildSocietyScopedUserPayload({ user }));
   } catch (error: any) {
     logger.error('Profile fetch failed', { userId: req.user!.id, error: error.message });
     return res.status(500).json({ error: 'Failed to fetch profile' });

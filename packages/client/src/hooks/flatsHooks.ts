@@ -121,6 +121,32 @@ export function useDeactivateOwnerMutation() {
   });
 }
 
+export function useAssignMyFlatMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (flatId: string) => api.post(`/flats/flats/${flatId}/assign-me`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['flats'] });
+      queryClient.invalidateQueries({ queryKey: ['my-flat'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['my-dashboard'] });
+    },
+  });
+}
+
+export function useUnmapMyFlatMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (flatId: string) => api.delete(`/flats/flats/${flatId}/assign-me`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['flats'] });
+      queryClient.invalidateQueries({ queryKey: ['my-flat'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['my-dashboard'] });
+    },
+  });
+}
+
 export function useCreateTenantMutation() {
   const queryClient = useQueryClient();
   return useMutation({
