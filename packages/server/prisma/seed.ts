@@ -175,7 +175,6 @@ async function main() {
         repairFund: 200,
         otherCharges: 0,
         lateFeePerDay: 50,
-        dueDay: 10,
         isActive: true,
       },
     });

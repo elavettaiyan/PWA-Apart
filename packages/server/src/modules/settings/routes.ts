@@ -951,6 +951,9 @@ router.get('/society-settings', async (req: AuthRequest, res: Response) => {
         data: {
           societyId,
           lateFeeEnabled: true,
+          lateFeeMode: 'PER_DAY',
+          gracePeriodDays: 0,
+          dueDay: 10,
           partialPaymentAllowed: true,
           advancePaymentAllowed: true,
           autoAdjustAdvance: true,
@@ -977,6 +980,9 @@ router.put(
   [
     body('societyId').optional().isUUID(),
     body('lateFeeEnabled').optional().isBoolean(),
+    body('lateFeeMode').optional().isIn(['PER_DAY', 'ONE_TIME_PER_BILL']),
+    body('gracePeriodDays').optional().isInt({ min: 0 }),
+    body('dueDay').optional().isInt({ min: 1, max: 28 }),
     body('partialPaymentAllowed').optional().isBoolean(),
     body('advancePaymentAllowed').optional().isBoolean(),
     body('autoAdjustAdvance').optional().isBoolean(),
@@ -992,6 +998,9 @@ router.put(
 
       const {
         lateFeeEnabled,
+        lateFeeMode,
+        gracePeriodDays,
+        dueDay,
         partialPaymentAllowed,
         advancePaymentAllowed,
         autoAdjustAdvance,
@@ -1004,6 +1013,9 @@ router.put(
         create: {
           societyId,
           lateFeeEnabled: lateFeeEnabled ?? true,
+          lateFeeMode: lateFeeMode ?? 'PER_DAY',
+          gracePeriodDays: gracePeriodDays ?? 0,
+          dueDay: dueDay ?? 10,
           partialPaymentAllowed: partialPaymentAllowed ?? true,
           advancePaymentAllowed: advancePaymentAllowed ?? true,
           autoAdjustAdvance: autoAdjustAdvance ?? true,
@@ -1014,6 +1026,9 @@ router.put(
         },
         update: {
           ...(lateFeeEnabled !== undefined ? { lateFeeEnabled } : {}),
+          ...(lateFeeMode !== undefined ? { lateFeeMode } : {}),
+          ...(gracePeriodDays !== undefined ? { gracePeriodDays } : {}),
+          ...(dueDay !== undefined ? { dueDay } : {}),
           ...(partialPaymentAllowed !== undefined ? { partialPaymentAllowed } : {}),
           ...(advancePaymentAllowed !== undefined ? { advancePaymentAllowed } : {}),
           ...(autoAdjustAdvance !== undefined ? { autoAdjustAdvance } : {}),

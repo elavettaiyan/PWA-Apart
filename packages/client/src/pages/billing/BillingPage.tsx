@@ -13,15 +13,14 @@ import { useAuthStore } from '../../store/authStore';
 import { isOwnerViewActive } from '../../lib/ownerView';
 import type {
   BillKind,
-  BillLineItemCategory,
   BillingGenerationResult,
   CustomBillingMode,
   FlatOption,
-  LateFeeMode,
   MaintenanceBill,
   MaintenanceBillLineItem,
   MaintenanceConfigSummary,
   OwnerBillingSummary,
+  SocietyBillingSettings,
 } from '../../types';
 
 const currentDate = new Date();
@@ -44,14 +43,6 @@ const billingKindOptions: Array<{ value: BillingKindFilter; label: string }> = [
 const customBillingModeOptions: Array<{ value: CustomBillingMode; label: string }> = [
   { value: 'OPENING_BALANCE', label: 'Opening Balance' },
   { value: 'STANDALONE_SPECIAL', label: 'Standalone Special Bill' },
-  { value: 'ATTACH_TO_BILL', label: 'Attach Charge To Bill' },
-];
-const customChargeCategoryOptions: Array<{ value: Exclude<BillLineItemCategory, 'MAINTENANCE_COMPONENT'>; label: string }> = [
-  { value: 'OPENING_BALANCE', label: 'Opening Balance' },
-  { value: 'FINE', label: 'Fine' },
-  { value: 'DAMAGE', label: 'Damage' },
-  { value: 'COMMON_ITEM_BREAKAGE', label: 'Common Item Breakage' },
-  { value: 'OTHER', label: 'Other' },
 ];
 
 type BillingConfigFormState = {
@@ -61,23 +52,17 @@ type BillingConfigFormState = {
   sinkingFund: number | '';
   repairFund: number | '';
   otherCharges: number | '';
-  lateFeeMode: LateFeeMode;
   lateFeePerDay: number | '';
   lateFeeAmount: number | '';
-  gracePeriodDays: number | '';
-  dueDay: number | '';
 };
 
 type CustomBillingFormState = {
   mode: CustomBillingMode;
   flatId: string;
-  billId: string;
   title: string;
   description: string;
   notes: string;
   amount: string;
-  dueDate: string;
-  category: Exclude<BillLineItemCategory, 'MAINTENANCE_COMPONENT'>;
 };
 
 function buildConfigForm(summary?: MaintenanceConfigSummary): BillingConfigFormState {
@@ -88,11 +73,8 @@ function buildConfigForm(summary?: MaintenanceConfigSummary): BillingConfigFormS
     sinkingFund: summary?.sinkingFund ?? 0,
     repairFund: summary?.repairFund ?? 0,
     otherCharges: summary?.otherCharges ?? 0,
-    lateFeeMode: summary?.lateFeeMode ?? 'PER_DAY',
     lateFeePerDay: summary?.lateFeePerDay ?? 0,
     lateFeeAmount: summary?.lateFeeAmount ?? 0,
-    gracePeriodDays: summary?.gracePeriodDays ?? 0,
-    dueDay: summary?.dueDay ?? 10,
   };
 }
 
@@ -104,27 +86,19 @@ function normalizeBillingConfigForm(value: BillingConfigFormState) {
     sinkingFund: Number(value.sinkingFund || 0),
     repairFund: Number(value.repairFund || 0),
     otherCharges: Number(value.otherCharges || 0),
-    lateFeeMode: value.lateFeeMode,
     lateFeePerDay: Number(value.lateFeePerDay || 0),
     lateFeeAmount: Number(value.lateFeeAmount || 0),
-    gracePeriodDays: Number(value.gracePeriodDays || 0),
-    dueDay: Number(value.dueDay || 0),
   };
 }
 
 function buildCustomBillingForm(mode: CustomBillingMode = 'OPENING_BALANCE'): CustomBillingFormState {
-  const now = new Date();
-  const dueDate = now.toISOString().slice(0, 10);
   return {
     mode,
     flatId: '',
-    billId: '',
     title: mode === 'OPENING_BALANCE' ? 'Opening Balance' : '',
     description: '',
     notes: '',
     amount: '',
-    dueDate,
-    category: mode === 'OPENING_BALANCE' ? 'OPENING_BALANCE' : 'OTHER',
   };
 }
 
@@ -233,7 +207,7 @@ export default function BillingPage() {
     enabled: !!user,
   });
 
-  const { data: societySettings } = useQuery<any>({
+  const { data: societySettings } = useQuery<SocietyBillingSettings>({
     queryKey: ['society-settings-billing', user?.societyId || 'no-society'],
     queryFn: async () => (await api.get('/settings/society-settings')).data,
     enabled: !!user,
@@ -323,18 +297,11 @@ export default function BillingPage() {
       const payload: Record<string, unknown> = {
         mode: form.mode,
         amount: Number(form.amount),
+        flatId: form.flatId,
         title: form.title || undefined,
         description: form.description || undefined,
         notes: form.notes || undefined,
-        category: form.mode === 'OPENING_BALANCE' ? 'OPENING_BALANCE' : form.category,
       };
-
-      if (form.mode === 'ATTACH_TO_BILL') {
-        payload.billId = form.billId;
-      } else {
-        payload.flatId = form.flatId;
-        payload.dueDate = form.dueDate || undefined;
-      }
 
       return api.post('/billing/custom', payload);
     },
@@ -711,7 +678,7 @@ export default function BillingPage() {
                 </div>
                 <div className="rounded-xl border border-outline-variant/50 bg-surface-container-low px-4 py-3">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">Due Day</p>
-                  <p className="mt-1 text-lg font-semibold text-on-surface">{configSummary.dueDay}th of every month</p>
+                  <p className="mt-1 text-lg font-semibold text-on-surface">{societySettings?.dueDay ?? 10}th of every month</p>
                 </div>
               </div>
 
@@ -1077,6 +1044,7 @@ export default function BillingPage() {
         <ConfigureBillingForm
           value={configForm}
           showLateFeeFields={societySettings?.lateFeeEnabled !== false}
+          lateFeeMode={societySettings?.lateFeeMode ?? 'PER_DAY'}
           onChange={setConfigForm}
           onSubmit={() => configMutation.mutate(configForm)}
           isPending={configMutation.isPending}
@@ -1087,7 +1055,6 @@ export default function BillingPage() {
         <UnifiedBillingForm
           value={customBillingForm}
           flats={flatOptions}
-          bills={attachableBills}
           onChange={setCustomBillingForm}
           onSubmit={() => customBillingMutation.mutate(customBillingForm)}
           isPending={customBillingMutation.isPending}
@@ -1160,19 +1127,16 @@ function BillDetailsContent({ bill }: { bill: MaintenanceBill }) {
 function UnifiedBillingForm({
   value,
   flats,
-  bills,
   onChange,
   onSubmit,
   isPending,
 }: {
   value: CustomBillingFormState;
   flats: FlatOption[];
-  bills: MaintenanceBill[];
   onChange: (value: CustomBillingFormState) => void;
   onSubmit: () => void;
   isPending: boolean;
 }) {
-  const attachMode = value.mode === 'ATTACH_TO_BILL';
   const openingBalanceMode = value.mode === 'OPENING_BALANCE';
 
   const setField = <K extends keyof CustomBillingFormState>(field: K, fieldValue: CustomBillingFormState[K]) => {
@@ -1180,45 +1144,20 @@ function UnifiedBillingForm({
       const nextMode = fieldValue as CustomBillingMode;
       const nextForm = buildCustomBillingForm(nextMode);
       nextForm.flatId = value.flatId;
-      nextForm.billId = value.billId;
       onChange(nextForm);
-      return;
-    }
-
-    if (field === 'flatId') {
-      onChange({ ...value, flatId: fieldValue as string, billId: '' });
-      return;
-    }
-
-    if (field === 'billId') {
-      const nextBillId = fieldValue as string;
-      const selectedBill = bills.find((bill) => bill.id === nextBillId);
-      onChange({ ...value, billId: nextBillId, flatId: selectedBill?.flatId || value.flatId });
       return;
     }
 
     onChange({ ...value, [field]: fieldValue });
   };
 
-  const availableBills = bills.filter((bill) => bill.billKind !== 'OPENING_BALANCE');
-  const availableBillsForFlat = value.flatId ? availableBills.filter((bill) => bill.flatId === value.flatId) : availableBills;
-  const selectedAttachBill = availableBills.find((bill) => bill.id === value.billId) || null;
-
   const handleSubmit = () => {
-    if (attachMode && !value.billId) {
-      toast.error('Select a bill to attach the charge');
-      return;
-    }
-    if (!attachMode && !value.flatId) {
+    if (!value.flatId) {
       toast.error('Select a flat');
       return;
     }
     if (!value.amount || Number(value.amount) <= 0) {
       toast.error('Enter a valid amount');
-      return;
-    }
-    if (!attachMode && !value.dueDate) {
-      toast.error('Select a due date');
       return;
     }
     onSubmit();
@@ -1235,62 +1174,15 @@ function UnifiedBillingForm({
         </select>
       </div>
 
-      {attachMode ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="label">Flat</label>
-            <select className="select" value={value.flatId} onChange={(e) => setField('flatId', e.target.value)}>
-              <option value="">Select flat</option>
-              {flats.map((flat) => (
-                <option key={flat.id} value={flat.id}>{`${flat.blockName} • ${flat.flatNumber}${flat.residentName ? ` • ${flat.residentName}` : ''}`}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label">Target Bill</label>
-            <select className="select" value={value.billId} onChange={(e) => setField('billId', e.target.value)}>
-              <option value="">Select bill</option>
-              {availableBillsForFlat.map((bill) => (
-                <option key={bill.id} value={bill.id}>{`${getBillDisplayTitle(bill)}${getBillPeriodLabel(bill) ? ` • ${getBillPeriodLabel(bill)}` : ''}`}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      ) : (
-        <div>
-          <label className="label">Flat</label>
-          <select className="select" value={value.flatId} onChange={(e) => setField('flatId', e.target.value)}>
-            <option value="">Select flat</option>
-            {flats.map((flat) => (
-              <option key={flat.id} value={flat.id}>{`${flat.blockName} • ${flat.flatNumber}${flat.residentName ? ` • ${flat.residentName}` : ''}`}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {attachMode && selectedAttachBill ? (
-        <div className="rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm">
-          <p className="font-semibold text-on-surface">{getBillDisplayTitle(selectedAttachBill)}</p>
-          <p className="mt-1 text-on-surface-variant">
-            {selectedAttachBill.flat?.flatNumber ? `${selectedAttachBill.flat.flatNumber} • ` : ''}
-            {getBillPeriodLabel(selectedAttachBill) || getBillKindLabel(selectedAttachBill.billKind)}
-          </p>
-          <p className="mt-2 text-xs text-on-surface-variant">
-            Current due: {formatCurrency(Math.max(0, selectedAttachBill.totalAmount - selectedAttachBill.paidAmount))}
-          </p>
-        </div>
-      ) : null}
-
-      {!openingBalanceMode ? (
-        <div>
-          <label className="label">Category</label>
-          <select className="select" value={value.category} onChange={(e) => setField('category', e.target.value as CustomBillingFormState['category'])}>
-            {customChargeCategoryOptions.filter((option) => option.value !== 'OPENING_BALANCE').map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </div>
-      ) : null}
+      <div>
+        <label className="label">Flat</label>
+        <select className="select" value={value.flatId} onChange={(e) => setField('flatId', e.target.value)}>
+          <option value="">Select flat</option>
+          {flats.map((flat) => (
+            <option key={flat.id} value={flat.id}>{`${flat.blockName} • ${flat.flatNumber}${flat.residentName ? ` • ${flat.residentName}` : ''}`}</option>
+          ))}
+        </select>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
@@ -1302,13 +1194,6 @@ function UnifiedBillingForm({
           <input className="input" type="number" min={1} step="0.01" value={value.amount} onChange={(e) => setField('amount', e.target.value)} placeholder="0.00" />
         </div>
       </div>
-
-      {!attachMode ? (
-        <div>
-          <label className="label">Due Date</label>
-          <input className="input" type="date" value={value.dueDate} onChange={(e) => setField('dueDate', e.target.value)} />
-        </div>
-      ) : null}
 
       <div>
         <label className="label">Description</label>
@@ -1341,12 +1226,14 @@ function SummaryRow({ label, value, emphasized = false }: { label: string; value
 function ConfigureBillingForm({
   value,
   showLateFeeFields,
+  lateFeeMode,
   onChange,
   onSubmit,
   isPending,
 }: {
   value: BillingConfigFormState;
   showLateFeeFields: boolean;
+  lateFeeMode: SocietyBillingSettings['lateFeeMode'];
   onChange: (value: BillingConfigFormState) => void;
   onSubmit: () => void;
   isPending: boolean;
@@ -1361,10 +1248,6 @@ function ConfigureBillingForm({
 
   const updateNumberField = (field: keyof BillingConfigFormState, rawValue: string) => {
     onChange({ ...value, [field]: rawValue === '' ? '' : Number(rawValue) });
-  };
-
-  const updateLateFeeMode = (lateFeeMode: LateFeeMode) => {
-    onChange({ ...value, lateFeeMode });
   };
 
   return (
@@ -1408,32 +1291,21 @@ function ConfigureBillingForm({
         {showLateFeeFields ? (
           <>
             <div>
-              <label className="label">Late Fee Mode</label>
-              <select className="select" value={value.lateFeeMode} onChange={(e) => updateLateFeeMode(e.target.value as LateFeeMode)}>
-                <option value="PER_DAY">Per Day</option>
-                <option value="ONE_TIME_PER_BILL">One-Time Per Bill</option>
-              </select>
+              <label className="label">Late Fee Type</label>
+              <input className="input" value={lateFeeMode === 'ONE_TIME_PER_BILL' ? 'One-Time Per Bill' : 'Per Day'} disabled />
             </div>
             <div>
-              <label className="label">Grace Period (Days)</label>
-              <input type="number" min={0} className="input" value={value.gracePeriodDays} onChange={(e) => updateNumberField('gracePeriodDays', e.target.value)} />
-            </div>
-            <div>
-              <label className="label">{value.lateFeeMode === 'ONE_TIME_PER_BILL' ? 'One-Time Late Fee Amount' : 'Late Fee Per Day'}</label>
+              <label className="label">{lateFeeMode === 'ONE_TIME_PER_BILL' ? 'One-Time Late Fee Amount' : 'Late Fee Per Day'}</label>
               <input
                 type="number"
                 min={0}
                 className="input"
-                value={value.lateFeeMode === 'ONE_TIME_PER_BILL' ? value.lateFeeAmount : value.lateFeePerDay}
-                onChange={(e) => updateNumberField(value.lateFeeMode === 'ONE_TIME_PER_BILL' ? 'lateFeeAmount' : 'lateFeePerDay', e.target.value)}
+                value={lateFeeMode === 'ONE_TIME_PER_BILL' ? value.lateFeeAmount : value.lateFeePerDay}
+                onChange={(e) => updateNumberField(lateFeeMode === 'ONE_TIME_PER_BILL' ? 'lateFeeAmount' : 'lateFeePerDay', e.target.value)}
               />
             </div>
           </>
         ) : null}
-        <div>
-          <label className="label">Due Day</label>
-          <input type="number" min={1} max={28} className="input" value={value.dueDay} onChange={(e) => updateNumberField('dueDay', e.target.value)} required />
-        </div>
       </div>
 
       <div className="flex justify-end gap-3 pt-4">

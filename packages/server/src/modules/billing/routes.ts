@@ -44,7 +44,7 @@ const ALL_FLAT_TYPES = [
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const BILL_KINDS = ['MAINTENANCE', 'OPENING_BALANCE', 'SPECIAL'] as const;
 const BILL_LINE_ITEM_CATEGORIES = ['MAINTENANCE_COMPONENT', 'OPENING_BALANCE', 'FINE', 'DAMAGE', 'COMMON_ITEM_BREAKAGE', 'OTHER'] as const;
-const CUSTOM_BILLING_MODES = ['OPENING_BALANCE', 'STANDALONE_SPECIAL', 'ATTACH_TO_BILL'] as const;
+const CUSTOM_BILLING_MODES = ['OPENING_BALANCE', 'STANDALONE_SPECIAL'] as const;
 
 function getSocietyId(req: AuthRequest) {
   return req.user!.role === 'SUPER_ADMIN'
@@ -65,11 +65,8 @@ function normalizeSharedConfig(societyId: string, configs: Array<any>) {
     sinkingFund: primaryConfig?.sinkingFund ?? 0,
     repairFund: primaryConfig?.repairFund ?? 0,
     otherCharges: primaryConfig?.otherCharges ?? 0,
-    lateFeeMode: primaryConfig?.lateFeeMode ?? 'PER_DAY',
     lateFeePerDay: primaryConfig?.lateFeePerDay ?? 0,
     lateFeeAmount: primaryConfig?.lateFeeAmount ?? 0,
-    gracePeriodDays: primaryConfig?.gracePeriodDays ?? 0,
-    dueDay: primaryConfig?.dueDay ?? 10,
     configuredFlatTypes: activeConfigs.map((config) => config.flatType),
     totalMonthlyAmount:
       (primaryConfig?.baseAmount ?? 0) +
@@ -110,6 +107,11 @@ function normalizeBillStatus(totalAmount: number, paidAmount: number, dueDate: D
   if (paidAmount >= totalAmount) return 'PAID';
   if (paidAmount > 0) return 'PARTIAL';
   return dueDate.getTime() < Date.now() ? 'OVERDUE' : 'PENDING';
+}
+
+function resolveDueDateForPeriod(month: number, year: number, dueDay: number) {
+  const normalizedDueDay = Math.min(Math.max(Number(dueDay || 10), 1), 28);
+  return new Date(year, month - 1, normalizedDueDay);
 }
 
 function buildBillLabel(bill: {
@@ -236,11 +238,8 @@ router.post(
     body('sinkingFund').optional().isFloat({ min: 0 }),
     body('repairFund').optional().isFloat({ min: 0 }),
     body('otherCharges').optional().isFloat({ min: 0 }),
-    body('lateFeeMode').optional().isIn(['PER_DAY', 'ONE_TIME_PER_BILL']),
     body('lateFeePerDay').optional().isFloat({ min: 0 }),
     body('lateFeeAmount').optional().isFloat({ min: 0 }),
-    body('gracePeriodDays').optional().isInt({ min: 0 }),
-    body('dueDay').optional().isInt({ min: 1, max: 28 }),
   ],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -258,11 +257,8 @@ router.post(
         sinkingFund = 0,
         repairFund = 0,
         otherCharges = 0,
-        lateFeeMode = 'PER_DAY',
         lateFeePerDay = 0,
         lateFeeAmount = 0,
-        gracePeriodDays = 0,
-        dueDay = 10,
       } = req.body;
 
       const targetFlatTypes = flatType ? [flatType] : [...ALL_FLAT_TYPES];
@@ -295,11 +291,8 @@ router.post(
             sinkingFund,
             repairFund,
             otherCharges,
-            lateFeeMode,
             lateFeePerDay,
             lateFeeAmount,
-            gracePeriodDays,
-            dueDay,
             isActive: true,
           })),
         });
@@ -352,6 +345,7 @@ router.post(
       const configs = await prisma.maintenanceConfig.findMany({
         where: { societyId, isActive: true },
       });
+      const societySettings = await prisma.societySettings.findUnique({ where: { societyId } });
 
       if (configs.length === 0) {
         return res.status(400).json({
@@ -391,8 +385,8 @@ router.post(
           cfg.repairFund +
           cfg.otherCharges;
 
-        const dueDay = Math.min(Math.max(cfg.dueDay, 1), 28);
-        const dueDate = new Date(year, month - 1, dueDay);
+        const dueDay = Math.min(Math.max(Number(societySettings?.dueDay ?? 10), 1), 28);
+        const dueDate = resolveDueDateForPeriod(month, year, Number(societySettings?.dueDay ?? 10));
 
         let bill;
         try {
@@ -512,69 +506,17 @@ router.post(
     body('mode').isIn(CUSTOM_BILLING_MODES as unknown as string[]),
     body('amount').isFloat({ min: 1 }),
     body('flatId').optional().isUUID(),
-    body('billId').optional().isUUID(),
     body('title').optional().isString().isLength({ min: 1, max: 120 }),
     body('description').optional().isString().isLength({ max: 500 }),
     body('notes').optional().isString().isLength({ max: 1000 }),
-    body('dueDate').optional().isISO8601(),
-    body('category').optional().isIn(BILL_LINE_ITEM_CATEGORIES as unknown as string[]),
     body('appliesToMonth').optional().isInt({ min: 1, max: 12 }),
     body('appliesToYear').optional().isInt({ min: 2020 }),
   ],
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
-      const { mode, amount, flatId, billId, title, description, notes, dueDate, appliesToMonth, appliesToYear } = req.body;
-      const category = req.body.category || (mode === 'OPENING_BALANCE' ? 'OPENING_BALANCE' : 'OTHER');
-
-      if (mode === 'ATTACH_TO_BILL') {
-        if (!billId) return res.status(400).json({ error: 'Bill ID is required' });
-
-        const bill = await prisma.maintenanceBill.findUnique({
-          where: { id: billId },
-          include: { flat: { include: { block: true } }, lineItems: { orderBy: { sortOrder: 'asc' } } },
-        });
-
-        if (!bill) return res.status(404).json({ error: 'Bill not found' });
-        if (req.user!.role !== 'SUPER_ADMIN' && bill.flat.block.societyId !== req.user!.societyId) {
-          return res.status(403).json({ error: 'Access denied' });
-        }
-
-        const nextTotalAmount = Number((Number(bill.totalAmount) + Number(amount)).toFixed(2));
-        const nextOtherCharges = Number((Number(bill.otherCharges) + Number(amount)).toFixed(2));
-        const nextStatus = normalizeBillStatus(nextTotalAmount, Number(bill.paidAmount), bill.dueDate);
-        const lineItemLabel = title || description || 'Special Charge';
-
-        const updatedBill = await prisma.$transaction(async (tx) => {
-          await tx.maintenanceBillLineItem.create({
-            data: {
-              billId: bill.id,
-              label: lineItemLabel,
-              category,
-              amount: Number(amount),
-              notes,
-              sortOrder: bill.lineItems.length,
-            },
-          });
-
-          return tx.maintenanceBill.update({
-            where: { id: bill.id },
-            data: {
-              description: description || bill.description,
-              otherCharges: nextOtherCharges,
-              totalAmount: nextTotalAmount,
-              status: nextStatus as any,
-            },
-            include: {
-              flat: { include: { block: true, owner: true, tenant: true } },
-              payments: { orderBy: { createdAt: 'desc' } },
-              lineItems: { orderBy: { sortOrder: 'asc' } },
-            },
-          });
-        });
-
-        return res.status(201).json(updatedBill);
-      }
+      const { mode, amount, flatId, title, description, notes, appliesToMonth, appliesToYear } = req.body;
+      const category = mode === 'OPENING_BALANCE' ? 'OPENING_BALANCE' : 'OTHER';
 
       if (!flatId) return res.status(400).json({ error: 'Flat ID is required' });
 
@@ -598,9 +540,16 @@ router.post(
         }
       }
 
-      const resolvedDueDate = dueDate ? new Date(dueDate) : new Date();
-      const effectiveAppliesToMonth = appliesToMonth ?? (mode === 'OPENING_BALANCE' ? null : resolvedDueDate.getMonth() + 1);
-      const effectiveAppliesToYear = appliesToYear ?? (mode === 'OPENING_BALANCE' ? null : resolvedDueDate.getFullYear());
+      const societySettings = await prisma.societySettings.findUnique({
+        where: { societyId: flat.block.societyId },
+        select: { dueDay: true },
+      });
+      const referenceDate = new Date();
+      const effectiveAppliesToMonth = appliesToMonth ?? (mode === 'OPENING_BALANCE' ? null : referenceDate.getMonth() + 1);
+      const effectiveAppliesToYear = appliesToYear ?? (mode === 'OPENING_BALANCE' ? null : referenceDate.getFullYear());
+      const dueMonth = effectiveAppliesToMonth ?? referenceDate.getMonth() + 1;
+      const dueYear = effectiveAppliesToYear ?? referenceDate.getFullYear();
+      const resolvedDueDate = resolveDueDateForPeriod(dueMonth, dueYear, Number(societySettings?.dueDay ?? 10));
       const resolvedTitle = title || (mode === 'OPENING_BALANCE' ? 'Opening Balance' : 'Special Bill');
       const baseAmount = mode === 'OPENING_BALANCE' ? Number(amount) : 0;
       const otherCharges = mode === 'OPENING_BALANCE' ? 0 : Number(amount);

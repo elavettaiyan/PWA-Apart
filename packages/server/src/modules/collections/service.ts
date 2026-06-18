@@ -55,10 +55,10 @@ export async function computeAndApplyLateFees(societyId?: string) {
       }
 
       const lateFeeEnabled = settings?.lateFeeEnabled !== false;
-      const lateFeeMode = config?.lateFeeMode ?? 'PER_DAY';
+      const lateFeeMode = settings?.lateFeeMode ?? 'PER_DAY';
       const lateFeePerDay = Number(config?.lateFeePerDay ?? 0);
       const lateFeeAmount = Number(config?.lateFeeAmount ?? 0);
-      const gracePeriodDays = Math.max(0, Number(config?.gracePeriodDays ?? 0));
+      const gracePeriodDays = Math.max(0, Number(settings?.gracePeriodDays ?? 0));
       const daysOverdue = Math.max(0, Math.floor((Date.now() - bill.dueDate.getTime()) / 86400000));
       const effectiveOverdueDays = Math.max(0, daysOverdue - gracePeriodDays);
 

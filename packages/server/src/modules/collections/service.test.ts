@@ -27,7 +27,12 @@ describe('Collections service', () => {
     const flat = await prisma.flat.create({ data: { flatNumber: `T-late-${Date.now()}`, blockId, type: 'TWO_BHK', floor: 1 } as any });
     const fid = flat.id;
     await prisma.maintenanceConfig.deleteMany({ where: { societyId, flatType: 'TWO_BHK' } });
-    await prisma.maintenanceConfig.create({ data: { societyId, flatType: 'TWO_BHK', baseAmount: 0, lateFeePerDay: 10, dueDay: 1, effectiveFrom: new Date(), isActive: true } as any });
+    await prisma.societySettings.upsert({
+      where: { societyId },
+      create: { societyId, lateFeeEnabled: true, lateFeeMode: 'PER_DAY', gracePeriodDays: 0, dueDay: 1 } as any,
+      update: { lateFeeEnabled: true, lateFeeMode: 'PER_DAY', gracePeriodDays: 0, dueDay: 1 },
+    });
+    await prisma.maintenanceConfig.create({ data: { societyId, flatType: 'TWO_BHK', baseAmount: 0, lateFeePerDay: 10, effectiveFrom: new Date(), isActive: true } as any });
 
     // create a bill overdue by 3 days
     const dueDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
@@ -50,8 +55,8 @@ describe('Collections service', () => {
 
     await prisma.societySettings.upsert({
       where: { societyId },
-      create: { societyId, lateFeeEnabled: true } as any,
-      update: { lateFeeEnabled: true },
+      create: { societyId, lateFeeEnabled: true, lateFeeMode: 'ONE_TIME_PER_BILL', gracePeriodDays: 5, dueDay: 1 } as any,
+      update: { lateFeeEnabled: true, lateFeeMode: 'ONE_TIME_PER_BILL', gracePeriodDays: 5, dueDay: 1 },
     });
     await prisma.maintenanceConfig.deleteMany({ where: { societyId, flatType: 'TWO_BHK' } });
 
@@ -60,10 +65,7 @@ describe('Collections service', () => {
         societyId,
         flatType: 'TWO_BHK',
         baseAmount: 0,
-        lateFeeMode: 'ONE_TIME_PER_BILL',
         lateFeeAmount: 200,
-        gracePeriodDays: 5,
-        dueDay: 1,
         effectiveFrom: new Date(),
         isActive: true,
       } as any,
@@ -88,8 +90,8 @@ describe('Collections service', () => {
 
     await prisma.societySettings.upsert({
       where: { societyId },
-      create: { societyId, lateFeeEnabled: true } as any,
-      update: { lateFeeEnabled: true },
+      create: { societyId, lateFeeEnabled: true, lateFeeMode: 'ONE_TIME_PER_BILL', gracePeriodDays: 5, dueDay: 1 } as any,
+      update: { lateFeeEnabled: true, lateFeeMode: 'ONE_TIME_PER_BILL', gracePeriodDays: 5, dueDay: 1 },
     });
     await prisma.maintenanceConfig.deleteMany({ where: { societyId, flatType: 'TWO_BHK' } });
 
@@ -98,10 +100,7 @@ describe('Collections service', () => {
         societyId,
         flatType: 'TWO_BHK',
         baseAmount: 0,
-        lateFeeMode: 'ONE_TIME_PER_BILL',
         lateFeeAmount: 200,
-        gracePeriodDays: 5,
-        dueDay: 1,
         effectiveFrom: new Date(),
         isActive: true,
       } as any,
@@ -124,8 +123,8 @@ describe('Collections service', () => {
 
     await prisma.societySettings.upsert({
       where: { societyId },
-      create: { societyId, lateFeeEnabled: false } as any,
-      update: { lateFeeEnabled: false },
+      create: { societyId, lateFeeEnabled: false, lateFeeMode: 'PER_DAY', gracePeriodDays: 0, dueDay: 1 } as any,
+      update: { lateFeeEnabled: false, lateFeeMode: 'PER_DAY', gracePeriodDays: 0, dueDay: 1 },
     });
     await prisma.maintenanceConfig.deleteMany({ where: { societyId, flatType: 'TWO_BHK' } });
 
@@ -134,10 +133,7 @@ describe('Collections service', () => {
         societyId,
         flatType: 'TWO_BHK',
         baseAmount: 0,
-        lateFeeMode: 'PER_DAY',
         lateFeePerDay: 10,
-        gracePeriodDays: 0,
-        dueDay: 1,
         effectiveFrom: new Date(),
         isActive: true,
       } as any,

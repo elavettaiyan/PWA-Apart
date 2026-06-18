@@ -1404,6 +1404,41 @@ export default function SettingsPage() {
 
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="rounded-xl p-4 bg-surface-container-low">
+                  <label className="label">Due Day</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={28}
+                    className="input"
+                    value={billingSettings.dueDay ?? 10}
+                    onChange={(e) => setBillingSettings({ ...billingSettings, dueDay: Number(e.target.value) })}
+                  />
+                </div>
+                <div className="rounded-xl p-4 bg-surface-container-low">
+                  <label className="label">Grace Period (Days)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    className="input"
+                    value={billingSettings.gracePeriodDays ?? 0}
+                    onChange={(e) => setBillingSettings({ ...billingSettings, gracePeriodDays: Number(e.target.value) })}
+                  />
+                </div>
+                <div className="rounded-xl p-4 bg-surface-container-low">
+                  <label className="label">Late Fee Type</label>
+                  <select
+                    className="select"
+                    value={billingSettings.lateFeeMode ?? 'PER_DAY'}
+                    onChange={(e) => setBillingSettings({ ...billingSettings, lateFeeMode: e.target.value })}
+                  >
+                    <option value="PER_DAY">Per Day</option>
+                    <option value="ONE_TIME_PER_BILL">One-Time Per Bill</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="flex items-center gap-3 pt-2">
                 <button
                   onClick={() => settingsMutation.mutate(billingSettings)}

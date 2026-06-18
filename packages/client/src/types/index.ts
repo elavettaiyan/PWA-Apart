@@ -273,7 +273,7 @@ export type BillStatus = 'PENDING' | 'PARTIAL' | 'PAID' | 'OVERDUE';
 export type LateFeeMode = 'PER_DAY' | 'ONE_TIME_PER_BILL';
 export type BillKind = 'MAINTENANCE' | 'OPENING_BALANCE' | 'SPECIAL';
 export type BillLineItemCategory = 'MAINTENANCE_COMPONENT' | 'OPENING_BALANCE' | 'FINE' | 'DAMAGE' | 'COMMON_ITEM_BREAKAGE' | 'OTHER';
-export type CustomBillingMode = 'OPENING_BALANCE' | 'STANDALONE_SPECIAL' | 'ATTACH_TO_BILL';
+export type CustomBillingMode = 'OPENING_BALANCE' | 'STANDALONE_SPECIAL';
 
 export interface MaintenanceConfig {
   id: string;
@@ -402,10 +402,28 @@ export interface PaymentHistoryItem extends Payment {
       flatNumber: string;
       block: {
         name: string;
-        society?: { name: string };
+        society?: {
+          name: string;
+        };
       };
     };
   };
+}
+
+export interface SocietyBillingSettings {
+  id: string;
+  societyId: string;
+  lateFeeEnabled: boolean;
+  lateFeeMode: LateFeeMode;
+  gracePeriodDays: number;
+  dueDay: number;
+  partialPaymentAllowed: boolean;
+  advancePaymentAllowed: boolean;
+  autoAdjustAdvance: boolean;
+  supportsPets: boolean;
+  configuredFlatTypes: FlatType[];
+  forceOldestDueSettlement: boolean;
+  manualBillSelection: boolean;
 }
 
 export interface PaymentReceiptDetails {
