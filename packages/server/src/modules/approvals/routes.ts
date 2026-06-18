@@ -1,7 +1,7 @@
 import { Response, Router } from 'express';
 import { body, param, query } from 'express-validator';
 import { ApprovalActionType, ApprovalStatus } from '@prisma/client';
-import { authenticate, authorize, AuthRequest, ALL_SOCIETY_ROLES, SOCIETY_MANAGERS } from '../../middleware/auth';
+import { authenticate, authorize, AuthRequest, SOCIETY_MANAGERS } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 import {
@@ -16,6 +16,7 @@ import {
 const router = Router();
 const APPROVAL_ACTION_TYPES: ApprovalActionType[] = ['TENANT_REGISTRATION', 'TENANT_PROFILE_CHANGE'];
 const APPROVAL_STATUSES: ApprovalStatus[] = ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'];
+const APPROVAL_ALLOWED_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER'] as const;
 
 router.use(authenticate);
 
@@ -118,7 +119,7 @@ router.put(
     body('societyId').optional().isUUID(),
     body('enabled').isBoolean().withMessage('enabled must be a boolean'),
     body('approverRoles').optional().isArray().withMessage('approverRoles must be an array'),
-    body('approverRoles.*').optional().isIn([...ALL_SOCIETY_ROLES]).withMessage('Invalid approver role'),
+    body('approverRoles.*').optional().isIn([...APPROVAL_ALLOWED_ROLES]).withMessage('Invalid approver role'),
   ],
   validate,
   async (req: AuthRequest, res: Response) => {

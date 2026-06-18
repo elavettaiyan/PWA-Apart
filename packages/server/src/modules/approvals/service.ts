@@ -6,7 +6,7 @@ import { sendResidentOnboardingEmail } from '../../config/email';
 import { notifyApprovalRequestCreated, notifyApprovalRequestResolved } from '../notifications/service';
 
 const DEFAULT_APPROVER_ROLES: Role[] = ['ADMIN', 'SECRETARY'];
-const ALLOWED_APPROVER_ROLES: Role[] = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT'];
+const ALLOWED_APPROVER_ROLES: Role[] = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER'];
 
 type TenantRegistrationVehicle = {
   type: 'TWO_WHEELER' | 'THREE_WHEELER' | 'FOUR_WHEELER';

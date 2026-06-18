@@ -22,7 +22,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import type { ApprovalActionType, ApprovalConfig, ConfigurableMenuRole, FlatType, MenuVisibilityResponse, NavigationMenuId, PremiumStatusResponse, Role } from '../../types';
-import { ALL_SOCIETY_ROLES, SOCIETY_ADMINS } from '../../types';
+import { SOCIETY_ADMINS } from '../../types';
 import ManageStaffPanel from '../../components/settings/ManageStaffPanel';
 
 
@@ -83,6 +83,8 @@ const APPROVAL_WORKFLOW_OPTIONS: Array<{ actionType: ApprovalActionType; title: 
     description: 'Require approval before tenant self-service profile changes are applied.',
   },
 ];
+
+const APPROVAL_APPROVER_ROLES: Role[] = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER'];
 
 export default function SettingsPage() {
   const legalBaseUrl = 'https://dwellhub.in';
@@ -1750,7 +1752,7 @@ function ApprovalWorkflowCard({
       <div className="mt-4">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">Approver Roles</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {ALL_SOCIETY_ROLES.map((role) => {
+          {APPROVAL_APPROVER_ROLES.map((role) => {
             const active = config.approverRoles.includes(role);
             return (
               <button
