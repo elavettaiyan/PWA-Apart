@@ -108,11 +108,14 @@ export default function ExpensesPage() {
     <div>
       <div className="page-header">
         <div>
-          <p className="section-label mb-1">Financial Ledger</p>
           <h1 className="page-title">Expenses</h1>
+          <p className="mt-1 text-sm text-on-surface-variant">Track shared spending, receipts, and accounting periods for the community.</p>
         </div>
-        <button className="btn-primary text-xs px-3 py-1.5" onClick={() => setShowCreate(true)}>
-          <Plus className="w-3.5 h-3.5" /> Add
+        <button
+          className="inline-flex items-center gap-2 rounded-lg border border-blue-600 bg-white px-4 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-50"
+          onClick={() => setShowCreate(true)}
+        >
+          <Plus className="h-4 w-4" /> Add Expense
         </button>
       </div>
 

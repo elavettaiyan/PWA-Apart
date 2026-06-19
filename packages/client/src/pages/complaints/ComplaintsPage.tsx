@@ -56,12 +56,15 @@ export default function ComplaintsPage() {
     <div>
       <div className="page-header">
         <div>
-          <p className="section-label mb-1">Service Desk</p>
           <h1 className="page-title">Complaints</h1>
+          <p className="mt-1 text-sm text-on-surface-variant">Review, assign, and resolve resident issues from one place.</p>
         </div>
         {!isSpecializedStaffView && (
-          <button className="btn-primary" onClick={() => setShowCreate(true)}>
-            <Plus className="w-4 h-4" /> New Complaint
+          <button
+            className="inline-flex items-center gap-2 rounded-lg border border-blue-600 bg-white px-4 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-50"
+            onClick={() => setShowCreate(true)}
+          >
+            <Plus className="h-4 w-4" /> New Complaint
           </button>
         )}
       </div>

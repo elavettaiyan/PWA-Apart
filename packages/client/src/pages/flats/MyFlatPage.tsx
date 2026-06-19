@@ -151,6 +151,11 @@ export default function MyFlatPage() {
 
   return (
     <div className="space-y-6 md:space-y-7">
+      <div>
+        <h1 className="page-title">My Flat</h1>
+        <p className="mt-1 text-sm text-on-surface-variant">View your unit details, resident records, and yearly billing summary.</p>
+      </div>
+
       <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
         <FlatDetailsCard flat={flat} />
         {activeOwner ? (

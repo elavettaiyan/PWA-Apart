@@ -574,8 +574,8 @@ export default function SettingsPage() {
     <div>
       <div className="page-header">
         <div>
-          <p className="section-label mb-1">Configuration</p>
           <h1 className="page-title">Settings</h1>
+          <p className="mt-1 text-sm text-on-surface-variant">Manage community preferences, billing rules, staff access, and integrations.</p>
         </div>
       </div>
 

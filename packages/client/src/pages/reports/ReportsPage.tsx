@@ -96,8 +96,8 @@ export default function ReportsPage() {
     <div>
       <div className="page-header">
         <div>
-          <p className="section-label mb-1">Analytics</p>
           <h1 className="page-title">Reports</h1>
+          <p className="mt-1 text-sm text-on-surface-variant">Analyze collections, residents, defaulters, and expense trends.</p>
         </div>
       </div>
 

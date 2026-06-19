@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Box, Plus, Wrench, CalendarClock, AlertTriangle, CheckCircle2, Clock, Trash2, Eye, Pencil, History, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
-import { formatDate, formatCurrency } from '../../lib/utils';
+import { cn, formatDate, formatCurrency } from '../../lib/utils';
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
 import type { Asset, AssetType, ServiceFrequency, AssetDashboard, ServiceJob, ServiceJobStatus, ServiceJobPriority, ServiceHistoryEntry } from '../../types';
@@ -138,39 +138,44 @@ export default function AssetsPage() {
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-headline font-bold text-on-surface sm:text-2xl">Asset Management</h1>
-        {tab === 'assets' && (
-          <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2 text-sm">
-            <Plus className="w-4 h-4" /> Add Asset
-          </button>
-        )}
-        {tab === 'jobs' && (
-          <button
-            onClick={() => {
-              setCreateJobAssetId(assets[0]?.id || '');
-              setShowCreateJob(true);
-            }}
-            className="btn-primary flex items-center gap-2 text-sm"
-            disabled={assets.length === 0}
-          >
-            <Plus className="w-4 h-4" /> Schedule Job
-          </button>
-        )}
-      </div>
+      <section className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Asset Management</h1>
+          <p className="mt-1 max-w-sm text-sm text-slate-400">Track shared assets and recurring service schedules</p>
+        </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-surface-container rounded-2xl p-1">
+        <div className="flex flex-wrap gap-3 xl:justify-end">
+          {tab === 'assets' && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-blue-600 bg-white px-4 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-50"
+            >
+              <Plus className="h-4 w-4" /> Add Asset
+            </button>
+          )}
+          {tab === 'jobs' && (
+            <button
+              onClick={() => {
+                setCreateJobAssetId(assets[0]?.id || '');
+                setShowCreateJob(true);
+              }}
+              className="inline-flex items-center gap-2 rounded-lg border border-blue-600 bg-white px-4 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={assets.length === 0}
+            >
+              <Plus className="h-4 w-4" /> Add Schedule
+            </button>
+          )}
+        </div>
+      </section>
+
+      <div className="flex items-center gap-6 border-b border-slate-200">
         {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition ${
-              tab === t.key ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-high'
-            }`}
-          >
-            {t.icon} {t.label}
-          </button>
+          <AssetsTabButton key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
+            <span className="inline-flex items-center gap-2">
+              {t.icon}
+              {t.label}
+            </span>
+          </AssetsTabButton>
         ))}
       </div>
 
@@ -374,6 +379,21 @@ export default function AssetsPage() {
   function loadAssetHistory(asset: Asset) {
     api.get(`/assets/${asset.id}`).then((res) => setHistoryAsset(res.data)).catch(() => toast.error('Failed to load history'));
   }
+}
+
+function AssetsTabButton({ active, children, onClick }: { active: boolean; children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'pb-3 text-sm transition-colors',
+        active ? 'border-b-2 border-blue-600 font-bold text-blue-600' : 'font-medium text-slate-500 hover:text-slate-800'
+      )}
+    >
+      {children}
+    </button>
+  );
 }
 
 // ═══════════════════════════════════════════════════════

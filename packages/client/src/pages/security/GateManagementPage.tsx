@@ -322,18 +322,17 @@ export default function GateManagementPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="section-label mb-2">Gate Desk</p>
           <h1 className="page-title">Gate Management</h1>
           <p className="text-sm text-on-surface-variant">Record visitors and deliveries from one workflow.</p>
         </div>
-        <div className="inline-flex rounded-2xl bg-white p-1 w-full max-w-sm" style={{ boxShadow: '0 1px 8px -2px rgba(0,0,0,0.04)' }}>
+        <div className="flex items-center gap-6 border-b border-slate-200">
           {(['VISITOR', 'DELIVERY'] as EntryMode[]).map((value) => (
             <button
               key={value}
               type="button"
               className={cn(
-                'flex-1 rounded-xl px-4 py-2 text-sm font-semibold transition-colors',
-                mode === value ? 'bg-primary text-white' : 'text-[#64748B]',
+                'pb-3 text-sm transition-colors',
+                mode === value ? 'border-b-2 border-blue-600 font-bold text-blue-600' : 'font-medium text-slate-500 hover:text-slate-800'
               )}
               onClick={() => setMode(value)}
             >
