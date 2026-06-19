@@ -952,6 +952,7 @@ router.get('/society-settings', async (req: AuthRequest, res: Response) => {
           societyId,
           lateFeeEnabled: true,
           lateFeeMode: 'PER_DAY',
+          recurringLateFeeFrequency: 'MONTHLY',
           gracePeriodDays: 0,
           dueDay: 10,
           partialPaymentAllowed: true,
@@ -980,7 +981,8 @@ router.put(
   [
     body('societyId').optional().isUUID(),
     body('lateFeeEnabled').optional().isBoolean(),
-    body('lateFeeMode').optional().isIn(['PER_DAY', 'ONE_TIME_PER_BILL']),
+    body('lateFeeMode').optional().isIn(['PER_DAY', 'ONE_TIME_PER_BILL', 'RECURRING']),
+    body('recurringLateFeeFrequency').optional().isIn(['DAILY', 'MONTHLY']),
     body('gracePeriodDays').optional().isInt({ min: 0 }),
     body('dueDay').optional().isInt({ min: 1, max: 28 }),
     body('partialPaymentAllowed').optional().isBoolean(),
@@ -999,6 +1001,7 @@ router.put(
       const {
         lateFeeEnabled,
         lateFeeMode,
+        recurringLateFeeFrequency,
         gracePeriodDays,
         dueDay,
         partialPaymentAllowed,
@@ -1014,6 +1017,7 @@ router.put(
           societyId,
           lateFeeEnabled: lateFeeEnabled ?? true,
           lateFeeMode: lateFeeMode ?? 'PER_DAY',
+          recurringLateFeeFrequency: recurringLateFeeFrequency ?? 'MONTHLY',
           gracePeriodDays: gracePeriodDays ?? 0,
           dueDay: dueDay ?? 10,
           partialPaymentAllowed: partialPaymentAllowed ?? true,
@@ -1027,6 +1031,7 @@ router.put(
         update: {
           ...(lateFeeEnabled !== undefined ? { lateFeeEnabled } : {}),
           ...(lateFeeMode !== undefined ? { lateFeeMode } : {}),
+          ...(recurringLateFeeFrequency !== undefined ? { recurringLateFeeFrequency } : {}),
           ...(gracePeriodDays !== undefined ? { gracePeriodDays } : {}),
           ...(dueDay !== undefined ? { dueDay } : {}),
           ...(partialPaymentAllowed !== undefined ? { partialPaymentAllowed } : {}),

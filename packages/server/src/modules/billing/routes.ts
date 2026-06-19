@@ -67,6 +67,7 @@ function normalizeSharedConfig(societyId: string, configs: Array<any>) {
     otherCharges: primaryConfig?.otherCharges ?? 0,
     lateFeePerDay: primaryConfig?.lateFeePerDay ?? 0,
     lateFeeAmount: primaryConfig?.lateFeeAmount ?? 0,
+    recurringLateFeeAmount: primaryConfig?.recurringLateFeeAmount ?? 0,
     configuredFlatTypes: activeConfigs.map((config) => config.flatType),
     totalMonthlyAmount:
       (primaryConfig?.baseAmount ?? 0) +
@@ -240,6 +241,7 @@ router.post(
     body('otherCharges').optional().isFloat({ min: 0 }),
     body('lateFeePerDay').optional().isFloat({ min: 0 }),
     body('lateFeeAmount').optional().isFloat({ min: 0 }),
+    body('recurringLateFeeAmount').optional().isFloat({ min: 0 }),
   ],
   validate,
   async (req: AuthRequest, res: Response) => {
@@ -259,6 +261,7 @@ router.post(
         otherCharges = 0,
         lateFeePerDay = 0,
         lateFeeAmount = 0,
+        recurringLateFeeAmount = 0,
       } = req.body;
 
       const targetFlatTypes = flatType ? [flatType] : [...ALL_FLAT_TYPES];
@@ -293,6 +296,7 @@ router.post(
             otherCharges,
             lateFeePerDay,
             lateFeeAmount,
+            recurringLateFeeAmount,
             isActive: true,
           })),
         });
@@ -405,6 +409,13 @@ router.post(
               sinkingFund: cfg.sinkingFund,
               repairFund: cfg.repairFund,
               otherCharges: cfg.otherCharges,
+              lateFeeEnabledSnapshot: societySettings?.lateFeeEnabled ?? true,
+              lateFeeModeSnapshot: societySettings?.lateFeeMode ?? 'PER_DAY',
+              recurringLateFeeFrequencySnapshot: societySettings?.recurringLateFeeFrequency ?? 'MONTHLY',
+              lateFeePerDaySnapshot: cfg.lateFeePerDay,
+              lateFeeAmountSnapshot: cfg.lateFeeAmount,
+              recurringLateFeeAmountSnapshot: cfg.recurringLateFeeAmount,
+              gracePeriodDaysSnapshot: societySettings?.gracePeriodDays ?? 0,
               totalAmount,
               dueDate,
               status: 'PENDING',

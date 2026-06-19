@@ -54,6 +54,7 @@ type BillingConfigFormState = {
   otherCharges: number | '';
   lateFeePerDay: number | '';
   lateFeeAmount: number | '';
+  recurringLateFeeAmount: number | '';
 };
 
 type CustomBillingFormState = {
@@ -75,6 +76,7 @@ function buildConfigForm(summary?: MaintenanceConfigSummary): BillingConfigFormS
     otherCharges: summary?.otherCharges ?? 0,
     lateFeePerDay: summary?.lateFeePerDay ?? 0,
     lateFeeAmount: summary?.lateFeeAmount ?? 0,
+    recurringLateFeeAmount: summary?.recurringLateFeeAmount ?? 0,
   };
 }
 
@@ -88,6 +90,7 @@ function normalizeBillingConfigForm(value: BillingConfigFormState) {
     otherCharges: Number(value.otherCharges || 0),
     lateFeePerDay: Number(value.lateFeePerDay || 0),
     lateFeeAmount: Number(value.lateFeeAmount || 0),
+    recurringLateFeeAmount: Number(value.recurringLateFeeAmount || 0),
   };
 }
 
@@ -1045,6 +1048,7 @@ export default function BillingPage() {
           value={configForm}
           showLateFeeFields={societySettings?.lateFeeEnabled !== false}
           lateFeeMode={societySettings?.lateFeeMode ?? 'PER_DAY'}
+          recurringLateFeeFrequency={societySettings?.recurringLateFeeFrequency ?? 'MONTHLY'}
           onChange={setConfigForm}
           onSubmit={() => configMutation.mutate(configForm)}
           isPending={configMutation.isPending}
@@ -1227,6 +1231,7 @@ function ConfigureBillingForm({
   value,
   showLateFeeFields,
   lateFeeMode,
+  recurringLateFeeFrequency,
   onChange,
   onSubmit,
   isPending,
@@ -1234,6 +1239,7 @@ function ConfigureBillingForm({
   value: BillingConfigFormState;
   showLateFeeFields: boolean;
   lateFeeMode: SocietyBillingSettings['lateFeeMode'];
+  recurringLateFeeFrequency: SocietyBillingSettings['recurringLateFeeFrequency'];
   onChange: (value: BillingConfigFormState) => void;
   onSubmit: () => void;
   isPending: boolean;
@@ -1249,6 +1255,26 @@ function ConfigureBillingForm({
   const updateNumberField = (field: keyof BillingConfigFormState, rawValue: string) => {
     onChange({ ...value, [field]: rawValue === '' ? '' : Number(rawValue) });
   };
+
+  const lateFeeTypeLabel = lateFeeMode === 'ONE_TIME_PER_BILL'
+    ? 'One-Time Per Bill'
+    : lateFeeMode === 'RECURRING'
+      ? `Recurring Late Fee (${recurringLateFeeFrequency === 'DAILY' ? 'Daily' : 'Monthly'})`
+      : 'Per Day';
+
+  const lateFeeAmountLabel = lateFeeMode === 'ONE_TIME_PER_BILL'
+    ? 'One-Time Late Fee Amount'
+    : lateFeeMode === 'RECURRING'
+      ? recurringLateFeeFrequency === 'DAILY'
+        ? 'Recurring Late Fee Per Day'
+        : 'Recurring Late Fee Per Month'
+      : 'Late Fee Per Day';
+
+  const lateFeeField: keyof BillingConfigFormState = lateFeeMode === 'ONE_TIME_PER_BILL'
+    ? 'lateFeeAmount'
+    : lateFeeMode === 'RECURRING'
+      ? 'recurringLateFeeAmount'
+      : 'lateFeePerDay';
 
   return (
     <form
@@ -1292,16 +1318,16 @@ function ConfigureBillingForm({
           <>
             <div>
               <label className="label">Late Fee Type</label>
-              <input className="input" value={lateFeeMode === 'ONE_TIME_PER_BILL' ? 'One-Time Per Bill' : 'Per Day'} disabled />
+              <input className="input" value={lateFeeTypeLabel} disabled />
             </div>
             <div>
-              <label className="label">{lateFeeMode === 'ONE_TIME_PER_BILL' ? 'One-Time Late Fee Amount' : 'Late Fee Per Day'}</label>
+              <label className="label">{lateFeeAmountLabel}</label>
               <input
                 type="number"
                 min={0}
                 className="input"
-                value={lateFeeMode === 'ONE_TIME_PER_BILL' ? value.lateFeeAmount : value.lateFeePerDay}
-                onChange={(e) => updateNumberField(lateFeeMode === 'ONE_TIME_PER_BILL' ? 'lateFeeAmount' : 'lateFeePerDay', e.target.value)}
+                value={value[lateFeeField]}
+                onChange={(e) => updateNumberField(lateFeeField, e.target.value)}
               />
             </div>
           </>

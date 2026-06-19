@@ -69,6 +69,12 @@ enum BillLineItemCategory {
 enum LateFeeMode {
   PER_DAY
   ONE_TIME_PER_BILL
+  RECURRING
+}
+
+enum RecurringLateFeeFrequency {
+  DAILY
+  MONTHLY
 }
 
 enum PaymentStatus {
@@ -735,6 +741,7 @@ model MaintenanceConfig {
   otherCharges    Float    @default(0)
   lateFeePerDay   Float    @default(0)
   lateFeeAmount   Float    @default(0)
+  recurringLateFeeAmount Float @default(0)
   effectiveFrom   DateTime @default(now())
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
@@ -753,6 +760,7 @@ model SocietySettings {
   societyId               String   @unique
   lateFeeEnabled          Boolean  @default(true)
   lateFeeMode             LateFeeMode @default(PER_DAY)
+  recurringLateFeeFrequency RecurringLateFeeFrequency @default(MONTHLY)
   gracePeriodDays         Int      @default(0)
   dueDay                  Int      @default(10)
   partialPaymentAllowed   Boolean  @default(true)
@@ -788,6 +796,13 @@ model MaintenanceBill {
   repairFund    Float       @default(0)
   otherCharges  Float       @default(0)
   lateFee       Float       @default(0)
+  lateFeeEnabledSnapshot Boolean?
+  lateFeeModeSnapshot LateFeeMode?
+  recurringLateFeeFrequencySnapshot RecurringLateFeeFrequency?
+  lateFeePerDaySnapshot Float?
+  lateFeeAmountSnapshot Float?
+  recurringLateFeeAmountSnapshot Float?
+  gracePeriodDaysSnapshot Int?
   totalAmount   Float
   paidAmount    Float       @default(0)
   dueDate       DateTime

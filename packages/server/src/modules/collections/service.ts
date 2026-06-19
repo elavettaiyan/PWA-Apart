@@ -1,6 +1,34 @@
 import prisma from '../../config/database';
 import logger from '../../config/logger';
 
+function getFullElapsedMonths(startDate: Date, endDate: Date) {
+  const yearDiff = endDate.getFullYear() - startDate.getFullYear();
+  const monthDiff = endDate.getMonth() - startDate.getMonth();
+  let months = yearDiff * 12 + monthDiff;
+
+  if (months < 0) return 0;
+
+  if (endDate.getDate() < startDate.getDate()) {
+    months -= 1;
+  } else if (
+    endDate.getDate() === startDate.getDate() &&
+    (endDate.getHours() < startDate.getHours() ||
+      (endDate.getHours() === startDate.getHours() && endDate.getMinutes() < startDate.getMinutes()) ||
+      (endDate.getHours() === startDate.getHours() && endDate.getMinutes() === startDate.getMinutes() && endDate.getSeconds() < startDate.getSeconds()))
+  ) {
+    months -= 1;
+  }
+
+  return Math.max(0, months);
+}
+
+function computeRecurringMonthlyLateFee(amount: number, dueDate: Date, gracePeriodDays: number, now: Date) {
+  const overdueStart = new Date(dueDate.getTime() + gracePeriodDays * 86400000);
+  if (now <= overdueStart) return 0;
+  const periods = 1 + getFullElapsedMonths(overdueStart, now);
+  return Number((periods * amount).toFixed(2));
+}
+
 /**
  * Compute and persist late fees for overdue maintenance bills.
  * This will set `maintenanceBill.lateFee` and adjust `totalAmount` accordingly.
@@ -54,18 +82,35 @@ export async function computeAndApplyLateFees(societyId?: string) {
         settingsCache.set(societyKey, settings ?? null);
       }
 
-      const lateFeeEnabled = settings?.lateFeeEnabled !== false;
-      const lateFeeMode = settings?.lateFeeMode ?? 'PER_DAY';
-      const lateFeePerDay = Number(config?.lateFeePerDay ?? 0);
-      const lateFeeAmount = Number(config?.lateFeeAmount ?? 0);
-      const gracePeriodDays = Math.max(0, Number(settings?.gracePeriodDays ?? 0));
+      const hasSnapshotPolicy = bill.lateFeeModeSnapshot !== null || bill.lateFeeEnabledSnapshot !== null;
+      const lateFeeEnabled = hasSnapshotPolicy
+        ? bill.lateFeeEnabledSnapshot !== false
+        : settings?.lateFeeEnabled !== false;
+      const lateFeeMode = hasSnapshotPolicy
+        ? bill.lateFeeModeSnapshot ?? 'PER_DAY'
+        : settings?.lateFeeMode ?? 'PER_DAY';
+      const recurringLateFeeFrequency = hasSnapshotPolicy
+        ? bill.recurringLateFeeFrequencySnapshot ?? 'MONTHLY'
+        : settings?.recurringLateFeeFrequency ?? 'MONTHLY';
+      const lateFeePerDay = Number(hasSnapshotPolicy ? bill.lateFeePerDaySnapshot ?? 0 : config?.lateFeePerDay ?? 0);
+      const lateFeeAmount = Number(hasSnapshotPolicy ? bill.lateFeeAmountSnapshot ?? 0 : config?.lateFeeAmount ?? 0);
+      const recurringLateFeeAmount = Number(hasSnapshotPolicy ? bill.recurringLateFeeAmountSnapshot ?? 0 : config?.recurringLateFeeAmount ?? 0);
+      const gracePeriodDays = Math.max(0, Number(hasSnapshotPolicy ? bill.gracePeriodDaysSnapshot ?? 0 : settings?.gracePeriodDays ?? 0));
       const daysOverdue = Math.max(0, Math.floor((Date.now() - bill.dueDate.getTime()) / 86400000));
       const effectiveOverdueDays = Math.max(0, daysOverdue - gracePeriodDays);
 
       let newLateFee = Number(bill.lateFee.toFixed(2));
       if (lateFeeEnabled) {
-        if (lateFeeMode === 'ONE_TIME_PER_BILL') {
+        if (!hasSnapshotPolicy && lateFeeMode === 'RECURRING') {
+          newLateFee = Number(bill.lateFee.toFixed(2));
+        } else if (lateFeeMode === 'ONE_TIME_PER_BILL') {
           newLateFee = Number((effectiveOverdueDays > 0 ? lateFeeAmount : 0).toFixed(2));
+        } else if (lateFeeMode === 'RECURRING') {
+          if (recurringLateFeeFrequency === 'DAILY') {
+            newLateFee = Number((effectiveOverdueDays * recurringLateFeeAmount).toFixed(2));
+          } else {
+            newLateFee = computeRecurringMonthlyLateFee(recurringLateFeeAmount, bill.dueDate, gracePeriodDays, now);
+          }
         } else {
           newLateFee = Number((effectiveOverdueDays * lateFeePerDay).toFixed(2));
         }

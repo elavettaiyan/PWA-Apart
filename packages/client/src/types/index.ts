@@ -270,7 +270,8 @@ export interface Tenant {
 // ─── MAINTENANCE ────────────────────────────────────────
 
 export type BillStatus = 'PENDING' | 'PARTIAL' | 'PAID' | 'OVERDUE';
-export type LateFeeMode = 'PER_DAY' | 'ONE_TIME_PER_BILL';
+export type LateFeeMode = 'PER_DAY' | 'ONE_TIME_PER_BILL' | 'RECURRING';
+export type RecurringLateFeeFrequency = 'DAILY' | 'MONTHLY';
 export type BillKind = 'MAINTENANCE' | 'OPENING_BALANCE' | 'SPECIAL';
 export type BillLineItemCategory = 'MAINTENANCE_COMPONENT' | 'OPENING_BALANCE' | 'FINE' | 'DAMAGE' | 'COMMON_ITEM_BREAKAGE' | 'OTHER';
 export type CustomBillingMode = 'OPENING_BALANCE' | 'STANDALONE_SPECIAL';
@@ -286,8 +287,10 @@ export interface MaintenanceConfig {
   repairFund: number;
   otherCharges: number;
   lateFeeMode: LateFeeMode;
+  recurringLateFeeFrequency: RecurringLateFeeFrequency;
   lateFeePerDay: number;
   lateFeeAmount: number;
+  recurringLateFeeAmount: number;
   gracePeriodDays: number;
   dueDay: number;
 }
@@ -304,6 +307,7 @@ export interface MaintenanceConfigSummary {
   lateFeeMode: LateFeeMode;
   lateFeePerDay: number;
   lateFeeAmount: number;
+  recurringLateFeeAmount: number;
   gracePeriodDays: number;
   dueDay: number;
   configuredFlatTypes: FlatType[];
@@ -415,6 +419,7 @@ export interface SocietyBillingSettings {
   societyId: string;
   lateFeeEnabled: boolean;
   lateFeeMode: LateFeeMode;
+  recurringLateFeeFrequency: RecurringLateFeeFrequency;
   gracePeriodDays: number;
   dueDay: number;
   partialPaymentAllowed: boolean;

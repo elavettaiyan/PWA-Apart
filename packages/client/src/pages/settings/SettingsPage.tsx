@@ -1435,8 +1435,22 @@ export default function SettingsPage() {
                   >
                     <option value="PER_DAY">Per Day</option>
                     <option value="ONE_TIME_PER_BILL">One-Time Per Bill</option>
+                    <option value="RECURRING">Recurring Late Fee</option>
                   </select>
                 </div>
+                {billingSettings.lateFeeMode === 'RECURRING' ? (
+                  <div className="rounded-xl p-4 bg-surface-container-low">
+                    <label className="label">Recurring Frequency</label>
+                    <select
+                      className="select"
+                      value={billingSettings.recurringLateFeeFrequency ?? 'MONTHLY'}
+                      onChange={(e) => setBillingSettings({ ...billingSettings, recurringLateFeeFrequency: e.target.value })}
+                    >
+                      <option value="MONTHLY">Monthly</option>
+                      <option value="DAILY">Daily</option>
+                    </select>
+                  </div>
+                ) : null}
               </div>
 
               <div className="flex items-center gap-3 pt-2">
