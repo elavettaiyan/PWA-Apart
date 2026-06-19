@@ -1459,7 +1459,7 @@ export default function SettingsPage() {
       </SettingsAccordion>
 
       <SettingsAccordion
-        title="Gate Language"
+        title="General Settings"
         description="Choose up to three regional languages to show with English in Gate Management"
         icon={Globe}
         iconWrapperClassName="group-open:bg-sky-100"
