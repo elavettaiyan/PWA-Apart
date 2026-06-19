@@ -1,6 +1,7 @@
 // ─── USER & AUTH ────────────────────────────────────────
 
 export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'SECRETARY' | 'JOINT_SECRETARY' | 'TREASURER' | 'OWNER' | 'TENANT' | 'SERVICE_STAFF';
+export type AdminAssignmentType = 'TEMPORARY' | 'PRESIDENT';
 
 // Role group helpers
 export const SOCIETY_ADMINS: Role[] = ['ADMIN', 'SECRETARY'];
@@ -55,10 +56,13 @@ export interface User {
   name: string;
   phone?: string;
   role: Role;
+  adminAssignmentType?: AdminAssignmentType | null;
+  adminAssignedAt?: string | null;
+  isTemporaryAdmin?: boolean;
   specialization?: string | null;
   societyId?: string;
   activeSocietyId?: string;
-  societies?: Array<{ id: string; name: string; role?: Role }>;
+  societies?: Array<{ id: string; name: string; role?: Role; adminAssignmentType?: AdminAssignmentType | null }>;
   flat?: Flat;
   flatRelation?: 'OWNER' | 'TENANT' | null;
   canUseOwnerView?: boolean;

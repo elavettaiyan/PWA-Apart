@@ -35,7 +35,7 @@ export default function ManageStaffPanel({ embedded = false }: { embedded?: bool
         <div>
           {!embedded && <p className="section-label mb-2">People</p>}
           <h2 className={cn(embedded ? 'text-lg font-semibold text-on-surface' : 'page-title')}>Manage Staff</h2>
-          <p className="text-sm text-on-surface-variant">Create and manage service staff accounts</p>
+          <p className="text-sm text-on-surface-variant">Create, activate, and deactivate service staff accounts</p>
         </div>
         <button className="btn-primary" onClick={() => setShowCreate(true)}>
           <Plus className="w-4 h-4 mr-1" /> Add Staff
@@ -172,6 +172,18 @@ function StaffCard({ member, embedded }: { member: StaffMember; embedded: boolea
       <div className="space-y-1.5 text-sm text-on-surface-variant">
         <p className="flex items-center gap-2 break-all"><Mail className="w-3.5 h-3.5 text-outline shrink-0" /> {member.email}</p>
         {member.phone && <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-outline shrink-0" /> {member.phone}</p>}
+      </div>
+      <div className="mt-4 flex justify-end">
+        <button
+          className={cn(
+            'btn-secondary btn-sm',
+            member.isActive ? 'text-error hover:text-error' : 'text-primary hover:text-primary',
+          )}
+          onClick={() => toggleActive.mutate()}
+          disabled={toggleActive.isPending}
+        >
+          {toggleActive.isPending ? 'Saving...' : member.isActive ? 'Deactivate Staff' : 'Activate Staff'}
+        </button>
       </div>
     </div>
   );

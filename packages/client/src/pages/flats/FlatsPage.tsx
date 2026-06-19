@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Building2,
   ChevronDown,
@@ -36,7 +36,7 @@ import { isNativeIos } from '../../lib/platform';
 import { useAuthStore } from '../../store/authStore';
 import { cn, getFlatTypeLabel } from '../../lib/utils';
 import api from '../../lib/api';
-import type { Flat } from '../../types';
+import type { AdminAssignmentType, Flat } from '../../types';
 
 type ViewMode = 'flats' | 'residents';
 
@@ -46,8 +46,40 @@ type ResidentEntry = {
   name: string;
   phone: string;
   email?: string;
+  userId?: string;
+  roleLabel: string;
   flat: Flat;
 };
+
+type MemberRoleRecord = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  adminAssignmentType?: AdminAssignmentType | null;
+  isActive: boolean;
+};
+
+const RESIDENT_ROLE_OPTIONS = [
+  { value: 'SECRETARY', label: 'Secretary' },
+  { value: 'JOINT_SECRETARY', label: 'Joint Secretary' },
+  { value: 'TREASURER', label: 'Treasurer' },
+  { value: 'OWNER', label: 'Owner' },
+];
+
+function formatCommitteeRole(role: string, adminAssignmentType?: AdminAssignmentType | null) {
+  if (role === 'ADMIN') {
+    return adminAssignmentType === 'TEMPORARY' ? 'Temporary Admin' : 'President';
+  }
+
+  return RESIDENT_ROLE_OPTIONS.find((option) => option.value === role)?.label || role.replace(/_/g, ' ');
+}
+
+function getResidentRoleLabel(resident: ResidentEntry | null, membership?: MemberRoleRecord | null) {
+  if (!resident) return '—';
+  if (membership) return formatCommitteeRole(membership.role, membership.adminAssignmentType);
+  return resident.relation === 'TENANT' ? 'Tenant' : 'Owner';
+}
 
 function getActiveOwner(flat: Flat) {
   return flat.owner?.isActive === false ? null : flat.owner ?? null;
@@ -89,15 +121,24 @@ export default function FlatsPage() {
   const [flatRowsPerPage, setFlatRowsPerPage] = useState(10);
   const [residentPage, setResidentPage] = useState(1);
   const [residentRowsPerPage, setResidentRowsPerPage] = useState(10);
+  const [roleTargetResidentId, setRoleTargetResidentId] = useState<string | null>(null);
+  const [selectedCommitteeRole, setSelectedCommitteeRole] = useState('OWNER');
+  const [selectedTransferOwnerUserId, setSelectedTransferOwnerUserId] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
   const isAdmin = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'] as string[]).includes(user?.role || '');
+  const canManageSocietyRoles = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY'] as string[]).includes(user?.role || '');
   const isSelfAssignEligibleAdmin = user?.role === 'ADMIN';
 
   const { data: flats = [], isLoading } = useFlats();
   const { data: blocks = [] } = useBlocks();
+  const { data: memberRoles = [] } = useQuery<MemberRoleRecord[]>({
+    queryKey: ['settings-members'],
+    queryFn: async () => (await api.get('/settings/members')).data,
+    enabled: canManageSocietyRoles,
+  });
   const assignMyFlatMutation = useAssignMyFlatMutation();
   const unmapMyFlatMutation = useUnmapMyFlatMutation();
 
@@ -113,6 +154,8 @@ export default function FlatsPage() {
           name: activeOwner.name,
           phone: activeOwner.phone,
           email: activeOwner.email,
+          userId: activeOwner.userId,
+          roleLabel: getResidentRoleLabel({ relation: 'OWNER' } as ResidentEntry, activeOwner.userId ? memberRoles.find((member) => member.id === activeOwner.userId) ?? null : null),
           flat,
         });
       }
@@ -124,13 +167,14 @@ export default function FlatsPage() {
           name: flat.tenant.name,
           phone: flat.tenant.phone,
           email: flat.tenant.email,
+          roleLabel: 'Tenant',
           flat,
         });
       }
 
       return items;
     });
-  }, [flats]);
+  }, [flats, memberRoles]);
 
   const normalizedSearch = search.trim().toLowerCase();
 
@@ -200,6 +244,53 @@ export default function FlatsPage() {
     () => flats.find((flat) => flat.id === manageFlatId) ?? null,
     [flats, manageFlatId],
   );
+
+  const roleTargetResident = useMemo(
+    () => residents.find((resident) => resident.id === roleTargetResidentId) ?? null,
+    [residents, roleTargetResidentId],
+  );
+
+  const roleTargetMembership = useMemo(
+    () => (roleTargetResident?.userId ? memberRoles.find((member) => member.id === roleTargetResident.userId) ?? null : null),
+    [memberRoles, roleTargetResident?.userId],
+  );
+
+  const transferableOwnerCandidates = useMemo(() => {
+    const seenUserIds = new Set<string>();
+
+    return residents.filter((resident) => {
+      if (resident.relation !== 'OWNER' || !resident.userId || resident.userId === user?.id) return false;
+      if (seenUserIds.has(resident.userId)) return false;
+      seenUserIds.add(resident.userId);
+      return true;
+    });
+  }, [residents, user?.id]);
+
+  const changeRoleMutation = useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: string }) => api.patch(`/settings/members/${userId}/role`, { role }),
+    onSuccess: () => {
+      toast.success('Committee role updated');
+      setRoleTargetResidentId(null);
+      queryClient.invalidateQueries({ queryKey: ['settings-members'] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to update committee role'),
+  });
+
+  const transferPresidentMutation = useMutation({
+    mutationFn: async ({ userId }: { userId: string }) => {
+      await api.post(`/settings/members/${userId}/transfer-president`);
+      return (await api.get('/auth/me')).data;
+    },
+    onSuccess: (nextUser) => {
+      toast.success('President transferred');
+      setRoleTargetResidentId(null);
+      setSelectedTransferOwnerUserId('');
+      setUser(nextUser);
+      queryClient.invalidateQueries({ queryKey: ['settings-members'] });
+      queryClient.invalidateQueries({ queryKey: ['my-societies'] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to transfer President role'),
+  });
 
   const vacantFlats = useMemo(
     () => flats.filter((flat) => !flat.isOccupied),
@@ -467,6 +558,26 @@ export default function FlatsPage() {
     openManageFlat(flat);
   };
 
+  const openRoleAssignment = (resident: ResidentEntry | null) => {
+    if (!resident?.userId) return;
+
+    const membership = memberRoles.find((member) => member.id === resident.userId);
+    setSelectedCommitteeRole(membership?.role === 'ADMIN' ? 'OWNER' : membership?.role || 'OWNER');
+    setSelectedTransferOwnerUserId(transferableOwnerCandidates[0]?.userId || '');
+    setRoleTargetResidentId(resident.id);
+  };
+
+  const canManageResidentRole = (resident: ResidentEntry | null) => {
+    if (!canManageSocietyRoles || !resident || resident.relation !== 'OWNER' || !resident.userId) return false;
+    return resident.userId !== user?.id;
+  };
+
+  const canTransferPresidentFromResident = (resident: ResidentEntry | null) => {
+    if (!resident?.userId || resident.userId !== user?.id) return false;
+    const membership = memberRoles.find((member) => member.id === resident.userId);
+    return membership?.role === 'ADMIN';
+  };
+
   const handleLimitReached = () => {
     if (isNativeIos()) {
       setShowIosUpgradeInfo(true);
@@ -710,7 +821,12 @@ export default function FlatsPage() {
       {viewMode === 'residents' && selectedResident ? (
         <ResidentsDetailPanel
           resident={selectedResident}
+          roleLabel={getResidentRoleLabel(selectedResident, memberRoles.find((member) => member.id === selectedResident.userId) ?? null)}
+          canManageRole={canManageResidentRole(selectedResident)}
+          canTransferRole={canTransferPresidentFromResident(selectedResident)}
           onClose={() => setSelectedResidentId(null)}
+          onManageRole={() => openRoleAssignment(selectedResident)}
+          onTransferRole={() => openRoleAssignment(selectedResident)}
           onEditResident={() => openManageFlat(selectedResident.flat, { intent: 'edit', residentMode: selectedResident.relation })}
           onDeactivateResident={() => openManageFlat(selectedResident.flat, { intent: 'deactivate', residentMode: selectedResident.relation })}
         />
@@ -733,11 +849,127 @@ export default function FlatsPage() {
       ) : (
         <MobileResidentProfileScreen
           resident={mobileResident}
+          roleLabel={getResidentRoleLabel(mobileResident, memberRoles.find((member) => member.id === mobileResident?.userId) ?? null)}
+          canManageRole={canManageResidentRole(mobileResident)}
+          canTransferRole={canTransferPresidentFromResident(mobileResident)}
           onClose={() => setMobileResidentId(null)}
+          onManageRole={() => openRoleAssignment(mobileResident)}
+          onTransferRole={() => openRoleAssignment(mobileResident)}
           onEditResident={() => openManageFlat(mobileResident?.flat ?? null, { intent: 'edit', residentMode: mobileResident?.relation })}
           onDeactivateResident={() => openManageFlat(mobileResident?.flat ?? null, { intent: 'deactivate', residentMode: mobileResident?.relation })}
         />
       )}
+
+      <Modal
+        isOpen={!!roleTargetResident}
+        onClose={() => {
+          if (changeRoleMutation.isPending || transferPresidentMutation.isPending) return;
+          setRoleTargetResidentId(null);
+        }}
+        title="Manage Committee Role"
+        size="md"
+      >
+        {roleTargetResident ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-outline-variant/20 bg-surface-container-low p-4">
+              <p className="text-sm font-semibold text-on-surface">{roleTargetResident.name}</p>
+              <p className="mt-1 text-xs text-on-surface-variant">Flat {roleTargetResident.flat.flatNumber} • {roleTargetResident.flat.block?.name || 'Unassigned block'}</p>
+              <p className="mt-2 text-xs text-on-surface-variant">Current role: {formatCommitteeRole(roleTargetMembership?.role || 'OWNER', roleTargetMembership?.adminAssignmentType)}</p>
+            </div>
+
+            {roleTargetMembership?.role === 'ADMIN' ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-outline-variant/20 bg-surface-container-low p-4 text-sm text-on-surface">
+                  Choose the owner who should receive President access. Your role will be downgraded to Owner immediately after the transfer.
+                </div>
+                {transferableOwnerCandidates.length === 0 ? (
+                  <div className="rounded-xl border border-outline-variant/20 bg-surface-container-low p-4 text-sm text-on-surface">
+                    No eligible owner is available yet. Add or map another owner first.
+                  </div>
+                ) : (
+                  <div>
+                    <label className="label">Transfer to owner</label>
+                    <select
+                      className="select w-full"
+                      value={selectedTransferOwnerUserId}
+                      onChange={(event) => setSelectedTransferOwnerUserId(event.target.value)}
+                    >
+                      {transferableOwnerCandidates.map((candidate) => (
+                        <option key={candidate.userId} value={candidate.userId}>
+                          {candidate.name} - Flat {candidate.flat.flatNumber}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <label className="label">Committee role</label>
+                <select
+                  className="select w-full"
+                  value={selectedCommitteeRole}
+                  onChange={(event) => setSelectedCommitteeRole(event.target.value)}
+                >
+                  {RESIDENT_ROLE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setRoleTargetResidentId(null)}
+                disabled={changeRoleMutation.isPending || transferPresidentMutation.isPending}
+              >
+                Cancel
+              </button>
+              {user?.role === 'ADMIN' && roleTargetMembership?.role === 'OWNER' ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => transferPresidentMutation.mutate({ userId: roleTargetResident.userId! })}
+                  disabled={changeRoleMutation.isPending || transferPresidentMutation.isPending}
+                >
+                  {transferPresidentMutation.isPending ? 'Transferring...' : 'Transfer President'}
+                </button>
+              ) : null}
+              {roleTargetMembership?.role === 'ADMIN' ? (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => transferPresidentMutation.mutate({ userId: selectedTransferOwnerUserId })}
+                  disabled={
+                    changeRoleMutation.isPending ||
+                    transferPresidentMutation.isPending ||
+                    !selectedTransferOwnerUserId ||
+                    transferableOwnerCandidates.length === 0
+                  }
+                >
+                  {transferPresidentMutation.isPending ? 'Transferring...' : 'Confirm Transfer'}
+                </button>
+              ) : null}
+              {roleTargetMembership?.role !== 'ADMIN' ? (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => changeRoleMutation.mutate({ userId: roleTargetResident.userId!, role: selectedCommitteeRole })}
+                  disabled={
+                    changeRoleMutation.isPending ||
+                    transferPresidentMutation.isPending ||
+                    selectedCommitteeRole === (roleTargetMembership?.role || 'OWNER')
+                  }
+                >
+                  {changeRoleMutation.isPending ? 'Saving...' : 'Save Role'}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </Modal>
 
       <Modal isOpen={showAddBlock} onClose={() => setShowAddBlock(false)} title="Add New Block / Wing" size="xl">
         <AddBlockForm
@@ -1050,7 +1282,7 @@ function FlatsDesktopTable({
       <thead>
         <tr className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-400">
           <th className="border-b border-slate-100 px-6 py-3">Flat No.</th>
-          <th className="border-b border-slate-100 px-6 py-3">Type</th>
+          <th className="border-b border-slate-100 px-6 py-3">Role</th>
           <th className="border-b border-slate-100 px-6 py-3">Area (sq.ft)</th>
           <th className="border-b border-slate-100 px-6 py-3">Status</th>
           <th className="border-b border-slate-100 px-6 py-3">Resident / Owner</th>
@@ -1218,7 +1450,7 @@ function ResidentsDesktopTable({
               <td className="px-6 py-4 text-slate-500">{resident.flat.flatNumber}</td>
               <td className="px-6 py-4">
                 <span className={cn('inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ring-1', resident.relation === 'OWNER' ? 'bg-emerald-50 text-emerald-600 ring-emerald-500/20' : 'bg-slate-100 text-slate-500 ring-slate-400/20')}>
-                  {resident.relation}
+                  {resident.roleLabel}
                 </span>
               </td>
               <td className="px-6 py-4">
@@ -1252,7 +1484,7 @@ function ResidentsMobileList({ residents, onOpenDetails }: { residents: Resident
             <div>
               <div className="mb-1 flex justify-end">
                 <span className={cn('inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ring-1', resident.relation === 'OWNER' ? 'bg-emerald-50 text-emerald-600 ring-emerald-500/20' : 'bg-slate-100 text-slate-500 ring-slate-400/20')}>
-                  {resident.relation}
+                  {resident.roleLabel}
                 </span>
               </div>
               <p className="text-[11px] font-semibold text-emerald-600">Active</p>
@@ -1267,12 +1499,22 @@ function ResidentsMobileList({ residents, onOpenDetails }: { residents: Resident
 
 function ResidentsDetailPanel({
   resident,
+  roleLabel,
+  canManageRole,
+  canTransferRole,
   onClose,
+  onManageRole,
+  onTransferRole,
   onEditResident,
   onDeactivateResident,
 }: {
   resident: ResidentEntry | null;
+  roleLabel: string;
+  canManageRole: boolean;
+  canTransferRole: boolean;
   onClose: () => void;
+  onManageRole: () => void;
+  onTransferRole: () => void;
   onEditResident: () => void;
   onDeactivateResident: () => void;
 }) {
@@ -1302,6 +1544,7 @@ function ResidentsDetailPanel({
                 <InfoRow label="Block" value={resident.flat.block?.name || '—'} />
                 <InfoRow label="Flat" value={resident.flat.flatNumber} />
                 <InfoRow label="Type" value={resident.relation === 'OWNER' ? 'Owner' : 'Tenant'} />
+                <InfoRow label="Committee Role" value={roleLabel} />
                 <InfoRow label="Status" value="Active" />
               </div>
             </div>
@@ -1319,6 +1562,8 @@ function ResidentsDetailPanel({
             <div className="rounded-xl border border-slate-100 p-4 shadow-sm">
               <h4 className="mb-3 text-sm font-bold text-slate-900">Quick Actions</h4>
               <div className="divide-y divide-slate-50">
+                {canTransferRole ? <QuickAction label="Transfer President Role" icon={<Users className="h-5 w-5 text-slate-500" />} onClick={onTransferRole} /> : null}
+                {canManageRole ? <QuickAction label="Manage Committee Role" icon={<Users className="h-5 w-5 text-slate-500" />} onClick={onManageRole} /> : null}
                 <QuickAction label="Edit Resident" icon={<Pencil className="h-5 w-5 text-slate-500" />} onClick={onEditResident} />
                 <QuickAction label="Message Resident" icon={<MessageSquare className="h-5 w-5 text-slate-500" />} onClick={() => { if (resident.email) window.location.href = `mailto:${resident.email}`; }} danger={false} />
                 <QuickAction label="Call Resident" icon={<Phone className="h-5 w-5 text-slate-500" />} onClick={() => { window.location.href = `tel:${resident.phone}`; }} danger={false} />
@@ -1336,12 +1581,22 @@ function ResidentsDetailPanel({
 
 function MobileResidentProfileScreen({
   resident,
+  roleLabel,
+  canManageRole,
+  canTransferRole,
   onClose,
+  onManageRole,
+  onTransferRole,
   onEditResident,
   onDeactivateResident,
 }: {
   resident: ResidentEntry | null;
+  roleLabel: string;
+  canManageRole: boolean;
+  canTransferRole: boolean;
   onClose: () => void;
+  onManageRole: () => void;
+  onTransferRole: () => void;
   onEditResident: () => void;
   onDeactivateResident: () => void;
 }) {
@@ -1380,6 +1635,7 @@ function MobileResidentProfileScreen({
               <InfoRow label="Resident Type" value={resident.relation === 'OWNER' ? 'Owner' : 'Tenant'} mobile />
               <InfoRow label="Flat" value={resident.flat.flatNumber} mobile />
               <InfoRow label="Block" value={resident.flat.block?.name || '—'} mobile />
+              <InfoRow label="Committee Role" value={roleLabel} mobile />
               <InfoRow label="Phone" value={formatResidentPhone(resident.phone)} mobile />
               <InfoRow label="Email" value={resident.email || '—'} mobile />
             </div>
@@ -1400,6 +1656,8 @@ function MobileResidentProfileScreen({
             <h3 className="mb-1 text-lg font-bold text-slate-900">Quick Actions</h3>
             <p className="mb-4 text-xs text-slate-400">Resident management shortcuts</p>
             <div className="divide-y divide-gray-50">
+              {canTransferRole ? <QuickAction label="Transfer President Role" icon={<Users className="h-5 w-5 text-slate-500" />} onClick={onTransferRole} /> : null}
+              {canManageRole ? <QuickAction label="Manage Committee Role" icon={<Users className="h-5 w-5 text-slate-500" />} onClick={onManageRole} /> : null}
               <QuickAction label="Edit Resident" icon={<Pencil className="h-5 w-5 text-slate-500" />} onClick={onEditResident} />
               <QuickAction label="Message Resident" icon={<MessageSquare className="h-5 w-5 text-slate-500" />} onClick={() => { if (resident.email) window.location.href = `mailto:${resident.email}`; }} />
               <QuickAction label="Call Resident" icon={<Phone className="h-5 w-5 text-slate-500" />} onClick={() => { window.location.href = `tel:${resident.phone}`; }} />

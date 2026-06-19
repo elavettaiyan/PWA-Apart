@@ -21,6 +21,11 @@ enum Role {
   SERVICE_STAFF
 }
 
+enum AdminAssignmentType {
+  TEMPORARY
+  PRESIDENT
+}
+
 enum FlatType {
   ONE_BHK
   TWO_BHK
@@ -675,14 +680,16 @@ model SocietyEventReminder {
 }
 
 model UserSocietyMembership {
-  id         String   @id @default(uuid())
-  userId     String
-  societyId  String
-  role       Role
-  createdAt  DateTime @default(now())
+  id                  String               @id @default(uuid())
+  userId              String
+  societyId           String
+  role                Role
+  adminAssignmentType AdminAssignmentType?
+  adminAssignedAt     DateTime?
+  createdAt           DateTime             @default(now())
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  society    Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  society             Society              @relation(fields: [societyId], references: [id], onDelete: Cascade)
 
   @@unique([userId, societyId])
   @@index([societyId])

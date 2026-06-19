@@ -21,7 +21,7 @@ import {
 } from '../../lib/useDictation';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import type { ApprovalActionType, ApprovalConfig, ConfigurableMenuRole, FlatType, MenuVisibilityResponse, NavigationMenuId, PremiumStatusResponse, Role } from '../../types';
+import type { AdminAssignmentType, ApprovalActionType, ApprovalConfig, ConfigurableMenuRole, FlatType, MenuVisibilityResponse, NavigationMenuId, PremiumStatusResponse, Role } from '../../types';
 import { SOCIETY_ADMINS } from '../../types';
 import ManageStaffPanel from '../../components/settings/ManageStaffPanel';
 
@@ -791,7 +791,7 @@ export default function SettingsPage() {
 
       <SettingsAccordion
         title="Society Administration"
-        description="Manage staff accounts and administration access"
+        description="Manage staff accounts and service staff access"
         icon={ShieldCheck}
         iconWrapperClassName="group-open:bg-emerald-100"
         iconClassName="group-open:text-emerald-800"
@@ -799,16 +799,6 @@ export default function SettingsPage() {
         <div className="space-y-5">
           <ManageStaffPanel embedded />
         </div>
-      </SettingsAccordion>
-
-      <SettingsAccordion
-        title="Members & Roles"
-        description="Expand to assign committee roles and manage member access"
-        icon={Users}
-        iconWrapperClassName="group-open:bg-amber-100"
-        iconClassName="group-open:text-amber-800"
-      >
-        <MembersRoles />
       </SettingsAccordion>
 
       <SettingsAccordion
@@ -2035,11 +2025,11 @@ type Member = {
   email: string;
   phone: string | null;
   role: string;
+  adminAssignmentType?: AdminAssignmentType | null;
   isActive: boolean;
 };
 
 const ROLE_OPTIONS = [
-  { value: 'ADMIN', label: 'Admin (President)' },
   { value: 'SECRETARY', label: 'Secretary' },
   { value: 'JOINT_SECRETARY', label: 'Joint Secretary' },
   { value: 'TREASURER', label: 'Treasurer' },
@@ -2059,11 +2049,12 @@ const ROLE_BADGE: Record<string, string> = {
 
 function MembersRoles() {
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState('');
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
   const [removalReason, setRemovalReason] = useState('');
+  const [transferTarget, setTransferTarget] = useState<Member | null>(null);
 
   const { data: members = [], isLoading } = useQuery<Member[]>({
     queryKey: ['settings-members'],
@@ -2094,8 +2085,30 @@ function MembersRoles() {
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to remove member'),
   });
 
-  const formatRole = (role: string) =>
-    ROLE_OPTIONS.find((r) => r.value === role)?.label || role.replace(/_/g, ' ');
+  const transferMutation = useMutation({
+    mutationFn: async ({ userId }: { userId: string }) => {
+      await api.post(`/settings/members/${userId}/transfer-president`);
+      return (await api.get('/auth/me')).data;
+    },
+    onSuccess: (nextUser) => {
+      toast.success('President transferred');
+      setTransferTarget(null);
+      setUser(nextUser);
+      queryClient.invalidateQueries({ queryKey: ['settings-members'] });
+      queryClient.invalidateQueries({ queryKey: ['my-societies'] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to transfer President role'),
+  });
+
+  const formatRole = (role: string, adminAssignmentType?: AdminAssignmentType | null) => {
+    if (role === 'ADMIN') {
+      return adminAssignmentType === 'TEMPORARY' ? 'Temporary Admin' : 'President';
+    }
+
+    return ROLE_OPTIONS.find((r) => r.value === role)?.label || role.replace(/_/g, ' ');
+  };
+
+  const canTransferPresident = (member: Member) => user?.role === 'ADMIN' && member.id !== user.id && member.role === 'OWNER';
 
   return (
     <div>
@@ -2141,7 +2154,7 @@ function MembersRoles() {
                     </div>
                   ) : (
                     <span className={cn('inline-block px-2.5 py-0.5 rounded-full text-xs font-medium', ROLE_BADGE[m.role] || 'bg-surface-container text-on-surface-variant')}>
-                      {formatRole(m.role)}
+                      {formatRole(m.role, m.adminAssignmentType)}
                     </span>
                   )}
                 </div>
@@ -2150,12 +2163,20 @@ function MembersRoles() {
                     <span className="text-xs text-outline">You</span>
                   ) : editingId !== m.id ? (
                     <div className="inline-flex items-center gap-3 flex-wrap">
-                      {m.role !== 'SERVICE_STAFF' && (
+                      {m.role !== 'SERVICE_STAFF' && m.role !== 'ADMIN' && (
                         <button
                           className="text-xs text-primary hover:text-primary font-medium"
                           onClick={() => { setEditingId(m.id); setSelectedRole(m.role); }}
                         >
                           Change Role
+                        </button>
+                      )}
+                      {canTransferPresident(m) && (
+                        <button
+                          className="text-xs text-primary hover:text-primary font-medium"
+                          onClick={() => setTransferTarget(m)}
+                        >
+                          Transfer President
                         </button>
                       )}
                       {(m.role === 'OWNER' || m.role === 'SERVICE_STAFF') && (
@@ -2217,19 +2238,27 @@ function MembersRoles() {
                       </div>
                     ) : (
                       <span className={cn('inline-block px-2.5 py-0.5 rounded-full text-xs font-medium', ROLE_BADGE[m.role] || 'bg-surface-container text-on-surface-variant')}>
-                        {formatRole(m.role)}
+                        {formatRole(m.role, m.adminAssignmentType)}
                       </span>
                     )}
                   </td>
                   <td className="px-6 py-3 text-right">
                     {editingId !== m.id && m.id !== user?.id && (
                       <div className="inline-flex items-center gap-3">
-                        {m.role !== 'SERVICE_STAFF' && (
+                        {m.role !== 'SERVICE_STAFF' && m.role !== 'ADMIN' && (
                           <button
                             className="text-xs text-primary hover:text-primary font-medium"
                             onClick={() => { setEditingId(m.id); setSelectedRole(m.role); }}
                           >
                             Change Role
+                          </button>
+                        )}
+                        {canTransferPresident(m) && (
+                          <button
+                            className="text-xs text-primary hover:text-primary font-medium"
+                            onClick={() => setTransferTarget(m)}
+                          >
+                            Transfer President
                           </button>
                         )}
                         {(m.role === 'OWNER' || m.role === 'SERVICE_STAFF') && (
@@ -2275,6 +2304,51 @@ function MembersRoles() {
             </div>
 
             <div>
+
+        <Modal
+          isOpen={!!transferTarget}
+          onClose={() => {
+            if (transferMutation.isPending) return;
+            setTransferTarget(null);
+          }}
+          title="Transfer President"
+          size="md"
+        >
+          {transferTarget && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-outline-variant/20 bg-surface-container-low p-4">
+                <p className="text-sm font-semibold text-on-surface">{transferTarget.name}</p>
+                <p className="mt-1 text-xs text-on-surface-variant">{transferTarget.email}</p>
+                <p className="mt-2 text-xs text-on-surface-variant">
+                  Only active owners can become President. After transfer, your account will become Owner and lose admin privileges immediately.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-warning/20 bg-warning-container/40 p-4 text-sm text-on-surface">
+                Make sure your account is already mapped as an owner in this community before you confirm. The server will block the transfer otherwise.
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setTransferTarget(null)}
+                  disabled={transferMutation.isPending}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={transferMutation.isPending}
+                  onClick={() => transferMutation.mutate({ userId: transferTarget.id })}
+                >
+                  {transferMutation.isPending ? 'Transferring...' : 'Confirm Transfer'}
+                </button>
+              </div>
+            </div>
+          )}
+        </Modal>
               <label className="label">Reason *</label>
               <textarea
                 className="input min-h-[120px]"

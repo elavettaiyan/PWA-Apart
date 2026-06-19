@@ -17,6 +17,12 @@ const TRIAL_DURATION_MS = TRIAL_DAYS * 24 * 60 * 60 * 1000;
 const ACCOUNT_DELETION_ALLOWED_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT', 'SERVICE_STAFF'] as const;
 const REVIEW_DELETE_ACCOUNT_OTP = '123456';
 const OWNER_VIEW_ELIGIBLE_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'];
+const DEFAULT_ADMIN_ASSIGNMENT_TYPE = 'PRESIDENT';
+
+function normalizeAdminAssignmentType(role: string, adminAssignmentType?: string | null) {
+  if (role !== 'ADMIN') return null;
+  return adminAssignmentType || DEFAULT_ADMIN_ASSIGNMENT_TYPE;
+}
 
 function buildSocietyScopedUserPayload(args: {
   user: {
@@ -32,7 +38,13 @@ function buildSocietyScopedUserPayload(args: {
     skipAccountDeletionVerification?: boolean | null;
     owners: Array<{ flat: any | null }>;
     tenants: Array<{ flat: any | null }>;
-    societyMemberships: Array<{ societyId: string; role: string; society: { id: string; name: string } }>;
+    societyMemberships: Array<{
+      societyId: string;
+      role: string;
+      adminAssignmentType?: string | null;
+      adminAssignedAt?: Date | null;
+      society: { id: string; name: string };
+    }>;
   };
 }) {
   const activeSocietyId = args.user.activeSocietyId || args.user.societyId || args.user.societyMemberships[0]?.societyId || null;
@@ -42,6 +54,7 @@ function buildSocietyScopedUserPayload(args: {
     ? args.user.societyMemberships.find((membership) => membership.societyId === activeSocietyId)
     : null;
   const effectiveRole = args.user.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : (activeMembership?.role || args.user.role);
+  const adminAssignmentType = normalizeAdminAssignmentType(effectiveRole, activeMembership?.adminAssignmentType);
   const canUseOwnerView = OWNER_VIEW_ELIGIBLE_ROLES.includes(effectiveRole) && Boolean(flatFromOwners);
 
   return {
@@ -56,12 +69,16 @@ function buildSocietyScopedUserPayload(args: {
     flat: flatFromOwners || flatFromTenants || null,
     flatRelation: flatFromOwners ? 'OWNER' : flatFromTenants ? 'TENANT' : null,
     canUseOwnerView,
+    adminAssignmentType,
+    adminAssignedAt: activeMembership?.adminAssignedAt || null,
+    isTemporaryAdmin: adminAssignmentType === 'TEMPORARY',
     mustChangePassword: Boolean(args.user.mustChangePassword),
     skipAccountDeletionVerification: Boolean(args.user.skipAccountDeletionVerification),
     societies: args.user.societyMemberships.map((membership) => ({
       id: membership.society.id,
       name: membership.society.name,
       role: membership.role,
+      adminAssignmentType: normalizeAdminAssignmentType(membership.role, membership.adminAssignmentType),
     })),
   };
 }
@@ -81,11 +98,31 @@ async function findUserByEmailInsensitive(tx: any, email: string, options: Recor
   });
 }
 
-async function ensureMembership(tx: any, userId: string, societyId: string, role: string) {
+async function ensureMembership(
+  tx: any,
+  userId: string,
+  societyId: string,
+  role: string,
+  options?: { adminAssignmentType?: 'TEMPORARY' | 'PRESIDENT' | null },
+) {
+  const adminAssignmentType = role === 'ADMIN'
+    ? options?.adminAssignmentType || DEFAULT_ADMIN_ASSIGNMENT_TYPE
+    : null;
+
   await tx.userSocietyMembership.upsert({
     where: { userId_societyId: { userId, societyId } },
-    update: { role },
-    create: { userId, societyId, role },
+    update: {
+      role,
+      adminAssignmentType,
+      adminAssignedAt: adminAssignmentType ? new Date() : null,
+    },
+    create: {
+      userId,
+      societyId,
+      role,
+      adminAssignmentType,
+      adminAssignedAt: adminAssignmentType ? new Date() : null,
+    },
   });
 }
 
@@ -328,7 +365,7 @@ router.post(
           select: { id: true, email: true, name: true, role: true, specialization: true, societyId: true },
         });
 
-        await ensureMembership(tx, user.id, society.id, 'ADMIN');
+        await ensureMembership(tx, user.id, society.id, 'ADMIN', { adminAssignmentType: 'TEMPORARY' });
 
         return { society, user };
       });
@@ -433,7 +470,7 @@ router.post(
           select: { id: true, email: true, name: true, role: true, specialization: true, societyId: true },
         });
 
-        await ensureMembership(tx, user.id, society.id, 'ADMIN');
+        await ensureMembership(tx, user.id, society.id, 'ADMIN', { adminAssignmentType: 'TEMPORARY' });
 
         return { society, user };
       });
@@ -629,6 +666,7 @@ router.post(
         ? societies.find((membership) => membership.societyId === activeSocietyId)
         : null;
       const effectiveRole = user.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : (activeMembership?.role || user.role);
+      const adminAssignmentType = normalizeAdminAssignmentType(effectiveRole, activeMembership?.adminAssignmentType);
       const canUseOwnerView = OWNER_VIEW_ELIGIBLE_ROLES.includes(effectiveRole) && Boolean(flatFromOwners);
 
       const tokens = generateTokens({
@@ -702,9 +740,17 @@ router.post(
           flat: flatFromOwners || flatFromTenants || null,
           flatRelation: flatFromOwners ? 'OWNER' : flatFromTenants ? 'TENANT' : null,
           canUseOwnerView,
+          adminAssignmentType,
+          adminAssignedAt: activeMembership?.adminAssignedAt || null,
+          isTemporaryAdmin: adminAssignmentType === 'TEMPORARY',
           mustChangePassword: user.mustChangePassword,
           skipAccountDeletionVerification: user.skipAccountDeletionVerification,
-          societies: societies.map((membership) => ({ id: membership.society.id, name: membership.society.name, role: membership.role })),
+          societies: societies.map((membership) => ({
+            id: membership.society.id,
+            name: membership.society.name,
+            role: membership.role,
+            adminAssignmentType: normalizeAdminAssignmentType(membership.role, membership.adminAssignmentType),
+          })),
         },
         premiumLifecycle,
         ...tokens,
@@ -811,7 +857,12 @@ router.get('/my-societies', authenticate, async (req: AuthRequest, res: Response
 
     return res.json({
       activeSocietyId: req.user!.societyId,
-      societies: memberships.map((m) => ({ id: m.society.id, name: m.society.name, role: m.role })),
+      societies: memberships.map((m) => ({
+        id: m.society.id,
+        name: m.society.name,
+        role: m.role,
+        adminAssignmentType: normalizeAdminAssignmentType(m.role, m.adminAssignmentType),
+      })),
     });
   } catch (error: any) {
     logger.error('Fetch user societies failed', { userId: req.user!.id, error: error.message });
@@ -855,6 +906,7 @@ router.post(
         }),
       ]);
       const canUseOwnerView = OWNER_VIEW_ELIGIBLE_ROLES.includes(effectiveRole) && Boolean(ownerFlat?.flat);
+      const adminAssignmentType = normalizeAdminAssignmentType(effectiveRole, membership.adminAssignmentType);
       const tokens = generateTokens({ ...updatedUser, role: effectiveRole });
       invalidateAuthCache(req.user!.id);
 
@@ -866,6 +918,9 @@ router.post(
           flat: ownerFlat?.flat || tenantFlat?.flat || null,
           flatRelation: ownerFlat?.flat ? 'OWNER' : tenantFlat?.flat ? 'TENANT' : null,
           canUseOwnerView,
+          adminAssignmentType,
+          adminAssignedAt: membership.adminAssignedAt || null,
+          isTemporaryAdmin: adminAssignmentType === 'TEMPORARY',
         },
         ...tokens,
       });

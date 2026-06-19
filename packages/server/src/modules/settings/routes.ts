@@ -8,7 +8,9 @@ import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 import { runMemberRemoval } from '../members/removal';
 
-const ASSIGNABLE_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'SERVICE_STAFF'] as const;
+const ASSIGNABLE_ROLES = ['SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'SERVICE_STAFF'] as const;
+const DEFAULT_ADMIN_ASSIGNMENT_TYPE = 'PRESIDENT';
+const TRANSFERABLE_ADMIN_ASSIGNMENT_TYPES = new Set(['TEMPORARY', 'PRESIDENT']);
 
 // Max members allowed per committee role in a society (0 = unlimited)
 const ROLE_LIMITS: Partial<Record<string, number>> = {
@@ -20,6 +22,67 @@ const ROLE_LIMITS: Partial<Record<string, number>> = {
 
 const router = Router();
 router.use(authenticate);
+
+function normalizeAdminAssignmentType(role: string, adminAssignmentType?: string | null) {
+  if (role !== 'ADMIN') return null;
+  return adminAssignmentType || DEFAULT_ADMIN_ASSIGNMENT_TYPE;
+}
+
+async function syncUserPrimaryMembershipRole(tx: any, userId: string) {
+  const [user, memberships] = await Promise.all([
+    tx.user.findUnique({
+      where: { id: userId },
+      select: { activeSocietyId: true, societyId: true },
+    }),
+    tx.userSocietyMembership.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+      select: { societyId: true, role: true },
+    }),
+  ]);
+
+  if (!user) return;
+
+  if (memberships.length === 0) {
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        role: 'OWNER',
+        societyId: null,
+        activeSocietyId: null,
+        isActive: false,
+      },
+    });
+    return;
+  }
+
+  const activeMembership = memberships.find((membership: any) => membership.societyId === user.activeSocietyId);
+  const defaultMembership = memberships.find((membership: any) => membership.societyId === user.societyId);
+  const fallbackMembership = activeMembership || defaultMembership || memberships[0];
+
+  await tx.user.update({
+    where: { id: userId },
+    data: {
+      role: fallbackMembership.role,
+      societyId: defaultMembership?.societyId || fallbackMembership.societyId,
+      activeSocietyId: activeMembership?.societyId || fallbackMembership.societyId,
+      isActive: true,
+    },
+  });
+}
+
+async function hasActiveOwnerRecord(tx: any, userId: string, societyId: string) {
+  const owner = await tx.owner.findFirst({
+    where: {
+      userId,
+      isActive: true,
+      flat: { block: { societyId } },
+    },
+    select: { id: true },
+  });
+
+  return Boolean(owner);
+}
 
 const MENU_CATALOG = [
   { id: 'dashboard', label: 'Dashboard', href: '/' },
@@ -629,6 +692,7 @@ router.get('/members', async (req: AuthRequest, res: Response) => {
         specialization: m.user.specialization,
         isActive: m.user.isActive,
         role: m.role,
+        adminAssignmentType: normalizeAdminAssignmentType(m.role, m.adminAssignmentType),
         membershipId: m.id,
       })),
     );
@@ -664,19 +728,8 @@ router.patch(
       });
       if (!membership) return res.status(404).json({ error: 'Member not found in this society' });
 
-      // SECRETARY cannot change an ADMIN's role
-      if (req.user!.role === 'SECRETARY' && membership.role === 'ADMIN') {
-        return res.status(403).json({ error: 'Cannot change the Admin\'s role' });
-      }
-
-      // Prevent removing the last ADMIN
-      if (membership.role === 'ADMIN' && newRole !== 'ADMIN') {
-        const adminCount = await prisma.userSocietyMembership.count({
-          where: { societyId, role: 'ADMIN' },
-        });
-        if (adminCount <= 1) {
-          return res.status(400).json({ error: 'Society must have at least one Admin' });
-        }
+      if (membership.role === 'ADMIN') {
+        return res.status(400).json({ error: 'Use Transfer President to change the current admin role' });
       }
 
       // Enforce role limits (only when assigning TO a limited role)
@@ -696,14 +749,10 @@ router.patch(
       // Update the membership role
       await prisma.userSocietyMembership.update({
         where: { userId_societyId: { userId, societyId } },
-        data: { role: newRole },
+        data: { role: newRole, adminAssignmentType: null, adminAssignedAt: null },
       });
 
-      // Also update user.role to match (for backward compat with token generation)
-      await prisma.user.update({
-        where: { id: userId },
-        data: { role: newRole },
-      });
+      await syncUserPrimaryMembershipRole(prisma, userId);
 
       // Evict cached auth data so the new role takes effect immediately
       invalidateAuthCache(userId);
@@ -719,6 +768,125 @@ router.patch(
       return res.json({ message: 'Role updated successfully' });
     } catch (error) {
       return res.status(500).json({ error: 'Failed to update role' });
+    }
+  },
+);
+
+router.post(
+  '/members/:userId/transfer-president',
+  [param('userId').isUUID()],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const societyId = req.user!.societyId;
+      if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+
+      const targetUserId = req.params.userId;
+      if (targetUserId === req.user!.id) {
+        return res.status(400).json({ error: 'Transfer target must be another owner' });
+      }
+
+      const [actorMembership, targetMembership, adminMembershipCount] = await Promise.all([
+        prisma.userSocietyMembership.findUnique({
+          where: { userId_societyId: { userId: req.user!.id, societyId } },
+          select: { role: true, adminAssignmentType: true },
+        }),
+        prisma.userSocietyMembership.findUnique({
+          where: { userId_societyId: { userId: targetUserId, societyId } },
+          include: {
+            user: {
+              select: { id: true, name: true, email: true },
+            },
+          },
+        }),
+        prisma.userSocietyMembership.count({
+          where: { societyId, role: 'ADMIN' },
+        }),
+      ]);
+
+      if (!actorMembership || actorMembership.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Only the current President or Temporary Admin can transfer President access' });
+      }
+
+      if (!TRANSFERABLE_ADMIN_ASSIGNMENT_TYPES.has(normalizeAdminAssignmentType(actorMembership.role, actorMembership.adminAssignmentType) || '')) {
+        return res.status(403).json({ error: 'Current admin assignment is not eligible for transfer' });
+      }
+
+      if (!targetMembership) {
+        return res.status(404).json({ error: 'Target member not found in this society' });
+      }
+
+      if (targetMembership.role === 'ADMIN') {
+        return res.status(400).json({ error: 'Target member is already the President' });
+      }
+
+      if (adminMembershipCount !== 1) {
+        return res.status(400).json({ error: 'President transfer is blocked until this society has exactly one active admin membership' });
+      }
+
+      const [actorHasOwnerRecord, targetHasOwnerRecord] = await Promise.all([
+        hasActiveOwnerRecord(prisma, req.user!.id, societyId),
+        hasActiveOwnerRecord(prisma, targetUserId, societyId),
+      ]);
+
+      if (!actorHasOwnerRecord) {
+        return res.status(400).json({ error: 'Transfer is blocked until your account is mapped as an active owner in this community' });
+      }
+
+      if (!targetHasOwnerRecord) {
+        return res.status(400).json({ error: 'President can only be transferred to an active owner in this community' });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.userSocietyMembership.update({
+          where: { userId_societyId: { userId: req.user!.id, societyId } },
+          data: {
+            role: 'OWNER',
+            adminAssignmentType: null,
+            adminAssignedAt: null,
+          },
+        });
+
+        await tx.userSocietyMembership.update({
+          where: { userId_societyId: { userId: targetUserId, societyId } },
+          data: {
+            role: 'ADMIN',
+            adminAssignmentType: 'PRESIDENT',
+            adminAssignedAt: new Date(),
+          },
+        });
+
+        await Promise.all([
+          syncUserPrimaryMembershipRole(tx, req.user!.id),
+          syncUserPrimaryMembershipRole(tx, targetUserId),
+        ]);
+      });
+
+      invalidateAuthCache(req.user!.id);
+      invalidateAuthCache(targetUserId);
+
+      logger.info('President transferred', {
+        transferredBy: req.user!.id,
+        targetUserId,
+        societyId,
+      });
+
+      return res.json({
+        message: 'President transferred successfully',
+        targetUser: {
+          id: targetMembership.user.id,
+          name: targetMembership.user.name,
+          email: targetMembership.user.email,
+        },
+      });
+    } catch (error: any) {
+      logger.error('President transfer failed', {
+        requestedBy: req.user?.id,
+        targetUserId: req.params.userId,
+        societyId: req.user?.societyId,
+        error: error.message,
+      });
+      return res.status(500).json({ error: 'Failed to transfer President role' });
     }
   },
 );
