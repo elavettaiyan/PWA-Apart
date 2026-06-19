@@ -370,6 +370,9 @@ export async function sendResidentOnboardingEmail(to: string, data: ResidentOnbo
   const relationLabel = data.relation === 'OWNER' ? 'Owner' : 'Tenant';
   const loginUrl = `${CLIENT_URL}/login`;
   const forgotPasswordUrl = `${CLIENT_URL}/forgot-password`;
+  const safeAndroidUrl = escapeHtml(ANDROID_APP_URL);
+  const safeIosUrl = escapeHtml(IOS_APP_URL);
+  const safeLoginUrl = escapeHtml(loginUrl);
   const mode = data.mode || (data.accountCreated ? 'created' : 'linked');
   const passwordMessage = mode === 'reset'
     ? `Your login has been reset. Use your email address as the username and your phone number <strong>${safePhoneNumber}</strong> as the new default password.`
@@ -383,6 +386,10 @@ export async function sendResidentOnboardingEmail(to: string, data: ResidentOnbo
   const subject = mode === 'reset'
     ? `Dwell Hub login reset for ${data.flatNumber}`
     : `Welcome to Dwell Hub - ${relationLabel} access for ${data.flatNumber}`;
+  const actionHeading = mode === 'reset' ? 'Sign in again with your refreshed credentials' : 'Your access is ready';
+  const supportMessage = mode === 'linked'
+    ? 'Since this access is linked to an existing Dwell Hub account, continue with your current password or use Reset Password if needed.'
+    : 'For better security, update your password immediately after your first successful sign-in.';
 
   try {
     const { error } = await getResend().emails.send({
@@ -390,49 +397,151 @@ export async function sendResidentOnboardingEmail(to: string, data: ResidentOnbo
       to,
       subject,
       html: `
-        <div style="font-family: 'Inter', Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 40px 20px; background: #ffffff;">
-          <div style="text-align: center; margin-bottom: 32px;">
-            <h1 style="color: #171C3F; font-size: 28px; margin: 0;">Dwell Hub</h1>
-            <p style="color: #6b7280; font-size: 14px; margin: 4px 0 0;">Resident Access Details</p>
-          </div>
-          <div style="background: #f9fafb; border-radius: 12px; padding: 32px; border: 1px solid #e5e7eb;">
-            <h2 style="color: #111827; font-size: 20px; margin: 0 0 16px;">${heading}</h2>
-            <p style="color: #4b5563; line-height: 1.6; margin: 0 0 8px;">Hi ${safeUserName},</p>
-            <p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">${intro}</p>
+        <div style="margin: 0; padding: 24px 0; background: #f3f6fb; font-family: Arial, sans-serif; color: #1f2937;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse;">
+            <tr>
+              <td align="center" style="padding: 0 16px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 680px; border-collapse: collapse; background: #ffffff; border: 1px solid #dbe3ef; border-radius: 20px; overflow: hidden;">
+                  <tr>
+                    <td style="padding: 32px 32px 24px; background: linear-gradient(135deg, #171c3f 0%, #25336b 100%); text-align: center;">
+                      <p style="margin: 0 0 8px; font-size: 12px; line-height: 18px; letter-spacing: 1.8px; text-transform: uppercase; color: #cdd8ff;">Resident Access Details</p>
+                      <h1 style="margin: 0; font-size: 30px; line-height: 36px; font-weight: 700; color: #ffffff;">Dwell Hub</h1>
+                      <p style="margin: 10px 0 0; font-size: 15px; line-height: 24px; color: #dbe6ff;">Secure access for your community portal and mobile app.</p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 32px;">
+                      <h2 style="margin: 0 0 14px; font-size: 24px; line-height: 32px; color: #111827;">${heading}</h2>
+                      <p style="margin: 0 0 10px; font-size: 15px; line-height: 24px; color: #4b5563;">Hi ${safeUserName},</p>
+                      <p style="margin: 0 0 24px; font-size: 15px; line-height: 24px; color: #4b5563;">${intro}</p>
 
-            <div style="background: #ffffff; border-radius: 8px; padding: 20px; border: 1px solid #e5e7eb; margin-bottom: 20px;">
-              <p style="color: #6b7280; font-size: 13px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.08em;">Login Details</p>
-              <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-                <tr>
-                  <td style="color: #6b7280; padding: 8px 0;">Username</td>
-                  <td style="color: #111827; padding: 8px 0; text-align: right; font-weight: 600;">${safeLoginEmail}</td>
-                </tr>
-                <tr>
-                  <td style="color: #6b7280; padding: 8px 0;">Default Password</td>
-                  <td style="color: #111827; padding: 8px 0; text-align: right; font-weight: 600;">${mode === 'reset' || data.accountCreated ? safePhoneNumber : 'Use existing password'}</td>
-                </tr>
-              </table>
-            </div>
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: separate; border-spacing: 0; margin: 0 0 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px;">
+                        <tr>
+                          <td style="padding: 20px 22px 8px; font-size: 13px; line-height: 18px; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">Account Summary</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 0 22px 22px;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse;">
+                              <tr>
+                                <td style="padding: 10px 0; font-size: 14px; line-height: 22px; color: #64748b; border-bottom: 1px solid #e5e7eb;">Community</td>
+                                <td style="padding: 10px 0; font-size: 14px; line-height: 22px; color: #111827; font-weight: 600; text-align: right; border-bottom: 1px solid #e5e7eb;">${safeSocietyName}</td>
+                              </tr>
+                              <tr>
+                                <td style="padding: 10px 0; font-size: 14px; line-height: 22px; color: #64748b; border-bottom: 1px solid #e5e7eb;">Flat</td>
+                                <td style="padding: 10px 0; font-size: 14px; line-height: 22px; color: #111827; font-weight: 600; text-align: right; border-bottom: 1px solid #e5e7eb;">${safeFlatLabel}</td>
+                              </tr>
+                              <tr>
+                                <td style="padding: 10px 0; font-size: 14px; line-height: 22px; color: #64748b; border-bottom: 1px solid #e5e7eb;">Role</td>
+                                <td style="padding: 10px 0; font-size: 14px; line-height: 22px; color: #111827; font-weight: 600; text-align: right; border-bottom: 1px solid #e5e7eb;">${relationLabel}</td>
+                              </tr>
+                              <tr>
+                                <td style="padding: 10px 0; font-size: 14px; line-height: 22px; color: #64748b; border-bottom: 1px solid #e5e7eb;">Username</td>
+                                <td style="padding: 10px 0; font-size: 14px; line-height: 22px; color: #111827; font-weight: 600; text-align: right; border-bottom: 1px solid #e5e7eb;">${safeLoginEmail}</td>
+                              </tr>
+                              <tr>
+                                <td style="padding: 10px 0 0; font-size: 14px; line-height: 22px; color: #64748b;">Password</td>
+                                <td style="padding: 10px 0 0; font-size: 14px; line-height: 22px; color: #111827; font-weight: 600; text-align: right;">${mode === 'reset' || data.accountCreated ? safePhoneNumber : 'Use your existing password'}</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
 
-            <div style="background: #eff6ff; border-radius: 8px; padding: 18px 20px; border: 1px solid #bfdbfe; margin-bottom: 20px;">
-              <p style="color: #1d4ed8; font-size: 13px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">Important Instructions</p>
-              <ul style="color: #1e3a8a; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px;">
-                <li>${passwordMessage}</li>
-                <li>For security, please change your password immediately after your first successful login.</li>
-                <li>If you forget your password, use the <a href="${forgotPasswordUrl}" style="color: #1d4ed8;">Reset Password</a> option on the login screen.</li>
-              </ul>
-            </div>
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: separate; border-spacing: 0; margin: 0 0 20px; background: #eef6ff; border: 1px solid #bfdbfe; border-radius: 16px;">
+                        <tr>
+                          <td style="padding: 20px 22px;">
+                            <p style="margin: 0 0 10px; font-size: 13px; line-height: 18px; color: #1d4ed8; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">Next Steps</p>
+                            <p style="margin: 0 0 10px; font-size: 14px; line-height: 24px; color: #1e3a8a;">${passwordMessage}</p>
+                            <p style="margin: 0 0 10px; font-size: 14px; line-height: 24px; color: #1e3a8a;">${supportMessage}</p>
+                            <p style="margin: 0; font-size: 14px; line-height: 24px; color: #1e3a8a;">If you cannot sign in, use <a href="${forgotPasswordUrl}" style="color: #1d4ed8; font-weight: 600; text-decoration: underline;">Reset Password</a> from the Dwell Hub login page.</p>
+                          </td>
+                        </tr>
+                      </table>
 
-            <div style="background: #ffffff; border-radius: 8px; padding: 20px; border: 1px solid #e5e7eb; margin-bottom: 24px;">
-              <p style="color: #6b7280; font-size: 13px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.08em;">App Links</p>
-              <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                <a href="${ANDROID_APP_URL}" style="background: #171C3F; color: #ffffff; padding: 12px 18px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">Android App</a>
-                <a href="${IOS_APP_URL}" style="background: #ffffff; color: #171C3F; padding: 12px 18px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block; border: 1px solid #cbd5e1;">iOS App</a>
-                <a href="${loginUrl}" style="background: #ffffff; color: #171C3F; padding: 12px 18px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block; border: 1px solid #cbd5e1;">Web Login</a>
-              </div>
-            </div>
-          </div>
-          <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 32px 0 0;">This is an automated onboarding email from Dwell Hub.</p>
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: separate; border-spacing: 0; margin: 0 0 20px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px;">
+                        <tr>
+                          <td style="padding: 20px 22px 10px;">
+                            <p style="margin: 0 0 4px; font-size: 20px; line-height: 28px; color: #111827; font-weight: 700;">${actionHeading}</p>
+                            <p style="margin: 0; font-size: 14px; line-height: 22px; color: #64748b;">Use any of the options below. The mobile links are direct store links and the web option opens the Dwell Hub login page.</p>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 22px 10px;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: separate; border-spacing: 0 12px;">
+                              <tr>
+                                <td>
+                                  <a href="${ANDROID_APP_URL}" style="display: block; text-decoration: none;">
+                                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; background: #0f172a; border-radius: 14px;">
+                                      <tr>
+                                        <td style="padding: 14px 16px; width: 44px; vertical-align: middle;">
+                                          <img src="https://cdn.simpleicons.org/android/3DDC84" alt="Android" width="22" height="22" style="display: block; border: 0;" />
+                                        </td>
+                                        <td style="padding: 14px 0; vertical-align: middle;">
+                                          <p style="margin: 0; font-size: 12px; line-height: 16px; color: #93c5fd;">Install on</p>
+                                          <p style="margin: 2px 0 0; font-size: 16px; line-height: 22px; color: #ffffff; font-weight: 700;">Android</p>
+                                        </td>
+                                        <td align="right" style="padding: 14px 16px; vertical-align: middle; font-size: 14px; line-height: 20px; color: #cbd5e1; font-weight: 600;">Google Play</td>
+                                      </tr>
+                                    </table>
+                                  </a>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>
+                                  <a href="${IOS_APP_URL}" style="display: block; text-decoration: none;">
+                                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; background: #f8fafc; border: 1px solid #dbe3ef; border-radius: 14px;">
+                                      <tr>
+                                        <td style="padding: 14px 16px; width: 44px; vertical-align: middle;">
+                                          <img src="https://cdn.simpleicons.org/apple/111827" alt="iOS" width="22" height="22" style="display: block; border: 0;" />
+                                        </td>
+                                        <td style="padding: 14px 0; vertical-align: middle;">
+                                          <p style="margin: 0; font-size: 12px; line-height: 16px; color: #64748b;">Download on</p>
+                                          <p style="margin: 2px 0 0; font-size: 16px; line-height: 22px; color: #111827; font-weight: 700;">iPhone / iPad</p>
+                                        </td>
+                                        <td align="right" style="padding: 14px 16px; vertical-align: middle; font-size: 14px; line-height: 20px; color: #475569; font-weight: 600;">App Store</td>
+                                      </tr>
+                                    </table>
+                                  </a>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>
+                                  <a href="${loginUrl}" style="display: block; text-decoration: none;">
+                                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 14px;">
+                                      <tr>
+                                        <td style="padding: 14px 16px; width: 44px; vertical-align: middle; font-size: 22px; line-height: 22px;">&#128187;</td>
+                                        <td style="padding: 14px 0; vertical-align: middle;">
+                                          <p style="margin: 0; font-size: 12px; line-height: 16px; color: #2563eb;">Open</p>
+                                          <p style="margin: 2px 0 0; font-size: 16px; line-height: 22px; color: #1e3a8a; font-weight: 700;">Web Login</p>
+                                        </td>
+                                        <td align="right" style="padding: 14px 16px; vertical-align: middle; font-size: 14px; line-height: 20px; color: #1d4ed8; font-weight: 600;">Browser</td>
+                                      </tr>
+                                    </table>
+                                  </a>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 22px 22px;">
+                            <p style="margin: 0 0 8px; font-size: 12px; line-height: 18px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Direct Links</p>
+                            <p style="margin: 0 0 6px; font-size: 13px; line-height: 20px; color: #475569; word-break: break-all;">Android: <a href="${ANDROID_APP_URL}" style="color: #1d4ed8; text-decoration: underline;">${safeAndroidUrl}</a></p>
+                            <p style="margin: 0 0 6px; font-size: 13px; line-height: 20px; color: #475569; word-break: break-all;">iOS: <a href="${IOS_APP_URL}" style="color: #1d4ed8; text-decoration: underline;">${safeIosUrl}</a></p>
+                            <p style="margin: 0; font-size: 13px; line-height: 20px; color: #475569; word-break: break-all;">Web Login: <a href="${loginUrl}" style="color: #1d4ed8; text-decoration: underline;">${safeLoginUrl}</a></p>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <p style="margin: 0; font-size: 13px; line-height: 22px; color: #6b7280;">Need help? Contact your society administration if the email address or phone number on this message is incorrect.</p>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin: 18px 0 0; font-size: 12px; line-height: 18px; color: #94a3b8; text-align: center;">This is an automated onboarding email from Dwell Hub.</p>
+                <p style="margin: 6px 0 0; font-size: 12px; line-height: 18px; color: #94a3b8; text-align: center;">If the action was not expected, please ignore this email.</p>
+              </td>
+            </tr>
+          </table>
         </div>
       `,
     });
