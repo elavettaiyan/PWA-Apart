@@ -18,6 +18,14 @@ const COMPLAINT_CATEGORY_BY_SPECIALIZATION: Record<string, string> = {
   Security: 'Security',
 };
 
+const COMPLAINT_STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REJECTED'] as const;
+const COMPLAINT_ACTIONS = ['ASSIGN', 'REASSIGN', 'START_PROGRESS', 'RESOLVE', 'CLOSE', 'REOPEN', 'REJECT'] as const;
+const COMPLAINT_ESCALATION_LEVELS = ['MANAGER', 'PRESIDENT'] as const;
+
+type ComplaintStatusValue = (typeof COMPLAINT_STATUSES)[number];
+type ComplaintActionValue = (typeof COMPLAINT_ACTIONS)[number];
+type ComplaintEscalationLevelValue = (typeof COMPLAINT_ESCALATION_LEVELS)[number];
+
 /** Parse the images JSON string into an actual array */
 function parseImages(complaint: any) {
   if (!complaint) return complaint;
@@ -27,6 +35,236 @@ function parseImages(complaint: any) {
     complaint.images = [];
   }
   return complaint;
+}
+
+function parseActivity(activity: any) {
+  if (!activity) return activity;
+  try {
+    activity.metadata = typeof activity.metadata === 'string' ? JSON.parse(activity.metadata) : (activity.metadata || {});
+  } catch {
+    activity.metadata = {};
+  }
+  return activity;
+}
+
+function parseComplaintRecord(complaint: any) {
+  const parsed = parseImages(complaint);
+  if (parsed?.activities) {
+    parsed.activities = parsed.activities.map(parseActivity);
+  }
+  return parsed;
+}
+
+function stringifyMetadata(metadata?: Record<string, unknown>) {
+  return JSON.stringify(metadata || {});
+}
+
+async function createComplaintActivity(input: {
+  complaintId: string;
+  actorId?: string | null;
+  actorName: string;
+  type: 'CREATED' | 'STATUS_CHANGED' | 'ASSIGNED' | 'COMMENT_ADDED' | 'RESOLUTION_ADDED' | 'ESCALATED' | 'CLOSURE_CONFIRMED';
+  message: string;
+  metadata?: Record<string, unknown>;
+}) {
+  return prisma.complaintActivity.create({
+    data: {
+      complaintId: input.complaintId,
+      actorId: input.actorId || null,
+      actorName: input.actorName,
+      type: input.type,
+      message: input.message,
+      metadata: stringifyMetadata(input.metadata),
+    },
+  });
+}
+
+function isComplaintManager(role?: string) {
+  return role === 'SUPER_ADMIN' || SOCIETY_MANAGERS.includes(role as typeof SOCIETY_MANAGERS[number]);
+}
+
+async function resolveComplaintActor(userId: string) {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, name: true, role: true, societyId: true, isActive: true },
+  });
+}
+
+async function resolveSocietyEscalationTarget(societyId: string, targetLevel: ComplaintEscalationLevelValue, excludeUserIds: string[] = []) {
+  if (targetLevel === 'PRESIDENT') {
+    const presidentMembership = await prisma.userSocietyMembership.findFirst({
+      where: {
+        societyId,
+        role: 'ADMIN',
+        adminAssignmentType: 'PRESIDENT',
+        user: { isActive: true, id: { notIn: excludeUserIds } },
+      },
+      include: { user: { select: { id: true, name: true, role: true, societyId: true, isActive: true } } },
+    });
+
+    if (presidentMembership?.user) return presidentMembership.user;
+
+    const fallbackAdmin = await prisma.userSocietyMembership.findFirst({
+      where: {
+        societyId,
+        role: 'ADMIN',
+        user: { isActive: true, id: { notIn: excludeUserIds } },
+      },
+      include: { user: { select: { id: true, name: true, role: true, societyId: true, isActive: true } } },
+    });
+
+    return fallbackAdmin?.user || null;
+  }
+
+  const memberships = await prisma.userSocietyMembership.findMany({
+    where: {
+      societyId,
+      role: { in: SOCIETY_MANAGERS as any },
+      user: { isActive: true, id: { notIn: excludeUserIds } },
+      NOT: { adminAssignmentType: 'PRESIDENT' },
+    },
+    include: { user: { select: { id: true, name: true, role: true, societyId: true, isActive: true } } },
+  });
+
+  const priority = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'];
+  const getPriority = (role: string) => {
+    const index = priority.indexOf(role);
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  };
+  const sorted = memberships.sort((a, b) => getPriority(a.role) - getPriority(b.role));
+  if (sorted[0]?.user) return sorted[0].user;
+
+  return resolveSocietyEscalationTarget(societyId, 'PRESIDENT', excludeUserIds);
+}
+
+async function applyComplaintUpdate(params: {
+  complaintId: string;
+  actorId: string;
+  actorName: string;
+  existing: any;
+  status: ComplaintStatusValue;
+  assignedToId?: string;
+  resolution?: string;
+  actionLabel?: string;
+  markClosureConfirmed?: boolean;
+}) {
+  const { complaintId, actorId, actorName, existing, status, assignedToId, resolution, actionLabel, markClosureConfirmed } = params;
+  const data: any = { status };
+
+  if (assignedToId) data.assignedToId = assignedToId;
+  if (typeof resolution === 'string') data.resolution = resolution;
+
+  if (status === 'RESOLVED') {
+    data.resolvedAt = existing.resolvedAt || new Date();
+    data.closureRequestedAt = existing.closureRequestedAt || new Date();
+    data.closedAt = null;
+    data.residentConfirmedAt = null;
+  }
+
+  if (status === 'CLOSED') {
+    data.resolvedAt = existing.resolvedAt || new Date();
+    data.closureRequestedAt = existing.closureRequestedAt || existing.resolvedAt || new Date();
+    data.closedAt = existing.closedAt || new Date();
+    if (markClosureConfirmed) {
+      data.residentConfirmedAt = existing.residentConfirmedAt || new Date();
+    }
+  }
+
+  if (status === 'OPEN' || status === 'IN_PROGRESS' || status === 'REJECTED') {
+    data.resolvedAt = status === 'REJECTED' ? existing.resolvedAt : null;
+    data.closureRequestedAt = null;
+    data.residentConfirmedAt = null;
+    data.closedAt = null;
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const updatedComplaint = await tx.complaint.update({
+      where: { id: complaintId },
+      data,
+      include: {
+        createdBy: { select: { name: true } },
+        assignedTo: { select: { name: true } },
+      },
+    });
+
+    if (existing.status !== updatedComplaint.status) {
+      await tx.complaintActivity.create({
+        data: {
+          complaintId: updatedComplaint.id,
+          actorId,
+          actorName,
+          type: 'STATUS_CHANGED',
+          message: actionLabel || `Status changed from ${existing.status} to ${updatedComplaint.status}`,
+          metadata: stringifyMetadata({ fromStatus: existing.status, toStatus: updatedComplaint.status }),
+        },
+      });
+    }
+
+    if (assignedToId && assignedToId !== existing.assignedToId) {
+      await tx.complaintActivity.create({
+        data: {
+          complaintId: updatedComplaint.id,
+          actorId,
+          actorName,
+          type: 'ASSIGNED',
+          message: `Complaint assigned${updatedComplaint.assignedTo?.name ? ` to ${updatedComplaint.assignedTo.name}` : ''}`,
+          metadata: stringifyMetadata({
+            previousAssigneeId: existing.assignedToId,
+            previousAssigneeName: existing.assignedTo?.name || null,
+            assignedToId: updatedComplaint.assignedToId,
+            assignedToName: updatedComplaint.assignedTo?.name || null,
+          }),
+        },
+      });
+    }
+
+    if (typeof resolution === 'string' && resolution !== existing.resolution) {
+      await tx.complaintActivity.create({
+        data: {
+          complaintId: updatedComplaint.id,
+          actorId,
+          actorName,
+          type: 'RESOLUTION_ADDED',
+          message: 'Resolution updated',
+          metadata: stringifyMetadata({ resolution }),
+        },
+      });
+    }
+
+    if (markClosureConfirmed) {
+      await tx.complaintActivity.create({
+        data: {
+          complaintId: updatedComplaint.id,
+          actorId,
+          actorName,
+          type: 'CLOSURE_CONFIRMED',
+          message: 'Resident confirmed closure',
+          metadata: stringifyMetadata({ closedAt: updatedComplaint.closedAt, residentConfirmedAt: updatedComplaint.residentConfirmedAt }),
+        },
+      });
+    }
+
+    return updatedComplaint;
+  });
+}
+
+function normalizeComplaintAction(action: ComplaintActionValue, existing: any): { status: ComplaintStatusValue; actionLabel: string } {
+  switch (action) {
+    case 'ASSIGN':
+      return { status: existing.status, actionLabel: 'Complaint assigned' };
+    case 'REASSIGN':
+      return { status: existing.status, actionLabel: 'Complaint reassigned' };
+    case 'START_PROGRESS':
+      return { status: 'IN_PROGRESS', actionLabel: 'Work started on complaint' };
+    case 'RESOLVE':
+      return { status: 'RESOLVED', actionLabel: 'Complaint marked as resolved' };
+    case 'CLOSE':
+      return { status: 'CLOSED', actionLabel: 'Complaint closed' };
+    case 'REOPEN':
+      return { status: 'OPEN', actionLabel: 'Complaint reopened' };
+    case 'REJECT':
+      return { status: 'REJECTED', actionLabel: 'Complaint rejected' };
+  }
 }
 
 // ── GET ALL COMPLAINTS ──────────────────────────────────
@@ -92,7 +330,7 @@ router.get(
         orderBy: { createdAt: 'desc' },
       });
 
-      return res.json(complaints.map(parseImages));
+      return res.json(complaints.map(parseComplaintRecord));
     } catch (error) {
       return res.status(500).json({ error: 'Failed to fetch complaints' });
     }
@@ -109,6 +347,14 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
         createdBy: { select: { name: true, email: true } },
         assignedTo: { select: { name: true, email: true } },
         comments: { orderBy: { createdAt: 'asc' } },
+        activities: { orderBy: { createdAt: 'asc' } },
+        escalations: {
+          include: {
+            escalatedBy: { select: { id: true, name: true } },
+            escalatedTo: { select: { id: true, name: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
 
@@ -119,7 +365,7 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    return res.json(parseImages(complaint));
+    return res.json(parseComplaintRecord(complaint));
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch complaint' });
   }
@@ -150,26 +396,50 @@ router.post(
 
       const imageList = files.map((f) => getFileUrl(f));
 
-      const complaint = await prisma.complaint.create({
-        data: {
-          societyId: req.user!.societyId!,
-          flatId: req.body.flatId || null,
-          createdById: req.user!.id,
-          title: req.body.title,
-          description: req.body.description,
-          category: req.body.category,
-          priority: req.body.priority || 'MEDIUM',
-          images: JSON.stringify(imageList),
-        },
-        include: {
-          flat: { select: { flatNumber: true } },
-          createdBy: { select: { name: true } },
-        },
+      const user = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { name: true },
+      });
+
+      const complaint = await prisma.$transaction(async (tx) => {
+        const createdComplaint = await tx.complaint.create({
+          data: {
+            societyId: req.user!.societyId!,
+            flatId: req.body.flatId || null,
+            createdById: req.user!.id,
+            title: req.body.title,
+            description: req.body.description,
+            category: req.body.category,
+            priority: req.body.priority || 'MEDIUM',
+            images: JSON.stringify(imageList),
+          },
+          include: {
+            flat: { select: { flatNumber: true } },
+            createdBy: { select: { name: true } },
+          },
+        });
+
+        await tx.complaintActivity.create({
+          data: {
+            complaintId: createdComplaint.id,
+            actorId: req.user!.id,
+            actorName: user?.name || 'Unknown User',
+            type: 'CREATED',
+            message: 'Complaint created',
+            metadata: stringifyMetadata({
+              status: createdComplaint.status,
+              priority: createdComplaint.priority,
+              category: createdComplaint.category,
+            }),
+          },
+        });
+
+        return createdComplaint;
       });
 
       notifyNewComplaint(complaint.id).catch(() => {});
 
-      return res.status(201).json(parseImages(complaint));
+      return res.status(201).json(parseComplaintRecord(complaint));
     } catch (error) {
       return res.status(500).json({ error: 'Failed to create complaint' });
     }
@@ -182,7 +452,7 @@ router.patch(
   authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS, 'SERVICE_STAFF'),
   [
     param('id').isUUID(),
-    body('status').isIn(['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REJECTED']),
+    body('status').isIn(COMPLAINT_STATUSES),
     body('assignedToId').optional().isUUID(),
     body('resolution').optional().isString(),
   ],
@@ -190,7 +460,10 @@ router.patch(
   async (req: AuthRequest, res: Response) => {
     try {
       // SECURITY: Verify complaint belongs to admin's society
-      const existing = await prisma.complaint.findUnique({ where: { id: req.params.id } });
+      const existing = await prisma.complaint.findUnique({
+        where: { id: req.params.id },
+        include: { assignedTo: { select: { name: true } } },
+      });
       if (!existing) return res.status(404).json({ error: 'Complaint not found' });
       if (req.user!.role !== 'SUPER_ADMIN' && existing.societyId !== req.user!.societyId) {
         return res.status(403).json({ error: 'Access denied' });
@@ -201,26 +474,242 @@ router.patch(
         return res.status(403).json({ error: 'Access denied' });
       }
 
-      const data: any = { status: req.body.status };
-
-      if (req.body.assignedToId) data.assignedToId = req.body.assignedToId;
-      if (req.body.resolution) data.resolution = req.body.resolution;
-      if (req.body.status === 'RESOLVED' || req.body.status === 'CLOSED') {
-        data.resolvedAt = new Date();
+      if (req.body.status === 'CLOSED') {
+        return res.status(400).json({ error: 'Use resident confirmation to close a resolved complaint' });
       }
 
-      const complaint = await prisma.complaint.update({
+      const user = await resolveComplaintActor(req.user!.id);
+
+      const complaint = await applyComplaintUpdate({
+        complaintId: req.params.id,
+        actorId: req.user!.id,
+        actorName: user?.name || 'Unknown User',
+        existing,
+        status: req.body.status as ComplaintStatusValue,
+        assignedToId: req.body.assignedToId,
+        resolution: req.body.resolution,
+      });
+
+      return res.json(parseComplaintRecord(complaint));
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to update complaint' });
+    }
+  },
+);
+
+// ── EXPLICIT COMPLAINT ACTIONS ─────────────────────────
+router.post(
+  '/:id/actions',
+  [
+    param('id').isUUID(),
+    body('action').isIn(COMPLAINT_ACTIONS),
+    body('assignedToId').optional().isUUID(),
+    body('resolution').optional().isString(),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const existing = await prisma.complaint.findUnique({
         where: { id: req.params.id },
-        data,
+        include: { assignedTo: { select: { name: true } } },
+      });
+
+      if (!existing) return res.status(404).json({ error: 'Complaint not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && existing.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const action = req.body.action as ComplaintActionValue;
+      const isManager = isComplaintManager(req.user!.role);
+      const isCreator = existing.createdById === req.user!.id;
+      const isAssignedStaff = req.user!.role === 'SERVICE_STAFF' && existing.assignedToId === req.user!.id;
+
+      if (req.user!.role === 'SERVICE_STAFF' && !isAssignedStaff) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if ((action === 'START_PROGRESS' || action === 'RESOLVE') && !isManager && !isAssignedStaff) {
+        return res.status(403).json({ error: 'Only managers or assigned staff can update work progress' });
+      }
+
+      if ((action === 'ASSIGN' || action === 'REASSIGN') && !isManager) {
+        return res.status(403).json({ error: 'Only managers can assign complaints' });
+      }
+
+      if ((action === 'CLOSE' || action === 'REJECT') && !isManager) {
+        if (!(action === 'CLOSE' && isCreator)) {
+          return res.status(403).json({ error: action === 'CLOSE' ? 'Only the requester can confirm closure' : 'Only managers can reject complaints' });
+        }
+      }
+
+      if (action === 'CLOSE') {
+        if (!isCreator) {
+          return res.status(403).json({ error: 'Only the requester can confirm closure' });
+        }
+        if (existing.status !== 'RESOLVED') {
+          return res.status(400).json({ error: 'Only resolved complaints can be confirmed and closed' });
+        }
+      }
+
+      if (action === 'REOPEN' && !isManager && !isCreator && !isAssignedStaff) {
+        return res.status(403).json({ error: 'Only the requester, assigned staff, or managers can reopen complaints' });
+      }
+
+      if ((action === 'ASSIGN' || action === 'REASSIGN') && !req.body.assignedToId) {
+        return res.status(400).json({ error: 'assignedToId is required for assignment actions' });
+      }
+
+      if (req.body.assignedToId) {
+        const assignee = await resolveComplaintActor(req.body.assignedToId);
+        const allowedAssigneeRoles = new Set(['SERVICE_STAFF', ...SOCIETY_MANAGERS, 'SUPER_ADMIN']);
+
+        if (!assignee || !assignee.isActive || assignee.societyId !== existing.societyId || !allowedAssigneeRoles.has(assignee.role)) {
+          return res.status(400).json({ error: 'Assigned user must be an active staff or manager in the same society' });
+        }
+      }
+
+      const actor = await resolveComplaintActor(req.user!.id);
+      const normalized = normalizeComplaintAction(action, existing);
+      const complaint = await applyComplaintUpdate({
+        complaintId: req.params.id,
+        actorId: req.user!.id,
+        actorName: actor?.name || 'Unknown User',
+        existing,
+        status: normalized.status,
+        assignedToId: req.body.assignedToId,
+        resolution: req.body.resolution,
+        actionLabel: normalized.actionLabel,
+        markClosureConfirmed: action === 'CLOSE',
+      });
+
+      return res.json(parseComplaintRecord(complaint));
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to apply complaint action' });
+    }
+  },
+);
+
+// ── MANUAL ESCALATION ──────────────────────────────────
+router.post(
+  '/:id/escalate',
+  [
+    param('id').isUUID(),
+    body('reason').trim().notEmpty(),
+    body('targetLevel').optional().isIn(COMPLAINT_ESCALATION_LEVELS),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const complaint = await prisma.complaint.findUnique({
+        where: { id: req.params.id },
         include: {
-          createdBy: { select: { name: true } },
-          assignedTo: { select: { name: true } },
+          assignedTo: { select: { id: true, name: true } },
+          escalations: { orderBy: { createdAt: 'desc' }, take: 1 },
         },
       });
 
-      return res.json(parseImages(complaint));
+      if (!complaint) return res.status(404).json({ error: 'Complaint not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && complaint.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const isManager = isComplaintManager(req.user!.role);
+      const isAssignedStaff = req.user!.role === 'SERVICE_STAFF' && complaint.assignedToId === req.user!.id;
+      const isCreator = complaint.createdById === req.user!.id;
+
+      if (!isManager && !isAssignedStaff && !isCreator) {
+        return res.status(403).json({ error: 'Only the requester, assigned staff, or managers can escalate complaints' });
+      }
+
+      const actor = await resolveComplaintActor(req.user!.id);
+      const requestedLevel = req.body.targetLevel as ComplaintEscalationLevelValue | undefined;
+      const derivedLevel: ComplaintEscalationLevelValue = requestedLevel
+        || (isManager ? 'PRESIDENT' : 'MANAGER');
+
+      const target = await resolveSocietyEscalationTarget(complaint.societyId, derivedLevel, [req.user!.id, complaint.assignedToId].filter(Boolean) as string[]);
+      if (!target) {
+        return res.status(400).json({ error: `No eligible ${derivedLevel.toLowerCase()} escalation target found` });
+      }
+
+      const updatedComplaint = await prisma.$transaction(async (tx) => {
+        const escalation = await tx.complaintEscalation.create({
+          data: {
+            complaintId: complaint.id,
+            escalatedById: req.user!.id,
+            escalatedToId: target.id,
+            targetLevel: derivedLevel,
+            reason: req.body.reason,
+          },
+        });
+
+        const reassignedComplaint = await tx.complaint.update({
+          where: { id: complaint.id },
+          data: {
+            assignedToId: target.id,
+            status: complaint.status === 'OPEN' ? 'IN_PROGRESS' : complaint.status,
+          },
+          include: {
+            createdBy: { select: { name: true } },
+            assignedTo: { select: { name: true } },
+          },
+        });
+
+        await tx.complaintActivity.create({
+          data: {
+            complaintId: complaint.id,
+            actorId: req.user!.id,
+            actorName: actor?.name || 'Unknown User',
+            type: 'ESCALATED',
+            message: `Complaint escalated to ${target.name}`,
+            metadata: stringifyMetadata({
+              escalationId: escalation.id,
+              targetLevel: derivedLevel,
+              reason: req.body.reason,
+              previousAssigneeId: complaint.assignedToId,
+              previousAssigneeName: complaint.assignedTo?.name || null,
+              escalatedToId: target.id,
+              escalatedToName: target.name,
+            }),
+          },
+        });
+
+        if (complaint.assignedToId !== target.id) {
+          await tx.complaintActivity.create({
+            data: {
+              complaintId: complaint.id,
+              actorId: req.user!.id,
+              actorName: actor?.name || 'Unknown User',
+              type: 'ASSIGNED',
+              message: `Complaint assigned to ${target.name}`,
+              metadata: stringifyMetadata({
+                previousAssigneeId: complaint.assignedToId,
+                previousAssigneeName: complaint.assignedTo?.name || null,
+                assignedToId: target.id,
+                assignedToName: target.name,
+              }),
+            },
+          });
+        }
+
+        if (complaint.status === 'OPEN') {
+          await tx.complaintActivity.create({
+            data: {
+              complaintId: complaint.id,
+              actorId: req.user!.id,
+              actorName: actor?.name || 'Unknown User',
+              type: 'STATUS_CHANGED',
+              message: 'Status changed from OPEN to IN_PROGRESS',
+              metadata: stringifyMetadata({ fromStatus: 'OPEN', toStatus: 'IN_PROGRESS' }),
+            },
+          });
+        }
+
+        return reassignedComplaint;
+      });
+
+      return res.json(parseComplaintRecord(updatedComplaint));
     } catch (error) {
-      return res.status(500).json({ error: 'Failed to update complaint' });
+      return res.status(500).json({ error: 'Failed to escalate complaint' });
     }
   },
 );
@@ -244,12 +733,27 @@ router.post(
         select: { name: true },
       });
 
-      const comment = await prisma.complaintComment.create({
-        data: {
-          complaintId: req.params.id,
-          authorName: user!.name,
-          content: req.body.content,
-        },
+      const comment = await prisma.$transaction(async (tx) => {
+        const createdComment = await tx.complaintComment.create({
+          data: {
+            complaintId: req.params.id,
+            authorName: user!.name,
+            content: req.body.content,
+          },
+        });
+
+        await tx.complaintActivity.create({
+          data: {
+            complaintId: req.params.id,
+            actorId: req.user!.id,
+            actorName: user!.name,
+            type: 'COMMENT_ADDED',
+            message: 'Comment added',
+            metadata: stringifyMetadata({ commentId: createdComment.id }),
+          },
+        });
+
+        return createdComment;
       });
 
       return res.status(201).json(comment);

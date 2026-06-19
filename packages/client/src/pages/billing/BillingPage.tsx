@@ -607,14 +607,22 @@ export default function BillingPage() {
     <div className="space-y-6 md:space-y-7">
       <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-[2rem] font-bold tracking-tight text-on-surface">Billing</h1>
+          <h1 className={cn(
+            'font-bold tracking-tight',
+            ownerFacingBillingView ? 'text-2xl text-slate-900' : 'text-[2rem] text-on-surface'
+          )}>Billing</h1>
           <p className="mt-1 max-w-2xl text-sm text-on-surface-variant">{billingDescription}</p>
         </div>
 
         <div className="flex flex-wrap gap-3 lg:justify-end">
           <button
             type="button"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-800"
+            className={cn(
+              'inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors',
+              ownerFacingBillingView
+                ? 'border border-blue-600 bg-white text-blue-600 hover:bg-blue-50'
+                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+            )}
             onClick={() => navigate(ownerViewActive ? '/payments/history?ownerView=true' : '/payments/history')}
           >
             <History className="h-4 w-4" />
@@ -795,9 +803,9 @@ export default function BillingPage() {
           </div>
 
           {ownerFacingBillingView ? (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-3 lg:justify-end">
               <input
-                className="input w-44 rounded-xl bg-surface-container-lowest"
+                className="input h-10 w-44 rounded-xl border-slate-200 bg-white"
                 type="number"
                 min={1}
                 step="0.01"
@@ -805,7 +813,11 @@ export default function BillingPage() {
                 onChange={(e) => setPaymentAmount(e.target.value)}
                 placeholder={`Pay up to ${formatCurrency(totalOutstanding)}`}
               />
-              <button className="btn-primary text-xs px-3 py-2" onClick={handlePhonePeAmountPay}>
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
+                onClick={handlePhonePeAmountPay}
+              >
                 <CreditCard className="h-4 w-4" /> Pay Amount
               </button>
             </div>
@@ -842,40 +854,45 @@ export default function BillingPage() {
               {displayedBills.map((bill) => {
                 const activeOwner = bill.flat?.owner?.isActive === false ? null : bill.flat?.owner;
                 return (
-                  <div key={bill.id} className="overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface-container-lowest">
+                  <div key={bill.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <div className="flex items-start justify-between gap-3 px-4 py-4">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold text-on-surface">
+                        <p className="truncate text-base font-semibold text-slate-900">
                           {ownerFacingBillingView ? getBillDisplayTitle(bill) : <>{bill.flat?.flatNumber}<span className="ml-1 text-xs font-normal text-on-surface-variant">{bill.flat?.block?.name}</span></>}
                         </p>
-                        <p className="mt-1 text-xs text-on-surface-variant">
+                        <p className="mt-1 text-sm text-slate-500">
                           {ownerFacingBillingView
                             ? `${getBillPeriodLabel(bill) ? `${getBillPeriodLabel(bill)} · ` : ''}Due ${formatDate(bill.dueDate)}`
                             : `${activeOwner?.name || '—'}${getBillPeriodLabel(bill) ? ` · ${getBillPeriodLabel(bill)}` : ''}`}
                         </p>
-                        <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-outline">{getBillKindLabel(bill.billKind)}</p>
+                        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">{getBillKindLabel(bill.billKind)}</p>
                       </div>
                       <span className={cn('badge shrink-0', getStatusColor(bill.status))}>{bill.status}</span>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3 border-t border-outline-variant/40 bg-surface-container-low/50 px-4 py-3 text-xs">
+                    <div className="grid grid-cols-3 gap-3 border-t border-slate-100 bg-slate-50 px-4 py-3 text-xs">
                       <div>
-                        <span className="block text-outline">Total</span>
-                        <span className="font-semibold text-on-surface">{formatCurrency(bill.totalAmount)}</span>
+                        <span className="block text-slate-400">Total</span>
+                        <span className="font-semibold text-slate-900">{formatCurrency(bill.totalAmount)}</span>
                       </div>
                       <div>
-                        <span className="block text-outline">Paid</span>
+                        <span className="block text-slate-400">Paid</span>
                         <span className="font-semibold text-emerald-700">{formatCurrency(bill.paidAmount)}</span>
                       </div>
                       <div>
-                        <span className="block text-outline">Due</span>
+                        <span className="block text-slate-400">Due</span>
                         <span className="font-semibold text-error">{formatCurrency(bill.totalAmount - bill.paidAmount)}</span>
                       </div>
                     </div>
 
                     <div className="flex flex-wrap gap-2 px-4 py-3">
                       <button
-                        className="btn-sm btn-secondary"
+                        className={cn(
+                          'inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
+                          ownerFacingBillingView
+                            ? 'border border-blue-600 bg-white text-blue-600 hover:bg-blue-50'
+                            : 'btn-sm btn-secondary'
+                        )}
                         onClick={() => { setSelectedBill(bill); setShowBillDetails(true); }}
                       >
                         View
@@ -893,7 +910,12 @@ export default function BillingPage() {
                           ) : null}
                           <button
                             type="button"
-                            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-slate-800"
+                            className={cn(
+                              'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
+                              ownerFacingBillingView
+                                ? 'bg-blue-600 text-white shadow-sm hover:bg-blue-700'
+                                : 'bg-slate-900 text-white hover:bg-slate-800'
+                            )}
                             onClick={() => handlePhonePePay(bill.id)}
                           >
                             <CreditCard className="h-3 w-3" /> Pay
@@ -954,9 +976,13 @@ export default function BillingPage() {
                         <td className="whitespace-nowrap font-medium text-error">{formatCurrency(bill.totalAmount - bill.paidAmount)}</td>
                         <td><span className={cn('badge', getStatusColor(bill.status))}>{bill.status}</span></td>
                         <td>
-                          <div className="flex min-w-[220px] gap-2">
+                          <div className={cn('flex gap-2', ownerFacingBillingView ? 'min-w-[180px]' : 'min-w-[220px]')}>
                             <button
-                              className="btn-sm btn-outline"
+                              className={cn(
+                                ownerFacingBillingView
+                                  ? 'inline-flex items-center justify-center gap-2 rounded-lg border border-blue-600 bg-white px-3 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-50'
+                                  : 'btn-sm btn-outline'
+                              )}
                               onClick={() => { setSelectedBill(bill); setShowBillDetails(true); }}
                             >
                               View
@@ -974,7 +1000,12 @@ export default function BillingPage() {
                                 ) : null}
                                   <button
                                     type="button"
-                                    className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-slate-800"
+                                    className={cn(
+                                      'inline-flex items-center gap-2 rounded-lg font-semibold transition-colors',
+                                      ownerFacingBillingView
+                                        ? 'bg-blue-600 px-3 py-2 text-sm text-white shadow-sm hover:bg-blue-700'
+                                        : 'bg-slate-900 px-3 py-1.5 text-xs text-white hover:bg-slate-800'
+                                    )}
                                     onClick={() => handlePhonePePay(bill.id)}
                                   >
                                   <CreditCard className="h-3 w-3" /> {ownerFacingBillingView ? 'Pay' : 'PhonePe'}

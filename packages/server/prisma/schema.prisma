@@ -461,6 +461,9 @@ model User {
   societyMemberships UserSocietyMembership[]
   complaints   Complaint[] @relation("ComplaintCreator")
   assignedComplaints Complaint[] @relation("ComplaintAssignee")
+  complaintActivities ComplaintActivity[] @relation("ComplaintActivityActor")
+  complaintEscalationsRaised ComplaintEscalation[] @relation("ComplaintEscalatedBy")
+  complaintEscalationsReceived ComplaintEscalation[] @relation("ComplaintEscalatedTo")
   capturedVisitors Visitor[] @relation("VisitorCapturedBy")
   capturedDeliveries Delivery[] @relation("DeliveryCapturedBy")
   pushDevices       PushNotificationDevice[]
@@ -989,6 +992,9 @@ model Complaint {
   images       String            @default("[]")
   resolution   String?
   resolvedAt   DateTime?
+  closureRequestedAt DateTime?
+  residentConfirmedAt DateTime?
+  closedAt     DateTime?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
@@ -997,6 +1003,8 @@ model Complaint {
   createdBy    User     @relation("ComplaintCreator", fields: [createdById], references: [id])
   assignedTo   User?    @relation("ComplaintAssignee", fields: [assignedToId], references: [id])
   comments     ComplaintComment[]
+  activities   ComplaintActivity[]
+  escalations  ComplaintEscalation[]
 
   @@index([societyId])
   @@index([createdById])
@@ -1016,6 +1024,60 @@ model ComplaintComment {
 
   @@index([complaintId])
   @@map("complaint_comments")
+}
+
+model ComplaintActivity {
+  id          String                @id @default(uuid())
+  complaintId String
+  actorId     String?
+  actorName   String
+  type        ComplaintActivityType
+  message     String
+  metadata    String                @default("{}")
+  createdAt   DateTime              @default(now())
+
+  complaint   Complaint             @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  actor       User?                 @relation("ComplaintActivityActor", fields: [actorId], references: [id])
+
+  @@index([complaintId])
+  @@index([actorId])
+  @@index([complaintId, createdAt])
+  @@map("complaint_activities")
+}
+
+enum ComplaintActivityType {
+  CREATED
+  STATUS_CHANGED
+  ASSIGNED
+  COMMENT_ADDED
+  RESOLUTION_ADDED
+  ESCALATED
+  CLOSURE_CONFIRMED
+}
+
+model ComplaintEscalation {
+  id             String                   @id @default(uuid())
+  complaintId    String
+  escalatedById  String
+  escalatedToId  String
+  targetLevel    ComplaintEscalationLevel
+  reason         String
+  createdAt      DateTime                 @default(now())
+
+  complaint      Complaint                @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  escalatedBy    User                     @relation("ComplaintEscalatedBy", fields: [escalatedById], references: [id])
+  escalatedTo    User                     @relation("ComplaintEscalatedTo", fields: [escalatedToId], references: [id])
+
+  @@index([complaintId])
+  @@index([escalatedById])
+  @@index([escalatedToId])
+  @@index([complaintId, createdAt])
+  @@map("complaint_escalations")
+}
+
+enum ComplaintEscalationLevel {
+  MANAGER
+  PRESIDENT
 }
 
 // ─── EXPENSE ────────────────────────────────────────────

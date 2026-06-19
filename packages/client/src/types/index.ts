@@ -453,11 +453,14 @@ export interface PaymentReceiptDetails {
 
 export type ComplaintStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED' | 'REJECTED';
 export type ComplaintPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+export type ComplaintActivityType = 'CREATED' | 'STATUS_CHANGED' | 'ASSIGNED' | 'COMMENT_ADDED' | 'RESOLUTION_ADDED' | 'ESCALATED' | 'CLOSURE_CONFIRMED';
 
 export interface Complaint {
   id: string;
   societyId: string;
   flatId?: string;
+  createdById: string;
+  assignedToId?: string | null;
   title: string;
   description: string;
   category: string;
@@ -466,11 +469,15 @@ export interface Complaint {
   images: string[];
   resolution?: string;
   resolvedAt?: string;
+  closureRequestedAt?: string | null;
+  residentConfirmedAt?: string | null;
+  closedAt?: string | null;
   createdAt: string;
   flat?: { flatNumber: string; block?: { name: string } };
   createdBy?: { name: string };
   assignedTo?: { name: string };
   comments?: ComplaintComment[];
+  activities?: ComplaintActivity[];
   _count?: { comments: number };
 }
 
@@ -478,6 +485,16 @@ export interface ComplaintComment {
   id: string;
   authorName: string;
   content: string;
+  createdAt: string;
+}
+
+export interface ComplaintActivity {
+  id: string;
+  actorId?: string | null;
+  actorName: string;
+  type: ComplaintActivityType;
+  message: string;
+  metadata: Record<string, unknown>;
   createdAt: string;
 }
 

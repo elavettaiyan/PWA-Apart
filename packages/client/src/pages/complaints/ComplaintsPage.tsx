@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { MessageSquareWarning, Plus, MessageCircle, AlertTriangle, ImageIcon, X } from 'lucide-react';
 import { getApiBaseUrl } from '../../lib/platform';
@@ -51,17 +51,25 @@ export default function ComplaintsPage() {
   const filteredComplaints = statusFilter
     ? complaints.filter((c) => c.status === statusFilter)
     : complaints;
+  const complaintsDescription = ownerViewActive
+    ? 'Track issues raised for your home and follow each update in one place.'
+    : 'Review, assign, and resolve resident issues from one place.';
 
   return (
-    <div>
+    <div className="space-y-5">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Complaints</h1>
-          <p className="mt-1 text-sm text-on-surface-variant">Review, assign, and resolve resident issues from one place.</p>
+          <h1 className={cn('page-title', ownerViewActive && 'text-2xl text-slate-900')}>Complaints</h1>
+          <p className="mt-1 text-sm text-on-surface-variant">{complaintsDescription}</p>
         </div>
         {!isSpecializedStaffView && (
           <button
-            className="inline-flex items-center gap-2 rounded-lg border border-blue-600 bg-white px-4 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-50"
+            className={cn(
+              'inline-flex self-start items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors',
+              ownerViewActive
+                ? 'bg-blue-600 text-white shadow-sm hover:bg-blue-700'
+                : 'border border-blue-600 bg-white text-blue-600 hover:bg-blue-50'
+            )}
             onClick={() => setShowCreate(true)}
           >
             <Plus className="h-4 w-4" /> New Complaint
@@ -70,7 +78,11 @@ export default function ComplaintsPage() {
       </div>
 
       {/* Status Filter Chips */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 mb-5 -mx-1 px-1">
+      <div className={cn(
+        ownerViewActive
+          ? 'flex items-center gap-6 overflow-x-auto border-b border-slate-200 pb-0'
+          : 'mb-5 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1'
+      )}>
         {[
           { label: 'All', value: '', count: complaints.length },
           { label: 'Open', value: 'OPEN', count: statusCounts.OPEN },
@@ -82,12 +94,18 @@ export default function ComplaintsPage() {
             key={tab.value}
             onClick={() => setStatusFilter(tab.value)}
             className={cn(
-              'flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition whitespace-nowrap',
-              statusFilter === tab.value
-                ? 'bg-primary text-white'
-                : 'bg-white text-[#64748B] hover:bg-[#F8FAFC]',
+              ownerViewActive
+                ? 'flex-shrink-0 whitespace-nowrap pb-3 text-sm transition-colors'
+                : 'flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition whitespace-nowrap',
+              ownerViewActive
+                ? statusFilter === tab.value
+                  ? 'border-b-2 border-blue-600 font-bold text-blue-600'
+                  : 'font-medium text-slate-500 hover:text-slate-800'
+                : statusFilter === tab.value
+                  ? 'bg-primary text-white'
+                  : 'bg-white text-[#64748B] hover:bg-[#F8FAFC]',
             )}
-            style={statusFilter !== tab.value ? { boxShadow: '0 1px 4px -1px rgba(0,0,0,0.04)' } : undefined}
+            style={!ownerViewActive && statusFilter !== tab.value ? { boxShadow: '0 1px 4px -1px rgba(0,0,0,0.04)' } : undefined}
           >
             {tab.label} ({tab.count})
           </button>
@@ -106,11 +124,16 @@ export default function ComplaintsPage() {
           {filteredComplaints.map((complaint) => (
             <div
               key={complaint.id}
-              className="card-elevated overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+              className={cn(
+                'overflow-hidden cursor-pointer transition-all',
+                ownerViewActive
+                  ? 'rounded-2xl border border-slate-200 bg-white shadow-sm hover:border-blue-200 hover:shadow-md'
+                  : 'card-elevated hover:shadow-md'
+              )}
               onClick={() => setSelectedComplaint(complaint)}
             >
               {/* Header: priority + status badges */}
-              <div className="flex items-center justify-between gap-2 px-4 pt-3">
+              <div className={cn('flex items-center justify-between gap-2 px-4', ownerViewActive ? 'pt-4' : 'pt-3')}>
                 <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', getStatusColor(complaint.priority))}>{complaint.priority}</span>
                 <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', getStatusColor(complaint.status))}>
                   {complaint.status.replace('_', ' ')}
@@ -118,16 +141,19 @@ export default function ComplaintsPage() {
               </div>
 
               {/* Content */}
-              <div className="px-4 pt-2 pb-2">
-                <h3 className="text-[15px] font-semibold text-on-surface leading-snug">{complaint.title}</h3>
-                <p className="text-xs text-on-surface-variant mt-1 line-clamp-2">{complaint.description}</p>
+              <div className={cn('px-4 pt-2', ownerViewActive ? 'pb-3' : 'pb-2')}>
+                <h3 className={cn('leading-snug', ownerViewActive ? 'text-base font-semibold text-slate-900' : 'text-[15px] font-semibold text-on-surface')}>{complaint.title}</h3>
+                <p className={cn('mt-1 line-clamp-2', ownerViewActive ? 'text-sm text-slate-500' : 'text-xs text-on-surface-variant')}>{complaint.description}</p>
               </div>
 
               {/* Meta */}
-              <div className="flex items-center gap-3 px-4 pb-3 text-[11px] text-on-surface-variant">
+              <div className={cn(
+                'flex items-center gap-3 px-4 pb-3 text-[11px]',
+                ownerViewActive ? 'border-t border-slate-100 bg-slate-50 pt-3 text-slate-500' : 'text-on-surface-variant'
+              )}>
                 <span className="inline-flex items-center gap-1">{complaint.category}</span>
                 {complaint.flat && <span>{complaint.flat.block?.name}-{complaint.flat.flatNumber}</span>}
-                <span>{complaint.createdBy?.name}</span>
+                {!ownerViewActive ? <span>{complaint.createdBy?.name}</span> : null}
                 <span>{formatDate(complaint.createdAt)}</span>
                 {complaint._count?.comments ? (
                   <span className="inline-flex items-center gap-0.5 ml-auto">
@@ -155,7 +181,7 @@ export default function ComplaintsPage() {
         {selectedComplaint && (
           <ComplaintDetail
             complaint={selectedComplaint}
-            onUpdate={() => { setSelectedComplaint(null); queryClient.invalidateQueries({ queryKey: ['complaints'] }); }}
+            onUpdate={() => { queryClient.invalidateQueries({ queryKey: ['complaints'] }); }}
           />
         )}
       </Modal>
@@ -272,6 +298,7 @@ function CreateComplaintForm({ onSuccess }: { onSuccess: () => void }) {
 
 function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpdate: () => void }) {
   const [status, setStatus] = useState(complaint.status);
+  const [resolution, setResolution] = useState(complaint.resolution || '');
   const [comment, setComment] = useState('');
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
@@ -279,36 +306,94 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
   const isStaff = user?.role === 'SERVICE_STAFF';
   const canUpdateStatus = isAdmin || isStaff;
 
+  const { data: detailComplaint, isLoading: detailLoading } = useQuery<Complaint>({
+    queryKey: ['complaint', complaint.id],
+    queryFn: async () => (await api.get(`/complaints/${complaint.id}`)).data,
+    initialData: complaint,
+  });
+
+  useEffect(() => {
+    setStatus(detailComplaint?.status || complaint.status);
+    setResolution(detailComplaint?.resolution || '');
+  }, [complaint.status, detailComplaint?.resolution, detailComplaint?.status]);
+
+  const activeComplaint = detailComplaint || complaint;
+  const isRequester = activeComplaint.createdById === user?.id;
+  const canEscalate = isRequester || canUpdateStatus;
+  const actionButtons = useMemo(
+    () => getComplaintActions(activeComplaint.status, { canManage: canUpdateStatus, isRequester }),
+    [activeComplaint.status, canUpdateStatus, isRequester]
+  );
+  const activityTimeline = activeComplaint.activities || [];
+
   const statusMutation = useMutation({
     mutationFn: (data: any) => api.patch(`/complaints/${complaint.id}/status`, data),
-    onSuccess: () => { toast.success('Status updated!'); onUpdate(); },
+    onSuccess: () => {
+      toast.success('Complaint updated');
+      queryClient.invalidateQueries({ queryKey: ['complaint', complaint.id] });
+      queryClient.invalidateQueries({ queryKey: ['complaints'] });
+      onUpdate();
+    },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
+  });
+
+  const actionMutation = useMutation({
+    mutationFn: (data: any) => api.post(`/complaints/${complaint.id}/actions`, data),
+    onSuccess: () => {
+      toast.success('Complaint updated');
+      queryClient.invalidateQueries({ queryKey: ['complaint', complaint.id] });
+      queryClient.invalidateQueries({ queryKey: ['complaints'] });
+      onUpdate();
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
+  });
+
+  const escalationMutation = useMutation({
+    mutationFn: (data: any) => api.post(`/complaints/${complaint.id}/escalate`, data),
+    onSuccess: () => {
+      toast.success('Complaint escalated');
+      queryClient.invalidateQueries({ queryKey: ['complaint', complaint.id] });
+      queryClient.invalidateQueries({ queryKey: ['complaints'] });
+      onUpdate();
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to escalate complaint'),
   });
 
   const commentMutation = useMutation({
     mutationFn: (content: string) => api.post(`/complaints/${complaint.id}/comments`, { content }),
-    onSuccess: () => { toast.success('Comment added!'); setComment(''); queryClient.invalidateQueries({ queryKey: ['complaints'] }); },
+    onSuccess: () => {
+      toast.success('Comment added!');
+      setComment('');
+      queryClient.invalidateQueries({ queryKey: ['complaint', complaint.id] });
+      queryClient.invalidateQueries({ queryKey: ['complaints'] });
+    },
   });
 
+  if (detailLoading && !detailComplaint) return <PageLoader />;
+
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4 text-sm">
-        <div><span className="text-on-surface-variant">Category:</span> <span className="font-medium">{complaint.category}</span></div>
-        <div><span className="text-on-surface-variant">Priority:</span> <span className={cn('badge ml-2', getStatusColor(complaint.priority))}>{complaint.priority}</span></div>
-        <div><span className="text-on-surface-variant">Created by:</span> <span className="font-medium">{complaint.createdBy?.name}</span></div>
-        <div><span className="text-on-surface-variant">Date:</span> <span className="font-medium">{formatDate(complaint.createdAt)}</span></div>
+    <div className="space-y-5">
+      <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm sm:grid-cols-2">
+        <div><span className="text-on-surface-variant">Category:</span> <span className="font-medium">{activeComplaint.category}</span></div>
+        <div><span className="text-on-surface-variant">Priority:</span> <span className={cn('badge ml-2', getStatusColor(activeComplaint.priority))}>{activeComplaint.priority}</span></div>
+        <div><span className="text-on-surface-variant">Created by:</span> <span className="font-medium">{activeComplaint.createdBy?.name}</span></div>
+        <div><span className="text-on-surface-variant">Date:</span> <span className="font-medium">{formatDate(activeComplaint.createdAt)}</span></div>
+        <div><span className="text-on-surface-variant">Current status:</span> <span className={cn('badge ml-2', getStatusColor(activeComplaint.status))}>{activeComplaint.status.replace('_', ' ')}</span></div>
+        <div><span className="text-on-surface-variant">Current owner:</span> <span className="font-medium">{activeComplaint.assignedTo?.name || 'Unassigned'}</span></div>
+        {activeComplaint.closureRequestedAt ? <div><span className="text-on-surface-variant">Awaiting resident confirmation:</span> <span className="font-medium">{formatDate(activeComplaint.closureRequestedAt)}</span></div> : null}
+        {activeComplaint.closedAt ? <div><span className="text-on-surface-variant">Closed at:</span> <span className="font-medium">{formatDate(activeComplaint.closedAt)}</span></div> : null}
       </div>
 
       <div className="p-3 bg-[#F8FAFC] rounded-lg">
-        <p className="text-sm text-on-surface-variant">{complaint.description}</p>
+        <p className="text-sm text-on-surface-variant">{activeComplaint.description}</p>
       </div>
 
       {/* Complaint Images */}
-      {complaint.images && complaint.images.length > 0 && (
+      {activeComplaint.images && activeComplaint.images.length > 0 && (
         <div>
           <h4 className="font-semibold text-on-surface mb-2 text-sm">Attachments</h4>
           <div className="flex gap-3 flex-wrap">
-            {complaint.images.map((img, i) => {
+            {activeComplaint.images.map((img, i) => {
               const src = img.startsWith('data:') ? img : `${getApiBaseUrl().replace('/api', '')}${img}`;
               return (
                 <a key={i} href={src} target="_blank" rel="noopener noreferrer" className="block w-24 h-24 rounded-lg overflow-hidden border hover:shadow-md transition">
@@ -320,30 +405,99 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
         </div>
       )}
 
-      {/* Update Status - Admin / Staff */}
-      {canUpdateStatus && (
-        <div className="flex items-center gap-3">
-          <select className="select w-40" value={status} onChange={(e) => setStatus(e.target.value as any)}>
-            <option value="OPEN">Open</option>
-            <option value="IN_PROGRESS">In Progress</option>
-            <option value="RESOLVED">Resolved</option>
-            <option value="CLOSED">Closed</option>
-            <option value="REJECTED">Rejected</option>
-          </select>
-          <button
-            className="btn-primary btn-sm"
-            onClick={() => statusMutation.mutate({ status })}
-            disabled={statusMutation.isPending}
-          >
-            Update Status
-          </button>
+      {/* Case Actions */}
+      {(canUpdateStatus || isRequester) && (
+        <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
+          <div>
+            <h4 className="font-semibold text-slate-900">Case Actions</h4>
+            <p className="mt-1 text-sm text-slate-500">Move the case forward with explicit workflow actions instead of a raw status dropdown.</p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {actionButtons.map((action) => (
+              <button
+                key={action.status}
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
+                  action.tone === 'primary'
+                    ? 'bg-blue-600 text-white shadow-sm hover:bg-blue-700'
+                    : action.tone === 'danger'
+                      ? 'border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
+                      : 'border border-blue-600 bg-white text-blue-600 hover:bg-blue-50'
+                )}
+                  onClick={() => actionMutation.mutate({ action: action.action, resolution: resolution.trim() || undefined })}
+                  disabled={statusMutation.isPending || actionMutation.isPending || escalationMutation.isPending || status === action.status}
+              >
+                {action.label}
+              </button>
+            ))}
+              {canEscalate ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-100"
+                  onClick={() => escalationMutation.mutate({ reason: resolution.trim() || 'Manual escalation requested' })}
+                  disabled={escalationMutation.isPending}
+                >
+                  Escalate
+                </button>
+              ) : null}
+          </div>
+
+          <div>
+              <label className="label">Case note / resolution / escalation reason</label>
+            <textarea
+              className="input min-h-[96px]"
+              value={resolution}
+              onChange={(e) => setResolution(e.target.value)}
+              placeholder="Add closure notes, workaround details, or the resolution summary..."
+            />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <select className="select w-44" value={status} onChange={(e) => setStatus(e.target.value as any)}>
+              <option value="OPEN">Open</option>
+              <option value="IN_PROGRESS">In Progress</option>
+              <option value="RESOLVED">Resolved</option>
+              <option value="REJECTED">Rejected</option>
+            </select>
+            <button
+              className="inline-flex items-center gap-2 rounded-lg border border-blue-600 bg-white px-3 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-50"
+              onClick={() => statusMutation.mutate({ status, resolution: resolution.trim() || undefined })}
+              disabled={statusMutation.isPending || !canUpdateStatus}
+            >
+              Save Status
+            </button>
+          </div>
         </div>
       )}
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <h4 className="font-semibold text-slate-900">Case Timeline</h4>
+        <div className="mt-3 space-y-3">
+          {activityTimeline.length === 0 ? (
+            <p className="text-sm text-slate-500">No case activity recorded yet.</p>
+          ) : (
+            activityTimeline.map((activity) => (
+              <div key={activity.id} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{activity.message}</p>
+                    <p className="mt-1 text-xs text-slate-500">{activity.actorName} • {formatDate(activity.createdAt)}</p>
+                  </div>
+                  <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500 shadow-sm">{formatActivityType(activity.type)}</span>
+                </div>
+                {renderActivityMetadata(activity)}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
 
       {/* Comments */}
       <div className="border-t pt-4">
         <h4 className="font-semibold text-on-surface mb-3">Comments</h4>
-        {complaint.comments?.map((c) => (
+        {activeComplaint.comments?.map((c) => (
           <div key={c.id} className="mb-3 p-3 bg-[#F8FAFC] rounded-lg">
             <div className="flex justify-between text-xs text-on-surface-variant mb-1">
               <span className="font-medium">{c.authorName}</span>
@@ -368,6 +522,80 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function getComplaintActions(status: Complaint['status'], context: { canManage: boolean; isRequester: boolean }) {
+  const actions: Array<{ label: string; action: 'START_PROGRESS' | 'RESOLVE' | 'CLOSE' | 'REOPEN' | 'REJECT'; status: Complaint['status']; tone: 'primary' | 'secondary' | 'danger' }> = [];
+
+  if (context.canManage) {
+    switch (status) {
+      case 'OPEN':
+        actions.push(
+          { label: 'Start Progress', action: 'START_PROGRESS', status: 'IN_PROGRESS', tone: 'primary' },
+          { label: 'Reject', action: 'REJECT', status: 'REJECTED', tone: 'danger' },
+        );
+        break;
+      case 'IN_PROGRESS':
+        actions.push(
+          { label: 'Resolve', action: 'RESOLVE', status: 'RESOLVED', tone: 'primary' },
+          { label: 'Move Back To Open', action: 'REOPEN', status: 'OPEN', tone: 'secondary' },
+        );
+        break;
+      case 'RESOLVED':
+      case 'CLOSED':
+      case 'REJECTED':
+        actions.push({ label: 'Reopen', action: 'REOPEN', status: 'OPEN', tone: 'secondary' });
+        break;
+      default:
+        break;
+    }
+  }
+
+  if (context.isRequester) {
+    if (status === 'RESOLVED') {
+      actions.push(
+        { label: 'Confirm Closure', action: 'CLOSE', status: 'CLOSED', tone: 'primary' },
+        { label: 'Reopen', action: 'REOPEN', status: 'OPEN', tone: 'secondary' },
+      );
+    }
+  }
+
+  return actions;
+}
+
+function formatActivityType(type: string) {
+  return type.replace(/_/g, ' ');
+}
+
+function renderActivityMetadata(activity: NonNullable<Complaint['activities']>[number]) {
+  const metadata = activity.metadata || {};
+  const lines: string[] = [];
+
+  if (typeof metadata.fromStatus === 'string' && typeof metadata.toStatus === 'string') {
+    lines.push(`From ${metadata.fromStatus} to ${metadata.toStatus}`);
+  }
+  if (typeof metadata.assignedToName === 'string' && metadata.assignedToName) {
+    lines.push(`Assigned to ${metadata.assignedToName}`);
+  }
+  if (typeof metadata.previousAssigneeName === 'string' && metadata.previousAssigneeName) {
+    lines.push(`Previous owner: ${metadata.previousAssigneeName}`);
+  }
+  if (typeof metadata.resolution === 'string' && metadata.resolution) {
+    lines.push(metadata.resolution);
+  }
+  if (typeof metadata.priority === 'string' && typeof metadata.category === 'string') {
+    lines.push(`Priority ${metadata.priority} • ${metadata.category}`);
+  }
+
+  if (lines.length === 0) return null;
+
+  return (
+    <div className="mt-2 space-y-1 text-xs text-slate-500">
+      {lines.map((line, index) => (
+        <p key={`${activity.id}-${index}`}>{line}</p>
+      ))}
     </div>
   );
 }
