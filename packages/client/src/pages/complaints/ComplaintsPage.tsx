@@ -181,6 +181,7 @@ export default function ComplaintsPage() {
       >
         {selectedComplaint && (
           <ComplaintDetail
+            key={selectedComplaint.id}
             complaint={selectedComplaint}
             onUpdate={() => { queryClient.invalidateQueries({ queryKey: ['complaints'] }); }}
           />
