@@ -298,7 +298,7 @@ function CreateComplaintForm({ onSuccess }: { onSuccess: () => void }) {
 }
 
 function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpdate: () => void }) {
-  const [resolution, setResolution] = useState(complaint.resolution || '');
+  const [resolution, setResolution] = useState('');
   const [comment, setComment] = useState('');
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
@@ -317,8 +317,8 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
   });
 
   useEffect(() => {
-    setResolution(detailComplaint?.resolution || '');
-  }, [detailComplaint?.resolution]);
+    setResolution(detailComplaint?.resolution || complaint.resolution || '');
+  }, [complaint.id, complaint.resolution, detailComplaint?.id, detailComplaint?.resolution]);
 
   const activeComplaint = detailComplaint || complaint;
   const isRequester = activeComplaint.createdById === user?.id;
@@ -448,7 +448,7 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
           </div>
 
           <div>
-              <label className="label">Case note / resolution / escalation reason</label>
+              <label className="label">Case note</label>
             <textarea
               className="input min-h-[96px]"
               value={resolution}
