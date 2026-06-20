@@ -83,6 +83,10 @@ function isComplaintManager(role?: string) {
   return role === 'SUPER_ADMIN' || SOCIETY_MANAGERS.includes(role as typeof SOCIETY_MANAGERS[number]);
 }
 
+function isResidentComplaintRole(role?: string) {
+  return RESIDENT_ROLES.includes(role as typeof RESIDENT_ROLES[number]) || role === 'TREASURER';
+}
+
 async function resolveComplaintActor(userId: string) {
   return prisma.user.findUnique({
     where: { id: userId },
@@ -248,6 +252,42 @@ async function applyComplaintUpdate(params: {
   });
 }
 
+async function updateComplaintResolution(params: {
+  complaintId: string;
+  actorId: string;
+  actorName: string;
+  existing: any;
+  resolution: string;
+}) {
+  const { complaintId, actorId, actorName, existing, resolution } = params;
+
+  return prisma.$transaction(async (tx) => {
+    const updatedComplaint = await tx.complaint.update({
+      where: { id: complaintId },
+      data: { resolution },
+      include: {
+        createdBy: { select: { name: true } },
+        assignedTo: { select: { name: true } },
+      },
+    });
+
+    if (resolution !== existing.resolution) {
+      await tx.complaintActivity.create({
+        data: {
+          complaintId: updatedComplaint.id,
+          actorId,
+          actorName,
+          type: 'RESOLUTION_ADDED',
+          message: 'Resolution updated',
+          metadata: stringifyMetadata({ resolution }),
+        },
+      });
+    }
+
+    return updatedComplaint;
+  });
+}
+
 function normalizeComplaintAction(action: ComplaintActionValue, existing: any): { status: ComplaintStatusValue; actionLabel: string } {
   switch (action) {
     case 'ASSIGN':
@@ -363,6 +403,25 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
     // SECURITY: Verify complaint belongs to user's society
     if (req.user!.role !== 'SUPER_ADMIN' && complaint.societyId !== req.user!.societyId) {
       return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (isResidentComplaintRole(req.user!.role) && complaint.createdById !== req.user!.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (req.user!.role === 'SERVICE_STAFF') {
+      const serviceStaffUser = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { specialization: true },
+      });
+      const allowedCategory = COMPLAINT_CATEGORY_BY_SPECIALIZATION[serviceStaffUser?.specialization || ''] || '';
+      const canAccessComplaint = complaint.assignedToId === req.user!.id
+        || complaint.createdById === req.user!.id
+        || (!!allowedCategory && complaint.category === allowedCategory);
+
+      if (!canAccessComplaint) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
     }
 
     return res.json(parseComplaintRecord(complaint));
@@ -493,6 +552,47 @@ router.patch(
       return res.json(parseComplaintRecord(complaint));
     } catch (error) {
       return res.status(500).json({ error: 'Failed to update complaint' });
+    }
+  },
+);
+
+// ── UPDATE COMPLAINT NOTE / RESOLUTION ─────────────────
+router.patch(
+  '/:id/resolution',
+  [param('id').isUUID(), body('resolution').isString()],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const existing = await prisma.complaint.findUnique({
+        where: { id: req.params.id },
+        include: { assignedTo: { select: { name: true } } },
+      });
+
+      if (!existing) return res.status(404).json({ error: 'Complaint not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && existing.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const isManager = isComplaintManager(req.user!.role);
+      const isCreator = existing.createdById === req.user!.id;
+      const isAssignedStaff = req.user!.role === 'SERVICE_STAFF' && existing.assignedToId === req.user!.id;
+
+      if (!isManager && !isCreator && !isAssignedStaff) {
+        return res.status(403).json({ error: 'Only the requester, assigned staff, or managers can update the case note' });
+      }
+
+      const actor = await resolveComplaintActor(req.user!.id);
+      const complaint = await updateComplaintResolution({
+        complaintId: req.params.id,
+        actorId: req.user!.id,
+        actorName: actor?.name || 'Unknown User',
+        existing,
+        resolution: req.body.resolution,
+      });
+
+      return res.json(parseComplaintRecord(complaint));
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to update complaint note' });
     }
   },
 );
@@ -725,6 +825,15 @@ router.post(
       const complaint = await prisma.complaint.findUnique({ where: { id: req.params.id } });
       if (!complaint) return res.status(404).json({ error: 'Complaint not found' });
       if (req.user!.role !== 'SUPER_ADMIN' && complaint.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const canComment = isComplaintManager(req.user!.role) || RESIDENT_ROLES.includes(req.user!.role as typeof RESIDENT_ROLES[number]);
+      if (!canComment) {
+        return res.status(403).json({ error: 'Only residents and society admins can participate in the conversation' });
+      }
+
+      if (isResidentComplaintRole(req.user!.role) && complaint.createdById !== req.user!.id) {
         return res.status(403).json({ error: 'Access denied' });
       }
 

@@ -147,10 +147,36 @@ export function useUnmapMyFlatMutation() {
   });
 }
 
+function buildTenantFormData(data: Record<string, any>) {
+  const formData = new FormData();
+
+  Object.entries(data).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') {
+      return;
+    }
+
+    if (key === 'vehicles') {
+      formData.append(key, JSON.stringify(value));
+      return;
+    }
+
+    if (key === 'agreementDocument' && value instanceof File) {
+      formData.append(key, value);
+      return;
+    }
+
+    formData.append(key, String(value));
+  });
+
+  return formData;
+}
+
 export function useCreateTenantMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: any) => api.post('/flats/tenants', data),
+    mutationFn: (data: any) => api.post('/flats/tenants', buildTenantFormData(data), {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['flats'] });
     },
@@ -160,7 +186,15 @@ export function useCreateTenantMutation() {
 export function useUpdateTenantMutation(tenantId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: any) => api.put(`/flats/tenants/${tenantId}`, data),
+    mutationFn: (data: any) => {
+      if (data?.agreementDocument instanceof File) {
+        return api.put(`/flats/tenants/${tenantId}`, buildTenantFormData(data), {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      }
+
+      return api.put(`/flats/tenants/${tenantId}`, data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['flats'] });
     },

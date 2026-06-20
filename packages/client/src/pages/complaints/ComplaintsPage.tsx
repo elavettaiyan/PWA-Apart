@@ -23,6 +23,7 @@ export default function ComplaintsPage() {
   const ownerViewActive = isOwnerViewActive(user, viewMode);
   const defaultCategory = getDefaultComplaintCategoryForUser(user);
   const isSpecializedStaffView = isNonSecurityServiceStaff(user) && !!defaultCategory;
+  const canSeeConversation = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'OWNER', 'TENANT'] as string[]).includes(user?.role || '');
 
   const { data: complaints = [], isLoading } = useQuery<Complaint[]>({
     queryKey: ['complaints', defaultCategory, ownerViewActive ? 'owner-view' : 'role-view'],
@@ -155,7 +156,7 @@ export default function ComplaintsPage() {
                 {complaint.flat && <span>{complaint.flat.block?.name}-{complaint.flat.flatNumber}</span>}
                 {!ownerViewActive ? <span>{complaint.createdBy?.name}</span> : null}
                 <span>{formatDate(complaint.createdAt)}</span>
-                {complaint._count?.comments ? (
+                {canSeeConversation && complaint._count?.comments ? (
                   <span className="inline-flex items-center gap-0.5 ml-auto">
                     <MessageCircle className="w-3 h-3" /> {complaint._count.comments}
                   </span>
@@ -297,14 +298,15 @@ function CreateComplaintForm({ onSuccess }: { onSuccess: () => void }) {
 }
 
 function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpdate: () => void }) {
-  const [status, setStatus] = useState(complaint.status);
   const [resolution, setResolution] = useState(complaint.resolution || '');
   const [comment, setComment] = useState('');
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'] as string[]).includes(user?.role || '');
   const isStaff = user?.role === 'SERVICE_STAFF';
+  const isResident = (['OWNER', 'TENANT'] as string[]).includes(user?.role || '');
   const canUpdateStatus = isAdmin || isStaff;
+  const canSeeConversation = isAdmin || isResident;
 
   const { data: detailComplaint, isLoading: detailLoading } = useQuery<Complaint>({
     queryKey: ['complaint', complaint.id],
@@ -313,9 +315,8 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
   });
 
   useEffect(() => {
-    setStatus(detailComplaint?.status || complaint.status);
     setResolution(detailComplaint?.resolution || '');
-  }, [complaint.status, detailComplaint?.resolution, detailComplaint?.status]);
+  }, [detailComplaint?.resolution]);
 
   const activeComplaint = detailComplaint || complaint;
   const isRequester = activeComplaint.createdById === user?.id;
@@ -325,17 +326,6 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
     [activeComplaint.status, canUpdateStatus, isRequester]
   );
   const activityTimeline = activeComplaint.activities || [];
-
-  const statusMutation = useMutation({
-    mutationFn: (data: any) => api.patch(`/complaints/${complaint.id}/status`, data),
-    onSuccess: () => {
-      toast.success('Complaint updated');
-      queryClient.invalidateQueries({ queryKey: ['complaint', complaint.id] });
-      queryClient.invalidateQueries({ queryKey: ['complaints'] });
-      onUpdate();
-    },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
-  });
 
   const actionMutation = useMutation({
     mutationFn: (data: any) => api.post(`/complaints/${complaint.id}/actions`, data),
@@ -357,6 +347,17 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
       onUpdate();
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to escalate complaint'),
+  });
+
+  const noteMutation = useMutation({
+    mutationFn: (data: { resolution: string }) => api.patch(`/complaints/${complaint.id}/resolution`, data),
+    onSuccess: () => {
+      toast.success('Case note saved');
+      queryClient.invalidateQueries({ queryKey: ['complaint', complaint.id] });
+      queryClient.invalidateQueries({ queryKey: ['complaints'] });
+      onUpdate();
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save case note'),
   });
 
   const commentMutation = useMutation({
@@ -410,7 +411,7 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
         <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
           <div>
             <h4 className="font-semibold text-slate-900">Case Actions</h4>
-            <p className="mt-1 text-sm text-slate-500">Move the case forward with explicit workflow actions instead of a raw status dropdown.</p>
+            <p className="mt-1 text-sm text-slate-500">Use the actions below to update the complaint and move it through the workflow.</p>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -427,7 +428,7 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
                       : 'border border-blue-600 bg-white text-blue-600 hover:bg-blue-50'
                 )}
                   onClick={() => actionMutation.mutate({ action: action.action, resolution: resolution.trim() || undefined })}
-                  disabled={statusMutation.isPending || actionMutation.isPending || escalationMutation.isPending || status === action.status}
+                      disabled={actionMutation.isPending || escalationMutation.isPending || noteMutation.isPending || activeComplaint.status === action.status}
               >
                 {action.label}
               </button>
@@ -437,7 +438,7 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
                   type="button"
                   className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-100"
                   onClick={() => escalationMutation.mutate({ reason: resolution.trim() || 'Manual escalation requested' })}
-                  disabled={escalationMutation.isPending}
+                  disabled={actionMutation.isPending || escalationMutation.isPending || noteMutation.isPending}
                 >
                   Escalate
                 </button>
@@ -454,19 +455,14 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
             />
           </div>
 
-          <div className="flex items-center gap-3">
-            <select className="select w-44" value={status} onChange={(e) => setStatus(e.target.value as any)}>
-              <option value="OPEN">Open</option>
-              <option value="IN_PROGRESS">In Progress</option>
-              <option value="RESOLVED">Resolved</option>
-              <option value="REJECTED">Rejected</option>
-            </select>
+          <div className="flex justify-end">
             <button
+              type="button"
               className="inline-flex items-center gap-2 rounded-lg border border-blue-600 bg-white px-3 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-50"
-              onClick={() => statusMutation.mutate({ status, resolution: resolution.trim() || undefined })}
-              disabled={statusMutation.isPending || !canUpdateStatus}
+              onClick={() => noteMutation.mutate({ resolution: resolution.trim() })}
+              disabled={actionMutation.isPending || escalationMutation.isPending || noteMutation.isPending || resolution.trim() === (activeComplaint.resolution || '').trim()}
             >
-              Save Status
+              Save Note
             </button>
           </div>
         </div>
@@ -494,34 +490,35 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
         </div>
       </div>
 
-      {/* Comments */}
-      <div className="border-t pt-4">
-        <h4 className="font-semibold text-on-surface mb-3">Comments</h4>
-        {activeComplaint.comments?.map((c) => (
-          <div key={c.id} className="mb-3 p-3 bg-[#F8FAFC] rounded-lg">
-            <div className="flex justify-between text-xs text-on-surface-variant mb-1">
-              <span className="font-medium">{c.authorName}</span>
-              <span>{formatDate(c.createdAt)}</span>
+      {canSeeConversation ? (
+        <div className="border-t pt-4">
+          <h4 className="font-semibold text-on-surface mb-3">Conversation</h4>
+          {activeComplaint.comments?.map((c) => (
+            <div key={c.id} className="mb-3 p-3 bg-[#F8FAFC] rounded-lg">
+              <div className="flex justify-between text-xs text-on-surface-variant mb-1">
+                <span className="font-medium">{c.authorName}</span>
+                <span>{formatDate(c.createdAt)}</span>
+              </div>
+              <p className="text-sm text-on-surface-variant">{c.content}</p>
             </div>
-            <p className="text-sm text-on-surface-variant">{c.content}</p>
+          ))}
+          <div className="flex gap-2 mt-3">
+            <input
+              className="input flex-1"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Add a message..."
+            />
+            <button
+              className="btn-primary btn-sm"
+              onClick={() => comment && commentMutation.mutate(comment)}
+              disabled={commentMutation.isPending || !comment}
+            >
+              Send
+            </button>
           </div>
-        ))}
-        <div className="flex gap-2 mt-3">
-          <input
-            className="input flex-1"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="Add a comment..."
-          />
-          <button
-            className="btn-primary btn-sm"
-            onClick={() => comment && commentMutation.mutate(comment)}
-            disabled={commentMutation.isPending || !comment}
-          >
-            Send
-          </button>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

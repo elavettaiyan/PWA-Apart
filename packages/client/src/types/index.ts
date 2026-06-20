@@ -253,6 +253,7 @@ export interface Tenant {
   email?: string;
   phone: string;
   photoUrl?: string | null;
+  agreementDocumentUrl?: string | null;
   occupation?: string | null;
   householdAdults?: number | null;
   householdKids?: number | null;

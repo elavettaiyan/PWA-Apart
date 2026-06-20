@@ -7,6 +7,8 @@ import {
   Calendar,
   CarFront,
   CirclePlus,
+  ExternalLink,
+  FileText,
   Home,
   Info,
   Loader2,
@@ -23,6 +25,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
+import { getApiBaseUrl } from '../../lib/platform';
 import {
   cn,
   formatCurrency,
@@ -746,15 +749,19 @@ function TenantDetailsCard({
 
   const updateMutation = useMutation({
     mutationFn: (data: TenantFormData) =>
-      api.put('/flats/my-flat/tenant', {
-        name: data.name,
-        phone: data.phone,
-        email: data.email || undefined,
-        leaseStart: data.leaseStart || undefined,
-        leaseEnd: data.leaseEnd || undefined,
-        rentAmount: data.rentAmount !== '' ? data.rentAmount : undefined,
-        deposit: data.deposit !== '' ? data.deposit : undefined,
-      }),
+      data.agreementDocument
+        ? api.put('/flats/my-flat/tenant', buildTenantDocumentFormData(data), {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          })
+        : api.put('/flats/my-flat/tenant', {
+            name: data.name,
+            phone: data.phone,
+            email: data.email || undefined,
+            leaseStart: data.leaseStart || undefined,
+            leaseEnd: data.leaseEnd || undefined,
+            rentAmount: data.rentAmount !== '' ? data.rentAmount : undefined,
+            deposit: data.deposit !== '' ? data.deposit : undefined,
+          }),
     onSuccess: () => {
       toast.success('Tenant updated');
       setEditingTenant(false);
@@ -820,11 +827,13 @@ function TenantDetailsCard({
             leaseEnd: toDateStr(tenant.leaseEnd || tenant.leaseEndDate),
             rentAmount: tenant.rentAmount?.toString() || '',
             deposit: tenant.deposit?.toString() || '',
+            agreementDocument: null,
           }}
           onSubmit={(data) => updateMutation.mutate(data)}
           onCancel={() => setEditingTenant(false)}
           isPending={updateMutation.isPending}
           submitLabel="Save Changes"
+          existingAgreementDocumentUrl={tenant.agreementDocumentUrl}
         />
       </section>
     );
@@ -864,6 +873,19 @@ function TenantDetailsCard({
         <StaticField label="Lease End" value={formatOptionalDate(tenant.leaseEnd || tenant.leaseEndDate)} icon={<Calendar className="h-4 w-4" />} />
         <StaticField label="Rent" value={tenant.rentAmount ? formatCurrency(tenant.rentAmount) : '—'} />
       </div>
+      {tenant.agreementDocumentUrl ? (
+        <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <a
+            href={resolveUploadedFileUrl(tenant.agreementDocumentUrl) || undefined}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:underline"
+          >
+            <FileText className="h-4 w-4" />
+            View agreement document
+          </a>
+        </div>
+      ) : null}
       
       {supportsPets ? (
         <div className="mt-5 border-t border-slate-200 pt-5">
@@ -1018,9 +1040,28 @@ interface TenantFormData {
   leaseEnd: string;
   rentAmount: string;
   deposit: string;
+  agreementDocument: File | null;
 }
 
-const emptyForm: TenantFormData = { name: '', phone: '', email: '', leaseStart: '', leaseEnd: '', rentAmount: '', deposit: '' };
+const emptyForm: TenantFormData = { name: '', phone: '', email: '', leaseStart: '', leaseEnd: '', rentAmount: '', deposit: '', agreementDocument: null };
+
+function buildTenantDocumentFormData(data: TenantFormData) {
+  const formData = new FormData();
+  formData.append('name', data.name);
+  formData.append('phone', data.phone);
+  if (data.email) formData.append('email', data.email);
+  if (data.leaseStart) formData.append('leaseStart', data.leaseStart);
+  if (data.leaseEnd) formData.append('leaseEnd', data.leaseEnd);
+  if (data.rentAmount !== '') formData.append('rentAmount', data.rentAmount);
+  if (data.deposit !== '') formData.append('deposit', data.deposit);
+  if (data.agreementDocument) formData.append('agreementDocument', data.agreementDocument);
+  return formData;
+}
+
+function resolveUploadedFileUrl(value?: string | null) {
+  if (!value) return null;
+  return value.startsWith('data:') ? value : `${getApiBaseUrl().replace('/api', '')}${value}`;
+}
 
 function TenantForm({
   initial,
@@ -1028,12 +1069,16 @@ function TenantForm({
   onCancel,
   isPending,
   submitLabel,
+  existingAgreementDocumentUrl,
+  requireAgreementDocument = false,
 }: {
   initial: TenantFormData;
   onSubmit: (data: TenantFormData) => void;
   onCancel: () => void;
   isPending: boolean;
   submitLabel: string;
+  existingAgreementDocumentUrl?: string | null;
+  requireAgreementDocument?: boolean;
 }) {
   const [form, setForm] = useState<TenantFormData>(initial);
   const set = (field: keyof TenantFormData, value: string) => setForm((current) => ({ ...current, [field]: value }));
@@ -1069,6 +1114,40 @@ function TenantForm({
           <span className={FIELD_LABEL_CLASS}>Deposit</span>
           <input className="input" type="number" value={form.deposit} onChange={(e) => set('deposit', e.target.value)} placeholder="Security deposit" />
         </label>
+        <label className="space-y-1.5 sm:col-span-2">
+          <span className={FIELD_LABEL_CLASS}>Agreement Document{requireAgreementDocument ? ' *' : ''}</span>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3 text-sm text-slate-600">
+                <FileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                <div>
+                  <p className="font-medium text-slate-900">{form.agreementDocument?.name || (existingAgreementDocumentUrl ? 'Current agreement document attached' : 'Upload tenant agreement document')}</p>
+                  <p>Accepted formats: PDF, JPG, PNG, WebP, HEIC, HEIF</p>
+                </div>
+              </div>
+              <label className="btn-secondary cursor-pointer">
+                <input
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif"
+                  className="hidden"
+                  onChange={(event) => setForm((current) => ({ ...current, agreementDocument: event.target.files?.[0] || null }))}
+                />
+                {form.agreementDocument || existingAgreementDocumentUrl ? 'Replace File' : 'Choose File'}
+              </label>
+            </div>
+            {existingAgreementDocumentUrl && !form.agreementDocument ? (
+              <a
+                href={resolveUploadedFileUrl(existingAgreementDocumentUrl) || undefined}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:underline"
+              >
+                <ExternalLink className="h-4 w-4" />
+                View current agreement document
+              </a>
+            ) : null}
+          </div>
+        </label>
       </div>
 
       {form.email && form.phone ? (
@@ -1083,6 +1162,11 @@ function TenantForm({
           className="btn-primary"
           disabled={isPending || !form.name.trim() || !form.phone.trim()}
           onClick={() => {
+            if (requireAgreementDocument && !form.agreementDocument && !existingAgreementDocumentUrl) {
+              toast.error('Agreement document is required.');
+              return;
+            }
+
             const normalized = normalizeTenantForm(form);
             if (!normalized) return;
             onSubmit(normalized);
@@ -1102,14 +1186,8 @@ function AddTenantCard() {
 
   const addMutation = useMutation({
     mutationFn: (data: TenantFormData) =>
-      api.post('/flats/my-flat/tenant', {
-        name: data.name,
-        phone: data.phone,
-        email: data.email || undefined,
-        leaseStart: data.leaseStart || undefined,
-        leaseEnd: data.leaseEnd || undefined,
-        rentAmount: data.rentAmount || undefined,
-        deposit: data.deposit || undefined,
+      api.post('/flats/my-flat/tenant', buildTenantDocumentFormData(data), {
+        headers: { 'Content-Type': 'multipart/form-data' },
       }),
     onSuccess: (res) => {
       if (res.status === 202 || res.data?.status === 'PENDING') {
@@ -1152,6 +1230,7 @@ function AddTenantCard() {
         onCancel={() => setShowForm(false)}
         isPending={addMutation.isPending}
         submitLabel="Add Tenant"
+        requireAgreementDocument
       />
     </section>
   );

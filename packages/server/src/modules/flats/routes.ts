@@ -1,4 +1,4 @@
-import { Response, Router } from 'express';
+import { NextFunction, Response, Router } from 'express';
 import { body, param, query } from 'express-validator';
 import bcrypt from 'bcryptjs';
 import * as XLSX from 'xlsx';
@@ -53,6 +53,18 @@ function normalizeIndianMobileNumber(value: string): string {
 function normalizeRegistrationValue(value: unknown) {
   const trimmed = String(value ?? '').trim().toUpperCase();
   return trimmed ? trimmed : null;
+}
+
+function parseJsonBodyField(req: AuthRequest, res: Response, next: NextFunction) {
+  if (typeof req.body.vehicles === 'string') {
+    try {
+      req.body.vehicles = JSON.parse(req.body.vehicles);
+    } catch {
+      return res.status(400).json({ error: 'Vehicles must be a valid JSON array' });
+    }
+  }
+
+  next();
 }
 
 type NormalizedResidentVehicle = {
@@ -1565,6 +1577,8 @@ router.post(
 router.post(
   '/tenants',
   authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
+  upload.single('agreementDocument'),
+  parseJsonBodyField,
   [
     body('name').trim().notEmpty().withMessage('Tenant name is required'),
     body('phone').trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
@@ -1581,10 +1595,13 @@ router.post(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
+      if (!req.file) return res.status(400).json({ error: 'Agreement document is required' });
+
       const vehicles = req.body.vehicles !== undefined
         ? sanitizeResidentVehicles(req.body.vehicles)
         : getResidentVehiclesFromLegacyFields(req.body);
       const legacyVehicleFields = buildLegacyVehicleFields(vehicles);
+      const agreementDocumentUrl = getFileUrl(req.file);
 
       // SECURITY: Verify flat belongs to admin's society
       const flat = await prisma.flat.findUnique({
@@ -1615,6 +1632,7 @@ router.post(
             altPhone: req.body.altPhone || null,
             aadharNo: req.body.aadharNo || null,
             flatId: req.body.flatId,
+            agreementDocumentUrl,
             leaseStart: new Date(req.body.leaseStart).toISOString(),
             leaseEnd: req.body.leaseEnd ? new Date(req.body.leaseEnd).toISOString() : null,
             rentAmount: req.body.rentAmount ? parseFloat(req.body.rentAmount) : null,
@@ -1691,6 +1709,7 @@ router.post(
             name: req.body.name,
             phone: req.body.phone,
             email: req.body.email ? String(req.body.email).trim().toLowerCase() : null,
+            agreementDocumentUrl,
             ...legacyVehicleFields,
             altPhone: req.body.altPhone || null,
             aadharNo: req.body.aadharNo || null,
@@ -1759,6 +1778,8 @@ router.post(
 router.put(
   '/tenants/:id',
   authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
+  upload.single('agreementDocument'),
+  parseJsonBodyField,
   [
     param('id').isUUID(),
     body('name').optional().trim().notEmpty().withMessage('Tenant name is required'),
@@ -1787,6 +1808,7 @@ router.put(
   const hasVehicleArray = req.body.vehicles !== undefined;
   const vehicles = hasVehicleArray ? sanitizeResidentVehicles(req.body.vehicles) : [];
   const legacyVehicleFields = hasVehicleArray ? buildLegacyVehicleFields(vehicles) : null;
+        const agreementDocumentUrl = req.file ? getFileUrl(req.file) : undefined;
       let userId: string | undefined;
 
       const emailToLookup = normalizedEmail || existing.email || undefined;
@@ -1823,6 +1845,7 @@ router.put(
           name: req.body.name,
           phone: req.body.phone,
           email: normalizedEmail,
+          agreementDocumentUrl,
           carNumber: legacyVehicleFields
             ? legacyVehicleFields.carNumber
             : req.body.carNumber !== undefined
@@ -1961,6 +1984,7 @@ router.delete(
 // ── OWNER: ADD TENANT TO OWN FLAT ───────────────────────
 router.post(
   '/my-flat/tenant',
+  upload.single('agreementDocument'),
   [
     body('name').trim().notEmpty().withMessage('Tenant name is required'),
     body('phone').trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
@@ -1974,9 +1998,12 @@ router.post(
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
+      if (!req.file) return res.status(400).json({ error: 'Agreement document is required' });
+
       const userId = req.user!.id;
       const societyId = req.user!.societyId;
       if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+      const agreementDocumentUrl = getFileUrl(req.file);
 
       // Find flat owned by this user in their active society
       const owner = await prisma.owner.findFirst({
@@ -2004,6 +2031,7 @@ router.post(
             altPhone: null,
             aadharNo: null,
             flatId: owner.flat.id,
+            agreementDocumentUrl,
             leaseStart: req.body.leaseStart ? new Date(req.body.leaseStart).toISOString() : new Date().toISOString(),
             leaseEnd: req.body.leaseEnd ? new Date(req.body.leaseEnd).toISOString() : null,
             rentAmount: req.body.rentAmount ? parseFloat(req.body.rentAmount) : null,
@@ -2071,6 +2099,7 @@ router.post(
             name: req.body.name,
             phone: req.body.phone,
             email: req.body.email ? String(req.body.email).trim().toLowerCase() : null,
+            agreementDocumentUrl,
             flatId: owner.flat.id,
             leaseStart: req.body.leaseStart ? new Date(req.body.leaseStart) : new Date(),
             leaseEnd: req.body.leaseEnd ? new Date(req.body.leaseEnd) : null,
@@ -2340,6 +2369,7 @@ router.put(
 
 router.put(
   '/my-flat/tenant',
+  upload.single('agreementDocument'),
   [
     body('name').optional().trim().notEmpty(),
     body('phone').optional().trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
@@ -2366,6 +2396,7 @@ router.put(
       if (!owner.flat.tenant) return res.status(404).json({ error: 'No tenant found for this flat' });
 
       const normalizedEmail = req.body.email ? String(req.body.email).trim().toLowerCase() : undefined;
+      const agreementDocumentUrl = req.file ? getFileUrl(req.file) : undefined;
 
       const tenant = await prisma.tenant.update({
         where: { id: owner.flat.tenant.id },
@@ -2373,6 +2404,7 @@ router.put(
           name: req.body.name,
           phone: req.body.phone,
           email: normalizedEmail,
+          agreementDocumentUrl,
           carNumber: req.body.carNumber !== undefined ? normalizeRegistrationValue(req.body.carNumber) : undefined,
           twoWheelerNumber: req.body.twoWheelerNumber !== undefined ? normalizeRegistrationValue(req.body.twoWheelerNumber) : undefined,
           leaseStart: req.body.leaseStart ? new Date(req.body.leaseStart) : undefined,

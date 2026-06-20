@@ -384,6 +384,7 @@ model Tenant {
   email       String?
   phone       String
   photoUrl    String?
+  agreementDocumentUrl String?
   occupation  String?
   householdAdults Int?
   householdKids Int?

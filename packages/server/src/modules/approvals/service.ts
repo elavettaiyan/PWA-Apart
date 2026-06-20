@@ -21,6 +21,7 @@ type TenantRegistrationPendingData = {
   altPhone: string | null;
   aadharNo: string | null;
   flatId: string;
+  agreementDocumentUrl: string | null;
   leaseStart: string;
   leaseEnd: string | null;
   rentAmount: number | null;
@@ -179,6 +180,7 @@ function parseTenantRegistrationPendingData(value: Prisma.JsonValue): TenantRegi
     altPhone: data.altPhone ? String(data.altPhone).trim() : null,
     aadharNo: data.aadharNo ? String(data.aadharNo).trim() : null,
     flatId,
+    agreementDocumentUrl: data.agreementDocumentUrl ? String(data.agreementDocumentUrl).trim() : null,
     leaseStart,
     leaseEnd: data.leaseEnd ? String(data.leaseEnd).trim() : null,
     rentAmount: data.rentAmount === null || data.rentAmount === undefined || data.rentAmount === '' ? null : Number(data.rentAmount),
@@ -613,6 +615,7 @@ async function applyApprovedTenantRegistration(tx: Prisma.TransactionClient, app
       name: data.name,
       phone: data.phone,
       email: data.email,
+      agreementDocumentUrl: data.agreementDocumentUrl,
       ...legacyVehicleFields,
       altPhone: data.altPhone,
       aadharNo: data.aadharNo,

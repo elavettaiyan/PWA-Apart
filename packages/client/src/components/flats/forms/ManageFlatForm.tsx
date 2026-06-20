@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { CheckCircle2, Mail, Pencil, Phone, Plus, Save, Trash2, User, UserRound, X } from 'lucide-react';
+import { CheckCircle2, FileText, Mail, Pencil, Phone, Plus, Save, Trash2, User, UserRound, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   cn,
@@ -10,6 +10,7 @@ import {
   normalizeEmail,
   normalizeIndianMobileNumber,
 } from '@/lib/utils';
+import { getApiBaseUrl } from '@/lib/platform';
 import { useAuthStore } from '@/store/authStore';
 import {
   useCreateOwnerMutation,
@@ -108,6 +109,11 @@ function buildTenantFormState(tenant?: Flat['tenant'] | null) {
   };
 }
 
+function resolveAgreementDocumentUrl(value?: string | null) {
+  if (!value) return null;
+  return value.startsWith('data:') ? value : `${getApiBaseUrl().replace('/api', '')}${value}`;
+}
+
 export function ManageFlatForm({
   flat,
   onSaved,
@@ -136,6 +142,7 @@ export function ManageFlatForm({
 
   const [tenantForm, setTenantForm] = useState(() => buildTenantFormState(activeTenant));
   const [tenantVehicles, setTenantVehicles] = useState<VehicleDraft[]>(() => getVehicleDrafts(activeTenant?.vehicles, activeTenant || undefined));
+  const [tenantAgreementDocument, setTenantAgreementDocument] = useState<File | null>(null);
 
   const [showTenantRemoveConfirm, setShowTenantRemoveConfirm] = useState(false);
   const [tenantRemovalReason, setTenantRemovalReason] = useState('');
@@ -159,6 +166,7 @@ export function ManageFlatForm({
   const resetTenantForm = () => {
     setTenantForm(buildTenantFormState(activeTenant));
     setTenantVehicles(getVehicleDrafts(activeTenant?.vehicles, activeTenant || undefined));
+    setTenantAgreementDocument(null);
     setShowTenantRemoveConfirm(false);
     setTenantRemovalReason('');
   };
@@ -327,11 +335,17 @@ export function ManageFlatForm({
       return;
     }
 
+    if (!activeTenant?.id && !tenantAgreementDocument) {
+      toast.error('Agreement document is required.');
+      return;
+    }
+
     const payload = {
       name: tenantForm.name.trim(),
       phone: trimmedPhone,
       email: trimmedEmail ? normalizeEmail(trimmedEmail) : undefined,
       vehicles: normalizeVehicleDrafts(tenantVehicles),
+      agreementDocument: tenantAgreementDocument || undefined,
       leaseStart: tenantForm.leaseStart,
       leaseEnd: tenantForm.leaseEnd || undefined,
       rentAmount: tenantForm.rentAmount || undefined,
@@ -527,6 +541,40 @@ export function ManageFlatForm({
               <div>
                 <label className="label !mb-2 !normal-case !tracking-normal">Deposit</label>
                 <input className="input !h-14 !rounded-2xl !border-outline-variant/80 !bg-surface-container-low text-base" type="number" min="0" value={tenantForm.deposit} onChange={(e) => setTenantForm({ ...tenantForm, deposit: e.target.value })} />
+              </div>
+            </div>
+
+            <div>
+              <label className="label !mb-2 !normal-case !tracking-normal">Agreement Document {!activeTenant?.id ? '*' : ''}</label>
+              <div className="rounded-2xl border border-outline-variant/80 bg-surface-container-low p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3 text-sm text-on-surface-variant">
+                    <FileText className="h-5 w-5" />
+                    <div>
+                      <p className="font-medium text-on-surface">{tenantAgreementDocument?.name || (activeTenant?.agreementDocumentUrl ? 'Current agreement document attached' : 'Upload tenant agreement document')}</p>
+                      <p>Accepted formats: PDF, JPG, PNG, WebP, HEIC, HEIF</p>
+                    </div>
+                  </div>
+                  <label className="btn-outline h-11 cursor-pointer rounded-[20px] px-4">
+                    <input
+                      type="file"
+                      accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif"
+                      className="hidden"
+                      onChange={(event) => setTenantAgreementDocument(event.target.files?.[0] || null)}
+                    />
+                    {tenantAgreementDocument || activeTenant?.agreementDocumentUrl ? 'Replace File' : 'Choose File'}
+                  </label>
+                </div>
+                {activeTenant?.agreementDocumentUrl && !tenantAgreementDocument ? (
+                  <a
+                    href={resolveAgreementDocumentUrl(activeTenant.agreementDocumentUrl) || undefined}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    View current agreement document
+                  </a>
+                ) : null}
               </div>
             </div>
 
