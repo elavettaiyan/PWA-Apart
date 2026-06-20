@@ -1230,13 +1230,18 @@ router.post(
       const societyId = resolveSettingsSocietyId(req, req.body.societyId);
       if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
-      const updated = await runLateFeeWorker(societyId);
+      const result = await runLateFeeWorker(societyId, {
+        triggerSource: 'MANUAL',
+        triggeredByUserId: req.user?.id || null,
+      });
+      const run = result.runs[0];
 
       return res.json({
-        message: updated > 0
-          ? `Late fee scheduler completed. Updated ${updated} bill${updated === 1 ? '' : 's'}.`
+        message: result.totalUpdated > 0
+          ? `Late fee scheduler completed. Updated ${result.totalUpdated} bill${result.totalUpdated === 1 ? '' : 's'}.`
           : 'Late fee scheduler completed. No bills needed a late fee update.',
-        updated,
+        updated: result.totalUpdated,
+        run,
       });
     } catch (error: any) {
       logger.error('Failed to run manual late fee scheduler', {

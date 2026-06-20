@@ -38,8 +38,8 @@ describe('Collections service', () => {
     const dueDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
     const bill = await prisma.maintenanceBill.create({ data: { flatId: fid, month: 1, year: 2020, baseAmount: 100, totalAmount: 100, dueDate, paidAmount: 0 } as any });
 
-    const updated = await computeAndApplyLateFees(societyId);
-    assert.ok(updated >= 1, 'Expected at least one bill updated');
+    const summary = await computeAndApplyLateFees(societyId);
+    assert.ok(summary.updatedBillsCount >= 1, 'Expected at least one bill updated');
 
     const refreshed = await prisma.maintenanceBill.findUnique({ where: { id: bill.id } });
     assert.ok(refreshed);

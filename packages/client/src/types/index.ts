@@ -436,6 +436,25 @@ export interface SocietyBillingSettings {
   manualBillSelection: boolean;
 }
 
+export interface LateFeeJobRun {
+  id: string;
+  societyId: string;
+  triggerSource: 'SCHEDULED' | 'MANUAL' | string;
+  success: boolean;
+  billsScannedCount: number;
+  updatedBillsCount: number;
+  failedBillsCount: number;
+  errorMessage?: string | null;
+  startedAt: string;
+  completedAt: string;
+  createdAt: string;
+  triggeredBy?: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+}
+
 export interface PaymentReceiptDetails {
   id: string;
   amount: number;

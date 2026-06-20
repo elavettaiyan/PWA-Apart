@@ -1,6 +1,12 @@
 import prisma from '../../config/database';
 import logger from '../../config/logger';
 
+export type LateFeeComputationSummary = {
+  billsScannedCount: number;
+  updatedBillsCount: number;
+  failedBillsCount: number;
+};
+
 function getFullElapsedMonths(startDate: Date, endDate: Date) {
   const yearDiff = endDate.getFullYear() - startDate.getFullYear();
   const monthDiff = endDate.getMonth() - startDate.getMonth();
@@ -35,7 +41,7 @@ function computeRecurringMonthlyLateFee(amount: number, dueDate: Date, gracePeri
  * If a bill is overdue and not fully paid, its status will be set to OVERDUE.
  * Returns number of bills updated.
  */
-export async function computeAndApplyLateFees(societyId?: string) {
+export async function computeAndApplyLateFees(societyId?: string): Promise<LateFeeComputationSummary> {
   const now = new Date();
   const configCache = new Map<string, any>();
   const settingsCache = new Map<string, any>();
@@ -57,6 +63,7 @@ export async function computeAndApplyLateFees(societyId?: string) {
   });
 
   let updatedCount = 0;
+  let failedCount = 0;
 
   for (const bill of bills) {
     try {
@@ -141,11 +148,16 @@ export async function computeAndApplyLateFees(societyId?: string) {
         updatedCount++;
       }
     } catch (err: any) {
+      failedCount++;
       logger.error('computeAndApplyLateFees: failed for bill', { billId: bill.id, error: err?.message });
     }
   }
 
-  return updatedCount;
+  return {
+    billsScannedCount: bills.length,
+    updatedBillsCount: updatedCount,
+    failedBillsCount: failedCount,
+  };
 }
 
 /**

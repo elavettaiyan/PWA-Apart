@@ -276,6 +276,7 @@ model Society {
   expenses           Expense[]
   bylaws             AssociationBylaw[]
   maintenanceConfig  MaintenanceConfig[]
+  lateFeeJobRuns     LateFeeJobRun[]
   paymentConfigs     PaymentGatewayConfig[]
   societySettings    SocietySettings?
   premiumSubscriptions PremiumSubscription[]
@@ -465,6 +466,7 @@ model User {
   complaintActivities ComplaintActivity[] @relation("ComplaintActivityActor")
   complaintEscalationsRaised ComplaintEscalation[] @relation("ComplaintEscalatedBy")
   complaintEscalationsReceived ComplaintEscalation[] @relation("ComplaintEscalatedTo")
+  lateFeeJobRunsTriggered LateFeeJobRun[] @relation("LateFeeJobRunTriggeredBy")
   capturedVisitors Visitor[] @relation("VisitorCapturedBy")
   capturedDeliveries Delivery[] @relation("DeliveryCapturedBy")
   pushDevices       PushNotificationDevice[]
@@ -788,6 +790,29 @@ model SocietySettings {
 
   @@index([societyId])
   @@map("society_settings")
+}
+
+model LateFeeJobRun {
+  id               String   @id @default(uuid())
+  societyId        String
+  triggerSource    String
+  triggeredByUserId String?
+  success          Boolean  @default(true)
+  billsScannedCount Int     @default(0)
+  updatedBillsCount Int     @default(0)
+  failedBillsCount  Int     @default(0)
+  errorMessage     String?
+  startedAt        DateTime
+  completedAt      DateTime
+  createdAt        DateTime @default(now())
+
+  society          Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  triggeredBy      User?    @relation("LateFeeJobRunTriggeredBy", fields: [triggeredByUserId], references: [id], onDelete: SetNull)
+
+  @@index([societyId, startedAt])
+  @@index([triggeredByUserId])
+  @@index([success])
+  @@map("late_fee_job_runs")
 }
 
 // ─── MAINTENANCE BILL ───────────────────────────────────

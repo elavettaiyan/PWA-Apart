@@ -711,6 +711,33 @@ router.get(
   },
 );
 
+router.get(
+  '/late-fee-runs',
+  authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
+  [query('limit').optional().isInt({ min: 1, max: 100 })],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const societyId = getSocietyId(req);
+      if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+
+      const limit = Math.min(Math.max(Number(req.query.limit || 10), 1), 100);
+      const runs = await prisma.lateFeeJobRun.findMany({
+        where: { societyId },
+        include: {
+          triggeredBy: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { startedAt: 'desc' },
+        take: limit,
+      });
+
+      return res.json(runs);
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to fetch late fee audit log' });
+    }
+  },
+);
+
 // ── GET ALL BILLS ───────────────────────────────────────
 router.get(
   '/',
