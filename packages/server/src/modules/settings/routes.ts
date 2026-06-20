@@ -7,6 +7,7 @@ import { authenticate, authorize, AuthRequest, SOCIETY_ADMINS, invalidateAuthCac
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 import { runMemberRemoval } from '../members/removal';
+import runLateFeeWorker from '../../jobs/lateFeeWorker';
 
 const ASSIGNABLE_ROLES = ['SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'SERVICE_STAFF'] as const;
 const DEFAULT_ADMIN_ASSIGNMENT_TYPE = 'PRESIDENT';
@@ -1216,6 +1217,34 @@ router.put(
     } catch (error: any) {
       logger.error('Failed to save society settings', { error: error.message });
       return res.status(500).json({ error: 'Failed to save society settings' });
+    }
+  },
+);
+
+router.post(
+  '/society-settings/run-late-fees',
+  [body('societyId').optional().isUUID()],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const societyId = resolveSettingsSocietyId(req, req.body.societyId);
+      if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+
+      const updated = await runLateFeeWorker(societyId);
+
+      return res.json({
+        message: updated > 0
+          ? `Late fee scheduler completed. Updated ${updated} bill${updated === 1 ? '' : 's'}.`
+          : 'Late fee scheduler completed. No bills needed a late fee update.',
+        updated,
+      });
+    } catch (error: any) {
+      logger.error('Failed to run manual late fee scheduler', {
+        error: error.message,
+        societyId: req.body?.societyId,
+        requestedBy: req.user?.id,
+      });
+      return res.status(500).json({ error: 'Failed to run late fee scheduler' });
     }
   },
 );

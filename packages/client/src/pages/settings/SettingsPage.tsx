@@ -172,6 +172,18 @@ export default function SettingsPage() {
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save settings'),
   });
 
+  const runLateFeeSchedulerMutation = useMutation({
+    mutationFn: () => api.post('/settings/society-settings/run-late-fees', activeSocietyId ? { societyId: activeSocietyId } : {}),
+    onSuccess: (res: any) => {
+      toast.success(res.data?.message || 'Late fee scheduler completed');
+      queryClient.invalidateQueries({ queryKey: ['society-settings', activeSocietyId] });
+      queryClient.invalidateQueries({ queryKey: ['billing-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['bills'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to run late fee scheduler'),
+  });
+
   const { data: tenantRegistrationApprovalConfig } = useQuery<ApprovalConfig>({
     queryKey: ['approval-config', activeSocietyId, 'TENANT_REGISTRATION'],
     queryFn: async () => (await api.get('/approvals/config/TENANT_REGISTRATION')).data,
@@ -1396,7 +1408,7 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="rounded-xl p-4 bg-surface-container-low">
-                  <label className="label">Due Day</label>
+                  <label className="label">Due Date of Every Month</label>
                   <input
                     type="number"
                     min={1}
@@ -1441,6 +1453,24 @@ export default function SettingsPage() {
                     </select>
                   </div>
                 ) : null}
+              </div>
+
+              <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50/70 p-4">
+                <div className="font-semibold text-slate-900">Manual Late Fee Run</div>
+                <div className="mt-1 text-sm text-slate-600">
+                  Trigger the late fee scheduler immediately for this society. This is useful when testing overdue and late fee behavior after changing billing dates or fee settings.
+                </div>
+                <div className="mt-3 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => runLateFeeSchedulerMutation.mutate()}
+                    disabled={runLateFeeSchedulerMutation.isPending}
+                    className="inline-flex items-center gap-2 rounded-lg border border-amber-500 bg-white px-4 py-2 text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {runLateFeeSchedulerMutation.isPending ? 'Running Scheduler...' : 'Run Late Fee Scheduler Now'}
+                  </button>
+                  {runLateFeeSchedulerMutation.isError ? <span className="text-sm text-error">Failed to run scheduler</span> : null}
+                </div>
               </div>
 
               <div className="flex items-center gap-3 pt-2">
