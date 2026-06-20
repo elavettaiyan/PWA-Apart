@@ -308,10 +308,12 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
   const canUpdateStatus = isAdmin || isStaff;
   const canSeeConversation = isAdmin || isResident;
 
-  const { data: detailComplaint, isLoading: detailLoading } = useQuery<Complaint>({
+  const { data: detailComplaint, isLoading: detailLoading, isFetching: detailFetching, isError: detailError } = useQuery<Complaint>({
     queryKey: ['complaint', complaint.id],
     queryFn: async () => (await api.get(`/complaints/${complaint.id}`)).data,
-    initialData: complaint,
+    placeholderData: complaint,
+    refetchOnMount: 'always',
+    staleTime: 0,
   });
 
   useEffect(() => {
@@ -469,9 +471,14 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
       )}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <h4 className="font-semibold text-slate-900">Case Timeline</h4>
+        <div className="flex items-center justify-between gap-3">
+          <h4 className="font-semibold text-slate-900">Case Timeline</h4>
+          {detailFetching ? <span className="text-xs font-medium text-slate-500">Syncing updates...</span> : null}
+        </div>
         <div className="mt-3 space-y-3">
-          {activityTimeline.length === 0 ? (
+          {detailError ? (
+            <p className="text-sm text-rose-600">Unable to load the complaint history right now.</p>
+          ) : activityTimeline.length === 0 ? (
             <p className="text-sm text-slate-500">No case activity recorded yet.</p>
           ) : (
             activityTimeline.map((activity) => (
