@@ -179,6 +179,7 @@ export default function BillingPage() {
     shouldApplyMonthYear ? year : 'all-years',
   ];
   const configBaseKey = ['billing-config', user?.id || 'anonymous', user?.societyId || 'no-society'];
+  const ownerSummaryBaseKey = ['owner-billing-summary'];
 
   const billsEndpoint = (() => {
     if (ownerFacingBillingView) {
@@ -370,6 +371,12 @@ export default function BillingPage() {
 
   const txnId = searchParams.get('txnId');
 
+  const handleResidentPaymentSuccess = () => {
+    setPaymentAmount('');
+    queryClient.invalidateQueries({ queryKey: billsBaseKey });
+    queryClient.invalidateQueries({ queryKey: ownerSummaryBaseKey });
+  };
+
   const confirmPhonePeStatus = async (paymentRef: string, updateUrl: boolean) => {
     const maxAttempts = 10;
 
@@ -380,7 +387,7 @@ export default function BillingPage() {
 
         if (status === 'SUCCESS') {
           toast.success('Payment successful. Bill status updated.');
-          queryClient.invalidateQueries({ queryKey: billsBaseKey });
+          handleResidentPaymentSuccess();
 
           if (updateUrl) {
             const nextParams = new URLSearchParams(window.location.search);
@@ -470,7 +477,7 @@ export default function BillingPage() {
 
         if (confirmData?.status === 'SUCCESS') {
           toast.success('Payment successful. Bill status updated.');
-          queryClient.invalidateQueries({ queryKey: billsBaseKey });
+          handleResidentPaymentSuccess();
           return;
         }
       } catch (confirmErr: any) {
