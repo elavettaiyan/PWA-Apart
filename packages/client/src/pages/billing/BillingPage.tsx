@@ -844,7 +844,7 @@ export default function BillingPage() {
                 step="0.01"
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
-                placeholder={`Pay up to ${formatCurrency(totalOutstanding)}`}
+                placeholder="Pay bill or advance amount"
               />
               <button
                 type="button"
