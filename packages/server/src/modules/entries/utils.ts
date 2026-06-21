@@ -1,6 +1,6 @@
 import prisma from '../../config/database';
 
-export const ENTRY_ACCESS_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'SERVICE_STAFF', 'OWNER', 'TENANT'] as const;
+export const ENTRY_ACCESS_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'SERVICE_STAFF', 'OWNER', 'TENANT'] as const;
 export const ENTRY_MANAGE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'SERVICE_STAFF'] as const;
 
 export function isResidentRole(role: string) {
