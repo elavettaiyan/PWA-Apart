@@ -1049,6 +1049,34 @@ router.put(
   },
 );
 
+router.delete(
+  '/blocks/:id',
+  authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
+  [param('id').isUUID()],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const existing = await prisma.block.findUnique({
+        where: { id: req.params.id },
+        include: { _count: { select: { flats: true } } },
+      });
+      if (!existing) return res.status(404).json({ error: 'Block not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && existing.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if (existing._count.flats > 0) {
+        return res.status(409).json({ error: 'Only blocks without mapped flats can be deleted' });
+      }
+
+      await prisma.block.delete({ where: { id: req.params.id } });
+      return res.json({ message: 'Block deleted successfully' });
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to delete block' });
+    }
+  },
+);
+
 // ── OWNER CRUD ──────────────────────────────────────────
 router.post(
   '/owners',

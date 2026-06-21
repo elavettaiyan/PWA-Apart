@@ -1,17 +1,18 @@
-import { Building2, Info, Layers3, Save } from 'lucide-react';
+import { Building2, Info, Layers3, Save, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/lib/utils';
-import { useCreateBlockMutation, useSocieties, useUpdateBlockMutation } from '@/hooks/flatsHooks';
+import { useCreateBlockMutation, useDeleteBlockMutation, useSocieties, useUpdateBlockMutation } from '@/hooks/flatsHooks';
 import type { Block } from '@/types';
 
 interface AddBlockFormProps {
   block?: Block | null;
   onSuccess: () => void;
+  onDeleteSuccess?: () => void;
 }
 
-export function AddBlockForm({ block, onSuccess }: AddBlockFormProps) {
+export function AddBlockForm({ block, onSuccess, onDeleteSuccess }: AddBlockFormProps) {
   const user = useAuthStore((s) => s.user);
   const [form, setForm] = useState({
     name: '',
@@ -24,6 +25,7 @@ export function AddBlockForm({ block, onSuccess }: AddBlockFormProps) {
   const { data: societies = [] } = useSocieties();
   const createMutation = useCreateBlockMutation();
   const updateMutation = useUpdateBlockMutation();
+  const deleteMutation = useDeleteBlockMutation();
   const mutation = block ? updateMutation : createMutation;
 
   useEffect(() => {
@@ -39,6 +41,7 @@ export function AddBlockForm({ block, onSuccess }: AddBlockFormProps) {
   const isEditing = Boolean(block);
 
   const mappedFlatCount = block?._count?.flats ?? 0;
+  const canDeleteBlock = isEditing && mappedFlatCount === 0;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,6 +73,24 @@ export function AddBlockForm({ block, onSuccess }: AddBlockFormProps) {
         onError: (e: any) => toast.error(e.response?.data?.error || `Failed to ${isEditing ? 'update' : 'create'} block`),
       }
     );
+  };
+
+  const handleDelete = () => {
+    if (!block?.id || !canDeleteBlock) {
+      return;
+    }
+
+    if (!window.confirm(`Delete block "${block.name}"? This is only allowed when no flats are mapped.`)) {
+      return;
+    }
+
+    deleteMutation.mutate(block.id, {
+      onSuccess: () => {
+        toast.success('Block deleted successfully!');
+        onDeleteSuccess?.();
+      },
+      onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to delete block'),
+    });
   };
 
   return (
@@ -167,10 +188,23 @@ export function AddBlockForm({ block, onSuccess }: AddBlockFormProps) {
       </div>
 
       <div className="sticky bottom-0 -mx-5 border-t border-outline-variant/70 bg-surface px-5 pb-[calc(1rem+var(--sab,0px))] pt-4 sm:-mx-6 sm:px-6">
-        <button type="submit" className="btn-primary h-14 w-full justify-center rounded-[22px] text-lg font-semibold" disabled={mutation.isPending}>
-          <Save className="h-5 w-5" />
-          {mutation.isPending ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Block' : 'Create Block')}
-        </button>
+        <div className="flex flex-col gap-3 sm:flex-row-reverse">
+          <button type="submit" className="btn-primary h-14 w-full justify-center rounded-[22px] text-lg font-semibold" disabled={mutation.isPending || deleteMutation.isPending}>
+            <Save className="h-5 w-5" />
+            {mutation.isPending ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Block' : 'Create Block')}
+          </button>
+          {canDeleteBlock ? (
+            <button
+              type="button"
+              className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-[22px] border border-red-200 bg-red-50 px-5 text-base font-semibold text-red-600 transition hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:min-w-[220px]"
+              onClick={handleDelete}
+              disabled={mutation.isPending || deleteMutation.isPending}
+            >
+              <Trash2 className="h-5 w-5" />
+              {deleteMutation.isPending ? 'Deleting...' : 'Delete Block'}
+            </button>
+          ) : null}
+        </div>
       </div>
     </form>
   );

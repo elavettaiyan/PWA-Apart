@@ -56,6 +56,17 @@ export function useUpdateBlockMutation() {
   });
 }
 
+export function useDeleteBlockMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (blockId: string) => api.delete(`/flats/blocks/${blockId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['blocks'] });
+      queryClient.invalidateQueries({ queryKey: ['flats'] });
+    },
+  });
+}
+
 export function useDeleteFlatMutation() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -990,6 +990,14 @@ export default function FlatsPage() {
               queryClient.invalidateQueries({ queryKey: ['blocks'] });
               queryClient.invalidateQueries({ queryKey: ['flats'] });
             }}
+            onDeleteSuccess={() => {
+              const deletedBlockId = editingBlock.id;
+              setShowEditBlock(false);
+              setEditingBlock(null);
+              setSelectedBlockId((current) => (current === deletedBlockId ? 'all' : current));
+              queryClient.invalidateQueries({ queryKey: ['blocks'] });
+              queryClient.invalidateQueries({ queryKey: ['flats'] });
+            }}
           />
         ) : null}
       </Modal>
