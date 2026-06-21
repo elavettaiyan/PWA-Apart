@@ -766,24 +766,65 @@ router.get(
 router.get(
   '/late-fee-runs',
   authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
-  [query('limit').optional().isInt({ min: 1, max: 100 })],
+  [
+    query('page').optional().isInt({ min: 1 }),
+    query('limit').optional().isInt({ min: 1, max: 100 }),
+    query('success').optional().isIn(['true', 'false']),
+    query('triggerSource').optional().isIn(['MANUAL', 'SCHEDULED']),
+    query('startDate').optional().isISO8601(),
+    query('endDate').optional().isISO8601(),
+  ],
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
       const societyId = getSocietyId(req);
       if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
-      const limit = Math.min(Math.max(Number(req.query.limit || 10), 1), 100);
-      const runs = await prisma.lateFeeJobRun.findMany({
-        where: { societyId },
-        include: {
-          triggeredBy: { select: { id: true, name: true, email: true } },
-        },
-        orderBy: { startedAt: 'desc' },
-        take: limit,
-      });
+      const page = Math.max(Number(req.query.page || 1), 1);
+      const limit = Math.min(Math.max(Number(req.query.limit || 20), 1), 100);
+      const where: Prisma.LateFeeJobRunWhereInput = { societyId };
 
-      return res.json(runs);
+      if (typeof req.query.success === 'string') {
+        where.success = req.query.success === 'true';
+      }
+
+      if (typeof req.query.triggerSource === 'string') {
+        where.triggerSource = req.query.triggerSource;
+      }
+
+      const startedAt: Prisma.DateTimeFilter = {};
+      if (typeof req.query.startDate === 'string') {
+        startedAt.gte = new Date(req.query.startDate);
+      }
+      if (typeof req.query.endDate === 'string') {
+        const endDate = new Date(req.query.endDate);
+        endDate.setHours(23, 59, 59, 999);
+        startedAt.lte = endDate;
+      }
+      if (startedAt.gte || startedAt.lte) {
+        where.startedAt = startedAt;
+      }
+
+      const [total, runs] = await Promise.all([
+        prisma.lateFeeJobRun.count({ where }),
+        prisma.lateFeeJobRun.findMany({
+          where,
+          include: {
+            triggeredBy: { select: { id: true, name: true, email: true } },
+          },
+          orderBy: { startedAt: 'desc' },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+      ]);
+
+      return res.json({
+        runs,
+        total,
+        page,
+        limit,
+        pages: Math.max(1, Math.ceil(total / limit)),
+      });
     } catch (error) {
       return res.status(500).json({ error: 'Failed to fetch late fee audit log' });
     }

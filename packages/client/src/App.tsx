@@ -12,6 +12,7 @@ import CommunityPage from './pages/community/CommunityPage';
 import FlatsPage from './pages/flats/FlatsPage';
 import MyFlatPage from './pages/flats/MyFlatPage';
 import BillingPage from './pages/billing/BillingPage';
+import LateFeeAuditPage from './pages/billing/LateFeeAuditPage';
 import PaymentStatusRedirect from './pages/billing/PaymentStatusRedirect';
 import PaymentHistoryPage from './pages/billing/PaymentHistoryPage';
 import PaymentReportPage from './pages/billing/PaymentReportPage';
@@ -139,6 +140,7 @@ export default function App() {
         <Route path="/flats" element={<RoleRoute roles={['SUPER_ADMIN', ...SOCIETY_MANAGERS]}><RestrictionAwareContent path="/flats"><FlatsPage /></RestrictionAwareContent></RoleRoute>} />
         <Route path="/my-flat" element={<ProtectedRoute><MyFlatPage /></ProtectedRoute>} />
         <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
+        <Route path="/billing/late-fee-audit" element={<RoleRoute roles={['SUPER_ADMIN', ...FINANCIAL_ROLES]}><LateFeeAuditPage /></RoleRoute>} />
         <Route path="/payments/status" element={<PaymentStatusRedirect />} />
         <Route path="/payments/history" element={<ProtectedRoute><PaymentHistoryPage /></ProtectedRoute>} />
         <Route path="/payments/report" element={<RoleRoute roles={['SUPER_ADMIN', ...FINANCIAL_ROLES]}><PaymentReportPage /></RoleRoute>} />
