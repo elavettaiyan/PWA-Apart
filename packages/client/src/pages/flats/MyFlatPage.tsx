@@ -1122,7 +1122,8 @@ function TenantForm({
                 <FileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
                 <div>
                   <p className="font-medium text-slate-900">{form.agreementDocument?.name || (existingAgreementDocumentUrl ? 'Current agreement document attached' : 'Upload tenant agreement document')}</p>
-                  <p>Accepted formats: PDF, JPG, PNG, WebP, HEIC, HEIF</p>
+                  <p>{requireAgreementDocument ? 'Required for adding a tenant.' : 'Optional for tenant updates.'}</p>
+                  <p className="mt-1">Accepted formats: PDF, JPG, PNG, WebP, HEIC, HEIF</p>
                 </div>
               </div>
               <label className="btn-secondary cursor-pointer">
@@ -1135,6 +1136,11 @@ function TenantForm({
                 {form.agreementDocument || existingAgreementDocumentUrl ? 'Replace File' : 'Choose File'}
               </label>
             </div>
+            {!form.agreementDocument && !existingAgreementDocumentUrl ? (
+              <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-sm text-slate-500">
+                No agreement document selected yet.
+              </div>
+            ) : null}
             {existingAgreementDocumentUrl && !form.agreementDocument ? (
               <a
                 href={resolveUploadedFileUrl(existingAgreementDocumentUrl) || undefined}
