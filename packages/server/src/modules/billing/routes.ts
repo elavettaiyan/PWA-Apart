@@ -146,6 +146,58 @@ function buildBillPeriodText(bill: {
   return buildBillLabel(bill);
 }
 
+async function sendBillingReceiptForPayment(paymentId: string) {
+  try {
+    const payment = await prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        bill: {
+          include: {
+            flat: {
+              include: {
+                owner: true,
+                tenant: true,
+                block: { include: { society: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!payment || payment.status !== 'SUCCESS') return;
+
+    const fullBill = payment.bill;
+    const flat = fullBill.flat;
+    const recipient = flat.tenant?.email
+      ? { name: flat.tenant.name, email: flat.tenant.email }
+      : flat.owner?.email
+        ? { name: flat.owner.name, email: flat.owner.email }
+        : null;
+
+    if (!recipient) return;
+
+    const receiptData: PaymentReceiptData = {
+      userName: recipient.name,
+      flatNumber: flat.flatNumber,
+      blockName: flat.block.name,
+      societyName: flat.block.society.name,
+      billMonth: buildBillPeriodText(fullBill),
+      amount: payment.amount,
+      totalAmount: fullBill.totalAmount,
+      paidAmount: fullBill.paidAmount,
+      billStatus: fullBill.status,
+      method: payment.method,
+      transactionId: payment.transactionId || payment.receiptNo || payment.merchantTransId || undefined,
+      paidAt: payment.paidAt || new Date(),
+    };
+
+    await sendPaymentReceiptEmail(recipient.email, receiptData);
+  } catch (error: any) {
+    logger.error('Billing payment receipt email failed (non-blocking)', { paymentId, error: error.message });
+  }
+}
+
 function isUniqueConstraintError(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
@@ -402,7 +454,6 @@ router.post(
               appliesToMonth: month,
               appliesToYear: year,
               billKind: 'MAINTENANCE',
-              title: `Monthly Maintenance - ${month}/${year}`,
               baseAmount: cfg.baseAmount,
               waterCharge: cfg.waterCharge,
               parkingCharge: cfg.parkingCharge,
@@ -468,6 +519,7 @@ router.post(
                 });
 
                 // Fire notification for applied payment (non-blocking)
+                sendBillingReceiptForPayment(payment.id).catch(() => {});
                 notifyPaymentSuccess(payment.id).catch(() => {});
               }
             }
@@ -866,6 +918,7 @@ router.get(
             b.id, b."flatId", b.month, b.year,
             b."billKind", b.title, b.description, b."appliesToMonth", b."appliesToYear",
             b."totalAmount", b."paidAmount", b.status, b."dueDate",
+            lp.method AS "latestPaymentMethod",
             f."flatNumber",
             bl.name AS "blockName",
             o.name AS "ownerName", o.phone AS "ownerPhone"
@@ -873,6 +926,13 @@ router.get(
           JOIN flats f ON f.id = b."flatId"
           JOIN blocks bl ON bl.id = f."blockId"
           LEFT JOIN owners o ON o."flatId" = f.id
+          LEFT JOIN LATERAL (
+            SELECT p.method
+            FROM payments p
+            WHERE p."billId" = b.id AND p.status = 'SUCCESS'
+            ORDER BY p."createdAt" DESC
+            LIMIT 1
+          ) lp ON TRUE
           WHERE ${conditions.join(' AND ')}
           ORDER BY b."dueDate" DESC, b."createdAt" DESC
         `;
@@ -893,6 +953,7 @@ router.get(
           paidAmount: Number(r.paidAmount),
           status: r.status,
           dueDate: r.dueDate,
+          latestPaymentMethod: r.latestPaymentMethod ?? null,
           flat: {
             flatNumber: r.flatNumber,
             block: { name: r.blockName },
@@ -904,6 +965,11 @@ router.get(
         const bills = await prisma.maintenanceBill.findMany({
           where,
           include: {
+            payments: {
+              where: { status: 'SUCCESS' },
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+            },
             flat: {
               include: {
                 block: { select: { name: true } },
@@ -913,7 +979,10 @@ router.get(
           },
           orderBy: [{ dueDate: 'desc' }, { createdAt: 'desc' }],
         });
-        payload = bills;
+        payload = bills.map((bill) => ({
+          ...bill,
+          latestPaymentMethod: bill.payments[0]?.method ?? null,
+        }));
       }
 
       timing.dbQueryMs = nowMs() - dbStart;
@@ -1059,49 +1128,7 @@ router.post(
 
       await allocatePayment(bill.flatId, amount);
 
-      // Send receipt email (fire-and-forget)
-      const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-      try {
-        const fullBill = await prisma.maintenanceBill.findUnique({
-          where: { id: bill.id },
-          include: {
-            flat: {
-              include: {
-                owner: true,
-                tenant: true,
-                block: { include: { society: true } },
-              },
-            },
-          },
-        });
-
-        if (fullBill) {
-          const flat = fullBill.flat;
-          const recipient = (flat.tenant?.email) ? { name: flat.tenant.name, email: flat.tenant.email }
-                          : (flat.owner?.email)  ? { name: flat.owner.name,  email: flat.owner.email }
-                          : null;
-
-          if (recipient) {
-            const receiptData: PaymentReceiptData = {
-              userName: recipient.name,
-              flatNumber: flat.flatNumber,
-              blockName: flat.block.name,
-              societyName: flat.block.society.name,
-              billMonth: buildBillPeriodText(fullBill),
-              amount,
-              totalAmount: fullBill.totalAmount,
-              paidAmount: fullBill.paidAmount,
-              billStatus: fullBill.status,
-              method,
-              transactionId: receiptNo || undefined,
-              paidAt: new Date(),
-            };
-            sendPaymentReceiptEmail(recipient.email, receiptData).catch(() => {});
-          }
-        }
-      } catch (emailErr: any) {
-        logger.error('Record payment receipt email failed (non-blocking)', { billId: bill.id, error: emailErr.message });
-      }
+      sendBillingReceiptForPayment(payment.id).catch(() => {});
 
       notifyPaymentSuccess(payment.id).catch(() => {});
 

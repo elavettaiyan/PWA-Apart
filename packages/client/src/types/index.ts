@@ -367,6 +367,7 @@ export interface MaintenanceBill {
   status: BillStatus;
   appliesToMonth?: number | null;
   appliesToYear?: number | null;
+  latestPaymentMethod?: PaymentMethod | null;
   lineItems?: MaintenanceBillLineItem[];
   flat?: Flat;
   payments?: Payment[];

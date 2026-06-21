@@ -21,6 +21,7 @@ import type {
   MaintenanceBillLineItem,
   MaintenanceConfigSummary,
   OwnerBillingSummary,
+  PaymentMethod,
   SocietyBillingSettings,
 } from '../../types';
 
@@ -113,10 +114,10 @@ function getBillPeriodLabel(bill: Pick<MaintenanceBill, 'month' | 'year' | 'appl
 }
 
 function getBillDisplayTitle(bill: MaintenanceBill) {
-  if (bill.title) return bill.title;
+  const billPeriod = getBillPeriodLabel(bill);
   if (bill.billKind === 'OPENING_BALANCE') return 'Opening Balance';
-  if (bill.billKind === 'SPECIAL') return 'Special Bill';
-  return getBillPeriodLabel(bill) || 'Maintenance Bill';
+  if (bill.billKind === 'SPECIAL') return bill.title || 'Special Bill';
+  return billPeriod || bill.title || 'Maintenance Bill';
 }
 
 function getBillKindLabel(billKind?: BillKind) {
@@ -141,6 +142,23 @@ function getBillLineItems(bill: MaintenanceBill): MaintenanceBillLineItem[] {
     { id: `${bill.id}-other`, billId: bill.id, label: 'Other Charges', category: 'OTHER' as const, amount: bill.otherCharges, sortOrder: 5 },
     { id: `${bill.id}-late`, billId: bill.id, label: 'Late Fee', category: 'OTHER' as const, amount: bill.lateFee, sortOrder: 6 },
   ].filter((item) => item.amount > 0);
+}
+
+function getPaymentMethodLabel(method: PaymentMethod) {
+  const labels: Record<PaymentMethod, string> = {
+    PHONEPE: 'PhonePe',
+    CASH: 'Cash',
+    CHEQUE: 'Cheque',
+    BANK_TRANSFER: 'Bank Transfer',
+    UPI_OTHER: 'UPI',
+    ADVANCE: 'Advance',
+  };
+
+  return labels[method] || method;
+}
+
+function getLatestPaymentMethod(bill: MaintenanceBill) {
+  return bill.latestPaymentMethod ?? bill.payments?.find((payment) => payment.status === 'SUCCESS')?.method ?? null;
 }
 
 export default function BillingPage() {
@@ -926,6 +944,7 @@ export default function BillingPage() {
             <div className="space-y-3 p-4 sm:hidden">
               {displayedBills.map((bill) => {
                 const activeOwner = bill.flat?.owner?.isActive === false ? null : bill.flat?.owner;
+                const latestPaymentMethod = getLatestPaymentMethod(bill);
                 return (
                   <div key={bill.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <div className="flex items-start justify-between gap-3 px-4 py-4">
@@ -956,6 +975,10 @@ export default function BillingPage() {
                         <span className="block text-slate-400">Due</span>
                         <span className="font-semibold text-error">{formatCurrency(bill.totalAmount - bill.paidAmount)}</span>
                       </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 px-4 py-2 text-xs text-slate-500">
+                      Payment Mode: <span className="font-semibold text-slate-700">{latestPaymentMethod ? getPaymentMethodLabel(latestPaymentMethod) : '—'}</span>
                     </div>
 
                     <div className="flex flex-wrap gap-2 px-4 py-3">
@@ -1012,6 +1035,7 @@ export default function BillingPage() {
                     <th>Total</th>
                     <th>Paid</th>
                     <th>Balance</th>
+                    <th>Payment Mode</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
@@ -1019,6 +1043,7 @@ export default function BillingPage() {
                 <tbody>
                   {displayedBills.map((bill) => {
                     const activeOwner = bill.flat?.owner?.isActive === false ? null : bill.flat?.owner;
+                    const latestPaymentMethod = getLatestPaymentMethod(bill);
                     return (
                       <tr key={bill.id}>
                         <td>
@@ -1047,6 +1072,7 @@ export default function BillingPage() {
                         <td className="whitespace-nowrap font-medium text-on-surface">{formatCurrency(bill.totalAmount)}</td>
                         <td className="whitespace-nowrap font-medium text-emerald-700">{formatCurrency(bill.paidAmount)}</td>
                         <td className="whitespace-nowrap font-medium text-error">{formatCurrency(bill.totalAmount - bill.paidAmount)}</td>
+                        <td className="whitespace-nowrap text-sm text-on-surface">{latestPaymentMethod ? getPaymentMethodLabel(latestPaymentMethod) : '—'}</td>
                         <td><span className={cn('badge', getStatusColor(bill.status))}>{bill.status}</span></td>
                         <td>
                           <div className={cn('flex gap-2', ownerFacingBillingView ? 'min-w-[180px]' : 'min-w-[220px]')}>
