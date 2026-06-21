@@ -7,7 +7,7 @@ import Modal from '../../components/ui/Modal';
 import { EmptyState, PageLoader } from '../../components/ui/Loader';
 import api from '../../lib/api';
 import { getDisplayUserForView, isOwnerViewActive } from '../../lib/ownerView';
-import { getApiBaseUrl } from '../../lib/platform';
+import { getApiPublicBaseUrl } from '../../lib/platform';
 import { cn } from '../../lib/utils';
 import { formatCurrency, formatDate, formatDateTime, getStatusColor } from '../../lib/utils';
 import { useAuthStore } from '../../store/authStore';
@@ -169,7 +169,7 @@ function ApprovalDataRow({ label, value }: { label: string; value: React.ReactNo
 
 function resolveUploadedFileUrl(value?: string | null) {
   if (!value) return null;
-  return value.startsWith('data:') || /^https?:\/\//i.test(value) ? value : `${getApiBaseUrl().replace('/api', '')}${value}`;
+  return value.startsWith('data:') || /^https?:\/\//i.test(value) ? value : `${getApiPublicBaseUrl()}${value}`;
 }
 
 function ApprovalRequestDetails({ approval }: { approval: ApprovalRequest }) {

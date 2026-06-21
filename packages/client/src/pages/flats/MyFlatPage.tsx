@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
-import { getApiBaseUrl } from '../../lib/platform';
+import { getApiBaseUrl, getApiPublicBaseUrl } from '../../lib/platform';
 import {
   cn,
   formatCurrency,
@@ -1064,7 +1064,7 @@ function buildTenantDocumentFormData(data: TenantFormData) {
 
 function resolveUploadedFileUrl(value?: string | null) {
   if (!value) return null;
-  return value.startsWith('data:') ? value : `${getApiBaseUrl().replace('/api', '')}${value}`;
+  return value.startsWith('data:') || /^https?:\/\//i.test(value) ? value : `${getApiPublicBaseUrl()}${value}`;
 }
 
 function TenantForm({

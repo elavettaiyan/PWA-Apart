@@ -10,7 +10,7 @@ import {
   normalizeEmail,
   normalizeIndianMobileNumber,
 } from '@/lib/utils';
-import { getApiBaseUrl } from '@/lib/platform';
+import { getApiPublicBaseUrl } from '@/lib/platform';
 import { useAuthStore } from '@/store/authStore';
 import {
   useCreateOwnerMutation,
@@ -111,7 +111,7 @@ function buildTenantFormState(tenant?: Flat['tenant'] | null) {
 
 function resolveAgreementDocumentUrl(value?: string | null) {
   if (!value) return null;
-  return value.startsWith('data:') ? value : `${getApiBaseUrl().replace('/api', '')}${value}`;
+  return value.startsWith('data:') || /^https?:\/\//i.test(value) ? value : `${getApiPublicBaseUrl()}${value}`;
 }
 
 export function ManageFlatForm({
