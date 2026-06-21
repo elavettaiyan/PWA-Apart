@@ -432,6 +432,10 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
 
   return (
     <div className="space-y-5">
+      <div className="rounded-lg bg-[#F8FAFC] p-3">
+        <p className="text-sm text-on-surface-variant">{activeComplaint.description}</p>
+      </div>
+
       <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm sm:grid-cols-2">
         <div>
           <span className="text-on-surface-variant">Category:</span>{' '}
@@ -553,14 +557,9 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
 
       {assignedServiceStaff ? (
         <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h4 className="font-semibold text-blue-950">Assigned Service Staff</h4>
-              <p className="mt-1 text-sm text-blue-900">{assignedServiceStaff.name}</p>
-            </div>
-            <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-700 shadow-sm">
-              {formatRoleLabel(assignedServiceStaff.role)}
-            </span>
+          <div>
+            <h4 className="font-semibold text-blue-950">Service Person</h4>
+            <p className="mt-1 text-sm text-blue-900">{assignedServiceStaff.name}</p>
           </div>
           <div className="mt-3 grid gap-2 text-sm text-blue-900 sm:grid-cols-2">
             {assignedServiceStaff.phone ? <div><span className="text-blue-700">Phone:</span> {assignedServiceStaff.phone}</div> : null}
@@ -569,10 +568,6 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
           </div>
         </div>
       ) : null}
-
-      <div className="p-3 bg-[#F8FAFC] rounded-lg">
-        <p className="text-sm text-on-surface-variant">{activeComplaint.description}</p>
-      </div>
 
       {/* Complaint Images */}
       {activeComplaint.images && activeComplaint.images.length > 0 && (
