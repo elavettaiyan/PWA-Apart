@@ -246,7 +246,7 @@ export function ManageFlatForm({
   const residentAccessNote = useMemo(() => {
     if (residentMode === 'OWNER') {
       if (!activeOwner) {
-        return 'When you provide both email and phone number, a login account will be automatically created. The default password will be the phone number.';
+        return 'Email and phone number are required for new owners. A login account will be automatically created and the default password will be the phone number.';
       }
 
       if (activeOwner?.email) {
@@ -259,7 +259,7 @@ export function ManageFlatForm({
     }
 
     if (!flat.tenant?.isActive) {
-      return 'When you provide both email and phone number, a login account will be automatically created for the tenant with phone number as the default password.';
+      return 'Email and phone number are required for new tenants. A login account will be automatically created with the phone number as the default password.';
     }
 
     return null;
@@ -274,6 +274,11 @@ export function ManageFlatForm({
 
     const trimmedPhone = normalizeIndianMobileNumber(form.phone);
     const trimmedEmail = form.email?.trim() || '';
+
+    if (!activeOwner?.id && !trimmedEmail) {
+      toast.error('Email address is required for a new owner.');
+      return;
+    }
 
     if (!isValidIndianMobileNumber(trimmedPhone)) {
       toast.error('Phone number must be a valid 10-digit Indian mobile number.');
@@ -324,6 +329,11 @@ export function ManageFlatForm({
 
     const trimmedPhone = normalizeIndianMobileNumber(tenantForm.phone);
     const trimmedEmail = tenantForm.email?.trim() || '';
+
+    if (!activeTenant?.id && !trimmedEmail) {
+      toast.error('Email address is required for a new tenant.');
+      return;
+    }
 
     if (!isValidIndianMobileNumber(trimmedPhone)) {
       toast.error('Phone number must be a valid 10-digit Indian mobile number.');
@@ -444,7 +454,7 @@ export function ManageFlatForm({
               </ResidentInput>
             </div>
             <ResidentInput label="Email Address" icon={<Mail className="h-5 w-5" />}>
-              <input type="email" className="input !h-14 !rounded-2xl !border-outline-variant/80 !bg-surface-container-low pl-12 text-base" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@example.com" />
+              <input type="email" className="input !h-14 !rounded-2xl !border-outline-variant/80 !bg-surface-container-low pl-12 text-base" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@example.com" required={!activeOwner?.id} />
             </ResidentInput>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -522,7 +532,7 @@ export function ManageFlatForm({
               </ResidentInput>
             </div>
             <ResidentInput label="Email Address" icon={<Mail className="h-5 w-5" />}>
-              <input type="email" className="input !h-14 !rounded-2xl !border-outline-variant/80 !bg-surface-container-low pl-12 text-base" value={tenantForm.email} onChange={(e) => setTenantForm({ ...tenantForm, email: e.target.value })} placeholder="name@example.com" />
+              <input type="email" className="input !h-14 !rounded-2xl !border-outline-variant/80 !bg-surface-container-low pl-12 text-base" value={tenantForm.email} onChange={(e) => setTenantForm({ ...tenantForm, email: e.target.value })} placeholder="name@example.com" required={!activeTenant?.id} />
             </ResidentInput>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

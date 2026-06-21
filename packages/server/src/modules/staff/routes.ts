@@ -9,6 +9,12 @@ const router = Router();
 router.use(authenticate);
 router.use(authorize('SUPER_ADMIN', ...SOCIETY_ADMINS));
 
+const INDIAN_MOBILE_REGEX = /^[6-9]\d{9}$/;
+
+function normalizeIndianMobileNumber(value: string) {
+  return String(value || '').replace(/\D/g, '').slice(-10);
+}
+
 // ── GET ALL STAFF IN SOCIETY ────────────────────────────
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
@@ -37,7 +43,11 @@ router.post(
   [
     body('name').trim().notEmpty().withMessage('Name is required'),
     body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
-    body('phone').optional({ values: 'falsy' }).isMobilePhone('en-IN'),
+    body('phone')
+      .trim()
+      .customSanitizer(normalizeIndianMobileNumber)
+      .matches(INDIAN_MOBILE_REGEX)
+      .withMessage('Phone must be a valid 10-digit Indian mobile number'),
     body('specialization').optional().isString(),
     body('password').optional({ values: 'falsy' }).isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
   ],
@@ -74,7 +84,7 @@ router.post(
             where: { id: existing.id },
             data: {
               name,
-              phone: phone || existing.phone,
+              phone,
               specialization: specialization || existing.specialization,
             },
             select: { id: true, name: true, email: true, phone: true, specialization: true, isActive: true, createdAt: true },
@@ -105,7 +115,7 @@ router.post(
             email,
             passwordHash,
             name,
-            phone: phone || null,
+            phone,
             role: 'SERVICE_STAFF',
             specialization: specialization || null,
             societyId,

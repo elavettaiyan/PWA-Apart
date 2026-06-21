@@ -1075,6 +1075,7 @@ function TenantForm({
   submitLabel,
   existingAgreementDocumentUrl,
   requireAgreementDocument = false,
+  requireContactDetails = false,
 }: {
   initial: TenantFormData;
   onSubmit: (data: TenantFormData) => void;
@@ -1083,6 +1084,7 @@ function TenantForm({
   submitLabel: string;
   existingAgreementDocumentUrl?: string | null;
   requireAgreementDocument?: boolean;
+  requireContactDetails?: boolean;
 }) {
   const [form, setForm] = useState<TenantFormData>(initial);
   const set = (field: keyof TenantFormData, value: string) => setForm((current) => ({ ...current, [field]: value }));
@@ -1096,11 +1098,11 @@ function TenantForm({
         </label>
         <label className="space-y-1.5">
           <span className={FIELD_LABEL_CLASS}>Phone</span>
-          <input className="input" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="10-digit mobile" inputMode="numeric" maxLength={10} />
+          <input className="input" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="10-digit mobile" inputMode="numeric" maxLength={10} required={requireContactDetails} />
         </label>
         <label className="space-y-1.5">
           <span className={FIELD_LABEL_CLASS}>Email</span>
-          <input className="input" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="tenant@email.com" />
+          <input className="input" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="tenant@email.com" required={requireContactDetails} />
         </label>
         <label className="space-y-1.5">
           <span className={FIELD_LABEL_CLASS}>Lease Start</span>
@@ -1170,14 +1172,14 @@ function TenantForm({
       <div className="flex items-center gap-3 pt-2">
         <button
           className="btn-primary"
-          disabled={isPending || !form.name.trim() || !form.phone.trim()}
+          disabled={isPending || !form.name.trim() || !form.phone.trim() || (requireContactDetails && !form.email.trim())}
           onClick={() => {
             if (requireAgreementDocument && !form.agreementDocument && !existingAgreementDocumentUrl) {
               toast.error('Agreement document is required.');
               return;
             }
 
-            const normalized = normalizeTenantForm(form);
+            const normalized = normalizeTenantForm(form, { requireContactDetails });
             if (!normalized) return;
             onSubmit(normalized);
           }}
@@ -1241,6 +1243,7 @@ function AddTenantCard() {
         isPending={addMutation.isPending}
         submitLabel="Add Tenant"
         requireAgreementDocument
+        requireContactDetails
       />
     </section>
   );
@@ -1445,7 +1448,7 @@ function getApiErrorMessage(error: any, fallback: string): string {
   return error?.response?.data?.error || error?.response?.data?.errors?.[0]?.msg || fallback;
 }
 
-function normalizeTenantForm(form: TenantFormData): TenantFormData | null {
+function normalizeTenantForm(form: TenantFormData, options?: { requireContactDetails?: boolean }): TenantFormData | null {
   const trimmedName = form.name.trim();
   const trimmedPhone = normalizeIndianMobileNumber(form.phone);
   const trimmedEmail = form.email.trim();
@@ -1457,6 +1460,11 @@ function normalizeTenantForm(form: TenantFormData): TenantFormData | null {
 
   if (!isValidIndianMobileNumber(trimmedPhone)) {
     toast.error('Phone number must be a valid 10-digit Indian mobile number.');
+    return null;
+  }
+
+  if (options?.requireContactDetails && !trimmedEmail) {
+    toast.error('Email address is required for a new tenant.');
     return null;
   }
 

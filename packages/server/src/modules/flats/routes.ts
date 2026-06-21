@@ -1086,7 +1086,7 @@ router.post(
   [
     body('name').trim().notEmpty().withMessage('Owner name is required'),
     body('phone').trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
-    body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email address'),
+    body('email').trim().isEmail().withMessage('Valid email address is required'),
     body('vehicles').optional().isArray({ max: 10 }).withMessage('Vehicles must be an array'),
     body('vehicles.*.type').optional().isIn(VEHICLE_TYPES).withMessage('Invalid vehicle type'),
     body('vehicles.*.registrationNumber').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Vehicle registration number is too long'),
@@ -1612,7 +1612,7 @@ router.post(
   [
     body('name').trim().notEmpty().withMessage('Tenant name is required'),
     body('phone').trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
-    body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email address'),
+    body('email').trim().isEmail().withMessage('Valid email address is required'),
     body('approvalComment').optional({ values: 'falsy' }).trim().isLength({ max: 500 }).withMessage('Approval comment is too long'),
     body('vehicles').optional().isArray({ max: 10 }).withMessage('Vehicles must be an array'),
     body('vehicles.*.type').optional().isIn(VEHICLE_TYPES).withMessage('Invalid vehicle type'),
@@ -2018,7 +2018,7 @@ router.post(
   [
     body('name').trim().notEmpty().withMessage('Tenant name is required'),
     body('phone').trim().customSanitizer(normalizeIndianMobileNumber).matches(INDIAN_MOBILE_REGEX).withMessage('Phone must be a valid 10-digit Indian mobile number'),
-    body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email'),
+    body('email').trim().isEmail().withMessage('Valid email address is required'),
     body('approvalComment').optional({ values: 'falsy' }).trim().isLength({ max: 500 }).withMessage('Approval comment is too long'),
     body('leaseStart').optional({ values: 'falsy' }).isISO8601(),
     body('leaseEnd').optional({ values: 'falsy' }).isISO8601(),

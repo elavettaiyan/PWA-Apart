@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { SERVICE_STAFF_SPECIALIZATIONS } from '../../lib/serviceStaff';
 import { PageLoader } from '../ui/Loader';
-import { cn } from '../../lib/utils';
+import { cn, isValidEmailAddress, isValidIndianMobileNumber, normalizeEmail, normalizeIndianMobileNumber } from '../../lib/utils';
 
 type StaffMember = {
   id: string;
@@ -89,6 +89,34 @@ function CreateStaffForm({
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to create staff'),
   });
 
+  const handleCreate = () => {
+    const name = form.name.trim();
+    const email = form.email.trim();
+    const phone = normalizeIndianMobileNumber(form.phone);
+
+    if (!name) {
+      toast.error('Name is required.');
+      return;
+    }
+
+    if (!email || !isValidEmailAddress(email)) {
+      toast.error('Enter a valid email address.');
+      return;
+    }
+
+    if (!isValidIndianMobileNumber(phone)) {
+      toast.error('Phone number must be a valid 10-digit Indian mobile number.');
+      return;
+    }
+
+    create.mutate({
+      ...form,
+      name,
+      email: normalizeEmail(email),
+      phone,
+    });
+  };
+
   return (
     <div className={cn(embedded ? 'rounded-2xl border border-outline-variant/15 bg-surface-container-low p-6' : 'card p-6')}>
       <h3 className="font-semibold text-on-surface mb-4">Add New Staff Member</h3>
@@ -99,11 +127,11 @@ function CreateStaffForm({
         </div>
         <div>
           <label className="label">Email *</label>
-          <input className="input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <input className="input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
         </div>
         <div>
-          <label className="label">Phone</label>
-          <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          <label className="label">Phone *</label>
+          <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} inputMode="numeric" maxLength={10} required />
         </div>
         <div>
           <label className="label">Specialization</label>
@@ -124,8 +152,8 @@ function CreateStaffForm({
         <button className="btn-secondary" onClick={onClose}>Cancel</button>
         <button
           className="btn-primary"
-          onClick={() => create.mutate(form)}
-          disabled={create.isPending || !form.name || !form.email}
+          onClick={handleCreate}
+          disabled={create.isPending || !form.name.trim() || !form.email.trim() || !form.phone.trim()}
         >
           {create.isPending ? 'Creating...' : 'Create'}
         </button>
