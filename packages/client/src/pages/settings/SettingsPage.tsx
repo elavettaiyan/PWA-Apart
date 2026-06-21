@@ -814,17 +814,48 @@ export default function SettingsPage() {
       </SettingsAccordion>
 
       <SettingsAccordion
-        title="Menu Management"
-        description="Choose which extra navigation menus each role can see"
+        title="Roles & Menus"
+        description="Choose which extra navigation menus each role can see and manage committee role capacity"
         icon={Settings}
         iconWrapperClassName="group-open:bg-fuchsia-100"
         iconClassName="group-open:text-fuchsia-800"
       >
-        <MenuManagementPanel
-          menuVisibility={menuVisibility || getFallbackMenuVisibility(activeSocietyId)}
-          savingRole={menuVisibilityMutation.isPending ? menuVisibilityMutation.variables?.role : null}
-          onToggleMenu={(role, visibleMenuIds) => menuVisibilityMutation.mutate({ role, visibleMenuIds })}
-        />
+        <div className="space-y-5">
+          <MenuManagementPanel
+            menuVisibility={menuVisibility || getFallbackMenuVisibility(activeSocietyId)}
+            savingRole={menuVisibilityMutation.isPending ? menuVisibilityMutation.variables?.role : null}
+            onToggleMenu={(role, visibleMenuIds) => menuVisibilityMutation.mutate({ role, visibleMenuIds })}
+          />
+
+          <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-low p-4">
+            <label className="label">Committee Members Limit</label>
+            {settingsLoading || !billingSettings ? (
+              <div className="text-sm text-on-surface-variant">Loading...</div>
+            ) : (
+              <>
+                <input
+                  type="number"
+                  min={0}
+                  className="input"
+                  value={billingSettings.committeeMemberLimit ?? 0}
+                  onChange={(e) => setBillingSettings({ ...billingSettings, committeeMemberLimit: Number(e.target.value) })}
+                />
+                <p className="mt-2 text-xs text-on-surface-variant">Set 0 to allow unlimited committee members.</p>
+                <div className="mt-4 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => settingsMutation.mutate(billingSettings)}
+                    disabled={settingsMutation.isPending}
+                    className="btn-primary"
+                  >
+                    {settingsMutation.isPending ? 'Saving...' : 'Save Roles & Menus Settings'}
+                  </button>
+                  {settingsMutation.isError && <span className="text-sm text-error">Failed to save settings</span>}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </SettingsAccordion>
 
       <SettingsAccordion
@@ -1427,17 +1458,6 @@ export default function SettingsPage() {
                     value={billingSettings.gracePeriodDays ?? 0}
                     onChange={(e) => setBillingSettings({ ...billingSettings, gracePeriodDays: Number(e.target.value) })}
                   />
-                </div>
-                <div className="rounded-xl p-4 bg-surface-container-low">
-                  <label className="label">Committee Members Limit</label>
-                  <input
-                    type="number"
-                    min={0}
-                    className="input"
-                    value={billingSettings.committeeMemberLimit ?? 0}
-                    onChange={(e) => setBillingSettings({ ...billingSettings, committeeMemberLimit: Number(e.target.value) })}
-                  />
-                  <p className="mt-2 text-xs text-on-surface-variant">Set 0 to allow unlimited committee members.</p>
                 </div>
                 <div className="rounded-xl p-4 bg-surface-container-low">
                   <label className="label">Late Fee Type</label>
