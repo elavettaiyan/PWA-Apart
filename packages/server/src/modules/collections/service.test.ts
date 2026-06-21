@@ -230,4 +230,26 @@ describe('Collections service', () => {
     const adv = await prisma.advanceBalance.findFirst({ where: { flatId: fid } });
     assert.strictEqual(adv, null);
   });
+
+  it('allocatePayment should credit advance when there are no unpaid bills', async () => {
+    const flat = await prisma.flat.create({ data: { flatNumber: `T-advance-${Date.now()}`, blockId, type: 'TWO_BHK', floor: 1 } as any });
+    const fid = flat.id;
+
+    const bill = await prisma.maintenanceBill.create({
+      data: { flatId: fid, month: 4, year: 2020, baseAmount: 120, totalAmount: 120, paidAmount: 120, status: 'PAID', dueDate: new Date() } as any,
+    });
+
+    const res = await allocatePayment(fid, 75);
+
+    const refreshedBill = await prisma.maintenanceBill.findUnique({ where: { id: bill.id } });
+    const adv = await prisma.advanceBalance.findFirst({ where: { flatId: fid } });
+
+    assert.ok(refreshedBill);
+    assert.strictEqual(refreshedBill!.status, 'PAID');
+    assert.strictEqual(Number(refreshedBill!.paidAmount.toFixed(2)), 120);
+    assert.strictEqual(res.allocations.length, 0);
+    assert.strictEqual(Number(res.remaining.toFixed(2)), 75);
+    assert.ok(adv);
+    assert.strictEqual(Number(adv!.amount.toFixed(2)), 75);
+  });
 });

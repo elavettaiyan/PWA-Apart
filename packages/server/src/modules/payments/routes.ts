@@ -661,8 +661,9 @@ router.post(
       });
 
       const outstandingBills = bills.filter((bill) => Number((bill.totalAmount - bill.paidAmount).toFixed(2)) > 0);
-      if (outstandingBills.length === 0) {
-        return res.status(400).json({ error: 'No outstanding bills found for this flat' });
+      const anchorBill = outstandingBills[0] ?? bills[bills.length - 1];
+      if (!anchorBill) {
+        return res.status(400).json({ error: 'No bills found for this flat' });
       }
 
       const totalOutstanding = Number(
@@ -677,7 +678,6 @@ router.post(
         return res.status(400).json({ error: 'Advance payments are disabled for this association' });
       }
 
-      const anchorBill = outstandingBills[0];
       const merchantTransId = `MTA${Date.now()}${uuidv4().slice(0, 8).toUpperCase()}`;
       const pgConfig = await getPhonePeConfig(societyId);
       if (!pgConfig.merchantId) {
