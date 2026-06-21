@@ -440,10 +440,10 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
         <div>
           <span className="text-on-surface-variant">Category:</span>{' '}
           {!isEditingCategory ? (
-            <span className="inline-flex items-center gap-2">
+            <span className="mt-1 flex min-w-0 flex-col gap-1">
               <span className="font-medium">{activeComplaint.category}</span>
               {activeComplaint.flat ? (
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-slate-500 break-words">
                   {activeComplaint.flat.block?.name ? `${activeComplaint.flat.block.name} - ` : ''}
                   {activeComplaint.flat.flatNumber}
                 </span>
@@ -451,7 +451,7 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
               {canEditCategory ? (
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
+                  className="inline-flex w-fit items-center justify-center rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
                   onClick={() => setIsEditingCategory(true)}
                   disabled={busy}
                   aria-label="Edit category"
