@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { SERVICE_STAFF_SPECIALIZATIONS } from '../../lib/serviceStaff';
 import { PageLoader } from '../ui/Loader';
+import Modal from '../ui/Modal';
 import { cn, isValidEmailAddress, isValidIndianMobileNumber, normalizeEmail, normalizeIndianMobileNumber } from '../../lib/utils';
 
 type StaffMember = {
@@ -19,6 +20,8 @@ type StaffMember = {
 
 export default function ManageStaffPanel({ embedded = false }: { embedded?: boolean }) {
   const [showCreate, setShowCreate] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<StaffMember | null>(null);
+  const [removalReason, setRemovalReason] = useState('');
   const queryClient = useQueryClient();
 
   const { data: staff = [], isLoading } = useQuery<StaffMember[]>({
@@ -28,13 +31,18 @@ export default function ManageStaffPanel({ embedded = false }: { embedded?: bool
 
   if (isLoading) return <PageLoader />;
 
+  const handleCloseRemove = () => {
+    setRemoveTarget(null);
+    setRemovalReason('');
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-4">
         <div>
           {!embedded && <p className="section-label mb-2">People</p>}
           <h2 className={cn(embedded ? 'text-lg font-semibold text-on-surface' : 'page-title')}>Manage Staff</h2>
-          <p className="text-sm text-on-surface-variant">Create, activate, and deactivate service staff accounts</p>
+          <p className="text-sm text-on-surface-variant">Create, activate, deactivate, and remove service staff accounts</p>
         </div>
         <button className="btn-primary" onClick={() => setShowCreate(true)}>
           <Plus className="w-4 h-4 mr-1" /> Add Staff
@@ -61,10 +69,22 @@ export default function ManageStaffPanel({ embedded = false }: { embedded?: bool
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {staff.map((member) => (
-            <StaffCard key={member.id} member={member} embedded={embedded} />
+            <StaffCard key={member.id} member={member} embedded={embedded} onRemove={() => setRemoveTarget(member)} />
           ))}
         </div>
       )}
+
+      <RemoveStaffModal
+        member={removeTarget}
+        reason={removalReason}
+        onReasonChange={setRemovalReason}
+        onClose={handleCloseRemove}
+        onSuccess={() => {
+          handleCloseRemove();
+          queryClient.invalidateQueries({ queryKey: ['staff'] });
+          queryClient.invalidateQueries({ queryKey: ['settings-members'] });
+        }}
+      />
     </div>
   );
 }
@@ -162,7 +182,7 @@ function CreateStaffForm({
   );
 }
 
-function StaffCard({ member, embedded }: { member: StaffMember; embedded: boolean }) {
+function StaffCard({ member, embedded, onRemove }: { member: StaffMember; embedded: boolean; onRemove: () => void }) {
   const queryClient = useQueryClient();
 
   const toggleActive = useMutation({
@@ -200,7 +220,14 @@ function StaffCard({ member, embedded }: { member: StaffMember; embedded: boolea
         <p className="flex items-center gap-2 break-all"><Mail className="w-3.5 h-3.5 text-outline shrink-0" /> {member.email}</p>
         {member.phone && <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-outline shrink-0" /> {member.phone}</p>}
       </div>
-      <div className="mt-4 flex justify-end">
+      <div className="mt-4 flex justify-end gap-2">
+        <button
+          className="btn-secondary btn-sm text-error hover:text-error"
+          onClick={onRemove}
+          disabled={toggleActive.isPending}
+        >
+          Delete Staff
+        </button>
         <button
           className={cn(
             'btn-secondary btn-sm',
@@ -213,5 +240,82 @@ function StaffCard({ member, embedded }: { member: StaffMember; embedded: boolea
         </button>
       </div>
     </div>
+  );
+}
+
+function RemoveStaffModal({
+  member,
+  reason,
+  onReasonChange,
+  onClose,
+  onSuccess,
+}: {
+  member: StaffMember | null;
+  reason: string;
+  onReasonChange: (value: string) => void;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const removeMutation = useMutation({
+    mutationFn: ({ userId, removalReason }: { userId: string; removalReason: string }) =>
+      api.delete(`/settings/members/${userId}`, { data: { reason: removalReason } }),
+    onSuccess: () => {
+      toast.success('Service staff removed');
+      onSuccess();
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to remove service staff'),
+  });
+
+  return (
+    <Modal
+      isOpen={!!member}
+      onClose={() => {
+        if (removeMutation.isPending) return;
+        onClose();
+      }}
+      title="Delete Service Staff"
+      size="md"
+    >
+      {member ? (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-error/15 bg-error-container/40 p-4">
+            <p className="text-sm font-semibold text-on-surface">{member.name}</p>
+            <p className="mt-1 text-xs text-on-surface-variant">{member.email}{member.specialization ? ` · ${member.specialization}` : ''}</p>
+            <p className="mt-2 text-xs text-on-surface-variant">
+              This removes the service staff account from the current society.
+            </p>
+          </div>
+
+          <div>
+            <label className="label">Reason *</label>
+            <textarea
+              className="input min-h-[120px]"
+              value={reason}
+              onChange={(event) => onReasonChange(event.target.value)}
+              placeholder="Explain why this service staff member is being removed from the society."
+            />
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={onClose}
+              disabled={removeMutation.isPending}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary bg-error text-white hover:bg-error/90"
+              disabled={removeMutation.isPending || !reason.trim()}
+              onClick={() => removeMutation.mutate({ userId: member.id, removalReason: reason.trim() })}
+            >
+              {removeMutation.isPending ? 'Removing...' : 'Delete Staff'}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </Modal>
   );
 }
