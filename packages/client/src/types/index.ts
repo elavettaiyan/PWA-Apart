@@ -481,6 +481,15 @@ export type ComplaintStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED' | '
 export type ComplaintPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 export type ComplaintActivityType = 'CREATED' | 'STATUS_CHANGED' | 'ASSIGNED' | 'COMMENT_ADDED' | 'RESOLUTION_ADDED' | 'ESCALATED' | 'CLOSURE_CONFIRMED';
 
+export interface ComplaintAssigneeOption {
+  id: string;
+  name: string;
+  role: Role;
+  email?: string | null;
+  phone?: string | null;
+  specialization?: string | null;
+}
+
 export interface Complaint {
   id: string;
   societyId: string;
@@ -501,7 +510,7 @@ export interface Complaint {
   createdAt: string;
   flat?: { flatNumber: string; block?: { name: string } };
   createdBy?: { name: string };
-  assignedTo?: { name: string };
+  assignedTo?: ComplaintAssigneeOption;
   comments?: ComplaintComment[];
   activities?: ComplaintActivity[];
   _count?: { comments: number };

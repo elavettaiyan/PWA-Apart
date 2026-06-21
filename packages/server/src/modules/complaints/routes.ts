@@ -26,6 +26,18 @@ type ComplaintStatusValue = (typeof COMPLAINT_STATUSES)[number];
 type ComplaintActionValue = (typeof COMPLAINT_ACTIONS)[number];
 type ComplaintEscalationLevelValue = (typeof COMPLAINT_ESCALATION_LEVELS)[number];
 
+const COMPLAINT_ASSIGNEE_SELECT = {
+  id: true,
+  name: true,
+  role: true,
+  email: true,
+  phone: true,
+  specialization: true,
+} as const;
+
+const COMPLAINT_ASSIGNEE_REVIEW_ROLES = ['JOINT_SECRETARY', 'COMMITTEE_MEMBER'] as const;
+const COMPLAINT_MANAGER_ASSIGNABLE_ROLES = ['SERVICE_STAFF', ...COMPLAINT_ASSIGNEE_REVIEW_ROLES, 'ADMIN', 'SECRETARY', 'SUPER_ADMIN'] as const;
+
 /** Parse the images JSON string into an actual array */
 function parseImages(complaint: any) {
   if (!complaint) return complaint;
@@ -87,10 +99,37 @@ function isResidentComplaintRole(role?: string) {
   return RESIDENT_ROLES.includes(role as typeof RESIDENT_ROLES[number]) || role === 'TREASURER';
 }
 
+function isComplaintReviewer(role?: string) {
+  return role === 'COMMITTEE_MEMBER';
+}
+
+function isComplaintReviewerOrStaff(role?: string) {
+  return role === 'SERVICE_STAFF' || role === 'COMMITTEE_MEMBER';
+}
+
+function getComplaintAssignableRoles(role?: string) {
+  if (role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'SECRETARY' || role === 'JOINT_SECRETARY') {
+    return [...COMPLAINT_MANAGER_ASSIGNABLE_ROLES];
+  }
+
+  if (role === 'COMMITTEE_MEMBER') {
+    return ['SERVICE_STAFF'];
+  }
+
+  return [] as string[];
+}
+
 async function resolveComplaintActor(userId: string) {
   return prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, name: true, role: true, societyId: true, isActive: true },
+  });
+}
+
+async function resolveComplaintAssignee(userId: string) {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: COMPLAINT_ASSIGNEE_SELECT,
   });
 }
 
@@ -187,7 +226,7 @@ async function applyComplaintUpdate(params: {
       data,
       include: {
         createdBy: { select: { name: true } },
-        assignedTo: { select: { name: true } },
+        assignedTo: { select: COMPLAINT_ASSIGNEE_SELECT },
       },
     });
 
@@ -217,6 +256,10 @@ async function applyComplaintUpdate(params: {
             previousAssigneeName: existing.assignedTo?.name || null,
             assignedToId: updatedComplaint.assignedToId,
             assignedToName: updatedComplaint.assignedTo?.name || null,
+            assignedToRole: updatedComplaint.assignedTo?.role || null,
+            assignedToEmail: updatedComplaint.assignedTo?.email || null,
+            assignedToPhone: updatedComplaint.assignedTo?.phone || null,
+            assignedToSpecialization: updatedComplaint.assignedTo?.specialization || null,
           }),
         },
       });
@@ -267,7 +310,7 @@ async function updateComplaintResolution(params: {
       data: { resolution },
       include: {
         createdBy: { select: { name: true } },
-        assignedTo: { select: { name: true } },
+        assignedTo: { select: COMPLAINT_ASSIGNEE_SELECT },
       },
     });
 
@@ -340,6 +383,11 @@ router.get(
         if (!owner) return res.json([]);
 
         where.createdById = req.user!.id;
+      } else if (isComplaintReviewer(req.user!.role)) {
+        where.OR = [
+          { assignedToId: req.user!.id },
+          { createdById: req.user!.id },
+        ];
       } else if ([...RESIDENT_ROLES, 'TREASURER'].includes(req.user!.role as any)) {
         where.createdById = req.user!.id;
       } else if (req.user!.role === 'SERVICE_STAFF') {
@@ -364,7 +412,7 @@ router.get(
         include: {
           flat: { select: { flatNumber: true, block: { select: { name: true } } } },
           createdBy: { select: { name: true } },
-          assignedTo: { select: { name: true } },
+          assignedTo: { select: COMPLAINT_ASSIGNEE_SELECT },
           _count: { select: { comments: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -377,6 +425,34 @@ router.get(
   },
 );
 
+// ── GET COMPLAINT ASSIGNEE OPTIONS ────────────────────
+router.get('/assignees', async (req: AuthRequest, res: Response) => {
+  try {
+    const assignableRoles = getComplaintAssignableRoles(req.user!.role);
+
+    if (!req.user!.societyId || assignableRoles.length === 0) {
+      return res.json([]);
+    }
+
+    const assignees = await prisma.user.findMany({
+      where: {
+        societyId: req.user!.societyId,
+        isActive: true,
+        role: { in: assignableRoles as any },
+      },
+      select: COMPLAINT_ASSIGNEE_SELECT,
+      orderBy: [
+        { role: 'asc' },
+        { name: 'asc' },
+      ],
+    });
+
+    return res.json(assignees);
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to fetch complaint assignees' });
+  }
+});
+
 // ── GET SINGLE COMPLAINT ────────────────────────────────
 router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, res: Response) => {
   try {
@@ -385,7 +461,7 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
       include: {
         flat: { include: { block: true } },
         createdBy: { select: { name: true, email: true } },
-        assignedTo: { select: { name: true, email: true } },
+        assignedTo: { select: COMPLAINT_ASSIGNEE_SELECT },
         comments: { orderBy: { createdAt: 'asc' } },
         activities: { orderBy: { createdAt: 'asc' } },
         escalations: {
@@ -406,6 +482,10 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
     }
 
     if (isResidentComplaintRole(req.user!.role) && complaint.createdById !== req.user!.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (isComplaintReviewer(req.user!.role) && complaint.createdById !== req.user!.id && complaint.assignedToId !== req.user!.id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -475,6 +555,7 @@ router.post(
           include: {
             flat: { select: { flatNumber: true } },
             createdBy: { select: { name: true } },
+            assignedTo: { select: COMPLAINT_ASSIGNEE_SELECT },
           },
         });
 
@@ -521,7 +602,7 @@ router.patch(
       // SECURITY: Verify complaint belongs to admin's society
       const existing = await prisma.complaint.findUnique({
         where: { id: req.params.id },
-        include: { assignedTo: { select: { name: true } } },
+        include: { assignedTo: { select: COMPLAINT_ASSIGNEE_SELECT } },
       });
       if (!existing) return res.status(404).json({ error: 'Complaint not found' });
       if (req.user!.role !== 'SUPER_ADMIN' && existing.societyId !== req.user!.societyId) {
@@ -583,7 +664,7 @@ router.patch(
     try {
       const existing = await prisma.complaint.findUnique({
         where: { id: req.params.id },
-        include: { assignedTo: { select: { name: true } } },
+        include: { assignedTo: { select: COMPLAINT_ASSIGNEE_SELECT } },
       });
 
       if (!existing) return res.status(404).json({ error: 'Complaint not found' });
@@ -594,9 +675,10 @@ router.patch(
       const isManager = isComplaintManager(req.user!.role);
       const isCreator = existing.createdById === req.user!.id;
       const isAssignedStaff = req.user!.role === 'SERVICE_STAFF' && existing.assignedToId === req.user!.id;
+      const isAssignedReviewer = req.user!.role === 'COMMITTEE_MEMBER' && existing.assignedToId === req.user!.id;
 
-      if (!isManager && !isCreator && !isAssignedStaff) {
-        return res.status(403).json({ error: 'Only the requester, assigned staff, or managers can update the case note' });
+      if (!isManager && !isCreator && !isAssignedStaff && !isAssignedReviewer) {
+        return res.status(403).json({ error: 'Only the requester, assigned reviewer, assigned staff, or managers can update the case note' });
       }
 
       const actor = await resolveComplaintActor(req.user!.id);
@@ -629,7 +711,7 @@ router.post(
     try {
       const existing = await prisma.complaint.findUnique({
         where: { id: req.params.id },
-        include: { assignedTo: { select: { name: true } } },
+        include: { assignedTo: { select: COMPLAINT_ASSIGNEE_SELECT } },
       });
 
       if (!existing) return res.status(404).json({ error: 'Complaint not found' });
@@ -641,8 +723,14 @@ router.post(
       const isManager = isComplaintManager(req.user!.role);
       const isCreator = existing.createdById === req.user!.id;
       const isAssignedStaff = req.user!.role === 'SERVICE_STAFF' && existing.assignedToId === req.user!.id;
+      const isAssignedReviewer = req.user!.role === 'COMMITTEE_MEMBER' && existing.assignedToId === req.user!.id;
+      const isAssignmentAction = action === 'ASSIGN' || action === 'REASSIGN';
 
       if (req.user!.role === 'SERVICE_STAFF' && !isAssignedStaff) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if (req.user!.role === 'COMMITTEE_MEMBER' && !isAssignedReviewer && !isCreator) {
         return res.status(403).json({ error: 'Access denied' });
       }
 
@@ -650,8 +738,17 @@ router.post(
         return res.status(403).json({ error: 'Only managers or assigned staff can update work progress' });
       }
 
-      if ((action === 'ASSIGN' || action === 'REASSIGN') && !isManager) {
-        return res.status(403).json({ error: 'Only managers can assign complaints' });
+      if (isAssignmentAction) {
+        const assignableRoles = getComplaintAssignableRoles(req.user!.role);
+        const canAssignAsReviewer = req.user!.role === 'COMMITTEE_MEMBER' && isAssignedReviewer;
+
+        if (!isManager && !canAssignAsReviewer) {
+          return res.status(403).json({ error: 'You do not have permission to assign complaints' });
+        }
+
+        if (assignableRoles.length === 0) {
+          return res.status(403).json({ error: 'You do not have permission to assign complaints' });
+        }
       }
 
       if ((action === 'CLOSE' || action === 'REJECT') && !isManager) {
@@ -673,16 +770,21 @@ router.post(
         return res.status(403).json({ error: 'Only the requester, assigned staff, or managers can reopen complaints' });
       }
 
-      if ((action === 'ASSIGN' || action === 'REASSIGN') && !req.body.assignedToId) {
+      if (isAssignmentAction && !req.body.assignedToId) {
         return res.status(400).json({ error: 'assignedToId is required for assignment actions' });
       }
 
-      if (req.body.assignedToId) {
-        const assignee = await resolveComplaintActor(req.body.assignedToId);
-        const allowedAssigneeRoles = new Set(['SERVICE_STAFF', ...SOCIETY_MANAGERS, 'SUPER_ADMIN']);
+      if (isAssignmentAction && req.body.assignedToId) {
+        const assignee = await resolveComplaintAssignee(req.body.assignedToId);
+        const allowedAssigneeRoles = new Set(getComplaintAssignableRoles(req.user!.role));
 
-        if (!assignee || !assignee.isActive || assignee.societyId !== existing.societyId || !allowedAssigneeRoles.has(assignee.role)) {
-          return res.status(400).json({ error: 'Assigned user must be an active staff or manager in the same society' });
+        if (!assignee || assignee.role === undefined || !allowedAssigneeRoles.has(assignee.role)) {
+          return res.status(400).json({ error: 'Assigned user is not eligible for this complaint workflow' });
+        }
+
+        const activeAssignee = await resolveComplaintActor(req.body.assignedToId);
+        if (!activeAssignee || !activeAssignee.isActive || activeAssignee.societyId !== existing.societyId) {
+          return res.status(400).json({ error: 'Assigned user must be active and belong to the same society' });
         }
       }
 
@@ -786,7 +888,7 @@ router.post(
           },
           include: {
             createdBy: { select: { name: true } },
-            assignedTo: { select: { name: true } },
+            assignedTo: { select: COMPLAINT_ASSIGNEE_SELECT },
           },
         });
 
@@ -805,6 +907,7 @@ router.post(
               previousAssigneeName: complaint.assignedTo?.name || null,
               escalatedToId: target.id,
               escalatedToName: target.name,
+              escalatedToRole: target.role,
             }),
           },
         });

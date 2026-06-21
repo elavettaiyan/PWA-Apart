@@ -10,7 +10,7 @@ import Modal from '../../components/ui/Modal';
 import { getDefaultComplaintCategoryForUser, isNonSecurityServiceStaff } from '../../lib/serviceStaff';
 import { useAuthStore } from '../../store/authStore';
 import { isOwnerViewActive } from '../../lib/ownerView';
-import type { Complaint } from '../../types';
+import type { Complaint, ComplaintAssigneeOption } from '../../types';
 
 const CATEGORIES = ['Plumbing', 'Electrical', 'Civil', 'Lift', 'Parking', 'Security', 'Cleaning', 'Noise', 'Other'];
 
@@ -301,13 +301,15 @@ function CreateComplaintForm({ onSuccess }: { onSuccess: () => void }) {
 function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpdate: () => void }) {
   const [resolution, setResolution] = useState('');
   const [comment, setComment] = useState('');
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState('');
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const isAdmin = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'] as string[]).includes(user?.role || '');
+  const isManager = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'] as string[]).includes(user?.role || '');
+  const isCommitteeMember = user?.role === 'COMMITTEE_MEMBER';
   const isStaff = user?.role === 'SERVICE_STAFF';
   const isResident = (['OWNER', 'TENANT'] as string[]).includes(user?.role || '');
-  const canUpdateStatus = isAdmin || isStaff;
-  const canSeeConversation = isAdmin || isResident;
+  const canUpdateStatus = isManager || isStaff;
+  const canSeeConversation = isManager || isResident;
 
   const { data: detailComplaint, isLoading: detailLoading, isFetching: detailFetching, isError: detailError } = useQuery<Complaint>({
     queryKey: ['complaint', complaint.id],
@@ -323,12 +325,27 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
 
   const activeComplaint = detailComplaint || complaint;
   const isRequester = activeComplaint.createdById === user?.id;
+  const isAssignedCommitteeReviewer = isCommitteeMember && activeComplaint.assignedToId === user?.id;
+  const canAssignComplaint = isManager || isAssignedCommitteeReviewer;
+  const assignedServiceStaff = activeComplaint.assignedTo?.role === 'SERVICE_STAFF' ? activeComplaint.assignedTo : null;
+
+  useEffect(() => {
+    setSelectedAssigneeId(activeComplaint.assignedToId || '');
+  }, [activeComplaint.assignedToId, activeComplaint.id]);
+
   const canEscalate = isRequester || canUpdateStatus;
   const actionButtons = useMemo(
     () => getComplaintActions(activeComplaint.status, { canManage: canUpdateStatus, isRequester }),
     [activeComplaint.status, canUpdateStatus, isRequester]
   );
   const activityTimeline = activeComplaint.activities || [];
+
+  const { data: assigneeOptions = [] } = useQuery<ComplaintAssigneeOption[]>({
+    queryKey: ['complaint-assignees', user?.role],
+    queryFn: async () => (await api.get('/complaints/assignees')).data,
+    enabled: canAssignComplaint,
+    staleTime: 60_000,
+  });
 
   const actionMutation = useMutation({
     mutationFn: (data: any) => api.post(`/complaints/${complaint.id}/actions`, data),
@@ -375,6 +392,9 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
 
   if (detailLoading && !detailComplaint) return <PageLoader />;
 
+  const assigneeAction = activeComplaint.assignedToId ? 'REASSIGN' : 'ASSIGN';
+  const isAssigneeSelectionUnchanged = selectedAssigneeId === (activeComplaint.assignedToId || '');
+
   return (
     <div className="space-y-5">
       <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm sm:grid-cols-2">
@@ -387,6 +407,25 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
         {activeComplaint.closureRequestedAt ? <div><span className="text-on-surface-variant">Awaiting resident confirmation:</span> <span className="font-medium">{formatDate(activeComplaint.closureRequestedAt)}</span></div> : null}
         {activeComplaint.closedAt ? <div><span className="text-on-surface-variant">Closed at:</span> <span className="font-medium">{formatDate(activeComplaint.closedAt)}</span></div> : null}
       </div>
+
+      {assignedServiceStaff ? (
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h4 className="font-semibold text-blue-950">Assigned Service Staff</h4>
+              <p className="mt-1 text-sm text-blue-900">{assignedServiceStaff.name}</p>
+            </div>
+            <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-700 shadow-sm">
+              {formatRoleLabel(assignedServiceStaff.role)}
+            </span>
+          </div>
+          <div className="mt-3 grid gap-2 text-sm text-blue-900 sm:grid-cols-2">
+            {assignedServiceStaff.phone ? <div><span className="text-blue-700">Phone:</span> {assignedServiceStaff.phone}</div> : null}
+            {assignedServiceStaff.email ? <div><span className="text-blue-700">Email:</span> {assignedServiceStaff.email}</div> : null}
+            {assignedServiceStaff.specialization ? <div><span className="text-blue-700">Specialization:</span> {assignedServiceStaff.specialization}</div> : null}
+          </div>
+        </div>
+      ) : null}
 
       <div className="p-3 bg-[#F8FAFC] rounded-lg">
         <p className="text-sm text-on-surface-variant">{activeComplaint.description}</p>
@@ -470,6 +509,46 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
           </div>
         </div>
       )}
+
+      {canAssignComplaint ? (
+        <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
+          <div>
+            <h4 className="font-semibold text-slate-900">Assignment</h4>
+            <p className="mt-1 text-sm text-slate-500">
+              {isAssignedCommitteeReviewer
+                ? 'Review the complaint and route it to the appropriate service staff.'
+                : 'Assign this complaint to a reviewer or service staff member.'}
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <div>
+              <label className="label">Assign to</label>
+              <select
+                className="select"
+                value={selectedAssigneeId}
+                onChange={(e) => setSelectedAssigneeId(e.target.value)}
+              >
+                <option value="">Select a team member</option>
+                {assigneeOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {formatAssigneeOption(option)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              onClick={() => actionMutation.mutate({ action: assigneeAction, assignedToId: selectedAssigneeId })}
+              disabled={actionMutation.isPending || escalationMutation.isPending || noteMutation.isPending || !selectedAssigneeId || isAssigneeSelectionUnchanged}
+            >
+              {activeComplaint.assignedToId ? 'Reassign Complaint' : 'Assign Complaint'}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <div className="flex items-center justify-between gap-3">
@@ -584,6 +663,18 @@ function renderActivityMetadata(activity: NonNullable<Complaint['activities']>[n
   if (typeof metadata.assignedToName === 'string' && metadata.assignedToName) {
     lines.push(`Assigned to ${metadata.assignedToName}`);
   }
+  if (typeof metadata.assignedToRole === 'string' && metadata.assignedToRole) {
+    lines.push(`Role ${formatRoleLabel(metadata.assignedToRole)}`);
+  }
+  if (typeof metadata.assignedToSpecialization === 'string' && metadata.assignedToSpecialization) {
+    lines.push(`Specialization ${metadata.assignedToSpecialization}`);
+  }
+  if (typeof metadata.assignedToPhone === 'string' && metadata.assignedToPhone) {
+    lines.push(`Phone ${metadata.assignedToPhone}`);
+  }
+  if (typeof metadata.assignedToEmail === 'string' && metadata.assignedToEmail) {
+    lines.push(`Email ${metadata.assignedToEmail}`);
+  }
   if (typeof metadata.previousAssigneeName === 'string' && metadata.previousAssigneeName) {
     lines.push(`Previous owner: ${metadata.previousAssigneeName}`);
   }
@@ -603,4 +694,17 @@ function renderActivityMetadata(activity: NonNullable<Complaint['activities']>[n
       ))}
     </div>
   );
+}
+
+function formatRoleLabel(role: string) {
+  return role.replace(/_/g, ' ');
+}
+
+function formatAssigneeOption(option: ComplaintAssigneeOption) {
+  const details = [formatRoleLabel(option.role)];
+  if (option.specialization) {
+    details.push(option.specialization);
+  }
+
+  return `${option.name} • ${details.join(' • ')}`;
 }
