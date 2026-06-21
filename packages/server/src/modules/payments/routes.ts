@@ -430,9 +430,9 @@ async function sendReceiptForPayment(paymentId: string) {
     const tenant = flat.tenant;
 
     // Determine who to email — prefer tenant if active, else owner
-    const recipient = (tenant?.email) ? { name: tenant.name, email: tenant.email }
-                    : (owner?.email)  ? { name: owner.name,  email: owner.email }
-                    : null;
+    const recipient = (tenant?.isActive && tenant.email) ? { name: tenant.name, email: tenant.email }
+            : (owner?.isActive !== false && owner?.email)  ? { name: owner.name,  email: owner.email }
+            : null;
 
     if (!recipient) {
       logger.warn('Payment receipt: no email address found for flat', { flatId: flat.id, paymentId });

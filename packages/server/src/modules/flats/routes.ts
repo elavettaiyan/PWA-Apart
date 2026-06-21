@@ -2039,6 +2039,10 @@ router.post(
         include: { flat: { include: { tenant: true, block: { select: { societyId: true } } } } },
       });
       if (!owner) return res.status(403).json({ error: 'You are not an owner in this society' });
+      const outstandingDue = await getOutstandingFlatDue(owner.flat.id);
+      if (outstandingDue > 0) {
+        return res.status(409).json({ error: `Cannot add tenant while flat has outstanding dues of Rs. ${outstandingDue.toFixed(2)}.` });
+      }
       if (owner.flat.tenant && owner.flat.tenant.isActive) {
         return res.status(409).json({ error: 'This flat already has an active tenant. Remove the existing tenant first.' });
       }
@@ -2464,6 +2468,12 @@ router.delete(
       });
       if (!owner) return res.status(403).json({ error: 'You are not an owner in this society' });
       if (!owner.flat.tenant) return res.status(404).json({ error: 'No tenant found for this flat' });
+      if (!owner.flat.tenant.isActive) return res.status(409).json({ error: 'Tenant is already deactivated' });
+
+      const outstandingDue = await getOutstandingFlatDue(owner.flat.id);
+      if (outstandingDue > 0) {
+        return res.status(409).json({ error: `Cannot deactivate resident while flat has outstanding dues of Rs. ${outstandingDue.toFixed(2)}.` });
+      }
 
       await prisma.tenant.update({
         where: { id: owner.flat.tenant.id },

@@ -169,9 +169,9 @@ async function sendBillingReceiptForPayment(paymentId: string) {
 
     const fullBill = payment.bill;
     const flat = fullBill.flat;
-    const recipient = flat.tenant?.email
+    const recipient = flat.tenant?.isActive && flat.tenant.email
       ? { name: flat.tenant.name, email: flat.tenant.email }
-      : flat.owner?.email
+      : flat.owner && flat.owner.isActive !== false && flat.owner.email
         ? { name: flat.owner.name, email: flat.owner.email }
         : null;
 
