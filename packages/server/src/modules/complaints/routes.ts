@@ -119,6 +119,13 @@ function getComplaintAssignableRoles(role?: string) {
   return [] as string[];
 }
 
+function getSpecializationForComplaintCategory(category?: string | null) {
+  if (!category) return null;
+
+  const entry = Object.entries(COMPLAINT_CATEGORY_BY_SPECIALIZATION).find(([, mappedCategory]) => mappedCategory === category);
+  return entry?.[0] || null;
+}
+
 async function resolveComplaintActor(userId: string) {
   return prisma.user.findUnique({
     where: { id: userId },
@@ -131,6 +138,64 @@ async function resolveComplaintAssignee(userId: string) {
     where: { id: userId },
     select: COMPLAINT_ASSIGNEE_SELECT,
   });
+}
+
+async function resolveComplaintFlatFallback(userId: string, societyId: string) {
+  const owner = await prisma.owner.findFirst({
+    where: {
+      userId,
+      isActive: true,
+      flat: { block: { societyId } },
+    },
+    select: {
+      flat: {
+        include: {
+          block: true,
+        },
+      },
+    },
+  });
+
+  if (owner?.flat) {
+    return owner.flat;
+  }
+
+  const tenant = await prisma.tenant.findFirst({
+    where: {
+      userId,
+      isActive: true,
+      flat: { block: { societyId } },
+    },
+    select: {
+      flat: {
+        include: {
+          block: true,
+        },
+      },
+    },
+  });
+
+  return tenant?.flat || null;
+}
+
+async function enrichComplaintFlatContext(complaint: any) {
+  if (!complaint || complaint.flat || !complaint.createdById || !complaint.societyId) {
+    return complaint;
+  }
+
+  const fallbackFlat = await resolveComplaintFlatFallback(complaint.createdById, complaint.societyId);
+  if (!fallbackFlat) {
+    return complaint;
+  }
+
+  return {
+    ...complaint,
+    flat: fallbackFlat,
+  };
+}
+
+async function enrichComplaintFlatContexts(complaints: any[]) {
+  return Promise.all(complaints.map(enrichComplaintFlatContext));
 }
 
 async function resolveSocietyEscalationTarget(societyId: string, targetLevel: ComplaintEscalationLevelValue, excludeUserIds: string[] = []) {
@@ -418,7 +483,7 @@ router.get(
         orderBy: { createdAt: 'desc' },
       });
 
-      return res.json(complaints.map(parseComplaintRecord));
+      return res.json((await enrichComplaintFlatContexts(complaints)).map(parseComplaintRecord));
     } catch (error) {
       return res.status(500).json({ error: 'Failed to fetch complaints' });
     }
@@ -429,6 +494,8 @@ router.get(
 router.get('/assignees', async (req: AuthRequest, res: Response) => {
   try {
     const assignableRoles = getComplaintAssignableRoles(req.user!.role);
+    const requestedCategory = typeof req.query.category === 'string' ? req.query.category.trim() : '';
+    const matchingSpecialization = getSpecializationForComplaintCategory(requestedCategory);
 
     if (!req.user!.societyId || assignableRoles.length === 0) {
       return res.json([]);
@@ -438,7 +505,16 @@ router.get('/assignees', async (req: AuthRequest, res: Response) => {
       where: {
         societyId: req.user!.societyId,
         isActive: true,
+        id: { not: req.user!.id },
         role: { in: assignableRoles as any },
+        ...(requestedCategory
+          ? {
+              OR: [
+                { role: { not: 'SERVICE_STAFF' as any } },
+                ...(matchingSpecialization ? [{ role: 'SERVICE_STAFF' as any, specialization: matchingSpecialization }] : []),
+              ],
+            }
+          : {}),
       },
       select: COMPLAINT_ASSIGNEE_SELECT,
       orderBy: [
@@ -504,7 +580,7 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
       }
     }
 
-    return res.json(parseComplaintRecord(complaint));
+    return res.json(parseComplaintRecord(await enrichComplaintFlatContext(complaint)));
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch complaint' });
   }
@@ -579,7 +655,7 @@ router.post(
 
       notifyNewComplaint(complaint.id).catch(() => {});
 
-      return res.status(201).json(parseComplaintRecord(complaint));
+      return res.status(201).json(parseComplaintRecord(await enrichComplaintFlatContext(complaint)));
     } catch (error) {
       return res.status(500).json({ error: 'Failed to create complaint' });
     }
@@ -648,9 +724,59 @@ router.patch(
         }).catch(() => {});
       }
 
-      return res.json(parseComplaintRecord(complaint));
+      return res.json(parseComplaintRecord(await enrichComplaintFlatContext(complaint)));
     } catch (error) {
       return res.status(500).json({ error: 'Failed to update complaint' });
+    }
+  },
+);
+
+// ── UPDATE COMPLAINT CATEGORY ───────────────────────────
+router.patch(
+  '/:id/category',
+  [param('id').isUUID(), body('category').trim().notEmpty()],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const existing = await prisma.complaint.findUnique({
+        where: { id: req.params.id },
+        include: { assignedTo: { select: COMPLAINT_ASSIGNEE_SELECT } },
+      });
+
+      if (!existing) return res.status(404).json({ error: 'Complaint not found' });
+      if (req.user!.role !== 'SUPER_ADMIN' && existing.societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const isManager = isComplaintManager(req.user!.role);
+      const isAssignedUser = existing.assignedToId === req.user!.id;
+
+      if (!isManager && !isAssignedUser) {
+        return res.status(403).json({ error: 'Only managers or the current assignee can change the complaint category' });
+      }
+
+      const complaint = await prisma.complaint.update({
+        where: { id: req.params.id },
+        data: { category: req.body.category },
+        include: {
+          flat: { include: { block: true } },
+          createdBy: { select: { name: true, email: true } },
+          assignedTo: { select: COMPLAINT_ASSIGNEE_SELECT },
+          comments: { orderBy: { createdAt: 'asc' } },
+          activities: { orderBy: { createdAt: 'asc' } },
+          escalations: {
+            include: {
+              escalatedBy: { select: { id: true, name: true } },
+              escalatedTo: { select: { id: true, name: true } },
+            },
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+      });
+
+      return res.json(parseComplaintRecord(await enrichComplaintFlatContext(complaint)));
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to update complaint category' });
     }
   },
 );
@@ -690,7 +816,7 @@ router.patch(
         resolution: req.body.resolution,
       });
 
-      return res.json(parseComplaintRecord(complaint));
+      return res.json(parseComplaintRecord(await enrichComplaintFlatContext(complaint)));
     } catch (error) {
       return res.status(500).json({ error: 'Failed to update complaint note' });
     }
@@ -820,7 +946,7 @@ router.post(
         }).catch(() => {});
       }
 
-      return res.json(parseComplaintRecord(complaint));
+      return res.json(parseComplaintRecord(await enrichComplaintFlatContext(complaint)));
     } catch (error) {
       return res.status(500).json({ error: 'Failed to apply complaint action' });
     }
@@ -969,7 +1095,7 @@ router.post(
         }).catch(() => {});
       }
 
-      return res.json(parseComplaintRecord(updatedComplaint));
+      return res.json(parseComplaintRecord(await enrichComplaintFlatContext(updatedComplaint)));
     } catch (error) {
       return res.status(500).json({ error: 'Failed to escalate complaint' });
     }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { MessageSquareWarning, Plus, MessageCircle, AlertTriangle, ImageIcon, X } from 'lucide-react';
+import { MessageSquareWarning, Plus, MessageCircle, AlertTriangle, ImageIcon, Pencil, X } from 'lucide-react';
 import { getApiBaseUrl } from '../../lib/platform';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -10,7 +10,7 @@ import Modal from '../../components/ui/Modal';
 import { getDefaultComplaintCategoryForUser, isNonSecurityServiceStaff } from '../../lib/serviceStaff';
 import { useAuthStore } from '../../store/authStore';
 import { isOwnerViewActive } from '../../lib/ownerView';
-import type { Complaint, ComplaintAssigneeOption } from '../../types';
+import type { Complaint, ComplaintAssigneeOption, Flat } from '../../types';
 
 const CATEGORIES = ['Plumbing', 'Electrical', 'Civil', 'Lift', 'Parking', 'Security', 'Cleaning', 'Noise', 'Other'];
 
@@ -197,6 +197,27 @@ const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2 MB
 function CreateComplaintForm({ onSuccess }: { onSuccess: () => void }) {
   const [form, setForm] = useState({ title: '', description: '', category: 'Plumbing', priority: 'MEDIUM' });
   const [images, setImages] = useState<File[]>([]);
+  const { user } = useAuthStore();
+  const activeSocietyId = user?.activeSocietyId || user?.societyId || '';
+
+  const { data: myFlat } = useQuery<Flat | null>({
+    queryKey: ['complaint-create-flat', activeSocietyId || 'no-society'],
+    queryFn: async () => {
+      try {
+        const searchParams = new URLSearchParams();
+        if (activeSocietyId) {
+          searchParams.set('societyId', activeSocietyId);
+        }
+
+        const query = searchParams.toString();
+        return (await api.get(`/flats/my-flat${query ? `?${query}` : ''}`)).data;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!user,
+    staleTime: 60_000,
+  });
 
   const mutation = useMutation({
     mutationFn: (formData: FormData) => api.post('/complaints', formData, {
@@ -233,6 +254,9 @@ function CreateComplaintForm({ onSuccess }: { onSuccess: () => void }) {
     formData.append('description', form.description);
     formData.append('category', form.category);
     formData.append('priority', form.priority);
+    if (myFlat?.id) {
+      formData.append('flatId', myFlat.id);
+    }
     images.forEach((img) => formData.append('images', img));
     mutation.mutate(formData);
   };
@@ -302,6 +326,9 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
   const [resolution, setResolution] = useState('');
   const [comment, setComment] = useState('');
   const [selectedAssigneeId, setSelectedAssigneeId] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState(complaint.category);
+  const [isEditingCategory, setIsEditingCategory] = useState(false);
+  const [isEditingAssignee, setIsEditingAssignee] = useState(false);
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const isManager = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'] as string[]).includes(user?.role || '');
@@ -327,11 +354,18 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
   const isRequester = activeComplaint.createdById === user?.id;
   const isAssignedCommitteeReviewer = isCommitteeMember && activeComplaint.assignedToId === user?.id;
   const canAssignComplaint = isManager || isAssignedCommitteeReviewer;
+  const canEditCategory = isManager || activeComplaint.assignedToId === user?.id;
   const assignedServiceStaff = activeComplaint.assignedTo?.role === 'SERVICE_STAFF' ? activeComplaint.assignedTo : null;
 
   useEffect(() => {
     setSelectedAssigneeId(activeComplaint.assignedToId || '');
+    setIsEditingAssignee(false);
   }, [activeComplaint.assignedToId, activeComplaint.id]);
+
+  useEffect(() => {
+    setSelectedCategory(activeComplaint.category);
+    setIsEditingCategory(false);
+  }, [activeComplaint.category, activeComplaint.id]);
 
   const canEscalate = isRequester || canUpdateStatus;
   const actionButtons = useMemo(
@@ -341,8 +375,8 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
   const activityTimeline = activeComplaint.activities || [];
 
   const { data: assigneeOptions = [] } = useQuery<ComplaintAssigneeOption[]>({
-    queryKey: ['complaint-assignees', user?.role],
-    queryFn: async () => (await api.get('/complaints/assignees')).data,
+    queryKey: ['complaint-assignees', user?.role, activeComplaint.category],
+    queryFn: async () => (await api.get('/complaints/assignees', { params: { category: activeComplaint.category } })).data,
     enabled: canAssignComplaint,
     staleTime: 60_000,
   });
@@ -380,6 +414,20 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save case note'),
   });
 
+  const categoryMutation = useMutation({
+    mutationFn: (category: string) => api.patch(`/complaints/${complaint.id}/category`, { category }),
+    onSuccess: () => {
+      toast.success('Complaint category updated');
+      setIsEditingCategory(false);
+      setSelectedAssigneeId('');
+      queryClient.invalidateQueries({ queryKey: ['complaint', complaint.id] });
+      queryClient.invalidateQueries({ queryKey: ['complaints'] });
+      queryClient.invalidateQueries({ queryKey: ['complaint-assignees'] });
+      onUpdate();
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to update complaint category'),
+  });
+
   const commentMutation = useMutation({
     mutationFn: (content: string) => api.post(`/complaints/${complaint.id}/comments`, { content }),
     onSuccess: () => {
@@ -394,16 +442,125 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
 
   const assigneeAction = activeComplaint.assignedToId ? 'REASSIGN' : 'ASSIGN';
   const isAssigneeSelectionUnchanged = selectedAssigneeId === (activeComplaint.assignedToId || '');
+  const busy = actionMutation.isPending || escalationMutation.isPending || noteMutation.isPending || categoryMutation.isPending;
 
   return (
     <div className="space-y-5">
       <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm sm:grid-cols-2">
-        <div><span className="text-on-surface-variant">Category:</span> <span className="font-medium">{activeComplaint.category}</span></div>
+        <div>
+          <span className="text-on-surface-variant">Category:</span>{' '}
+          {!isEditingCategory ? (
+            <span className="inline-flex items-center gap-2">
+              <span className="font-medium">{activeComplaint.category}</span>
+              {activeComplaint.flat ? (
+                <span className="text-xs text-slate-500">
+                  {activeComplaint.flat.block?.name ? `${activeComplaint.flat.block.name} - ` : ''}
+                  {activeComplaint.flat.flatNumber}
+                </span>
+              ) : null}
+              {canEditCategory ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
+                  onClick={() => setIsEditingCategory(true)}
+                  disabled={busy}
+                  aria-label="Edit category"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </span>
+          ) : (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <select
+                className="select h-9 min-w-[180px] py-1"
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                disabled={categoryMutation.isPending}
+              >
+                {CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+              </select>
+              <button
+                type="button"
+                className="inline-flex items-center rounded-lg border border-blue-600 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+                onClick={() => categoryMutation.mutate(selectedCategory)}
+                disabled={categoryMutation.isPending || selectedCategory === activeComplaint.category}
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                onClick={() => {
+                  setSelectedCategory(activeComplaint.category);
+                  setIsEditingCategory(false);
+                }}
+                disabled={categoryMutation.isPending}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
         <div><span className="text-on-surface-variant">Priority:</span> <span className={cn('badge ml-2', getStatusColor(activeComplaint.priority))}>{activeComplaint.priority}</span></div>
         <div><span className="text-on-surface-variant">Created by:</span> <span className="font-medium">{activeComplaint.createdBy?.name}</span></div>
         <div><span className="text-on-surface-variant">Date:</span> <span className="font-medium">{formatDate(activeComplaint.createdAt)}</span></div>
         <div><span className="text-on-surface-variant">Current status:</span> <span className={cn('badge ml-2', getStatusColor(activeComplaint.status))}>{activeComplaint.status.replace('_', ' ')}</span></div>
-        <div><span className="text-on-surface-variant">Current owner:</span> <span className="font-medium">{activeComplaint.assignedTo?.name || 'Unassigned'}</span></div>
+        <div>
+          <span className="text-on-surface-variant">Current owner:</span>{' '}
+          {!isEditingAssignee ? (
+            <span className="inline-flex items-center gap-2">
+              <span className="font-medium">{activeComplaint.assignedTo?.name || 'Unassigned'}</span>
+              {canAssignComplaint ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
+                  onClick={() => setIsEditingAssignee(true)}
+                  disabled={busy}
+                  aria-label="Edit current owner"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </span>
+          ) : (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <select
+                className="select min-w-[220px]"
+                value={selectedAssigneeId}
+                onChange={(e) => setSelectedAssigneeId(e.target.value)}
+              >
+                <option value="">Select a team member</option>
+                {assigneeOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {formatAssigneeOption(option)}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="inline-flex items-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                onClick={() => actionMutation.mutate({ action: assigneeAction, assignedToId: selectedAssigneeId }, {
+                  onSuccess: () => setIsEditingAssignee(false),
+                })}
+                disabled={busy || !selectedAssigneeId || isAssigneeSelectionUnchanged}
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                onClick={() => {
+                  setSelectedAssigneeId(activeComplaint.assignedToId || '');
+                  setIsEditingAssignee(false);
+                }}
+                disabled={busy}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
         {activeComplaint.closureRequestedAt ? <div><span className="text-on-surface-variant">Awaiting resident confirmation:</span> <span className="font-medium">{formatDate(activeComplaint.closureRequestedAt)}</span></div> : null}
         {activeComplaint.closedAt ? <div><span className="text-on-surface-variant">Closed at:</span> <span className="font-medium">{formatDate(activeComplaint.closedAt)}</span></div> : null}
       </div>
@@ -469,26 +626,26 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
                       ? 'border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
                       : 'border border-blue-600 bg-white text-blue-600 hover:bg-blue-50'
                 )}
-                  onClick={() => actionMutation.mutate({ action: action.action, resolution: resolution.trim() || undefined })}
-                      disabled={actionMutation.isPending || escalationMutation.isPending || noteMutation.isPending || activeComplaint.status === action.status}
+                onClick={() => actionMutation.mutate({ action: action.action, resolution: resolution.trim() || undefined })}
+                disabled={busy || activeComplaint.status === action.status}
               >
                 {action.label}
               </button>
             ))}
-              {canEscalate ? (
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-100"
-                  onClick={() => escalationMutation.mutate({ reason: resolution.trim() || 'Manual escalation requested' })}
-                  disabled={actionMutation.isPending || escalationMutation.isPending || noteMutation.isPending}
-                >
-                  Escalate
-                </button>
-              ) : null}
+            {canEscalate ? (
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-100"
+                onClick={() => escalationMutation.mutate({ reason: resolution.trim() || 'Manual escalation requested' })}
+                disabled={busy}
+              >
+                Escalate
+              </button>
+            ) : null}
           </div>
 
           <div>
-              <label className="label">Case note</label>
+            <label className="label">Case note</label>
             <textarea
               className="input min-h-[96px]"
               value={resolution}
@@ -502,53 +659,13 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
               type="button"
               className="inline-flex items-center gap-2 rounded-lg border border-blue-600 bg-white px-3 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-50"
               onClick={() => noteMutation.mutate({ resolution: resolution.trim() })}
-              disabled={actionMutation.isPending || escalationMutation.isPending || noteMutation.isPending || resolution.trim() === (activeComplaint.resolution || '').trim()}
+              disabled={busy || resolution.trim() === (activeComplaint.resolution || '').trim()}
             >
               Save Note
             </button>
           </div>
         </div>
       )}
-
-      {canAssignComplaint ? (
-        <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
-          <div>
-            <h4 className="font-semibold text-slate-900">Assignment</h4>
-            <p className="mt-1 text-sm text-slate-500">
-              {isAssignedCommitteeReviewer
-                ? 'Review the complaint and route it to the appropriate service staff.'
-                : 'Assign this complaint to a reviewer or service staff member.'}
-            </p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-            <div>
-              <label className="label">Assign to</label>
-              <select
-                className="select"
-                value={selectedAssigneeId}
-                onChange={(e) => setSelectedAssigneeId(e.target.value)}
-              >
-                <option value="">Select a team member</option>
-                {assigneeOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {formatAssigneeOption(option)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              type="button"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-              onClick={() => actionMutation.mutate({ action: assigneeAction, assignedToId: selectedAssigneeId })}
-              disabled={actionMutation.isPending || escalationMutation.isPending || noteMutation.isPending || !selectedAssigneeId || isAssigneeSelectionUnchanged}
-            >
-              {activeComplaint.assignedToId ? 'Reassign Complaint' : 'Assign Complaint'}
-            </button>
-          </div>
-        </div>
-      ) : null}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <div className="flex items-center justify-between gap-3">
