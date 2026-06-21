@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BellRing, CalendarDays, Car, CheckCheck, CheckCircle2, Clock3, History, LogOut, MapPin, Megaphone, Package, Pencil, Phone, Pin, Plus, RotateCcw, ShieldCheck, Trash2, UserRound, XCircle } from 'lucide-react';
+import { BellRing, CalendarDays, Car, CheckCheck, CheckCircle2, Clock3, ExternalLink, History, LogOut, MapPin, Megaphone, Package, Pencil, Phone, Pin, Plus, RotateCcw, ShieldCheck, Trash2, UserRound, XCircle } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import Modal from '../../components/ui/Modal';
@@ -8,7 +8,7 @@ import { EmptyState, PageLoader } from '../../components/ui/Loader';
 import api from '../../lib/api';
 import { getDisplayUserForView, isOwnerViewActive } from '../../lib/ownerView';
 import { cn } from '../../lib/utils';
-import { formatDateTime, getStatusColor } from '../../lib/utils';
+import { formatCurrency, formatDate, formatDateTime, getStatusColor } from '../../lib/utils';
 import { useAuthStore } from '../../store/authStore';
 import { SOCIETY_MANAGERS, type Announcement, type ApprovalRequest, type Delivery, type SocietyEvent, type Visitor } from '../../types';
 import { AnnouncementForm } from '../announcements/AnnouncementsPage';
@@ -135,6 +135,93 @@ function getInitials(name?: string): string {
     .slice(0, 2)
     .map((part) => part.charAt(0).toUpperCase())
     .join('');
+}
+
+function getStringField(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function getNumberField(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return null;
+}
+
+function getVehicleRows(value: unknown) {
+  if (!Array.isArray(value)) return [] as Array<{ type: string; registrationNumber: string }>;
+  return value
+    .map((vehicle) => ({
+      type: getStringField((vehicle as { type?: unknown }).type)?.replace(/_/g, ' ') || '',
+      registrationNumber: getStringField((vehicle as { registrationNumber?: unknown }).registrationNumber) || '',
+    }))
+    .filter((vehicle) => vehicle.type && vehicle.registrationNumber);
+}
+
+function ApprovalDataRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-2">
+      <span className="text-sm text-slate-500">{label}</span>
+      <span className="text-right text-sm font-medium text-slate-900">{value}</span>
+    </div>
+  );
+}
+
+function ApprovalRequestDetails({ approval }: { approval: ApprovalRequest }) {
+  const pendingData = approval.pendingData || {};
+  const registrationVehicles = getVehicleRows(pendingData.vehicles);
+  const agreementDocumentUrl = getStringField(pendingData.agreementDocumentUrl);
+
+  if (approval.actionType === 'TENANT_REGISTRATION') {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Submitted Tenant Details</p>
+        <div className="mt-3 divide-y divide-slate-200">
+          <ApprovalDataRow label="Name" value={getStringField(pendingData.name) || '—'} />
+          <ApprovalDataRow label="Phone" value={getStringField(pendingData.phone) || '—'} />
+          <ApprovalDataRow label="Email" value={getStringField(pendingData.email) || '—'} />
+          <ApprovalDataRow label="Lease Start" value={getStringField(pendingData.leaseStart) ? formatDate(getStringField(pendingData.leaseStart) as string) : '—'} />
+          <ApprovalDataRow label="Lease End" value={getStringField(pendingData.leaseEnd) ? formatDate(getStringField(pendingData.leaseEnd) as string) : '—'} />
+          <ApprovalDataRow label="Rent Amount" value={getNumberField(pendingData.rentAmount) != null ? formatCurrency(getNumberField(pendingData.rentAmount) as number) : '—'} />
+          <ApprovalDataRow label="Deposit" value={getNumberField(pendingData.deposit) != null ? formatCurrency(getNumberField(pendingData.deposit) as number) : '—'} />
+          <ApprovalDataRow
+            label="Agreement Document"
+            value={agreementDocumentUrl ? (
+              <a
+                href={agreementDocumentUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-blue-700 hover:underline"
+              >
+                <ExternalLink className="h-4 w-4" />
+                View Document
+              </a>
+            ) : '—'}
+          />
+          <ApprovalDataRow
+            label="Vehicles"
+            value={registrationVehicles.length > 0 ? registrationVehicles.map((vehicle) => `${vehicle.type} - ${vehicle.registrationNumber}`).join(', ') : '—'}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Requested Profile Changes</p>
+      <div className="mt-3 divide-y divide-slate-200">
+        <ApprovalDataRow label="Occupation" value={getStringField(pendingData.occupation) || '—'} />
+        <ApprovalDataRow label="Adults" value={getNumberField(pendingData.householdAdults) ?? '—'} />
+        <ApprovalDataRow label="Kids" value={getNumberField(pendingData.householdKids) ?? '—'} />
+        <ApprovalDataRow label="Seniors" value={getNumberField(pendingData.householdSeniors) ?? '—'} />
+        <ApprovalDataRow label="Pets" value={getStringField(pendingData.pets) || '—'} />
+        <ApprovalDataRow
+          label="Vehicles"
+          value={registrationVehicles.length > 0 ? registrationVehicles.map((vehicle) => `${vehicle.type} - ${vehicle.registrationNumber}`).join(', ') : '—'}
+        />
+      </div>
+    </div>
+  );
 }
 
 export default function CommunityPage() {
@@ -818,6 +905,7 @@ export default function CommunityPage() {
                 Flat: {viewApproval.flat.block?.name ? `${viewApproval.flat.block.name} - ` : ''}{viewApproval.flat.flatNumber}
               </div>
             ) : null}
+            <ApprovalRequestDetails approval={viewApproval} />
           </div>
         ) : null}
       </Modal>
