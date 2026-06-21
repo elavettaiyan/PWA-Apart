@@ -143,7 +143,10 @@ export default function MyFlatPage() {
         {isAdminWithoutFlat ? (
           <Link
             to="/flats"
-            className="mt-4 inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+            className={cn(
+              'mt-4 inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900 transition hover:-translate-y-0.5 hover:border-primary/25 hover:text-primary hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)]',
+              SHELL_CARD_CLASS,
+            )}
           >
             Open Flats & Residents
           </Link>

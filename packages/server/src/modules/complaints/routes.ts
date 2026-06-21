@@ -10,12 +10,20 @@ const router = Router();
 router.use(authenticate);
 
 const COMPLAINT_CATEGORY_BY_SPECIALIZATION: Record<string, string> = {
+  Plumbing: 'Plumbing',
   Plumber: 'Plumbing',
+  Electrical: 'Electrical',
   Electrician: 'Electrical',
+  Cleaning: 'Cleaning',
   Cleaner: 'Cleaning',
+  Lift: 'Lift',
   'Lift Operator': 'Lift',
+  Civil: 'Civil',
   Carpenter: 'Civil',
   Security: 'Security',
+  Gardening: 'Gardening',
+  Gardener: 'Gardening',
+  Other: 'Other',
 };
 
 const COMPLAINT_STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REJECTED'] as const;
@@ -120,10 +128,19 @@ function getComplaintAssignableRoles(role?: string) {
 }
 
 function getSpecializationForComplaintCategory(category?: string | null) {
-  if (!category) return null;
+  return getSpecializationsForComplaintCategory(category)[0] || null;
+}
 
-  const entry = Object.entries(COMPLAINT_CATEGORY_BY_SPECIALIZATION).find(([, mappedCategory]) => mappedCategory === category);
-  return entry?.[0] || null;
+function getComplaintCategoryForSpecialization(specialization?: string | null) {
+  return COMPLAINT_CATEGORY_BY_SPECIALIZATION[specialization || ''] || '';
+}
+
+function getSpecializationsForComplaintCategory(category?: string | null) {
+  if (!category) return [] as string[];
+
+  return Object.entries(COMPLAINT_CATEGORY_BY_SPECIALIZATION)
+    .filter(([, mappedCategory]) => mappedCategory === category)
+    .map(([specialization]) => specialization);
 }
 
 async function resolveComplaintActor(userId: string) {
@@ -462,7 +479,7 @@ router.get(
         });
 
         if (!req.query.category) {
-          serviceStaffCategory = COMPLAINT_CATEGORY_BY_SPECIALIZATION[serviceStaffUser?.specialization || ''] || '';
+          serviceStaffCategory = getComplaintCategoryForSpecialization(serviceStaffUser?.specialization || '');
         }
 
         where.OR = [
@@ -495,7 +512,7 @@ router.get('/assignees', async (req: AuthRequest, res: Response) => {
   try {
     const assignableRoles = getComplaintAssignableRoles(req.user!.role);
     const requestedCategory = typeof req.query.category === 'string' ? req.query.category.trim() : '';
-    const matchingSpecialization = getSpecializationForComplaintCategory(requestedCategory);
+    const matchingSpecializations = getSpecializationsForComplaintCategory(requestedCategory);
 
     if (!req.user!.societyId || assignableRoles.length === 0) {
       return res.json([]);
@@ -511,7 +528,7 @@ router.get('/assignees', async (req: AuthRequest, res: Response) => {
           ? {
               OR: [
                 { role: { not: 'SERVICE_STAFF' as any } },
-                ...(matchingSpecialization ? [{ role: 'SERVICE_STAFF' as any, specialization: matchingSpecialization }] : []),
+                ...(matchingSpecializations.length > 0 ? [{ role: 'SERVICE_STAFF' as any, specialization: { in: matchingSpecializations } }] : []),
               ],
             }
           : {}),
@@ -570,7 +587,7 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
         where: { id: req.user!.id },
         select: { specialization: true },
       });
-      const allowedCategory = COMPLAINT_CATEGORY_BY_SPECIALIZATION[serviceStaffUser?.specialization || ''] || '';
+      const allowedCategory = getComplaintCategoryForSpecialization(serviceStaffUser?.specialization || '');
       const canAccessComplaint = complaint.assignedToId === req.user!.id
         || complaint.createdById === req.user!.id
         || (!!allowedCategory && complaint.category === allowedCategory);

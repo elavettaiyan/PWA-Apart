@@ -7,12 +7,10 @@ import api from '../../lib/api';
 import { getStatusColor, formatDate, cn } from '../../lib/utils';
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
-import { getDefaultComplaintCategoryForUser, isNonSecurityServiceStaff } from '../../lib/serviceStaff';
+import { COMPLAINT_CATEGORIES, getDefaultComplaintCategoryForUser, isNonSecurityServiceStaff } from '../../lib/serviceStaff';
 import { useAuthStore } from '../../store/authStore';
 import { isOwnerViewActive } from '../../lib/ownerView';
 import type { Complaint, ComplaintAssigneeOption, Flat } from '../../types';
-
-const CATEGORIES = ['Plumbing', 'Electrical', 'Civil', 'Lift', 'Parking', 'Security', 'Cleaning', 'Noise', 'Other'];
 
 export default function ComplaintsPage() {
   const [showCreate, setShowCreate] = useState(false);
@@ -271,7 +269,7 @@ function CreateComplaintForm({ onSuccess }: { onSuccess: () => void }) {
         <div>
           <label className="label">Category</label>
           <select className="select" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            {COMPLAINT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
         <div>
@@ -367,7 +365,6 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
     setIsEditingCategory(false);
   }, [activeComplaint.category, activeComplaint.id]);
 
-  const canEscalate = isRequester || canUpdateStatus;
   const actionButtons = useMemo(
     () => getComplaintActions(activeComplaint.status, { canManage: canUpdateStatus, isRequester }),
     [activeComplaint.status, canUpdateStatus, isRequester]
@@ -390,17 +387,6 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
       onUpdate();
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
-  });
-
-  const escalationMutation = useMutation({
-    mutationFn: (data: any) => api.post(`/complaints/${complaint.id}/escalate`, data),
-    onSuccess: () => {
-      toast.success('Complaint escalated');
-      queryClient.invalidateQueries({ queryKey: ['complaint', complaint.id] });
-      queryClient.invalidateQueries({ queryKey: ['complaints'] });
-      onUpdate();
-    },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to escalate complaint'),
   });
 
   const noteMutation = useMutation({
@@ -442,7 +428,7 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
 
   const assigneeAction = activeComplaint.assignedToId ? 'REASSIGN' : 'ASSIGN';
   const isAssigneeSelectionUnchanged = selectedAssigneeId === (activeComplaint.assignedToId || '');
-  const busy = actionMutation.isPending || escalationMutation.isPending || noteMutation.isPending || categoryMutation.isPending;
+  const busy = actionMutation.isPending || noteMutation.isPending || categoryMutation.isPending;
 
   return (
     <div className="space-y-5">
@@ -478,7 +464,7 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
                 onChange={(e) => setSelectedCategory(e.target.value)}
                 disabled={categoryMutation.isPending}
               >
-                {CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+                {COMPLAINT_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
               </select>
               <button
                 type="button"
@@ -632,16 +618,6 @@ function ComplaintDetail({ complaint, onUpdate }: { complaint: Complaint; onUpda
                 {action.label}
               </button>
             ))}
-            {canEscalate ? (
-              <button
-                type="button"
-                className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-100"
-                onClick={() => escalationMutation.mutate({ reason: resolution.trim() || 'Manual escalation requested' })}
-                disabled={busy}
-              >
-                Escalate
-              </button>
-            ) : null}
           </div>
 
           <div>

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, UserCog, Phone, Mail, Wrench } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
+import { SERVICE_STAFF_SPECIALIZATIONS } from '../../lib/serviceStaff';
 import { PageLoader } from '../ui/Loader';
 import { cn } from '../../lib/utils';
 
@@ -15,8 +16,6 @@ type StaffMember = {
   isActive: boolean;
   createdAt: string;
 };
-
-const SPECIALIZATIONS = ['Electrician', 'Plumber', 'Carpenter', 'Cleaner', 'Security', 'Gardener', 'Lift Operator', 'Other'];
 
 export default function ManageStaffPanel({ embedded = false }: { embedded?: boolean }) {
   const [showCreate, setShowCreate] = useState(false);
@@ -110,7 +109,7 @@ function CreateStaffForm({
           <label className="label">Specialization</label>
           <select className="select" value={form.specialization} onChange={(e) => setForm({ ...form, specialization: e.target.value })}>
             <option value="">Select...</option>
-            {SPECIALIZATIONS.map((specialization) => <option key={specialization} value={specialization}>{specialization}</option>)}
+            {SERVICE_STAFF_SPECIALIZATIONS.map((specialization) => <option key={specialization} value={specialization}>{specialization}</option>)}
           </select>
         </div>
         <div className="sm:col-span-2">
