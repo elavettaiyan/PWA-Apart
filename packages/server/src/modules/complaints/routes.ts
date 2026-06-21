@@ -4,7 +4,7 @@ import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest, SOCIETY_MANAGERS, RESIDENT_ROLES } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import { upload, getFileUrl } from '../../middleware/upload';
-import { notifyNewComplaint } from '../notifications/service';
+import { notifyComplaintAssignment, notifyComplaintEscalated, notifyComplaintStatusChanged, notifyNewComplaint } from '../notifications/service';
 
 const router = Router();
 router.use(authenticate);
@@ -549,6 +549,24 @@ router.patch(
         resolution: req.body.resolution,
       });
 
+      const actorName = user?.name || 'Unknown User';
+      if (req.body.assignedToId && req.body.assignedToId !== existing.assignedToId) {
+        notifyComplaintAssignment({
+          complaintId: complaint.id,
+          actorName,
+          action: existing.assignedToId ? 'REASSIGN' : 'ASSIGN',
+        }).catch(() => {});
+      }
+
+      if (existing.status !== complaint.status) {
+        notifyComplaintStatusChanged({
+          complaintId: complaint.id,
+          actorName,
+          fromStatus: existing.status,
+          toStatus: complaint.status,
+        }).catch(() => {});
+      }
+
       return res.json(parseComplaintRecord(complaint));
     } catch (error) {
       return res.status(500).json({ error: 'Failed to update complaint' });
@@ -682,6 +700,24 @@ router.post(
         markClosureConfirmed: action === 'CLOSE',
       });
 
+      const actorName = actor?.name || 'Unknown User';
+      if (req.body.assignedToId && req.body.assignedToId !== existing.assignedToId) {
+        notifyComplaintAssignment({
+          complaintId: complaint.id,
+          actorName,
+          action: action === 'REASSIGN' ? 'REASSIGN' : 'ASSIGN',
+        }).catch(() => {});
+      }
+
+      if (existing.status !== complaint.status) {
+        notifyComplaintStatusChanged({
+          complaintId: complaint.id,
+          actorName,
+          fromStatus: existing.status,
+          toStatus: complaint.status,
+        }).catch(() => {});
+      }
+
       return res.json(parseComplaintRecord(complaint));
     } catch (error) {
       return res.status(500).json({ error: 'Failed to apply complaint action' });
@@ -806,6 +842,29 @@ router.post(
 
         return reassignedComplaint;
       });
+
+      notifyComplaintEscalated({
+        complaintId: updatedComplaint.id,
+        actorName: actor?.name || 'Unknown User',
+        targetLevel: derivedLevel,
+      }).catch(() => {});
+
+      if (complaint.assignedToId !== updatedComplaint.assignedToId) {
+        notifyComplaintAssignment({
+          complaintId: updatedComplaint.id,
+          actorName: actor?.name || 'Unknown User',
+          action: 'ESCALATE_ASSIGN',
+        }).catch(() => {});
+      }
+
+      if (complaint.status !== updatedComplaint.status) {
+        notifyComplaintStatusChanged({
+          complaintId: updatedComplaint.id,
+          actorName: actor?.name || 'Unknown User',
+          fromStatus: complaint.status,
+          toStatus: updatedComplaint.status,
+        }).catch(() => {});
+      }
 
       return res.json(parseComplaintRecord(updatedComplaint));
     } catch (error) {

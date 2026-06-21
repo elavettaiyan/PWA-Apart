@@ -991,12 +991,13 @@ function ResidentPhotoField({
   onSelectFile: (file: File) => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const resolvedPhotoUrl = resolveUploadedFileUrl(photoUrl);
 
   return (
     <div className="flex flex-col items-center gap-3">
       <div className="relative">
-        {photoUrl ? (
-          <img src={photoUrl} alt={name} className="h-24 w-24 rounded-full border-2 border-slate-200 object-cover" />
+        {resolvedPhotoUrl ? (
+          <img src={resolvedPhotoUrl} alt={name} className="h-24 w-24 rounded-full border-2 border-slate-200 object-cover" />
         ) : (
           <div className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-slate-200 bg-slate-100 text-slate-500">
             <UserRound className="h-10 w-10" />

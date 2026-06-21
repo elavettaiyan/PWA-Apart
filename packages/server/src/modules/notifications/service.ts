@@ -384,6 +384,127 @@ export async function notifyNewComplaint(complaintId: string) {
   });
 }
 
+async function getComplaintNotificationContext(complaintId: string) {
+  const complaint = await prisma.complaint.findUnique({
+    where: { id: complaintId },
+    include: {
+      createdBy: { select: { id: true, name: true } },
+      assignedTo: { select: { id: true, name: true } },
+      flat: { select: { flatNumber: true, block: { select: { name: true } } } },
+    },
+  });
+
+  if (!complaint) {
+    return null;
+  }
+
+  const location = complaint.flat
+    ? `${complaint.flat.block?.name ? `${complaint.flat.block.name} ` : ''}${complaint.flat.flatNumber}`.trim()
+    : 'Resident complaint';
+
+  return { complaint, location };
+}
+
+export async function notifyComplaintAssignment(input: {
+  complaintId: string;
+  actorName: string;
+  action: 'ASSIGN' | 'REASSIGN' | 'ESCALATE_ASSIGN';
+}) {
+  const context = await getComplaintNotificationContext(input.complaintId);
+  if (!context) {
+    return { configured: false, sentCount: 0, failedCount: 0, skipped: true };
+  }
+
+  const { complaint, location } = context;
+  const recipientIds = normalizeUserIds([
+    complaint.createdById,
+    complaint.assignedToId || '',
+  ]);
+
+  const title = input.action === 'REASSIGN'
+    ? 'Complaint reassigned'
+    : input.action === 'ESCALATE_ASSIGN'
+      ? 'Complaint escalated'
+      : 'Complaint assigned';
+
+  const body = complaint.assignedTo?.name
+    ? `${location}: ${complaint.title} is now assigned to ${complaint.assignedTo.name} by ${input.actorName}.`
+    : `${location}: ${complaint.title} assignment was updated by ${input.actorName}.`;
+
+  return sendPushToSocietyUsers(complaint.societyId, recipientIds, {
+    title,
+    body,
+    path: '/complaints',
+    route: '/complaints',
+    type: 'complaint.assigned',
+    entityId: complaint.id,
+  });
+}
+
+export async function notifyComplaintStatusChanged(input: {
+  complaintId: string;
+  actorName: string;
+  fromStatus: string;
+  toStatus: string;
+}) {
+  const context = await getComplaintNotificationContext(input.complaintId);
+  if (!context) {
+    return { configured: false, sentCount: 0, failedCount: 0, skipped: true };
+  }
+
+  const { complaint, location } = context;
+  const recipientIds = normalizeUserIds([
+    complaint.createdById,
+    complaint.assignedToId || '',
+  ]);
+
+  const titleMap: Record<string, string> = {
+    IN_PROGRESS: 'Complaint in progress',
+    RESOLVED: 'Complaint resolved',
+    CLOSED: 'Complaint closed',
+    OPEN: 'Complaint reopened',
+    REJECTED: 'Complaint rejected',
+  };
+
+  const title = titleMap[input.toStatus] || 'Complaint updated';
+  const body = `${location}: ${complaint.title} changed from ${input.fromStatus} to ${input.toStatus} by ${input.actorName}.`;
+
+  return sendPushToSocietyUsers(complaint.societyId, recipientIds, {
+    title,
+    body,
+    path: '/complaints',
+    route: '/complaints',
+    type: 'complaint.status',
+    entityId: complaint.id,
+  });
+}
+
+export async function notifyComplaintEscalated(input: {
+  complaintId: string;
+  actorName: string;
+  targetLevel: 'MANAGER' | 'PRESIDENT';
+}) {
+  const context = await getComplaintNotificationContext(input.complaintId);
+  if (!context) {
+    return { configured: false, sentCount: 0, failedCount: 0, skipped: true };
+  }
+
+  const { complaint, location } = context;
+  const recipientIds = normalizeUserIds([
+    complaint.createdById,
+    complaint.assignedToId || '',
+  ]);
+
+  return sendPushToSocietyUsers(complaint.societyId, recipientIds, {
+    title: 'Complaint escalated',
+    body: `${location}: ${complaint.title} was escalated to ${input.targetLevel.toLowerCase()} level by ${input.actorName}.`,
+    path: '/complaints',
+    route: '/complaints',
+    type: 'complaint.escalated',
+    entityId: complaint.id,
+  });
+}
+
 export async function notifyPaymentSuccess(paymentId: string) {
   const payment = await prisma.payment.findUnique({
     where: { id: paymentId },
