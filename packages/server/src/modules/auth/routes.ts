@@ -36,8 +36,8 @@ function buildSocietyScopedUserPayload(args: {
     activeSocietyId?: string | null;
     mustChangePassword?: boolean | null;
     skipAccountDeletionVerification?: boolean | null;
-    owners: Array<{ flat: any | null }>;
-    tenants: Array<{ flat: any | null }>;
+    owners: Array<{ flat: any | null; isActive?: boolean | null }>;
+    tenants: Array<{ flat: any | null; isActive?: boolean | null }>;
     societyMemberships: Array<{
       societyId: string;
       role: string;
@@ -48,8 +48,8 @@ function buildSocietyScopedUserPayload(args: {
   };
 }) {
   const activeSocietyId = args.user.activeSocietyId || args.user.societyId || args.user.societyMemberships[0]?.societyId || null;
-  const flatFromOwners = args.user.owners.find((owner) => owner.flat?.block?.societyId === activeSocietyId)?.flat || null;
-  const flatFromTenants = args.user.tenants.find((tenant) => tenant.flat?.block?.societyId === activeSocietyId)?.flat || null;
+  const flatFromOwners = args.user.owners.find((owner) => owner.isActive !== false && owner.flat?.block?.societyId === activeSocietyId)?.flat || null;
+  const flatFromTenants = args.user.tenants.find((tenant) => tenant.isActive !== false && tenant.flat?.block?.societyId === activeSocietyId)?.flat || null;
   const activeMembership = activeSocietyId
     ? args.user.societyMemberships.find((membership) => membership.societyId === activeSocietyId)
     : null;
@@ -653,8 +653,8 @@ router.post(
         });
       }
 
-      const flatFromOwners = user.owners.find((owner: any) => owner.flat?.block?.societyId === activeSocietyId)?.flat;
-      const flatFromTenants = user.tenants.find((tenant: any) => tenant.flat?.block?.societyId === activeSocietyId)?.flat;
+      const flatFromOwners = user.owners.find((owner: any) => owner.isActive !== false && owner.flat?.block?.societyId === activeSocietyId)?.flat;
+      const flatFromTenants = user.tenants.find((tenant: any) => tenant.isActive !== false && tenant.flat?.block?.societyId === activeSocietyId)?.flat;
 
       const societies = await prisma.userSocietyMembership.findMany({
         where: { userId: user.id },
@@ -897,11 +897,11 @@ router.post(
       const effectiveRole = membership.role;
       const [ownerFlat, tenantFlat] = await Promise.all([
         prisma.owner.findFirst({
-          where: { userId: req.user!.id, flat: { block: { societyId } } },
+          where: { userId: req.user!.id, isActive: true, flat: { block: { societyId } } },
           select: { flat: { include: { block: true } } },
         }),
         prisma.tenant.findFirst({
-          where: { userId: req.user!.id, flat: { block: { societyId } } },
+          where: { userId: req.user!.id, isActive: true, flat: { block: { societyId } } },
           select: { flat: { include: { block: true } } },
         }),
       ]);

@@ -372,6 +372,7 @@ router.get('/my-flat', [query('societyId').optional().isUUID(), query('year').op
     const owner = await prisma.owner.findFirst({
       where: {
         userId,
+        isActive: true,
         ...(selectedSocietyId ? { flat: { block: { societyId: selectedSocietyId } } } : {}),
       },
       include: {
@@ -387,6 +388,7 @@ router.get('/my-flat', [query('societyId').optional().isUUID(), query('year').op
     const tenant = await prisma.tenant.findFirst({
       where: {
         userId,
+        isActive: true,
         ...(selectedSocietyId ? { flat: { block: { societyId: selectedSocietyId } } } : {}),
       },
       include: {
@@ -400,7 +402,7 @@ router.get('/my-flat', [query('societyId').optional().isUUID(), query('year').op
 
     // Fallback for users whose active society does not currently have a flat link.
     const fallbackOwner = await prisma.owner.findFirst({
-      where: { userId },
+      where: { userId, isActive: true },
       include: {
         flat: {
           include: buildMyFlatInclude(selectedYear),
@@ -410,7 +412,7 @@ router.get('/my-flat', [query('societyId').optional().isUUID(), query('year').op
     if (fallbackOwner) return res.json(fallbackOwner.flat);
 
     const fallbackTenant = await prisma.tenant.findFirst({
-      where: { userId },
+      where: { userId, isActive: true },
       include: {
         flat: {
           include: buildMyFlatInclude(selectedYear),
