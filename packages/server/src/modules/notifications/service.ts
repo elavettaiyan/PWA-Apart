@@ -135,6 +135,7 @@ async function cleanupInvalidTokens(tokens: string[]) {
 
 function formatEventDateTime(date: Date) {
   return new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
     day: '2-digit',
     month: 'short',
     year: 'numeric',
