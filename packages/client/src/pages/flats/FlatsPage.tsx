@@ -64,6 +64,7 @@ const RESIDENT_ROLE_OPTIONS = [
   { value: 'SECRETARY', label: 'Secretary' },
   { value: 'JOINT_SECRETARY', label: 'Joint Secretary' },
   { value: 'TREASURER', label: 'Treasurer' },
+  { value: 'COMMITTEE_MEMBER', label: 'Committee Member' },
   { value: 'OWNER', label: 'Owner' },
 ];
 

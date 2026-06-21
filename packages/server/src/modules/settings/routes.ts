@@ -9,7 +9,7 @@ import logger from '../../config/logger';
 import { runMemberRemoval } from '../members/removal';
 import runLateFeeWorker from '../../jobs/lateFeeWorker';
 
-const ASSIGNABLE_ROLES = ['SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'SERVICE_STAFF'] as const;
+const ASSIGNABLE_ROLES = ['SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'COMMITTEE_MEMBER', 'OWNER', 'SERVICE_STAFF'] as const;
 const DEFAULT_ADMIN_ASSIGNMENT_TYPE = 'PRESIDENT';
 const TRANSFERABLE_ADMIN_ASSIGNMENT_TYPES = new Set(['TEMPORARY', 'PRESIDENT']);
 
@@ -20,6 +20,15 @@ const ROLE_LIMITS: Partial<Record<string, number>> = {
   JOINT_SECRETARY: 2,
   TREASURER: 1,
 };
+
+async function getCommitteeMemberLimit(societyId: string) {
+  const settings = await prisma.societySettings.findUnique({
+    where: { societyId },
+    select: { committeeMemberLimit: true },
+  });
+
+  return settings?.committeeMemberLimit ?? 0;
+}
 
 const router = Router();
 router.use(authenticate);
@@ -99,12 +108,13 @@ const MENU_CATALOG = [
   { id: 'settings', label: 'Settings', href: '/settings' },
 ] as const;
 
-const CONFIGURABLE_MENU_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT'] as const;
+const CONFIGURABLE_MENU_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'COMMITTEE_MEMBER', 'OWNER', 'TENANT'] as const;
 const ROLE_LABELS: Record<(typeof CONFIGURABLE_MENU_ROLES)[number], string> = {
   ADMIN: 'Admin',
   SECRETARY: 'Secretary',
   JOINT_SECRETARY: 'Joint Secretary',
   TREASURER: 'Treasurer',
+  COMMITTEE_MEMBER: 'Committee Member',
   OWNER: 'Owner',
   TENANT: 'Tenant',
 };
@@ -119,6 +129,7 @@ const BASELINE_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, MenuId[]> = {
   SECRETARY: ['dashboard', 'my-flat', 'billing', 'settings'],
   JOINT_SECRETARY: ['dashboard', 'my-flat', 'billing'],
   TREASURER: ['my-flat', 'billing', 'expenses', 'reports'],
+  COMMITTEE_MEMBER: ['dashboard'],
   OWNER: ['my-flat', 'billing'],
   TENANT: ['my-flat', 'billing'],
 };
@@ -128,6 +139,7 @@ const DEFAULT_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, MenuId[]> = {
   SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'assets', 'reports', 'settings'],
   JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'assets'],
   TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
+  COMMITTEE_MEMBER: ['dashboard', 'community', 'my-flat', 'complaints'],
   OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
   TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
 };
@@ -137,6 +149,7 @@ const ALLOWED_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, MenuId[]> = {
   SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'expenses', 'assets', 'reports', 'settings'],
   JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'expenses', 'assets', 'reports'],
   TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
+  COMMITTEE_MEMBER: ['dashboard', 'community', 'my-flat', 'complaints'],
   OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
   TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
 };
@@ -734,7 +747,7 @@ router.patch(
       }
 
       // Enforce role limits (only when assigning TO a limited role)
-      const limit = ROLE_LIMITS[newRole];
+      const limit = newRole === 'COMMITTEE_MEMBER' ? await getCommitteeMemberLimit(societyId) : ROLE_LIMITS[newRole];
       if (limit) {
         const currentCount = await prisma.userSocietyMembership.count({
           where: { societyId, role: newRole as any },
@@ -1124,6 +1137,7 @@ router.get('/society-settings', async (req: AuthRequest, res: Response) => {
           recurringLateFeeFrequency: 'MONTHLY',
           gracePeriodDays: 0,
           dueDay: 10,
+          committeeMemberLimit: 0,
           partialPaymentAllowed: true,
           advancePaymentAllowed: true,
           autoAdjustAdvance: true,
@@ -1136,6 +1150,7 @@ router.get('/society-settings', async (req: AuthRequest, res: Response) => {
 
     return res.json({
       ...settings,
+      committeeMemberLimit: settings.committeeMemberLimit ?? 0,
       forceOldestDueSettlement: true,
       manualBillSelection: false,
     });
@@ -1154,6 +1169,7 @@ router.put(
     body('recurringLateFeeFrequency').optional().isIn(['DAILY', 'MONTHLY']),
     body('gracePeriodDays').optional().isInt({ min: 0 }),
     body('dueDay').optional().isInt({ min: 1, max: 28 }),
+    body('committeeMemberLimit').optional().isInt({ min: 0 }),
     body('partialPaymentAllowed').optional().isBoolean(),
     body('advancePaymentAllowed').optional().isBoolean(),
     body('autoAdjustAdvance').optional().isBoolean(),
@@ -1173,6 +1189,7 @@ router.put(
         recurringLateFeeFrequency,
         gracePeriodDays,
         dueDay,
+        committeeMemberLimit,
         partialPaymentAllowed,
         advancePaymentAllowed,
         autoAdjustAdvance,
@@ -1189,6 +1206,7 @@ router.put(
           recurringLateFeeFrequency: recurringLateFeeFrequency ?? 'MONTHLY',
           gracePeriodDays: gracePeriodDays ?? 0,
           dueDay: dueDay ?? 10,
+          committeeMemberLimit: committeeMemberLimit ?? 0,
           partialPaymentAllowed: partialPaymentAllowed ?? true,
           advancePaymentAllowed: advancePaymentAllowed ?? true,
           autoAdjustAdvance: autoAdjustAdvance ?? true,
@@ -1203,6 +1221,7 @@ router.put(
           ...(recurringLateFeeFrequency !== undefined ? { recurringLateFeeFrequency } : {}),
           ...(gracePeriodDays !== undefined ? { gracePeriodDays } : {}),
           ...(dueDay !== undefined ? { dueDay } : {}),
+          ...(committeeMemberLimit !== undefined ? { committeeMemberLimit } : {}),
           ...(partialPaymentAllowed !== undefined ? { partialPaymentAllowed } : {}),
           ...(advancePaymentAllowed !== undefined ? { advancePaymentAllowed } : {}),
           ...(autoAdjustAdvance !== undefined ? { autoAdjustAdvance } : {}),

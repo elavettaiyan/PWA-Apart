@@ -1,6 +1,6 @@
 // ─── USER & AUTH ────────────────────────────────────────
 
-export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'SECRETARY' | 'JOINT_SECRETARY' | 'TREASURER' | 'OWNER' | 'TENANT' | 'SERVICE_STAFF';
+export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'SECRETARY' | 'JOINT_SECRETARY' | 'TREASURER' | 'COMMITTEE_MEMBER' | 'OWNER' | 'TENANT' | 'SERVICE_STAFF';
 export type AdminAssignmentType = 'TEMPORARY' | 'PRESIDENT';
 
 // Role group helpers
@@ -8,7 +8,7 @@ export const SOCIETY_ADMINS: Role[] = ['ADMIN', 'SECRETARY'];
 export const SOCIETY_MANAGERS: Role[] = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'];
 export const FINANCIAL_ROLES: Role[] = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'];
 export const RESIDENT_ROLES: Role[] = ['OWNER', 'TENANT'];
-export const ALL_SOCIETY_ROLES: Role[] = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT', 'SERVICE_STAFF'];
+export const ALL_SOCIETY_ROLES: Role[] = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'COMMITTEE_MEMBER', 'OWNER', 'TENANT', 'SERVICE_STAFF'];
 
 export type NavigationMenuId =
   | 'dashboard'
@@ -23,7 +23,7 @@ export type NavigationMenuId =
   | 'settings'
   | 'assets';
 
-export type ConfigurableMenuRole = 'ADMIN' | 'SECRETARY' | 'JOINT_SECRETARY' | 'TREASURER' | 'OWNER' | 'TENANT';
+export type ConfigurableMenuRole = 'ADMIN' | 'SECRETARY' | 'JOINT_SECRETARY' | 'TREASURER' | 'COMMITTEE_MEMBER' | 'OWNER' | 'TENANT';
 
 export interface RoleMenuVisibilityItem {
   id: NavigationMenuId;
@@ -101,6 +101,11 @@ export interface SocietySettings {
   id: string;
   societyId: string;
   lateFeeEnabled: boolean;
+  dueDay: number;
+  gracePeriodDays: number;
+  lateFeeMode?: 'PER_DAY' | 'ONE_TIME_PER_BILL' | 'RECURRING';
+  recurringLateFeeFrequency?: 'DAILY' | 'MONTHLY';
+  committeeMemberLimit: number;
   partialPaymentAllowed: boolean;
   advancePaymentAllowed: boolean;
   autoAdjustAdvance: boolean;

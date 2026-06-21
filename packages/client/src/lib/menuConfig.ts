@@ -23,13 +23,14 @@ export const NAVIGATION_MENU_CATALOG = [
   { id: 'settings', label: 'Settings', href: '/settings' },
 ] as const satisfies ReadonlyArray<{ id: NavigationMenuId; label: string; href: string }>;
 
-export const CONFIGURABLE_MENU_ROLES: ConfigurableMenuRole[] = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT'];
+export const CONFIGURABLE_MENU_ROLES: ConfigurableMenuRole[] = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'COMMITTEE_MEMBER', 'OWNER', 'TENANT'];
 
 const BASELINE_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, NavigationMenuId[]> = {
   ADMIN: ['dashboard', 'my-flat', 'billing', 'settings'],
   SECRETARY: ['dashboard', 'my-flat', 'billing', 'settings'],
   JOINT_SECRETARY: ['dashboard', 'my-flat', 'billing'],
   TREASURER: ['my-flat', 'billing', 'expenses', 'reports'],
+  COMMITTEE_MEMBER: ['dashboard'],
   OWNER: ['my-flat', 'billing'],
   TENANT: ['my-flat', 'billing'],
 };
@@ -39,6 +40,7 @@ const DEFAULT_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, NavigationMenuId[]>
   SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'assets', 'reports', 'settings'],
   JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'assets'],
   TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
+  COMMITTEE_MEMBER: ['dashboard', 'community', 'my-flat', 'complaints'],
   OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
   TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
 };
@@ -48,6 +50,7 @@ const ALLOWED_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, NavigationMenuId[]>
   SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'expenses', 'assets', 'reports', 'settings'],
   JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'expenses', 'assets', 'reports'],
   TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
+  COMMITTEE_MEMBER: ['dashboard', 'community', 'my-flat', 'complaints'],
   OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
   TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
 };
@@ -57,6 +60,7 @@ const ROLE_LABELS: Record<ConfigurableMenuRole, string> = {
   SECRETARY: 'Secretary',
   JOINT_SECRETARY: 'Joint Secretary',
   TREASURER: 'Treasurer',
+  COMMITTEE_MEMBER: 'Committee Member',
   OWNER: 'Owner',
   TENANT: 'Tenant',
 };

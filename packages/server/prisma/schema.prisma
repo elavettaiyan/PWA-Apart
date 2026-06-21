@@ -16,6 +16,7 @@ enum Role {
   SECRETARY
   JOINT_SECRETARY
   TREASURER
+  COMMITTEE_MEMBER
   OWNER
   TENANT
   SERVICE_STAFF
@@ -776,6 +777,7 @@ model SocietySettings {
   recurringLateFeeFrequency RecurringLateFeeFrequency @default(MONTHLY)
   gracePeriodDays         Int      @default(0)
   dueDay                  Int      @default(10)
+  committeeMemberLimit    Int      @default(0)
   partialPaymentAllowed   Boolean  @default(true)
   advancePaymentAllowed   Boolean  @default(true)
   autoAdjustAdvance       Boolean  @default(true)

@@ -21,7 +21,7 @@ import {
 } from '../../lib/useDictation';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import type { AdminAssignmentType, ApprovalActionType, ApprovalConfig, ConfigurableMenuRole, FlatType, MenuVisibilityResponse, NavigationMenuId, PremiumStatusResponse, Role } from '../../types';
+import type { AdminAssignmentType, ApprovalActionType, ApprovalConfig, ConfigurableMenuRole, FlatType, MenuVisibilityResponse, NavigationMenuId, PremiumStatusResponse, Role, SocietySettings } from '../../types';
 import { SOCIETY_ADMINS } from '../../types';
 import ManageStaffPanel from '../../components/settings/ManageStaffPanel';
 
@@ -150,14 +150,14 @@ export default function SettingsPage() {
   });
 
   // Society settings for billing/collections
-  const { data: societySettings, isLoading: settingsLoading } = useQuery<any>({
+  const { data: societySettings, isLoading: settingsLoading } = useQuery<SocietySettings>({
     queryKey: ['society-settings', activeSocietyId],
     queryFn: async () => (await api.get('/settings/society-settings')).data,
     enabled: isAdmin,
     retry: false,
   });
 
-  const [billingSettings, setBillingSettings] = useState<any | null>(null);
+  const [billingSettings, setBillingSettings] = useState<SocietySettings | null>(null);
 
   useEffect(() => {
     if (societySettings) setBillingSettings(societySettings);
@@ -779,7 +779,7 @@ export default function SettingsPage() {
                 <input
                   type="checkbox"
                   checked={!!billingSettings?.supportsPets}
-                  onChange={(e) => setBillingSettings({ ...(billingSettings || {}), supportsPets: e.target.checked })}
+                  onChange={(e) => setBillingSettings((current) => (current ? { ...current, supportsPets: e.target.checked } : current))}
                 />
               </label>
             </div>
@@ -1429,11 +1429,22 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="rounded-xl p-4 bg-surface-container-low">
+                  <label className="label">Committee Members Limit</label>
+                  <input
+                    type="number"
+                    min={0}
+                    className="input"
+                    value={billingSettings.committeeMemberLimit ?? 0}
+                    onChange={(e) => setBillingSettings({ ...billingSettings, committeeMemberLimit: Number(e.target.value) })}
+                  />
+                  <p className="mt-2 text-xs text-on-surface-variant">Set 0 to allow unlimited committee members.</p>
+                </div>
+                <div className="rounded-xl p-4 bg-surface-container-low">
                   <label className="label">Late Fee Type</label>
                   <select
                     className="select"
                     value={billingSettings.lateFeeMode ?? 'PER_DAY'}
-                    onChange={(e) => setBillingSettings({ ...billingSettings, lateFeeMode: e.target.value })}
+                    onChange={(e) => setBillingSettings({ ...billingSettings, lateFeeMode: e.target.value as SocietySettings['lateFeeMode'] })}
                   >
                     <option value="PER_DAY">Per Day</option>
                     <option value="ONE_TIME_PER_BILL">One-Time Per Bill</option>
@@ -1446,7 +1457,7 @@ export default function SettingsPage() {
                     <select
                       className="select"
                       value={billingSettings.recurringLateFeeFrequency ?? 'MONTHLY'}
-                      onChange={(e) => setBillingSettings({ ...billingSettings, recurringLateFeeFrequency: e.target.value })}
+                      onChange={(e) => setBillingSettings({ ...billingSettings, recurringLateFeeFrequency: e.target.value as SocietySettings['recurringLateFeeFrequency'] })}
                     >
                       <option value="MONTHLY">Monthly</option>
                       <option value="DAILY">Daily</option>
@@ -2063,6 +2074,7 @@ const ROLE_OPTIONS = [
   { value: 'SECRETARY', label: 'Secretary' },
   { value: 'JOINT_SECRETARY', label: 'Joint Secretary' },
   { value: 'TREASURER', label: 'Treasurer' },
+  { value: 'COMMITTEE_MEMBER', label: 'Committee Member' },
   { value: 'OWNER', label: 'Owner' },
   { value: 'SERVICE_STAFF', label: 'Service Staff' },
 ];
@@ -2072,6 +2084,7 @@ const ROLE_BADGE: Record<string, string> = {
   SECRETARY: 'bg-slate-100 text-slate-700',
   JOINT_SECRETARY: 'bg-slate-100 text-slate-700',
   TREASURER: 'bg-warning-container text-warning',
+  COMMITTEE_MEMBER: 'bg-sky-50 text-sky-700',
   OWNER: 'bg-emerald-50 text-emerald-900',
   TENANT: 'bg-surface-container text-on-surface-variant',
   SERVICE_STAFF: 'bg-orange-50 text-orange-700',
