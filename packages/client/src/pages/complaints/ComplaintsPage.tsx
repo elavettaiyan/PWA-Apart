@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Clock3, LayoutDashboard, ListFilter, MessageSquareWarning, Plus, MessageCircle, AlertTriangle, ImageIcon, Pencil, X } from 'lucide-react';
+import { ArrowRight, Clock3, ListFilter, MessageSquareWarning, Plus, MessageCircle, AlertTriangle, ImageIcon, Pencil, X } from 'lucide-react';
 import { getApiBaseUrl } from '../../lib/platform';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -83,6 +83,7 @@ export default function ComplaintsPage() {
     : ownerViewActive
       ? 'Track issues raised for your home and follow each update in one place.'
       : 'Review, assign, and resolve resident issues from one place.';
+  const pageTitle = moduleTab === 'dashboard' ? 'Complaint Dashboard' : 'Complaints';
 
   const hasListFilters = Boolean((categoryFilter && categoryFilter !== defaultCategory) || minPendingDaysFilter);
 
@@ -105,7 +106,7 @@ export default function ComplaintsPage() {
     <div className="space-y-5">
       <div className="page-header">
         <div>
-          <h1 className={cn('page-title', ownerViewActive && 'text-2xl text-slate-900')}>Complaints</h1>
+          <h1 className={cn('page-title', ownerViewActive && 'text-2xl text-slate-900')}>{pageTitle}</h1>
           <p className="mt-1 text-sm text-on-surface-variant">{complaintsDescription}</p>
         </div>
         {moduleTab === 'list' && !isSpecializedStaffView && (
@@ -124,26 +125,9 @@ export default function ComplaintsPage() {
       </div>
 
       {canAccessDashboard ? (
-        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-          {[
-            { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-            { id: 'list', label: 'Complaints List', icon: MessageSquareWarning },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setModuleTab(tab.id as ComplaintModuleTab)}
-              className={cn(
-                'flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition whitespace-nowrap inline-flex items-center gap-1.5',
-                moduleTab === tab.id
-                  ? 'bg-primary text-white'
-                  : 'bg-white text-[#64748B] hover:bg-[#F8FAFC]'
-              )}
-              style={moduleTab !== tab.id ? { boxShadow: '0 1px 4px -1px rgba(0,0,0,0.04)' } : undefined}
-            >
-              <tab.icon className="h-3.5 w-3.5" />
-              {tab.label}
-            </button>
-          ))}
+        <div className="flex gap-8 border-b border-slate-200">
+          <TabButton active={moduleTab === 'dashboard'} onClick={() => setModuleTab('dashboard')}>Dashboard</TabButton>
+          <TabButton active={moduleTab === 'list'} onClick={() => setModuleTab('list')}>Complaints</TabButton>
         </div>
       ) : null}
 
@@ -1168,4 +1152,19 @@ function formatAssigneeOption(option: ComplaintAssigneeOption) {
   }
 
   return `${option.name} • ${details.join(' • ')}`;
+}
+
+function TabButton({ active, children, onClick }: { active: boolean; children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'pb-3 text-sm transition-colors',
+        active ? 'border-b-2 border-blue-600 font-bold text-blue-600' : 'font-medium text-slate-500 hover:text-slate-800'
+      )}
+    >
+      {children}
+    </button>
+  );
 }
