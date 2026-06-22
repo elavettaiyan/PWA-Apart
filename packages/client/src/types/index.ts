@@ -533,6 +533,31 @@ export interface ComplaintActivity {
   createdAt: string;
 }
 
+export interface ComplaintDashboardCategoryBreakdown {
+  category: string;
+  totalCount: number;
+  openCount: number;
+  inProgressCount: number;
+  resolvedCount: number;
+  closedCount: number;
+  rejectedCount: number;
+}
+
+export interface ComplaintDashboardItem extends Complaint {
+  pendingDays: number;
+}
+
+export interface ComplaintDashboardData {
+  openCount: number;
+  inProgressCount: number;
+  totalActiveCount: number;
+  longPendingDays: number;
+  longPendingCount: number;
+  statusBreakdown: Record<ComplaintStatus, number>;
+  categoryBreakdown: ComplaintDashboardCategoryBreakdown[];
+  longPendingComplaints: ComplaintDashboardItem[];
+}
+
 export interface Announcement {
   id: string;
   societyId: string;

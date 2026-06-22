@@ -34,6 +34,8 @@ type ComplaintStatusValue = (typeof COMPLAINT_STATUSES)[number];
 type ComplaintActionValue = (typeof COMPLAINT_ACTIONS)[number];
 type ComplaintEscalationLevelValue = (typeof COMPLAINT_ESCALATION_LEVELS)[number];
 
+type ComplaintStatusCountMap = Record<ComplaintStatusValue, number>;
+
 const COMPLAINT_ASSIGNEE_SELECT = {
   id: true,
   name: true,
@@ -141,6 +143,76 @@ function getSpecializationsForComplaintCategory(category?: string | null) {
   return Object.entries(COMPLAINT_CATEGORY_BY_SPECIALIZATION)
     .filter(([, mappedCategory]) => mappedCategory === category)
     .map(([specialization]) => specialization);
+}
+
+function getComplaintPendingDays(createdAt: Date | string) {
+  const createdTime = new Date(createdAt).getTime();
+  return Math.max(0, Math.floor((Date.now() - createdTime) / (24 * 60 * 60 * 1000)));
+}
+
+async function buildComplaintWhere(req: AuthRequest, filters?: {
+  status?: string;
+  priority?: string;
+  category?: string;
+  ownerViewRequested?: boolean;
+  minPendingDays?: number;
+}) {
+  const where: any = {};
+  let serviceStaffCategory = '';
+
+  if (filters?.status) where.status = filters.status;
+  if (filters?.priority) where.priority = filters.priority;
+  if (filters?.category) where.category = filters.category;
+
+  if (typeof filters?.minPendingDays === 'number' && Number.isFinite(filters.minPendingDays) && filters.minPendingDays > 0) {
+    const pendingSince = new Date();
+    pendingSince.setDate(pendingSince.getDate() - filters.minPendingDays);
+    where.createdAt = { lte: pendingSince };
+    where.status = where.status || { in: ['OPEN', 'IN_PROGRESS'] };
+  }
+
+  if (req.user!.societyId) where.societyId = req.user!.societyId;
+
+  if (filters?.ownerViewRequested && ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'].includes(req.user!.role)) {
+    if (!req.user!.societyId) {
+      return { where: { id: { in: [] } }, serviceStaffCategory };
+    }
+
+    const owner = await prisma.owner.findFirst({
+      where: { userId: req.user!.id, flat: { block: { societyId: req.user!.societyId } } },
+      select: { id: true },
+    });
+
+    if (!owner) {
+      return { where: { id: { in: [] } }, serviceStaffCategory };
+    }
+
+    where.createdById = req.user!.id;
+  } else if (isComplaintReviewer(req.user!.role)) {
+    where.OR = [
+      { assignedToId: req.user!.id },
+      { createdById: req.user!.id },
+    ];
+  } else if ([...RESIDENT_ROLES, 'TREASURER'].includes(req.user!.role as any)) {
+    where.createdById = req.user!.id;
+  } else if (req.user!.role === 'SERVICE_STAFF') {
+    const serviceStaffUser = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { specialization: true },
+    });
+
+    if (!filters?.category) {
+      serviceStaffCategory = getComplaintCategoryForSpecialization(serviceStaffUser?.specialization || '');
+    }
+
+    where.OR = [
+      { assignedToId: req.user!.id },
+      { createdById: req.user!.id },
+      ...(serviceStaffCategory ? [{ category: serviceStaffCategory }] : []),
+    ];
+  }
+
+  return { where, serviceStaffCategory };
 }
 
 async function resolveComplaintActor(userId: string) {
@@ -440,54 +512,22 @@ router.get(
     query('priority').optional().isIn(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
     query('category').optional().isString(),
     query('ownerView').optional().isBoolean(),
+    query('minPendingDays').optional().isInt({ min: 1 }),
   ],
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
-      const where: any = {};
-      let serviceStaffCategory = '';
       const ownerViewRequested = req.query.ownerView === 'true';
-
-      if (req.query.status) where.status = req.query.status;
-      if (req.query.priority) where.priority = req.query.priority;
-      if (req.query.category) where.category = req.query.category;
-
-      // Restrict to user's society
-      if (req.user!.societyId) where.societyId = req.user!.societyId;
-
-      if (ownerViewRequested && ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'].includes(req.user!.role)) {
-        if (!req.user!.societyId) return res.json([]);
-
-        const owner = await prisma.owner.findFirst({
-          where: { userId: req.user!.id, flat: { block: { societyId: req.user!.societyId } } },
-          select: { id: true },
-        });
-        if (!owner) return res.json([]);
-
-        where.createdById = req.user!.id;
-      } else if (isComplaintReviewer(req.user!.role)) {
-        where.OR = [
-          { assignedToId: req.user!.id },
-          { createdById: req.user!.id },
-        ];
-      } else if ([...RESIDENT_ROLES, 'TREASURER'].includes(req.user!.role as any)) {
-        where.createdById = req.user!.id;
-      } else if (req.user!.role === 'SERVICE_STAFF') {
-        const serviceStaffUser = await prisma.user.findUnique({
-          where: { id: req.user!.id },
-          select: { specialization: true },
-        });
-
-        if (!req.query.category) {
-          serviceStaffCategory = getComplaintCategoryForSpecialization(serviceStaffUser?.specialization || '');
-        }
-
-        where.OR = [
-          { assignedToId: req.user!.id },
-          { createdById: req.user!.id },
-          ...(serviceStaffCategory ? [{ category: serviceStaffCategory }] : []),
-        ];
-      }
+      const minPendingDays = typeof req.query.minPendingDays === 'string'
+        ? Number.parseInt(req.query.minPendingDays, 10)
+        : undefined;
+      const { where } = await buildComplaintWhere(req, {
+        status: typeof req.query.status === 'string' ? req.query.status : undefined,
+        priority: typeof req.query.priority === 'string' ? req.query.priority : undefined,
+        category: typeof req.query.category === 'string' ? req.query.category : undefined,
+        ownerViewRequested,
+        minPendingDays,
+      });
 
       const complaints = await prisma.complaint.findMany({
         where,
@@ -503,6 +543,127 @@ router.get(
       return res.json((await enrichComplaintFlatContexts(complaints)).map(parseComplaintRecord));
     } catch (error) {
       return res.status(500).json({ error: 'Failed to fetch complaints' });
+    }
+  },
+);
+
+router.get(
+  '/dashboard',
+  authorize('SUPER_ADMIN', 'ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'COMMITTEE_MEMBER'),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { where } = await buildComplaintWhere(req);
+      const longPendingDays = 7;
+      const longPendingDate = new Date();
+      longPendingDate.setDate(longPendingDate.getDate() - longPendingDays);
+
+      const longPendingWhere = {
+        ...where,
+        status: { in: ['OPEN', 'IN_PROGRESS'] },
+        createdAt: { lte: longPendingDate },
+      };
+
+      const [statusGroups, categoryGroups, longPendingCount, longPendingComplaints] = await Promise.all([
+        prisma.complaint.groupBy({
+          by: ['status'],
+          where,
+          _count: { _all: true },
+        }),
+        prisma.complaint.groupBy({
+          by: ['category', 'status'],
+          where,
+          _count: { _all: true },
+        }),
+        prisma.complaint.count({
+          where: longPendingWhere,
+        }),
+        prisma.complaint.findMany({
+          where: longPendingWhere,
+          include: {
+            flat: { select: { flatNumber: true, block: { select: { name: true } } } },
+            createdBy: { select: { name: true } },
+            assignedTo: { select: COMPLAINT_ASSIGNEE_SELECT },
+            _count: { select: { comments: true } },
+          },
+          orderBy: [
+            { createdAt: 'asc' },
+            { priority: 'desc' },
+          ],
+          take: 10,
+        }),
+      ]);
+
+      const statusBreakdown: ComplaintStatusCountMap = {
+        OPEN: 0,
+        IN_PROGRESS: 0,
+        RESOLVED: 0,
+        CLOSED: 0,
+        REJECTED: 0,
+      };
+
+      for (const group of statusGroups) {
+        statusBreakdown[group.status as ComplaintStatusValue] = group._count._all;
+      }
+
+      const categoryMap = new Map<string, {
+        category: string;
+        totalCount: number;
+        openCount: number;
+        inProgressCount: number;
+        resolvedCount: number;
+        closedCount: number;
+        rejectedCount: number;
+      }>();
+
+      for (const group of categoryGroups) {
+        const existing = categoryMap.get(group.category) || {
+          category: group.category,
+          totalCount: 0,
+          openCount: 0,
+          inProgressCount: 0,
+          resolvedCount: 0,
+          closedCount: 0,
+          rejectedCount: 0,
+        };
+
+        existing.totalCount += group._count._all;
+
+        if (group.status === 'OPEN') existing.openCount += group._count._all;
+        if (group.status === 'IN_PROGRESS') existing.inProgressCount += group._count._all;
+        if (group.status === 'RESOLVED') existing.resolvedCount += group._count._all;
+        if (group.status === 'CLOSED') existing.closedCount += group._count._all;
+        if (group.status === 'REJECTED') existing.rejectedCount += group._count._all;
+
+        categoryMap.set(group.category, existing);
+      }
+
+      const categoryBreakdown = Array.from(categoryMap.values())
+        .sort((left, right) => {
+          const leftActive = left.openCount + left.inProgressCount;
+          const rightActive = right.openCount + right.inProgressCount;
+          if (rightActive !== leftActive) return rightActive - leftActive;
+          return right.totalCount - left.totalCount;
+        });
+
+      const longPendingItems = (await enrichComplaintFlatContexts(longPendingComplaints))
+        .map(parseComplaintRecord)
+        .map((complaint: any) => ({
+          ...complaint,
+          pendingDays: getComplaintPendingDays(complaint.createdAt),
+        }));
+
+      return res.json({
+        openCount: statusBreakdown.OPEN,
+        inProgressCount: statusBreakdown.IN_PROGRESS,
+        totalActiveCount: statusBreakdown.OPEN + statusBreakdown.IN_PROGRESS,
+        longPendingDays,
+        longPendingCount,
+        statusBreakdown,
+        categoryBreakdown,
+        longPendingComplaints: longPendingItems,
+      });
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to fetch complaint dashboard' });
     }
   },
 );

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { MessageSquareWarning, Plus, MessageCircle, AlertTriangle, ImageIcon, Pencil, X } from 'lucide-react';
+import { ArrowRight, Clock3, LayoutDashboard, ListFilter, MessageSquareWarning, Plus, MessageCircle, AlertTriangle, ImageIcon, Pencil, X } from 'lucide-react';
 import { getApiBaseUrl } from '../../lib/platform';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -10,35 +10,62 @@ import Modal from '../../components/ui/Modal';
 import { COMPLAINT_CATEGORIES, getDefaultComplaintCategoryForUser, isNonSecurityServiceStaff } from '../../lib/serviceStaff';
 import { useAuthStore } from '../../store/authStore';
 import { isOwnerViewActive } from '../../lib/ownerView';
-import type { Complaint, ComplaintAssigneeOption, Flat } from '../../types';
+import type { Complaint, ComplaintAssigneeOption, ComplaintDashboardData, ComplaintStatus, Flat } from '../../types';
+
+const DASHBOARD_COMPLAINT_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'COMMITTEE_MEMBER'] as const;
+
+type ComplaintModuleTab = 'dashboard' | 'list';
 
 export default function ComplaintsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
+  const [moduleTab, setModuleTab] = useState<ComplaintModuleTab>('list');
   const [statusFilter, setStatusFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [minPendingDaysFilter, setMinPendingDaysFilter] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const { user, viewMode } = useAuthStore();
   const ownerViewActive = isOwnerViewActive(user, viewMode);
   const defaultCategory = getDefaultComplaintCategoryForUser(user);
   const isSpecializedStaffView = isNonSecurityServiceStaff(user) && !!defaultCategory;
   const canSeeConversation = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'OWNER', 'TENANT'] as string[]).includes(user?.role || '');
+  const canAccessDashboard = !ownerViewActive && DASHBOARD_COMPLAINT_ROLES.includes((user?.role || '') as typeof DASHBOARD_COMPLAINT_ROLES[number]);
+
+  useEffect(() => {
+    setModuleTab((current) => (canAccessDashboard ? (current === 'list' ? 'dashboard' : current) : 'list'));
+  }, [canAccessDashboard]);
+
+  useEffect(() => {
+    if (defaultCategory) {
+      setCategoryFilter(defaultCategory);
+    }
+  }, [defaultCategory]);
 
   const { data: complaints = [], isLoading } = useQuery<Complaint[]>({
-    queryKey: ['complaints', defaultCategory, ownerViewActive ? 'owner-view' : 'role-view'],
+    queryKey: ['complaints', categoryFilter || defaultCategory || 'all', minPendingDaysFilter ?? 'all', ownerViewActive ? 'owner-view' : 'role-view'],
     queryFn: async () => {
       const searchParams = new URLSearchParams();
-      if (defaultCategory) {
-        searchParams.set('category', defaultCategory);
+      const effectiveCategory = categoryFilter || defaultCategory;
+      if (effectiveCategory) {
+        searchParams.set('category', effectiveCategory);
       }
       if (ownerViewActive) {
         searchParams.set('ownerView', 'true');
+      }
+      if (minPendingDaysFilter) {
+        searchParams.set('minPendingDays', String(minPendingDaysFilter));
       }
       const query = searchParams.toString();
       return (await api.get(`/complaints${query ? `?${query}` : ''}`)).data;
     },
   });
 
-  if (isLoading) return <PageLoader />;
+  const { data: dashboardData, isLoading: dashboardLoading } = useQuery<ComplaintDashboardData>({
+    queryKey: ['complaint-dashboard', user?.activeSocietyId || user?.societyId || 'default'],
+    queryFn: async () => (await api.get('/complaints/dashboard')).data,
+    enabled: canAccessDashboard,
+    staleTime: 60_000,
+  });
 
   const statusCounts = {
     OPEN: complaints.filter((c) => c.status === 'OPEN').length,
@@ -50,9 +77,29 @@ export default function ComplaintsPage() {
   const filteredComplaints = statusFilter
     ? complaints.filter((c) => c.status === statusFilter)
     : complaints;
-  const complaintsDescription = ownerViewActive
-    ? 'Track issues raised for your home and follow each update in one place.'
-    : 'Review, assign, and resolve resident issues from one place.';
+
+  const complaintsDescription = moduleTab === 'dashboard'
+    ? 'Monitor complaint health, identify long-pending cases, and drill into the current workload.'
+    : ownerViewActive
+      ? 'Track issues raised for your home and follow each update in one place.'
+      : 'Review, assign, and resolve resident issues from one place.';
+
+  const hasListFilters = Boolean((categoryFilter && categoryFilter !== defaultCategory) || minPendingDaysFilter);
+
+  const resetListFilters = () => {
+    setStatusFilter('');
+    setCategoryFilter(defaultCategory || '');
+    setMinPendingDaysFilter(null);
+  };
+
+  const openListDrilldown = (options?: { status?: ComplaintStatus | ''; category?: string; minPendingDays?: number | null }) => {
+    setStatusFilter(options?.status ?? '');
+    setCategoryFilter(options?.category ?? defaultCategory ?? '');
+    setMinPendingDaysFilter(options?.minPendingDays ?? null);
+    setModuleTab('list');
+  };
+
+  if (moduleTab === 'list' && isLoading) return <PageLoader />;
 
   return (
     <div className="space-y-5">
@@ -61,7 +108,7 @@ export default function ComplaintsPage() {
           <h1 className={cn('page-title', ownerViewActive && 'text-2xl text-slate-900')}>Complaints</h1>
           <p className="mt-1 text-sm text-on-surface-variant">{complaintsDescription}</p>
         </div>
-        {!isSpecializedStaffView && (
+        {moduleTab === 'list' && !isSpecializedStaffView && (
           <button
             className={cn(
               'inline-flex self-start items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors',
@@ -76,98 +123,162 @@ export default function ComplaintsPage() {
         )}
       </div>
 
-      {/* Status Filter Chips */}
-      <div className={cn(
-        ownerViewActive
-          ? 'flex items-center gap-6 overflow-x-auto border-b border-slate-200 pb-0'
-          : 'mb-5 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1'
-      )}>
-        {[
-          { label: 'All', value: '', count: complaints.length },
-          { label: 'Open', value: 'OPEN', count: statusCounts.OPEN },
-          { label: 'In Progress', value: 'IN_PROGRESS', count: statusCounts.IN_PROGRESS },
-          { label: 'Resolved', value: 'RESOLVED', count: statusCounts.RESOLVED },
-          { label: 'Closed', value: 'CLOSED', count: statusCounts.CLOSED },
-        ].map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => setStatusFilter(tab.value)}
-            className={cn(
-              ownerViewActive
-                ? 'flex-shrink-0 whitespace-nowrap pb-3 text-sm transition-colors'
-                : 'flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition whitespace-nowrap',
-              ownerViewActive
-                ? statusFilter === tab.value
-                  ? 'border-b-2 border-blue-600 font-bold text-blue-600'
-                  : 'font-medium text-slate-500 hover:text-slate-800'
-                : statusFilter === tab.value
-                  ? 'bg-primary text-white'
-                  : 'bg-white text-[#64748B] hover:bg-[#F8FAFC]',
-            )}
-            style={!ownerViewActive && statusFilter !== tab.value ? { boxShadow: '0 1px 4px -1px rgba(0,0,0,0.04)' } : undefined}
-          >
-            {tab.label} ({tab.count})
-          </button>
-        ))}
-      </div>
-
-      {/* Complaints List */}
-      {filteredComplaints.length === 0 ? (
-        <EmptyState
-          icon={MessageSquareWarning}
-          title="No complaints"
-          description="All clear! No complaints at the moment."
-        />
-      ) : (
-        <div className="space-y-3">
-          {filteredComplaints.map((complaint) => (
-            <div
-              key={complaint.id}
+      {canAccessDashboard ? (
+        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+          {[
+            { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+            { id: 'list', label: 'Complaints List', icon: MessageSquareWarning },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setModuleTab(tab.id as ComplaintModuleTab)}
               className={cn(
-                'overflow-hidden cursor-pointer transition-all',
-                ownerViewActive
-                  ? 'rounded-2xl border border-slate-200 bg-white shadow-sm hover:border-blue-200 hover:shadow-md'
-                  : 'card-elevated hover:shadow-md'
+                'flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition whitespace-nowrap inline-flex items-center gap-1.5',
+                moduleTab === tab.id
+                  ? 'bg-primary text-white'
+                  : 'bg-white text-[#64748B] hover:bg-[#F8FAFC]'
               )}
-              onClick={() => setSelectedComplaint(complaint)}
+              style={moduleTab !== tab.id ? { boxShadow: '0 1px 4px -1px rgba(0,0,0,0.04)' } : undefined}
             >
-              {/* Header: priority + status badges */}
-              <div className={cn('flex items-center justify-between gap-2 px-4', ownerViewActive ? 'pt-4' : 'pt-3')}>
-                <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', getStatusColor(complaint.priority))}>{complaint.priority}</span>
-                <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', getStatusColor(complaint.status))}>
-                  {complaint.status.replace('_', ' ')}
-                </span>
-              </div>
-
-              {/* Content */}
-              <div className={cn('px-4 pt-2', ownerViewActive ? 'pb-3' : 'pb-2')}>
-                <h3 className={cn('leading-snug', ownerViewActive ? 'text-base font-semibold text-slate-900' : 'text-[15px] font-semibold text-on-surface')}>{complaint.title}</h3>
-                <p className={cn('mt-1 line-clamp-2', ownerViewActive ? 'text-sm text-slate-500' : 'text-xs text-on-surface-variant')}>{complaint.description}</p>
-              </div>
-
-              {/* Meta */}
-              <div className={cn(
-                'flex items-center gap-3 px-4 pb-3 text-[11px]',
-                ownerViewActive ? 'border-t border-slate-100 bg-slate-50 pt-3 text-slate-500' : 'text-on-surface-variant'
-              )}>
-                <span className="inline-flex items-center gap-1">{complaint.category}</span>
-                {complaint.flat && <span>{complaint.flat.block?.name}-{complaint.flat.flatNumber}</span>}
-                {!ownerViewActive ? <span>{complaint.createdBy?.name}</span> : null}
-                <span>{formatDate(complaint.createdAt)}</span>
-                {canSeeConversation && complaint._count?.comments ? (
-                  <span className="inline-flex items-center gap-0.5 ml-auto">
-                    <MessageCircle className="w-3 h-3" /> {complaint._count.comments}
-                  </span>
-                ) : null}
-              </div>
-            </div>
+              <tab.icon className="h-3.5 w-3.5" />
+              {tab.label}
+            </button>
           ))}
         </div>
+      ) : null}
+
+      {moduleTab === 'dashboard' ? (
+        <ComplaintDashboardTab
+          data={dashboardData}
+          isLoading={dashboardLoading}
+          onOpenListDrilldown={openListDrilldown}
+          onPreviewComplaint={setSelectedComplaint}
+        />
+      ) : (
+        <>
+          <div className={cn(
+            ownerViewActive
+              ? 'flex items-center gap-6 overflow-x-auto border-b border-slate-200 pb-0'
+              : 'mb-5 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1'
+          )}>
+            {[
+              { label: 'All', value: '', count: complaints.length },
+              { label: 'Open', value: 'OPEN', count: statusCounts.OPEN },
+              { label: 'In Progress', value: 'IN_PROGRESS', count: statusCounts.IN_PROGRESS },
+              { label: 'Resolved', value: 'RESOLVED', count: statusCounts.RESOLVED },
+              { label: 'Closed', value: 'CLOSED', count: statusCounts.CLOSED },
+            ].map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => setStatusFilter(tab.value)}
+                className={cn(
+                  ownerViewActive
+                    ? 'flex-shrink-0 whitespace-nowrap pb-3 text-sm transition-colors'
+                    : 'flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition whitespace-nowrap',
+                  ownerViewActive
+                    ? statusFilter === tab.value
+                      ? 'border-b-2 border-blue-600 font-bold text-blue-600'
+                      : 'font-medium text-slate-500 hover:text-slate-800'
+                    : statusFilter === tab.value
+                      ? 'bg-primary text-white'
+                      : 'bg-white text-[#64748B] hover:bg-[#F8FAFC]'
+                )}
+                style={!ownerViewActive && statusFilter !== tab.value ? { boxShadow: '0 1px 4px -1px rgba(0,0,0,0.04)' } : undefined}
+              >
+                {tab.label} ({tab.count})
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <div className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <ListFilter className="h-4 w-4 text-slate-400" />
+              Filters
+            </div>
+            <select
+              className="select min-w-[180px] py-2"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              disabled={Boolean(defaultCategory)}
+            >
+              <option value="">All Categories</option>
+              {COMPLAINT_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+            </select>
+            {minPendingDaysFilter ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                Long Pending: {minPendingDaysFilter}+ days
+              </span>
+            ) : null}
+            {hasListFilters ? (
+              <button
+                type="button"
+                className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                onClick={resetListFilters}
+              >
+                Clear Filters
+              </button>
+            ) : null}
+          </div>
+
+          {filteredComplaints.length === 0 ? (
+            <EmptyState
+              icon={MessageSquareWarning}
+              title="No complaints"
+              description="All clear! No complaints match the current filters."
+            />
+          ) : (
+            <div className="space-y-3">
+              {filteredComplaints.map((complaint) => (
+                <div
+                  key={complaint.id}
+                  className={cn(
+                    'overflow-hidden cursor-pointer transition-all',
+                    ownerViewActive
+                      ? 'rounded-2xl border border-slate-200 bg-white shadow-sm hover:border-blue-200 hover:shadow-md'
+                      : 'card-elevated hover:shadow-md'
+                  )}
+                  onClick={() => setSelectedComplaint(complaint)}
+                >
+                  <div className={cn('flex items-center justify-between gap-2 px-4', ownerViewActive ? 'pt-4' : 'pt-3')}>
+                    <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', getStatusColor(complaint.priority))}>{complaint.priority}</span>
+                    <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', getStatusColor(complaint.status))}>
+                      {complaint.status.replace('_', ' ')}
+                    </span>
+                  </div>
+
+                  <div className={cn('px-4 pt-2', ownerViewActive ? 'pb-3' : 'pb-2')}>
+                    <h3 className={cn('leading-snug', ownerViewActive ? 'text-base font-semibold text-slate-900' : 'text-[15px] font-semibold text-on-surface')}>{complaint.title}</h3>
+                    <p className={cn('mt-1 line-clamp-2', ownerViewActive ? 'text-sm text-slate-500' : 'text-xs text-on-surface-variant')}>{complaint.description}</p>
+                  </div>
+
+                  <div className={cn(
+                    'flex items-center gap-3 px-4 pb-3 text-[11px]',
+                    ownerViewActive ? 'border-t border-slate-100 bg-slate-50 pt-3 text-slate-500' : 'text-on-surface-variant'
+                  )}>
+                    <span className="inline-flex items-center gap-1">{complaint.category}</span>
+                    {complaint.flat && <span>{complaint.flat.block?.name}-{complaint.flat.flatNumber}</span>}
+                    {!ownerViewActive ? <span>{complaint.createdBy?.name}</span> : null}
+                    <span>{formatDate(complaint.createdAt)}</span>
+                    {canSeeConversation && complaint._count?.comments ? (
+                      <span className="inline-flex items-center gap-0.5 ml-auto">
+                        <MessageCircle className="w-3 h-3" /> {complaint._count.comments}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Create Complaint Modal */}
       <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="New Complaint" size="md">
-        <CreateComplaintForm onSuccess={() => { setShowCreate(false); queryClient.invalidateQueries({ queryKey: ['complaints'] }); }} />
+        <CreateComplaintForm onSuccess={() => {
+          setShowCreate(false);
+          queryClient.invalidateQueries({ queryKey: ['complaints'] });
+          queryClient.invalidateQueries({ queryKey: ['complaint-dashboard'] });
+        }} />
       </Modal>
 
       {/* Complaint Detail Modal */}
@@ -181,10 +292,221 @@ export default function ComplaintsPage() {
           <ComplaintDetail
             key={selectedComplaint.id}
             complaint={selectedComplaint}
-            onUpdate={() => { queryClient.invalidateQueries({ queryKey: ['complaints'] }); }}
+            onUpdate={() => {
+              queryClient.invalidateQueries({ queryKey: ['complaints'] });
+              queryClient.invalidateQueries({ queryKey: ['complaint-dashboard'] });
+            }}
           />
         )}
       </Modal>
+    </div>
+  );
+}
+
+function ComplaintDashboardTab({
+  data,
+  isLoading,
+  onOpenListDrilldown,
+  onPreviewComplaint,
+}: {
+  data?: ComplaintDashboardData;
+  isLoading: boolean;
+  onOpenListDrilldown: (options?: { status?: ComplaintStatus | ''; category?: string; minPendingDays?: number | null }) => void;
+  onPreviewComplaint: (complaint: Complaint) => void;
+}) {
+  if (isLoading && !data) {
+    return <PageLoader />;
+  }
+
+  const statusCards = [
+    {
+      label: 'Open Complaints',
+      value: data?.openCount || 0,
+      tone: 'bg-rose-50 text-rose-700 border-rose-100',
+      onClick: () => onOpenListDrilldown({ status: 'OPEN', minPendingDays: null }),
+    },
+    {
+      label: 'In Progress',
+      value: data?.inProgressCount || 0,
+      tone: 'bg-amber-50 text-amber-700 border-amber-100',
+      onClick: () => onOpenListDrilldown({ status: 'IN_PROGRESS', minPendingDays: null }),
+    },
+    {
+      label: 'Total Active',
+      value: data?.totalActiveCount || 0,
+      tone: 'bg-blue-50 text-blue-700 border-blue-100',
+    },
+    {
+      label: 'Long Pending',
+      value: data?.longPendingCount || 0,
+      tone: 'bg-violet-50 text-violet-700 border-violet-100',
+      helper: data ? `${data.longPendingDays}+ days pending` : undefined,
+      onClick: data ? () => onOpenListDrilldown({ minPendingDays: data.longPendingDays, status: '' }) : undefined,
+    },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {statusCards.map((card) => {
+          const interactive = typeof card.onClick === 'function';
+          return (
+            <button
+              key={card.label}
+              type="button"
+              className={cn(
+                'rounded-2xl border p-4 text-left transition-all',
+                card.tone,
+                interactive ? 'hover:-translate-y-0.5 hover:shadow-md' : 'cursor-default'
+              )}
+              onClick={card.onClick}
+              disabled={!interactive}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em]">{card.label}</p>
+                  <p className="mt-2 text-3xl font-extrabold font-headline">{card.value}</p>
+                  {card.helper ? <p className="mt-1 text-xs font-medium opacity-80">{card.helper}</p> : null}
+                </div>
+                {interactive ? <ArrowRight className="mt-1 h-4 w-4 opacity-70" /> : null}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="section-label">Category Wise</p>
+              <h2 className="mt-1 text-lg font-bold text-slate-900">Complaint distribution by category</h2>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
+              Click a category to drill down
+            </span>
+          </div>
+
+          {(data?.categoryBreakdown.length || 0) === 0 ? (
+            <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
+              No complaint categories to summarize yet.
+            </div>
+          ) : (
+            <div className="mt-5 space-y-3">
+              {data?.categoryBreakdown.map((category) => {
+                const activeCount = category.openCount + category.inProgressCount;
+                const intensity = data.totalActiveCount > 0 ? Math.max((activeCount / data.totalActiveCount) * 100, 8) : 8;
+
+                return (
+                  <button
+                    key={category.category}
+                    type="button"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition-all hover:border-blue-200 hover:bg-white hover:shadow-sm"
+                    onClick={() => onOpenListDrilldown({ category: category.category, status: '', minPendingDays: null })}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{category.category}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {activeCount} active • {category.resolvedCount} resolved • {category.totalCount} total
+                        </p>
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-slate-400" />
+                    </div>
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                      <div className="h-full rounded-full bg-blue-600" style={{ width: `${Math.min(intensity, 100)}%` }} />
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-500">
+                      <span className="rounded-full bg-white px-2.5 py-1">Open {category.openCount}</span>
+                      <span className="rounded-full bg-white px-2.5 py-1">In Progress {category.inProgressCount}</span>
+                      <span className="rounded-full bg-white px-2.5 py-1">Resolved {category.resolvedCount}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-5">
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="section-label">Status Mix</p>
+                <h2 className="mt-1 text-lg font-bold text-slate-900">Current complaint breakdown</h2>
+              </div>
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+            </div>
+            <div className="mt-4 space-y-2.5">
+              {([
+                ['OPEN', 'Open'],
+                ['IN_PROGRESS', 'In Progress'],
+                ['RESOLVED', 'Resolved'],
+                ['CLOSED', 'Closed'],
+                ['REJECTED', 'Rejected'],
+              ] as Array<[ComplaintStatus, string]>).map(([status, label]) => (
+                <div key={status} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3.5 py-3">
+                  <span className="text-sm font-medium text-slate-600">{label}</span>
+                  <span className={cn('rounded-full px-2.5 py-1 text-xs font-semibold', getStatusColor(status))}>
+                    {data?.statusBreakdown?.[status] || 0}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="section-label">Long Pending</p>
+                <h2 className="mt-1 text-lg font-bold text-slate-900">Cases pending beyond {data?.longPendingDays || 7} days</h2>
+              </div>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-lg border border-blue-600 bg-white px-3 py-2 text-xs font-semibold text-blue-600 transition-colors hover:bg-blue-50"
+                onClick={() => onOpenListDrilldown({ minPendingDays: data?.longPendingDays || 7, status: '' })}
+              >
+                View All
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            {(data?.longPendingComplaints.length || 0) === 0 ? (
+              <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
+                No long-pending complaints right now.
+              </div>
+            ) : (
+              <div className="mt-5 space-y-3">
+                {data?.longPendingComplaints.map((complaint) => (
+                  <button
+                    key={complaint.id}
+                    type="button"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition-all hover:border-blue-200 hover:bg-white hover:shadow-sm"
+                    onClick={() => onPreviewComplaint(complaint)}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900 line-clamp-1">{complaint.title}</p>
+                        <p className="mt-1 text-xs text-slate-500 line-clamp-2">{complaint.description}</p>
+                      </div>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+                        <Clock3 className="h-3 w-3" />
+                        {complaint.pendingDays}d
+                      </span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                      <span className={cn('rounded-full px-2.5 py-1 font-semibold', getStatusColor(complaint.status))}>{complaint.status.replace('_', ' ')}</span>
+                      <span>{complaint.category}</span>
+                      {complaint.flat ? <span>{complaint.flat.block?.name}-{complaint.flat.flatNumber}</span> : null}
+                      <span>{formatDate(complaint.createdAt)}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
