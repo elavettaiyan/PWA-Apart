@@ -95,8 +95,48 @@ export function verifyCampaignEmailResubscribeToken(token: string) {
 export function appendCampaignEmailFooter(html: string, unsubscribeUrl: string) {
   return `${html}
     <div style="margin: 32px auto 0; max-width: 600px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-family: Arial, sans-serif; color: #64748b; font-size: 12px; line-height: 1.6;">
-      You are receiving this update from Dwell Hub platform communications.
-      <a href="${unsubscribeUrl}" style="color: #2563eb; text-decoration: underline;">Unsubscribe from publish mails</a>.
+      <p style="margin: 0 0 14px;">You are receiving this update from Dwell Hub platform communications.</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: separate; border-spacing: 0 10px; margin: 0 0 14px;">
+        <tr>
+          <td>
+            <a href="${ANDROID_APP_URL}" style="display: block; text-decoration: none;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; background: #0f172a; border-radius: 14px;">
+                <tr>
+                  <td style="padding: 14px 16px; width: 44px; vertical-align: middle;">
+                    <img src="https://cdn.simpleicons.org/android/3DDC84" alt="Android" width="22" height="22" style="display: block; border: 0;" />
+                  </td>
+                  <td style="padding: 14px 0; vertical-align: middle;">
+                    <p style="margin: 0; font-size: 12px; line-height: 16px; color: #93c5fd;">Install on</p>
+                    <p style="margin: 2px 0 0; font-size: 16px; line-height: 22px; color: #ffffff; font-weight: 700;">Android</p>
+                  </td>
+                  <td align="right" style="padding: 14px 16px; vertical-align: middle; font-size: 14px; line-height: 20px; color: #cbd5e1; font-weight: 600;">Google Play</td>
+                </tr>
+              </table>
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <a href="${IOS_APP_URL}" style="display: block; text-decoration: none;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; background: #f8fafc; border: 1px solid #dbe3ef; border-radius: 14px;">
+                <tr>
+                  <td style="padding: 14px 16px; width: 44px; vertical-align: middle;">
+                    <img src="https://cdn.simpleicons.org/apple/111827" alt="iOS" width="22" height="22" style="display: block; border: 0;" />
+                  </td>
+                  <td style="padding: 14px 0; vertical-align: middle;">
+                    <p style="margin: 0; font-size: 12px; line-height: 16px; color: #64748b;">Download on</p>
+                    <p style="margin: 2px 0 0; font-size: 16px; line-height: 22px; color: #111827; font-weight: 700;">iPhone / iPad</p>
+                  </td>
+                  <td align="right" style="padding: 14px 16px; vertical-align: middle; font-size: 14px; line-height: 20px; color: #475569; font-weight: 600;">App Store</td>
+                </tr>
+              </table>
+            </a>
+          </td>
+        </tr>
+      </table>
+      <div style="margin-top: 10px;">
+        <a href="${unsubscribeUrl}" style="color: #2563eb; text-decoration: underline;">Unsubscribe from publish mails</a>.
+      </div>
       Transactional emails from the app will still be delivered.
     </div>`;
 }
