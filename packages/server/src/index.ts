@@ -1,6 +1,7 @@
 import express, { Request } from 'express';
 import cors from 'cors';
 import path from 'path';
+import { createCampaignEmailResubscribeToken, verifyCampaignEmailResubscribeToken, verifyCampaignEmailUnsubscribeToken } from './config/email';
 import { config } from './config';
 import logger from './config/logger';
 import prisma from './config/database';
@@ -192,6 +193,92 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api', async (_req, _res, next) => {
   await dbReady;
   next();
+});
+
+app.get('/api/public/unsubscribe/campaign-email', async (req, res) => {
+  const token = typeof req.query.token === 'string' ? req.query.token : '';
+
+  if (!token) {
+    return res.status(400).send('Missing unsubscribe token');
+  }
+
+  try {
+    const { email } = verifyCampaignEmailUnsubscribeToken(token);
+    const resubscribeToken = createCampaignEmailResubscribeToken(email);
+    const baseUrl = config.clientUrl.includes('localhost:5173') ? 'http://localhost:4000' : config.clientUrl.replace(/\/$/, '');
+    const resubscribeUrl = `${baseUrl}/api/public/resubscribe/campaign-email?token=${encodeURIComponent(resubscribeToken)}`;
+
+    await prisma.user.updateMany({
+      where: { email },
+      data: { unsubscribedFromCampaignEmails: true },
+    });
+
+    return res.type('html').send(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dwell Hub Unsubscribe</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: #f8fafc; color: #0f172a; margin: 0; padding: 32px 16px; }
+      .card { max-width: 560px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; padding: 32px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); }
+      h1 { margin: 0 0 12px; font-size: 26px; }
+      p { line-height: 1.6; color: #475569; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Unsubscribed</h1>
+      <p>You will no longer receive publish mails such as release notes or marketing emails from Dwell Hub.</p>
+      <p>Important app emails, including transactional and account-related messages, will still be delivered.</p>
+      <p><a href="${resubscribeUrl}" style="color: #2563eb; text-decoration: underline;">Re-subscribe to publish mails</a></p>
+    </div>
+  </body>
+</html>`);
+  } catch {
+    return res.status(400).send('Invalid or expired unsubscribe token');
+  }
+});
+
+app.get('/api/public/resubscribe/campaign-email', async (req, res) => {
+  const token = typeof req.query.token === 'string' ? req.query.token : '';
+
+  if (!token) {
+    return res.status(400).send('Missing resubscribe token');
+  }
+
+  try {
+    const { email } = verifyCampaignEmailResubscribeToken(token);
+
+    await prisma.user.updateMany({
+      where: { email },
+      data: { unsubscribedFromCampaignEmails: false },
+    });
+
+    return res.type('html').send(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dwell Hub Re-subscribe</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: #f8fafc; color: #0f172a; margin: 0; padding: 32px 16px; }
+      .card { max-width: 560px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; padding: 32px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); }
+      h1 { margin: 0 0 12px; font-size: 26px; }
+      p { line-height: 1.6; color: #475569; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Re-subscribed</h1>
+      <p>You are subscribed again to Dwell Hub publish mails such as release notes and marketing emails.</p>
+      <p>You will continue receiving important app emails as usual.</p>
+    </div>
+  </body>
+</html>`);
+  } catch {
+    return res.status(400).send('Invalid or expired resubscribe token');
+  }
 });
 
 // ── API ROUTES ──────────────────────────────────────────

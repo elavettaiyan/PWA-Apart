@@ -455,6 +455,7 @@ model User {
   societyId            String?
   activeSocietyId      String?
   isActive             Boolean   @default(true)
+  unsubscribedFromCampaignEmails Boolean @default(false)
   mustChangePassword   Boolean   @default(false)
   skipAccountDeletionVerification Boolean @default(false)
   passwordResetToken   String?   @unique
@@ -488,6 +489,7 @@ model User {
   communityItemReadStates CommunityItemReadState[]
   createdEvents     SocietyEvent[] @relation("SocietyEventCreator")
   createdSurveys    CommunitySurvey[] @relation("CommunitySurveyCreator")
+  crmCampaignHistories CrmCampaignHistory[] @relation("CrmCampaignPerformedBy")
   surveyVotes       CommunitySurveyVote[]
   assignedServiceJobs ServiceJob[]
   performedCrmActions CrmActionLog[] @relation("CrmLogPerformer")
@@ -1430,4 +1432,27 @@ model CrmActionLog {
   @@index([societyId])
   @@index([performedById])
   @@map("crm_action_logs")
+}
+
+model CrmCampaignHistory {
+  id                     String   @id @default(uuid())
+  performedById          String
+  targetMode             String
+  subject                String
+  html                   String
+  intendedRecipientCount Int
+  recipientCount         Int
+  sentCount              Int
+  failedCount            Int
+  skippedCount           Int
+  skippedReason          String?
+  requestedRecipients    String?
+  failedRecipients       String?
+  createdAt              DateTime @default(now())
+
+  performedBy            User     @relation("CrmCampaignPerformedBy", fields: [performedById], references: [id])
+
+  @@index([performedById])
+  @@index([createdAt])
+  @@map("crm_campaign_history")
 }

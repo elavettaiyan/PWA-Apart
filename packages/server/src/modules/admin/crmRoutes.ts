@@ -2,14 +2,27 @@ import { Router, Response } from 'express';
 import { body, param, query } from 'express-validator';
 import { Prisma } from '@prisma/client';
 import prisma from '../../config/database';
+import { sendCampaignEmails } from '../../config/email';
 import { authenticate, authorize, AuthRequest, invalidateAuthCache } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import { computeTrialStatus } from '../premium/routes';
+import { config } from '../../config';
 
 const router = Router();
 
 router.use(authenticate);
 router.use(authorize('SUPER_ADMIN'));
+
+type CampaignTargetMode = 'all' | 'specific';
+
+function getServerPublicBaseUrl() {
+  const clientUrl = config.clientUrl.replace(/\/$/, '');
+  if (clientUrl.includes('localhost:5173')) {
+    return 'http://localhost:4000';
+  }
+
+  return clientUrl;
+}
 
 // ── HELPERS ────────────────────────────────────────────────────
 
@@ -528,6 +541,129 @@ router.get(
       );
     } catch (_error) {
       return res.status(500).json({ error: 'Failed to fetch society users' });
+    }
+  },
+);
+
+// ── POST /admin/crm/campaign-mails/send ───────────────────────
+// Send a separate HTML email to all active users or a specific email list.
+router.post(
+  '/campaign-mails/send',
+  [
+    body('targetMode').isIn(['all', 'specific']),
+    body('subject').trim().notEmpty().withMessage('Subject is required'),
+    body('html').isString().trim().notEmpty().withMessage('HTML message is required'),
+    body('recipientEmails').optional().isArray({ min: 1 }).withMessage('Recipient emails must be a non-empty array'),
+    body('recipientEmails.*').optional().isEmail().withMessage('Each recipient email must be valid').normalizeEmail({ gmail_remove_dots: false }),
+  ],
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const targetMode = req.body.targetMode as CampaignTargetMode;
+      const subject = String(req.body.subject || '').trim();
+      const html = String(req.body.html || '');
+
+      let recipientEmails: string[] = [];
+      let intendedRecipientCount = 0;
+      let skippedCount = 0;
+      let skippedReason: string | null = null;
+      let requestedRecipients: string[] | null = null;
+
+      if (targetMode === 'all') {
+        const users = await prisma.user.findMany({
+          where: {
+            isActive: true,
+            role: { not: 'SUPER_ADMIN' },
+            unsubscribedFromCampaignEmails: false,
+          },
+          select: { email: true },
+        });
+
+        intendedRecipientCount = users.length;
+        recipientEmails = users.map((user) => user.email);
+      } else {
+        const requestedEmails = Array.isArray(req.body.recipientEmails) ? req.body.recipientEmails.map((email: string) => String(email).trim().toLowerCase()) : [];
+        requestedRecipients = requestedEmails;
+        intendedRecipientCount = requestedEmails.length;
+        const unsubscribedUsers = requestedEmails.length > 0
+          ? await prisma.user.findMany({
+              where: {
+                email: { in: requestedEmails },
+                unsubscribedFromCampaignEmails: true,
+              },
+              select: { email: true },
+            })
+          : [];
+        const unsubscribedEmails = new Set(unsubscribedUsers.map((user) => user.email.toLowerCase()));
+        recipientEmails = requestedEmails.filter((email: string) => !unsubscribedEmails.has(email));
+        skippedCount = requestedEmails.length - recipientEmails.length;
+        if (skippedCount > 0) {
+          skippedReason = 'unsubscribed';
+        }
+        if (recipientEmails.length === 0) {
+          return res.status(400).json({ error: 'No eligible recipient emails remain after unsubscribe filtering' });
+        }
+      }
+
+      const result = await sendCampaignEmails({
+        recipientEmails,
+        subject,
+        html,
+        unsubscribeBaseUrl: `${getServerPublicBaseUrl()}/api/public/unsubscribe/campaign-email`,
+        intendedRecipientCount,
+      });
+
+      await prisma.crmCampaignHistory.create({
+        data: {
+          performedById: req.user!.id,
+          targetMode,
+          subject,
+          html,
+          intendedRecipientCount: result.intendedRecipientCount,
+          recipientCount: result.recipientCount,
+          sentCount: result.sentCount,
+          failedCount: result.failedCount,
+          skippedCount: targetMode === 'all' ? result.intendedRecipientCount - result.recipientCount : skippedCount,
+          skippedReason: targetMode === 'all' && result.intendedRecipientCount > result.recipientCount ? 'unsubscribed' : skippedReason,
+          requestedRecipients: requestedRecipients ? JSON.stringify(requestedRecipients) : null,
+          failedRecipients: result.failedRecipients.length > 0 ? JSON.stringify(result.failedRecipients) : null,
+        },
+      });
+
+      return res.json({
+        ...result,
+        targetMode,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message || 'Failed to send campaign email' });
+    }
+  },
+);
+
+router.get(
+  '/campaign-mails/history',
+  [query('limit').optional().isInt({ min: 1, max: 100 }).toInt()],
+  validate,
+  async (_req: AuthRequest, res: Response) => {
+    try {
+      const limit = (_req.query.limit as number | undefined) || 20;
+      const records = await prisma.crmCampaignHistory.findMany({
+        include: {
+          performedBy: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      });
+
+      return res.json(records.map((record) => ({
+        ...record,
+        requestedRecipients: record.requestedRecipients ? JSON.parse(record.requestedRecipients) : null,
+        failedRecipients: record.failedRecipients ? JSON.parse(record.failedRecipients) : [],
+      })));
+    } catch {
+      return res.status(500).json({ error: 'Failed to fetch campaign mail history' });
     }
   },
 );

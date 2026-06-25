@@ -1,5 +1,7 @@
 import { Resend } from 'resend';
+import jwt from 'jsonwebtoken';
 import logger from './logger';
+import { config } from './index';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const FROM_EMAIL = process.env.FROM_EMAIL || 'DwellHub <noreply@dwellhub.in>';
@@ -30,6 +32,168 @@ function escapeHtml(value: string) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+export interface CampaignEmailSendResult {
+  intendedRecipientCount: number;
+  recipientCount: number;
+  sentCount: number;
+  failedCount: number;
+  failedRecipients: string[];
+  skippedCount: number;
+}
+
+type CampaignEmailUnsubscribeTokenPayload = {
+  email: string;
+  scope: 'campaign-email-unsubscribe';
+};
+
+export function createCampaignEmailUnsubscribeToken(email: string) {
+  return jwt.sign(
+    {
+      email: String(email || '').trim().toLowerCase(),
+      scope: 'campaign-email-unsubscribe',
+    } satisfies CampaignEmailUnsubscribeTokenPayload,
+    config.jwt.secret,
+    { expiresIn: '365d' },
+  );
+}
+
+export function verifyCampaignEmailUnsubscribeToken(token: string) {
+  const decoded = jwt.verify(token, config.jwt.secret) as CampaignEmailUnsubscribeTokenPayload;
+  if (decoded.scope !== 'campaign-email-unsubscribe') {
+    throw new Error('Invalid unsubscribe token');
+  }
+
+  return {
+    email: String(decoded.email || '').trim().toLowerCase(),
+  };
+}
+
+export function createCampaignEmailResubscribeToken(email: string) {
+  return jwt.sign(
+    {
+      email: String(email || '').trim().toLowerCase(),
+      scope: 'campaign-email-resubscribe',
+    },
+    config.jwt.secret,
+    { expiresIn: '365d' },
+  );
+}
+
+export function verifyCampaignEmailResubscribeToken(token: string) {
+  const decoded = jwt.verify(token, config.jwt.secret) as { email?: string; scope?: string };
+  if (decoded.scope !== 'campaign-email-resubscribe') {
+    throw new Error('Invalid resubscribe token');
+  }
+
+  return {
+    email: String(decoded.email || '').trim().toLowerCase(),
+  };
+}
+
+export function appendCampaignEmailFooter(html: string, unsubscribeUrl: string) {
+  return `${html}
+    <div style="margin: 32px auto 0; max-width: 600px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-family: Arial, sans-serif; color: #64748b; font-size: 12px; line-height: 1.6;">
+      You are receiving this update from Dwell Hub platform communications.
+      <a href="${unsubscribeUrl}" style="color: #2563eb; text-decoration: underline;">Unsubscribe from publish mails</a>.
+      Transactional emails from the app will still be delivered.
+    </div>`;
+}
+
+export async function sendCampaignEmails(input: {
+  recipientEmails: string[];
+  subject: string;
+  html: string;
+  unsubscribeBaseUrl?: string;
+  intendedRecipientCount?: number;
+}) {
+  const recipientEmails = [...new Set(input.recipientEmails.map((email) => String(email || '').trim().toLowerCase()).filter(Boolean))];
+  const intendedRecipientCount = Math.max(input.intendedRecipientCount ?? recipientEmails.length, recipientEmails.length);
+
+  if (recipientEmails.length === 0) {
+    return {
+      intendedRecipientCount,
+      recipientCount: 0,
+      sentCount: 0,
+      failedCount: 0,
+      failedRecipients: [],
+      skippedCount: 0,
+    } satisfies CampaignEmailSendResult;
+  }
+
+  if (!RESEND_API_KEY) {
+    logger.error('Resend: campaign email blocked — RESEND_API_KEY is missing', {
+      recipientCount: recipientEmails.length,
+      subject: input.subject,
+    });
+    throw new Error('Email configuration error: RESEND_API_KEY is missing');
+  }
+
+  logger.info('Resend: starting campaign email send', {
+    recipientCount: recipientEmails.length,
+    subject: input.subject,
+  });
+
+  let sentCount = 0;
+  let failedCount = 0;
+  let skippedCount = 0;
+  const failedRecipients: string[] = [];
+
+  for (const recipient of recipientEmails) {
+    try {
+      const unsubscribeToken = createCampaignEmailUnsubscribeToken(recipient);
+      const unsubscribeUrl = `${input.unsubscribeBaseUrl || `${CLIENT_URL.replace(/\/$/, '')}/unsubscribe/campaign-email`}?token=${encodeURIComponent(unsubscribeToken)}`;
+      const { data, error } = await getResend().emails.send({
+        from: FROM_EMAIL,
+        to: recipient,
+        subject: input.subject,
+        html: appendCampaignEmailFooter(input.html, unsubscribeUrl),
+      });
+
+      if (error) {
+        failedCount += 1;
+        failedRecipients.push(recipient);
+        logger.error('Resend: failed to send campaign email', {
+          to: recipient,
+          subject: input.subject,
+          error: error.message,
+        });
+        continue;
+      }
+
+      sentCount += 1;
+      logger.info('Resend: campaign email sent', {
+        to: recipient,
+        subject: input.subject,
+        emailId: data?.id,
+      });
+    } catch (err: any) {
+      failedCount += 1;
+      failedRecipients.push(recipient);
+      logger.error('Resend: failed to send campaign email', {
+        to: recipient,
+        subject: input.subject,
+        error: err.message,
+      });
+    }
+  }
+
+  logger.info('Resend: campaign email completed', {
+    recipientCount: recipientEmails.length,
+    sentCount,
+    failedCount,
+    subject: input.subject,
+  });
+
+  return {
+    intendedRecipientCount,
+    recipientCount: recipientEmails.length,
+    sentCount,
+    failedCount,
+    failedRecipients,
+    skippedCount,
+  } satisfies CampaignEmailSendResult;
 }
 
 export async function sendPasswordResetEmail(to: string, resetToken: string, userName: string) {
