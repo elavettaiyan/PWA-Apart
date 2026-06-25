@@ -1,0 +1,204 @@
+---
+import Layout from './Layout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+
+export interface Props {
+  title: string;
+  description: string;
+  publishedAt: string;
+  readingTime?: string;
+}
+
+const { title, description, publishedAt, readingTime = '8 min read' } = Astro.props;
+
+const structuredData = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: title,
+    description,
+    datePublished: publishedAt,
+    dateModified: publishedAt,
+    author: {
+      '@type': 'Organization',
+      name: 'Dwell Hub',
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Dwell Hub',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://dwellhub.in/apple-touch-icon.png',
+      },
+    },
+    mainEntityOfPage: Astro.url.href,
+  },
+];
+---
+
+<Layout title={`${title} | Dwell Hub Blog`} description={description} structuredData={structuredData}>
+  <Header />
+  <main>
+    <section class="px-8 pt-32 pb-10">
+      <div class="max-w-4xl mx-auto">
+        <p class="text-xs font-bold tracking-widest uppercase text-primary mb-4 font-label">Dwell Hub Blog</p>
+        <h1 class="text-4xl lg:text-5xl font-extrabold text-primary tracking-tight mb-6 font-headline leading-tight">{title}</h1>
+        <div class="flex flex-wrap items-center gap-4 text-sm text-on-surface-variant font-body">
+          <span>{publishedAt}</span>
+          <span class="h-1 w-1 rounded-full bg-outline"></span>
+          <span>{readingTime}</span>
+        </div>
+        <p class="mt-6 max-w-3xl text-lg text-on-surface-variant font-body leading-relaxed">{description}</p>
+      </div>
+    </section>
+
+    <section class="px-8 pb-24">
+      <article class="max-w-4xl mx-auto rounded-[2rem] bg-surface-container-low p-8 lg:p-12 editorial-shadow blog-prose">
+        <slot />
+      </article>
+    </section>
+  </main>
+  <Footer />
+</Layout>
+
+<style is:global>
+  .blog-prose h2 {
+    margin-top: 2.5rem;
+    margin-bottom: 1rem;
+    font-family: 'Manrope', sans-serif;
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+    font-weight: 800;
+    color: #05213a;
+    letter-spacing: -0.02em;
+  }
+
+  .blog-prose h3 {
+    margin-top: 2rem;
+    margin-bottom: 0.75rem;
+    font-family: 'Manrope', sans-serif;
+    font-size: 1.375rem;
+    line-height: 1.875rem;
+    font-weight: 800;
+    color: #05213a;
+  }
+
+  .blog-prose p,
+  .blog-prose li {
+    color: #404946;
+    font-size: 1rem;
+    line-height: 1.9;
+  }
+
+  .blog-prose p + p {
+    margin-top: 1rem;
+  }
+
+  .blog-prose ul {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    padding-left: 0;
+    list-style: none;
+  }
+
+  .blog-prose li {
+    position: relative;
+    padding-left: 1.4rem;
+    margin-top: 0.7rem;
+  }
+
+  .blog-prose li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.78rem;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 9999px;
+    background: #05213a;
+  }
+
+  .blog-prose table {
+    width: 100%;
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
+    border-collapse: collapse;
+    overflow: hidden;
+    border-radius: 1rem;
+    background: #ffffff;
+  }
+
+  .blog-prose th,
+  .blog-prose td {
+    border: 1px solid rgba(5, 33, 58, 0.08);
+    padding: 0.9rem 1rem;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .blog-prose th {
+    background: #f3f4f2;
+    color: #05213a;
+    font-family: 'Manrope', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+
+  .blog-prose a {
+    color: #05213a;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+
+  .blog-prose em {
+    color: #4a607a;
+  }
+
+  .blog-prose strong {
+    color: #05213a;
+  }
+
+  .blog-prose hr {
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+    border: 0;
+    border-top: 1px solid rgba(5, 33, 58, 0.08);
+  }
+
+  @media (max-width: 640px) {
+    .blog-prose table,
+    .blog-prose thead,
+    .blog-prose tbody,
+    .blog-prose th,
+    .blog-prose td,
+    .blog-prose tr {
+      display: block;
+    }
+
+    .blog-prose thead {
+      display: none;
+    }
+
+    .blog-prose tr {
+      margin-bottom: 1rem;
+      border: 1px solid rgba(5, 33, 58, 0.08);
+      border-radius: 1rem;
+      overflow: hidden;
+      background: #ffffff;
+    }
+
+    .blog-prose td {
+      border: 0;
+      border-top: 1px solid rgba(5, 33, 58, 0.08);
+    }
+
+    .blog-prose td:first-child {
+      border-top: 0;
+      background: #f3f4f2;
+      color: #05213a;
+      font-weight: 700;
+      font-family: 'Manrope', sans-serif;
+    }
+  }
+</style>

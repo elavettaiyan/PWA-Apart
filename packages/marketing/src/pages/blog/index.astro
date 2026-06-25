@@ -1,0 +1,36 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+
+const title = 'Dwell Hub Blog | Society Management Guides';
+const description = 'Guides, comparisons, and practical resources for apartment associations, RWAs, and society committees in India.';
+---
+
+<Layout title={title} description={description}>
+  <Header />
+  <main>
+    <section class="px-8 pt-32 pb-20">
+      <div class="max-w-7xl mx-auto">
+        <p class="text-xs font-bold tracking-widest uppercase text-primary mb-4 font-label">Dwell Hub Blog</p>
+        <h1 class="text-4xl lg:text-5xl font-extrabold text-primary tracking-tight mb-5 font-headline leading-tight">Guides for apartment associations, RWAs, and committee members.</h1>
+        <p class="max-w-3xl text-on-surface-variant font-body leading-relaxed">Explore software comparisons, billing guides, and practical advice for running Indian apartment communities.</p>
+      </div>
+    </section>
+
+    <section class="px-8 pb-24">
+      <div class="max-w-7xl mx-auto">
+        <a href="/blog/top-society-management-software-india-2026" class="block rounded-[2rem] border border-primary/10 bg-surface-container-low p-8 lg:p-10 editorial-shadow hover:translate-y-[-2px] transition-transform">
+          <p class="text-xs font-bold tracking-widest uppercase text-primary mb-3 font-label">Featured Post</p>
+          <h2 class="text-3xl font-extrabold text-primary font-headline leading-tight mb-4">Society Management Software in India (2026): Features, Pricing &amp; Platform Comparison</h2>
+          <p class="max-w-3xl text-on-surface-variant font-body leading-relaxed mb-6">Compare MyGate, NoBrokerHood, ADDA, ApnaComplex, and Dwell Hub across pricing transparency, visitor management, maintenance billing, accounting, mobile experience, and setup complexity.</p>
+          <span class="inline-flex items-center gap-2 text-sm font-semibold text-primary">
+            Read article
+            <span class="material-symbols-outlined text-base">arrow_forward</span>
+          </span>
+        </a>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</Layout>
