@@ -4,7 +4,7 @@ import logger from './logger';
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const FROM_EMAIL = process.env.FROM_EMAIL || 'DwellHub <noreply@dwellhub.in>';
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
-const ANDROID_APP_URL = process.env.ANDROID_APP_URL || 'https://play.google.com/store/apps/details?id=com.resilynk.mobile&pcampaignid=web_share';
+const ANDROID_APP_URL = process.env.ANDROID_APP_URL || 'https://play.google.com/store/apps/details?id=com.resilynk.mobile&hl=en-US';
 const IOS_APP_URL = process.env.IOS_APP_URL || 'https://apps.apple.com/in/app/dwell-hub/id6764814825';
 
 // Resend throws if key is empty — defer creation until first use
