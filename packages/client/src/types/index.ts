@@ -591,6 +591,35 @@ export interface UserNotification {
 
 export type EventStatus = 'SCHEDULED' | 'CANCELLED' | 'COMPLETED';
 
+export type SurveyStatus = 'OPEN' | 'CLOSED';
+
+export interface CommunitySurveyOption {
+  id: string;
+  label: string;
+  sortOrder: number;
+  voteCount?: number;
+}
+
+export interface CommunitySurvey {
+  id: string;
+  societyId: string;
+  createdById: string;
+  title: string;
+  description?: string | null;
+  allowMultipleVotes: boolean;
+  status: SurveyStatus;
+  closesAt: string;
+  closedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  responseCount: number;
+  hasVoted: boolean;
+  selectedOptionIds: string[];
+  resultsVisible: boolean;
+  options: CommunitySurveyOption[];
+  createdBy?: { id: string; name: string; role: Role };
+}
+
 export interface SocietyEvent {
   id: string;
   societyId: string;

@@ -169,6 +169,11 @@ enum EventStatus {
   COMPLETED
 }
 
+enum SurveyStatus {
+  OPEN
+  CLOSED
+}
+
 enum ApprovalStatus {
   PENDING
   APPROVED
@@ -272,6 +277,7 @@ model Society {
   approvalRequests   ApprovalRequest[]
   announcementBroadcasts AnnouncementBroadcast[]
   events             SocietyEvent[]
+  surveys            CommunitySurvey[]
   memberRemovalAudits MemberRemovalAudit[]
   roleMenuConfigs    SocietyRoleMenuConfig[]
   expenses           Expense[]
@@ -481,6 +487,8 @@ model User {
   announcementReads AnnouncementReadState[]
   communityItemReadStates CommunityItemReadState[]
   createdEvents     SocietyEvent[] @relation("SocietyEventCreator")
+  createdSurveys    CommunitySurvey[] @relation("CommunitySurveyCreator")
+  surveyVotes       CommunitySurveyVote[]
   assignedServiceJobs ServiceJob[]
   performedCrmActions CrmActionLog[] @relation("CrmLogPerformer")
 
@@ -684,6 +692,64 @@ model SocietyEventReminder {
   @@unique([eventId, reminderMinutesBefore])
   @@index([eventId])
   @@map("society_event_reminders")
+}
+
+model CommunitySurvey {
+  id                 String                 @id @default(uuid())
+  societyId          String
+  createdById        String
+  title              String
+  description        String?
+  allowMultipleVotes Boolean                @default(false)
+  status             SurveyStatus           @default(OPEN)
+  closesAt           DateTime
+  closedAt           DateTime?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  society            Society                @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  createdBy          User                   @relation("CommunitySurveyCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  options            CommunitySurveyOption[]
+  votes              CommunitySurveyVote[]
+
+  @@index([societyId])
+  @@index([createdById])
+  @@index([societyId, status, closesAt])
+  @@map("community_surveys")
+}
+
+model CommunitySurveyOption {
+  id         String                @id @default(uuid())
+  surveyId   String
+  label      String
+  sortOrder  Int                   @default(0)
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  survey      CommunitySurvey      @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  votes       CommunitySurveyVote[]
+
+  @@index([surveyId])
+  @@index([surveyId, sortOrder])
+  @@map("community_survey_options")
+}
+
+model CommunitySurveyVote {
+  surveyId   String
+  optionId   String
+  userId     String
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  survey     CommunitySurvey       @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  option     CommunitySurveyOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([surveyId, optionId, userId])
+  @@index([surveyId])
+  @@index([optionId])
+  @@index([userId])
+  @@map("community_survey_votes")
 }
 
 model UserSocietyMembership {

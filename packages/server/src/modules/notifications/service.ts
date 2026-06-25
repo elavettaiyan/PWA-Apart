@@ -790,6 +790,25 @@ export async function notifyEventCancelled(eventId: string) {
   });
 }
 
+export async function notifySurveyCreated(surveyId: string) {
+  const survey = await prisma.communitySurvey.findUnique({
+    where: { id: surveyId },
+  });
+
+  if (!survey) {
+    return { configured: false, sentCount: 0, failedCount: 0, skipped: true };
+  }
+
+  return sendPushToSocietyRoles(survey.societyId, [...DEFAULT_COMMUNITY_AUDIENCE_ROLES], {
+    title: 'New survey posted',
+    body: `${survey.title} is open for your vote.`,
+    path: '/community?filter=survey',
+    route: '/community?filter=survey',
+    type: 'survey.created',
+    entityId: survey.id,
+  });
+}
+
 export async function sendDueEventReminders(societyId?: string) {
   const now = new Date();
   const events = await prisma.societyEvent.findMany({

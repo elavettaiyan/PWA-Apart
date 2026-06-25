@@ -3,6 +3,7 @@ import prisma from '../../config/database';
 export const COMMUNITY_READ_ITEM_TYPES = {
   APPROVAL: 'APPROVAL',
   DELIVERY: 'DELIVERY',
+  SURVEY: 'SURVEY',
 } as const;
 
 export type CommunityReadItemType = typeof COMMUNITY_READ_ITEM_TYPES[keyof typeof COMMUNITY_READ_ITEM_TYPES];

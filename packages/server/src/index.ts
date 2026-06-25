@@ -28,6 +28,7 @@ import notificationRoutes from './modules/notifications/routes';
 import announcementRoutes from './modules/announcements/routes';
 import eventRoutes from './modules/events/routes';
 import approvalRoutes from './modules/approvals/routes';
+import surveyRoutes from './modules/surveys/routes';
 import assetRoutes, { sendServiceDueReminders } from './modules/assets/routes';
 import runLateFeeWorker from './jobs/lateFeeWorker';
 
@@ -219,6 +220,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/approvals', approvalRoutes);
+app.use('/api/surveys', surveyRoutes);
 app.use('/api/assets', assetRoutes);
 
 // ── ERROR HANDLING ──────────────────────────────────────

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BellRing, CalendarDays, Car, CheckCheck, CheckCircle2, Clock3, ExternalLink, History, LogOut, MapPin, Megaphone, Package, Pencil, Phone, Pin, Plus, RotateCcw, ShieldCheck, Trash2, UserRound, XCircle } from 'lucide-react';
+import { BarChart3, BellRing, CalendarDays, Car, CheckCheck, CheckCircle2, Clock3, ExternalLink, History, LogOut, MapPin, Megaphone, Package, Pencil, Phone, Pin, Plus, RotateCcw, ShieldCheck, Trash2, UserRound, XCircle } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import Modal from '../../components/ui/Modal';
@@ -11,11 +11,12 @@ import { getApiPublicBaseUrl } from '../../lib/platform';
 import { cn } from '../../lib/utils';
 import { formatCurrency, formatDate, formatDateTime, getStatusColor } from '../../lib/utils';
 import { useAuthStore } from '../../store/authStore';
-import { SOCIETY_MANAGERS, type Announcement, type ApprovalRequest, type Delivery, type SocietyEvent, type Visitor } from '../../types';
+import { SOCIETY_MANAGERS, type Announcement, type ApprovalRequest, type CommunitySurvey, type Delivery, type SocietyEvent, type Visitor } from '../../types';
 import { AnnouncementForm } from '../announcements/AnnouncementsPage';
 import { EventForm } from '../events/EventsPage';
 
 type CommunityTab = 'inbox' | 'history';
+type CommunityFilter = 'all' | 'announcement' | 'event' | 'survey' | 'approval' | 'visitor' | 'delivery';
 
 type CommunityFeedItem =
   | {
@@ -31,6 +32,13 @@ type CommunityFeedItem =
     bucket: CommunityTab;
     sortTimestamp: number;
     event: SocietyEvent;
+  }
+  | {
+    id: string;
+    kind: 'survey';
+    bucket: CommunityTab;
+    sortTimestamp: number;
+    survey: CommunitySurvey;
   }
   | {
     id: string;
@@ -59,8 +67,22 @@ const COMMUNITY_TABS: Array<{ id: CommunityTab; label: string; icon: typeof Mega
   { id: 'history', label: 'History', icon: History },
 ];
 
+const COMMUNITY_FILTERS: Array<{ id: CommunityFilter; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'announcement', label: 'Announcements' },
+  { id: 'event', label: 'Events' },
+  { id: 'survey', label: 'Surveys' },
+  { id: 'approval', label: 'Approvals' },
+  { id: 'visitor', label: 'Visitors' },
+  { id: 'delivery', label: 'Deliveries' },
+];
+
 function getCommunityTab(value: string | null): CommunityTab {
   return value === 'history' ? 'history' : 'inbox';
+}
+
+function getCommunityFilter(value: string | null): CommunityFilter {
+  return COMMUNITY_FILTERS.some((filter) => filter.id === value) ? (value as CommunityFilter) : 'all';
 }
 
 function invalidateDashboardShortcuts(queryClient: ReturnType<typeof useQueryClient>) {
@@ -79,6 +101,18 @@ function getEventBucket(event: SocietyEvent): CommunityTab {
     return 'inbox';
   }
   return 'history';
+}
+
+function getSurveyBucket(survey: CommunitySurvey): CommunityTab {
+  return survey.status === 'OPEN' ? 'inbox' : 'history';
+}
+
+function isSurveyExpired(survey: CommunitySurvey) {
+  return survey.status === 'CLOSED' && !survey.closedAt && new Date(survey.closesAt).getTime() <= Date.now();
+}
+
+function getSurveyStatusLabel(survey: CommunitySurvey) {
+  return isSurveyExpired(survey) ? 'EXPIRED' : survey.status;
 }
 
 function getManualReadBucket(item: { isRead: boolean }): CommunityTab {
@@ -172,6 +206,13 @@ function resolveUploadedFileUrl(value?: string | null) {
   return value.startsWith('data:') || /^https?:\/\//i.test(value) ? value : `${getApiPublicBaseUrl()}${value}`;
 }
 
+function toDateTimeLocalValue(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  const pad = (input: number) => String(input).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function ApprovalRequestDetails({ approval }: { approval: ApprovalRequest }) {
   const pendingData = approval.pendingData || {};
   const registrationVehicles = getVehicleRows(pendingData.vehicles);
@@ -234,8 +275,10 @@ export default function CommunityPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showAnnouncementCreate, setShowAnnouncementCreate] = useState(false);
   const [showEventCreate, setShowEventCreate] = useState(false);
+  const [showSurveyCreate, setShowSurveyCreate] = useState(false);
   const [viewAnnouncement, setViewAnnouncement] = useState<Announcement | null>(null);
   const [viewEvent, setViewEvent] = useState<SocietyEvent | null>(null);
+  const [viewSurvey, setViewSurvey] = useState<CommunitySurvey | null>(null);
   const [viewApproval, setViewApproval] = useState<ApprovalRequest | null>(null);
   const [viewVisitor, setViewVisitor] = useState<Visitor | null>(null);
   const [viewDelivery, setViewDelivery] = useState<Delivery | null>(null);
@@ -248,6 +291,7 @@ export default function CommunityPage() {
   const canManage = user?.role === 'SUPER_ADMIN' || SOCIETY_MANAGERS.includes((user?.role || '') as any);
   const canMarkOutVisitors = ['SUPER_ADMIN', 'SERVICE_STAFF', 'ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'].includes(displayUser?.role || '');
   const activeTab = useMemo(() => getCommunityTab(searchParams.get('tab')), [searchParams]);
+  const activeFilter = useMemo(() => getCommunityFilter(searchParams.get('filter')), [searchParams]);
 
   const { data: announcements = [], isLoading: announcementsLoading } = useQuery<Announcement[]>({
     queryKey: ['announcements'],
@@ -257,6 +301,11 @@ export default function CommunityPage() {
   const { data: events = [], isLoading: eventsLoading } = useQuery<SocietyEvent[]>({
     queryKey: ['events'],
     queryFn: async () => (await api.get('/events')).data,
+  });
+
+  const { data: surveys = [], isLoading: surveysLoading } = useQuery<CommunitySurvey[]>({
+    queryKey: ['surveys'],
+    queryFn: async () => (await api.get('/surveys')).data,
   });
 
   const { data: approvals = [], isLoading: approvalsLoading } = useQuery<ApprovalRequest[]>({
@@ -331,6 +380,39 @@ export default function CommunityPage() {
     onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to delete event'),
   });
 
+  const closeSurveyMutation = useMutation({
+    mutationFn: (surveyId: string) => api.patch(`/surveys/${surveyId}/close`),
+    onSuccess: () => {
+      toast.success('Survey closed');
+      queryClient.invalidateQueries({ queryKey: ['surveys'] });
+      invalidateDashboardShortcuts(queryClient);
+      setViewSurvey((current) => current ? { ...current, status: 'CLOSED', closedAt: new Date().toISOString(), resultsVisible: true } : current);
+    },
+    onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to close survey'),
+  });
+
+  const deleteSurveyMutation = useMutation({
+    mutationFn: (surveyId: string) => api.delete(`/surveys/${surveyId}`),
+    onSuccess: () => {
+      toast.success('Survey deleted');
+      queryClient.invalidateQueries({ queryKey: ['surveys'] });
+      invalidateDashboardShortcuts(queryClient);
+      setViewSurvey(null);
+    },
+    onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to delete survey'),
+  });
+
+  const voteSurveyMutation = useMutation({
+    mutationFn: ({ surveyId, optionIds }: { surveyId: string; optionIds: string[] }) => api.post(`/surveys/${surveyId}/vote`, { optionIds }),
+    onSuccess: () => {
+      toast.success('Vote submitted');
+      queryClient.invalidateQueries({ queryKey: ['surveys'] });
+      invalidateDashboardShortcuts(queryClient);
+      setViewSurvey(null);
+    },
+    onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to submit vote'),
+  });
+
   const reminderMutation = useMutation({
     mutationFn: () => api.post('/events/reminders/send'),
     onSuccess: (response) => {
@@ -391,6 +473,14 @@ export default function CommunityPage() {
       event,
     }));
 
+    const surveyItems: CommunityFeedItem[] = surveys.map((survey) => ({
+      id: `survey-${survey.id}`,
+      kind: 'survey',
+      bucket: getSurveyBucket(survey),
+      sortTimestamp: new Date(survey.status === 'OPEN' ? survey.closesAt : (survey.closedAt || survey.closesAt)).getTime(),
+      survey,
+    }));
+
     const approvalItems: CommunityFeedItem[] = approvals.map((approval) => ({
       id: `approval-${approval.id}`,
       kind: 'approval',
@@ -415,8 +505,9 @@ export default function CommunityPage() {
       delivery,
     }));
 
-    return [...announcementItems, ...eventItems, ...approvalItems, ...visitorItems, ...deliveryItems]
+    return [...announcementItems, ...eventItems, ...surveyItems, ...approvalItems, ...visitorItems, ...deliveryItems]
       .filter((item) => item.bucket === activeTab)
+      .filter((item) => activeFilter === 'all' ? true : item.kind === activeFilter)
       .sort((left, right) => {
         if (activeTab === 'inbox') {
           if (left.kind === 'announcement' && right.kind === 'announcement') {
@@ -433,20 +524,32 @@ export default function CommunityPage() {
           if (left.kind === 'event' && right.kind === 'event') {
             return left.sortTimestamp - right.sortTimestamp;
           }
+          if (left.kind === 'survey' && right.kind === 'survey') {
+            return left.sortTimestamp - right.sortTimestamp;
+          }
+          if (left.kind === 'survey' && right.kind === 'event') {
+            return left.sortTimestamp - right.sortTimestamp;
+          }
+          if (left.kind === 'event' && right.kind === 'survey') {
+            return left.sortTimestamp - right.sortTimestamp;
+          }
           if ((left.kind === 'approval' || left.kind === 'visitor') && right.kind === 'event') {
             return -1;
           }
-          if (left.kind === 'event' && (right.kind === 'approval' || right.kind === 'visitor')) {
+          if ((left.kind === 'event' || left.kind === 'survey') && (right.kind === 'approval' || right.kind === 'visitor')) {
             return 1;
+          }
+          if ((left.kind === 'approval' || left.kind === 'visitor') && right.kind === 'survey') {
+            return -1;
           }
           return right.sortTimestamp - left.sortTimestamp;
         }
 
         return right.sortTimestamp - left.sortTimestamp;
       });
-  }, [activeTab, announcements, approvals, deliveries, events, visitors]);
+  }, [activeFilter, activeTab, announcements, approvals, deliveries, events, surveys, visitors]);
 
-  if (announcementsLoading || eventsLoading || approvalsLoading || visitorsLoading || deliveriesLoading) {
+  if (announcementsLoading || eventsLoading || surveysLoading || approvalsLoading || visitorsLoading || deliveriesLoading) {
     return <PageLoader />;
   }
 
@@ -464,6 +567,9 @@ export default function CommunityPage() {
             </HeaderActionButton>
             <HeaderActionButton onClick={() => setShowEventCreate(true)}>
               <Plus className="w-4 h-4" /> Event
+            </HeaderActionButton>
+            <HeaderActionButton onClick={() => setShowSurveyCreate(true)}>
+              <BarChart3 className="w-4 h-4" /> Survey
             </HeaderActionButton>
           </div>
         ) : null}
@@ -497,13 +603,45 @@ export default function CommunityPage() {
         })}
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        {COMMUNITY_FILTERS.map((filter) => {
+          const isActive = activeFilter === filter.id;
+          return (
+            <button
+              key={filter.id}
+              type="button"
+              onClick={() => {
+                const nextSearchParams = new URLSearchParams(searchParams);
+                if (filter.id === 'all') {
+                  nextSearchParams.delete('filter');
+                } else {
+                  nextSearchParams.set('filter', filter.id);
+                }
+                setSearchParams(nextSearchParams, { replace: true });
+              }}
+              className={cn(
+                'rounded-full px-3 py-1.5 text-xs font-medium transition',
+                isActive ? 'bg-primary text-white' : 'bg-white text-[#64748B] hover:bg-[#F8FAFC]',
+              )}
+              style={isActive ? undefined : { boxShadow: '0 1px 4px -1px rgba(0,0,0,0.04)' }}
+            >
+              {filter.label}
+            </button>
+          );
+        })}
+      </div>
+
       {feedItems.length === 0 ? (
         <EmptyState
           icon={activeTab === 'inbox' ? Megaphone : CalendarDays}
           title={activeTab === 'inbox' ? 'Inbox is clear' : 'No history yet'}
           description={activeTab === 'inbox'
-            ? 'Unread announcements, upcoming events, pending approvals, unread approved approvals, active visitors, and unread deliveries will appear here.'
-            : 'Read announcements, past events, processed approvals, visitor exits, and read deliveries will appear here.'}
+            ? activeFilter === 'all'
+              ? 'Unread announcements, upcoming events, open surveys, pending approvals, unread approved approvals, active visitors, and unread deliveries will appear here.'
+              : `No ${COMMUNITY_FILTERS.find((filter) => filter.id === activeFilter)?.label.toLowerCase()} in inbox.`
+            : activeFilter === 'all'
+              ? 'Read announcements, past events, closed surveys, processed approvals, visitor exits, and read deliveries will appear here.'
+              : `No ${COMMUNITY_FILTERS.find((filter) => filter.id === activeFilter)?.label.toLowerCase()} in history.`}
         />
       ) : (
         <div className="space-y-3">
@@ -657,6 +795,82 @@ export default function CommunityPage() {
                   </button>
                 </div>
               ) : null}
+            </article>
+          ) : item.kind === 'survey' ? (
+            <article
+              key={item.id}
+              className="cursor-pointer overflow-hidden rounded-2xl bg-white transition-all active:scale-[0.99]"
+              style={{ boxShadow: '0 1px 8px -2px rgba(0,0,0,0.04)' }}
+              onClick={() => setViewSurvey(item.survey)}
+            >
+              <div className="flex gap-3 p-4">
+                <div className={cn(
+                  'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full',
+                  item.survey.status === 'OPEN' ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500',
+                )}>
+                  <BarChart3 className="h-4 w-4" />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Survey</span>
+                        <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', item.survey.status === 'OPEN' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600')}>
+                          {getSurveyStatusLabel(item.survey)}
+                        </span>
+                        {item.survey.hasVoted ? <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Voted</span> : null}
+                      </div>
+                      <h2 className="mt-2 truncate text-[15px] font-semibold leading-snug text-[#0F172A]">{item.survey.title}</h2>
+                      <p className="mt-0.5 text-[12px] text-[#94A3B8]">
+                        {item.survey.createdBy?.name || 'Committee'} · {item.survey.status === 'OPEN' ? `Closes ${formatDateTime(item.survey.closesAt)}` : isSurveyExpired(item.survey) ? `Expired ${formatDateTime(item.survey.closesAt)}` : `Closed ${formatDateTime(item.survey.closedAt || item.survey.closesAt)}`}
+                      </p>
+                    </div>
+                  </div>
+
+                  {item.survey.description ? (
+                    <p className="mt-1.5 line-clamp-2 whitespace-pre-wrap text-[13px] leading-relaxed text-[#64748B]">{item.survey.description}</p>
+                  ) : null}
+
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                    <span>{item.survey.options.length} options</span>
+                    <span>·</span>
+                    <span>{item.survey.responseCount} responses</span>
+                    <span>·</span>
+                    <span>{item.survey.allowMultipleVotes ? 'Multi-select' : 'Single choice'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1 px-3 pb-2.5" onClick={(event) => event.stopPropagation()}>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-[#F8FAFC] px-3 py-1.5 text-[11px] font-medium text-[#64748B] transition hover:bg-[#F1F5F9]"
+                  onClick={() => setViewSurvey(item.survey)}
+                >
+                  <BarChart3 className="h-3 w-3" /> Open
+                </button>
+                {canManage && item.survey.status === 'OPEN' ? (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-[#F8FAFC] px-3 py-1.5 text-[11px] font-medium text-[#64748B] transition hover:bg-[#F1F5F9]"
+                    onClick={() => closeSurveyMutation.mutate(item.survey.id)}
+                    disabled={closeSurveyMutation.isPending}
+                  >
+                    <CheckCheck className="h-3 w-3" /> Close
+                  </button>
+                ) : null}
+                {canManage ? (
+                  <button
+                    type="button"
+                    className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1.5 text-[11px] font-medium text-red-500 transition hover:bg-red-100"
+                    onClick={() => deleteSurveyMutation.mutate(item.survey.id)}
+                    disabled={deleteSurveyMutation.isPending}
+                  >
+                    <Trash2 className="h-3 w-3" /> Delete
+                  </button>
+                ) : null}
+              </div>
             </article>
           ) : item.kind === 'approval' ? (
             <article
@@ -982,6 +1196,31 @@ export default function CommunityPage() {
         />
       </Modal>
 
+      <Modal isOpen={showSurveyCreate} onClose={() => setShowSurveyCreate(false)} title="New Survey" size="lg">
+        <SurveyForm
+          onSuccess={() => {
+            setShowSurveyCreate(false);
+            queryClient.invalidateQueries({ queryKey: ['surveys'] });
+            invalidateDashboardShortcuts(queryClient);
+          }}
+        />
+      </Modal>
+
+      <Modal isOpen={!!viewSurvey} onClose={() => setViewSurvey(null)} title={viewSurvey?.title || 'Survey'} size="lg">
+        {viewSurvey ? (
+          <SurveyDetail
+            survey={viewSurvey}
+            canManage={canManage}
+            onVote={(optionIds) => voteSurveyMutation.mutate({ surveyId: viewSurvey.id, optionIds })}
+            votePending={voteSurveyMutation.isPending}
+            onCloseSurvey={() => closeSurveyMutation.mutate(viewSurvey.id)}
+            closePending={closeSurveyMutation.isPending}
+            onDeleteSurvey={() => deleteSurveyMutation.mutate(viewSurvey.id)}
+            deletePending={deleteSurveyMutation.isPending}
+          />
+        ) : null}
+      </Modal>
+
       <Modal isOpen={!!editingEvent} onClose={() => setEditingEvent(null)} title="Edit Event" size="lg">
         {editingEvent ? (
           <EventForm
@@ -1007,5 +1246,199 @@ function HeaderActionButton({ children, onClick }: { children: React.ReactNode; 
     >
       {children}
     </button>
+  );
+}
+
+function SurveyDetail({
+  survey,
+  canManage,
+  onVote,
+  votePending,
+  onCloseSurvey,
+  closePending,
+  onDeleteSurvey,
+  deletePending,
+}: {
+  survey: CommunitySurvey;
+  canManage: boolean;
+  onVote: (optionIds: string[]) => void;
+  votePending: boolean;
+  onCloseSurvey: () => void;
+  closePending: boolean;
+  onDeleteSurvey: () => void;
+  deletePending: boolean;
+}) {
+  const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>(survey.selectedOptionIds);
+  const canVote = survey.status === 'OPEN';
+
+  const toggleOption = (optionId: string) => {
+    setSelectedOptionIds((current) => {
+      if (survey.allowMultipleVotes) {
+        return current.includes(optionId) ? current.filter((item) => item !== optionId) : [...current, optionId];
+      }
+
+      return current.includes(optionId) ? [] : [optionId];
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Survey</span>
+        <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', survey.status === 'OPEN' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600')}>
+          {getSurveyStatusLabel(survey)}
+        </span>
+        {survey.hasVoted ? (
+          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+            <CheckCheck className="mr-1 h-3 w-3" /> Voted
+          </span>
+        ) : null}
+      </div>
+      <p className="text-sm text-[#94A3B8]">{survey.createdBy?.name || 'Committee'} · Created {formatDateTime(survey.createdAt)}</p>
+      {survey.description ? <p className="text-sm leading-relaxed text-[#334155] whitespace-pre-wrap">{survey.description}</p> : null}
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+        <div className="flex items-center gap-2"><Clock3 className="h-4 w-4 text-slate-400" /> {survey.status === 'OPEN' ? `Closes ${formatDateTime(survey.closesAt)}` : isSurveyExpired(survey) ? `Expired ${formatDateTime(survey.closesAt)}` : `Closed ${formatDateTime(survey.closedAt || survey.closesAt)}`}</div>
+        <div className="mt-2">{survey.allowMultipleVotes ? 'Residents can choose multiple options.' : 'Residents can choose one option.'}</div>
+      </div>
+
+      <div className="space-y-3">
+        {survey.options.map((option) => {
+          const checked = selectedOptionIds.includes(option.id);
+          return (
+            <label
+              key={option.id}
+              className={cn(
+                'flex cursor-pointer items-start justify-between gap-3 rounded-2xl border p-4 transition',
+                checked ? 'border-primary bg-primary/5' : 'border-slate-200 bg-white',
+                !canVote && 'cursor-default',
+              )}
+            >
+              <div className="flex items-start gap-3">
+                <input
+                  type={survey.allowMultipleVotes ? 'checkbox' : 'radio'}
+                  checked={checked}
+                  disabled={!canVote || votePending}
+                  onChange={() => toggleOption(option.id)}
+                  name={`survey-${survey.id}`}
+                  className="mt-1 accent-primary"
+                />
+                <div>
+                  <p className="text-sm font-medium text-slate-900">{option.label}</p>
+                  {survey.resultsVisible ? <p className="mt-1 text-xs text-slate-500">{option.voteCount || 0} votes</p> : null}
+                </div>
+              </div>
+              {checked ? <CheckCircle2 className="h-4 w-4 text-primary" /> : null}
+            </label>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 pt-2">
+        {canVote ? (
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={votePending || selectedOptionIds.length === 0}
+            onClick={() => onVote(selectedOptionIds)}
+          >
+            {votePending ? 'Submitting...' : survey.hasVoted ? 'Update Vote' : 'Submit Vote'}
+          </button>
+        ) : null}
+        {canManage && survey.status === 'OPEN' ? (
+          <button type="button" className="btn-secondary" disabled={closePending} onClick={onCloseSurvey}>
+            {closePending ? 'Closing...' : 'Close Survey'}
+          </button>
+        ) : null}
+        {canManage ? (
+          <button type="button" className="inline-flex items-center gap-2 rounded-lg bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100" disabled={deletePending} onClick={onDeleteSurvey}>
+            <Trash2 className="h-4 w-4" /> {deletePending ? 'Deleting...' : 'Delete'}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function SurveyForm({ onSuccess }: { onSuccess: () => void }) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [allowMultipleVotes, setAllowMultipleVotes] = useState(false);
+  const [closesAt, setClosesAt] = useState('');
+  const [options, setOptions] = useState(['', '']);
+
+  const mutation = useMutation({
+    mutationFn: (payload: { title: string; description?: string; allowMultipleVotes: boolean; closesAt: string; options: Array<{ label: string }> }) => api.post('/surveys', payload),
+    onSuccess: () => {
+      toast.success('Survey created');
+      onSuccess();
+    },
+    onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to create survey'),
+  });
+
+  const updateOption = (index: number, value: string) => {
+    setOptions((current) => current.map((item, itemIndex) => itemIndex === index ? value : item));
+  };
+
+  const addOption = () => setOptions((current) => [...current, '']);
+  const removeOption = (index: number) => setOptions((current) => current.filter((_, itemIndex) => itemIndex !== index));
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const cleanOptions = options.map((option) => option.trim()).filter(Boolean);
+    mutation.mutate({
+      title: title.trim(),
+      description: description.trim() || undefined,
+      allowMultipleVotes,
+      closesAt: new Date(closesAt).toISOString(),
+      options: cleanOptions.map((label) => ({ label })),
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="label">Title</label>
+        <input className="input" value={title} onChange={(event) => setTitle(event.target.value)} required />
+      </div>
+      <div>
+        <label className="label">Description</label>
+        <textarea className="input min-h-[110px]" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional context for residents" />
+      </div>
+      <div>
+        <label className="label">Closing time</label>
+        <input className="input" type="datetime-local" value={closesAt} min={toDateTimeLocalValue(new Date().toISOString())} onChange={(event) => setClosesAt(event.target.value)} required />
+      </div>
+      <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <input type="checkbox" checked={allowMultipleVotes} onChange={(event) => setAllowMultipleVotes(event.target.checked)} className="accent-primary" />
+        Allow residents to choose multiple options
+      </label>
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <label className="label">Options</label>
+          <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={addOption}>Add option</button>
+        </div>
+        <div className="space-y-3">
+          {options.map((option, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <input className="input flex-1" value={option} onChange={(event) => updateOption(index, event.target.value)} placeholder={`Option ${index + 1}`} required={index < 2} />
+              {options.length > 2 ? (
+                <button type="button" className="rounded-lg bg-slate-100 p-2 text-slate-500 hover:bg-slate-200" onClick={() => removeOption(index)}>
+                  <XCircle className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex justify-end pt-2">
+        <button
+          type="submit"
+          className="btn-primary"
+          disabled={mutation.isPending || !title.trim() || !closesAt || options.map((option) => option.trim()).filter(Boolean).length < 2}
+        >
+          {mutation.isPending ? 'Creating...' : 'Create Survey'}
+        </button>
+      </div>
+    </form>
   );
 }
