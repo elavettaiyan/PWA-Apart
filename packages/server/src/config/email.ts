@@ -48,6 +48,8 @@ type CampaignEmailUnsubscribeTokenPayload = {
   scope: 'campaign-email-unsubscribe';
 };
 
+const CAMPAIGN_EMAIL_TOKEN_EXPIRES_IN = '90d' as const;
+
 export function createCampaignEmailUnsubscribeToken(email: string) {
   return jwt.sign(
     {
@@ -55,7 +57,7 @@ export function createCampaignEmailUnsubscribeToken(email: string) {
       scope: 'campaign-email-unsubscribe',
     } satisfies CampaignEmailUnsubscribeTokenPayload,
     config.jwt.secret,
-    { expiresIn: '365d' },
+    { expiresIn: CAMPAIGN_EMAIL_TOKEN_EXPIRES_IN },
   );
 }
 
@@ -77,7 +79,7 @@ export function createCampaignEmailResubscribeToken(email: string) {
       scope: 'campaign-email-resubscribe',
     },
     config.jwt.secret,
-    { expiresIn: '365d' },
+    { expiresIn: CAMPAIGN_EMAIL_TOKEN_EXPIRES_IN },
   );
 }
 
@@ -183,7 +185,8 @@ export async function sendCampaignEmails(input: {
   for (const recipient of recipientEmails) {
     try {
       const unsubscribeToken = createCampaignEmailUnsubscribeToken(recipient);
-      const unsubscribeUrl = `${input.unsubscribeBaseUrl || `${CLIENT_URL.replace(/\/$/, '')}/unsubscribe/campaign-email`}?token=${encodeURIComponent(unsubscribeToken)}`;
+      const unsubscribeBaseUrl = input.unsubscribeBaseUrl || `${config.publicServerUrl.replace(/\/$/, '')}/api/public/unsubscribe/campaign-email`;
+      const unsubscribeUrl = `${unsubscribeBaseUrl}?token=${encodeURIComponent(unsubscribeToken)}`;
       const { data, error } = await getResend().emails.send({
         from: FROM_EMAIL,
         to: recipient,

@@ -106,6 +106,7 @@ Add in Vercel dashboard:
 | `RAZORPAY_BASE_URL` | `https://api.razorpay.com/v1` |
 | `RAZORPAY_SUBSCRIPTION_CYCLES` | `120` |
 | `CLIENT_URL` | `https://your-frontend.vercel.app` |
+| `PUBLIC_SERVER_URL` | `https://your-backend-url.vercel.app` |
 | `NODE_ENV` | `production` |
 
 ### 4c. Build Settings
@@ -182,6 +183,7 @@ Add these in your Railway service → **Variables** tab:
 | `JWT_REFRESH_SECRET` | (generate another strong 64-char random string) |
 | `NODE_ENV` | `production` |
 | `CLIENT_URL` | `https://your-frontend.vercel.app` |
+| `PUBLIC_SERVER_URL` | `https://api.yourdomain.com` |
 | `PHONEPE_MERCHANT_ID` | Your PhonePe Merchant ID |
 | `PHONEPE_SALT_KEY` | Your PhonePe Salt Key |
 | `PHONEPE_SALT_INDEX` | `1` |

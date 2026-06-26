@@ -16,12 +16,12 @@ router.use(authorize('SUPER_ADMIN'));
 type CampaignTargetMode = 'all' | 'specific';
 
 function getServerPublicBaseUrl() {
-  const clientUrl = config.clientUrl.replace(/\/$/, '');
-  if (clientUrl.includes('localhost:5173')) {
+  const publicServerUrl = config.publicServerUrl.replace(/\/$/, '');
+  if (publicServerUrl.includes('localhost:4000')) {
     return 'http://localhost:4000';
   }
 
-  return clientUrl;
+  return publicServerUrl;
 }
 
 // ── HELPERS ────────────────────────────────────────────────────

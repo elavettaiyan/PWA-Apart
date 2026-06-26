@@ -11,7 +11,7 @@ import {
 const router = Router();
 
 function getCampaignPreferenceBaseUrl() {
-  return config.clientUrl.includes('localhost:5173') ? 'http://localhost:4000' : config.clientUrl.replace(/\/$/, '');
+  return config.publicServerUrl.includes('localhost:4000') ? 'http://localhost:4000' : config.publicServerUrl.replace(/\/$/, '');
 }
 
 function escapeHtml(value: string) {

@@ -52,6 +52,7 @@ export const config = {
   },
 
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
+  publicServerUrl: process.env.PUBLIC_SERVER_URL || process.env.SERVER_PUBLIC_URL || 'http://localhost:4000',
 
   smtp: {
     host: process.env.SMTP_HOST || 'smtp.titan.email',
