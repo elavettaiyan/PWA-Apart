@@ -11,6 +11,7 @@ import { isNonSecurityServiceStaff, isSecurityServiceStaff } from './serviceStaf
 
 export const NAVIGATION_MENU_CATALOG = [
   { id: 'dashboard', label: 'Dashboard', href: '/' },
+  { id: 'campaigns', label: 'Campaigns', href: '/crm/campaigns' },
   { id: 'community', label: 'Inbox', href: '/community' },
   { id: 'flats', label: 'Flats & Residents', href: '/flats' },
   { id: 'my-flat', label: 'My Flat', href: '/my-flat' },
@@ -174,7 +175,7 @@ export function getVisibleMenuIdsForUser(user?: User | null, menuVisibility?: Me
   const filterRestrictedMenus = (menuIds: NavigationMenuId[]) => menuIds.filter((menuId) => !isMenuRestricted(menuId));
 
   if (user.role === 'SUPER_ADMIN') {
-    return ['dashboard'];
+    return ['dashboard', 'campaigns'];
   }
 
   if (isSecurityServiceStaff(user)) {

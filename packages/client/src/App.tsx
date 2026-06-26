@@ -27,6 +27,7 @@ import StaffPage from './pages/staff/StaffPage';
 import GateManagementPage from './pages/security/GateManagementPage';
 import AssetsPage from './pages/assets/AssetsPage';
 import CrmSocietiesPage from './pages/crm/CrmSocietiesPage';
+import CrmCampaignsPage from './pages/crm/CrmCampaignsPage';
 import CrmSocietyDetailPage from './pages/crm/CrmSocietyDetailPage';
 import { WebOnlyRestrictionPage } from './components/restrictions/WebOnlyRestriction';
 import { getRouteRestriction, type RestrictedRoutePath } from './lib/appRestrictions';
@@ -155,6 +156,7 @@ export default function App() {
         <Route path="/entry-activity" element={<Navigate to="/community?tab=inbox" replace />} />
         <Route path="/settings/change-password" element={<ProtectedRoute><ChangePasswordSettingsPage /></ProtectedRoute>} />
         <Route path="/crm" element={<RoleRoute roles={['SUPER_ADMIN']}><CrmSocietiesPage /></RoleRoute>} />
+        <Route path="/crm/campaigns" element={<RoleRoute roles={['SUPER_ADMIN']}><CrmCampaignsPage /></RoleRoute>} />
         <Route path="/crm/:id" element={<RoleRoute roles={['SUPER_ADMIN']}><CrmSocietyDetailPage /></RoleRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />

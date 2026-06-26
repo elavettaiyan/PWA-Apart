@@ -32,6 +32,7 @@ import surveyRoutes from './modules/surveys/routes';
 import assetRoutes, { sendServiceDueReminders } from './modules/assets/routes';
 import publicRoutes from './modules/public/routes';
 import runLateFeeWorker from './jobs/lateFeeWorker';
+import runCampaignMailWorker from './jobs/campaignMailWorker';
 
 const app = express();
 const processStartMs = Date.now();
@@ -266,5 +267,10 @@ async function scheduleLateFeeWorker() {
 
 // Start scheduler in background (non-blocking)
 scheduleLateFeeWorker().catch(() => {});
+
+// Drain queued campaign mails every second, with the worker itself limited to
+// two recipient sends per tick.
+setInterval(() => { runCampaignMailWorker().catch(() => {}); }, 1000);
+runCampaignMailWorker().catch(() => {});
 
 export default app;

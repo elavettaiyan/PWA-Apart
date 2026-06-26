@@ -143,6 +143,54 @@ export function appendCampaignEmailFooter(html: string, unsubscribeUrl: string) 
     </div>`;
 }
 
+export async function sendSingleCampaignEmail(input: {
+  recipientEmail: string;
+  subject: string;
+  html: string;
+  unsubscribeBaseUrl?: string;
+}) {
+  const recipientEmail = String(input.recipientEmail || '').trim().toLowerCase();
+
+  if (!recipientEmail) {
+    throw new Error('Recipient email is required');
+  }
+
+  if (!RESEND_API_KEY) {
+    logger.error('Resend: campaign email blocked — RESEND_API_KEY is missing', {
+      recipientEmail,
+      subject: input.subject,
+    });
+    throw new Error('Email configuration error: RESEND_API_KEY is missing');
+  }
+
+  const unsubscribeToken = createCampaignEmailUnsubscribeToken(recipientEmail);
+  const unsubscribeBaseUrl = input.unsubscribeBaseUrl || `${config.publicServerUrl.replace(/\/$/, '')}/api/public/unsubscribe/campaign-email`;
+  const unsubscribeUrl = `${unsubscribeBaseUrl}?token=${encodeURIComponent(unsubscribeToken)}`;
+  const { data, error } = await getResend().emails.send({
+    from: FROM_EMAIL,
+    to: recipientEmail,
+    subject: input.subject,
+    html: appendCampaignEmailFooter(input.html, unsubscribeUrl),
+  });
+
+  if (error) {
+    logger.error('Resend: failed to send campaign email', {
+      to: recipientEmail,
+      subject: input.subject,
+      error: error.message,
+    });
+    throw new Error(error.message);
+  }
+
+  logger.info('Resend: campaign email sent', {
+    to: recipientEmail,
+    subject: input.subject,
+    emailId: data?.id,
+  });
+
+  return data;
+}
+
 export async function sendCampaignEmails(input: {
   recipientEmails: string[];
   subject: string;
@@ -184,33 +232,13 @@ export async function sendCampaignEmails(input: {
 
   for (const recipient of recipientEmails) {
     try {
-      const unsubscribeToken = createCampaignEmailUnsubscribeToken(recipient);
-      const unsubscribeBaseUrl = input.unsubscribeBaseUrl || `${config.publicServerUrl.replace(/\/$/, '')}/api/public/unsubscribe/campaign-email`;
-      const unsubscribeUrl = `${unsubscribeBaseUrl}?token=${encodeURIComponent(unsubscribeToken)}`;
-      const { data, error } = await getResend().emails.send({
-        from: FROM_EMAIL,
-        to: recipient,
+      await sendSingleCampaignEmail({
+        recipientEmail: recipient,
         subject: input.subject,
-        html: appendCampaignEmailFooter(input.html, unsubscribeUrl),
+        html: input.html,
+        unsubscribeBaseUrl: input.unsubscribeBaseUrl,
       });
-
-      if (error) {
-        failedCount += 1;
-        failedRecipients.push(recipient);
-        logger.error('Resend: failed to send campaign email', {
-          to: recipient,
-          subject: input.subject,
-          error: error.message,
-        });
-        continue;
-      }
-
       sentCount += 1;
-      logger.info('Resend: campaign email sent', {
-        to: recipient,
-        subject: input.subject,
-        emailId: data?.id,
-      });
     } catch (err: any) {
       failedCount += 1;
       failedRecipients.push(recipient);

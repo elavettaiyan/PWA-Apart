@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   Building2,
@@ -8,14 +8,10 @@ import {
   ChevronRight,
   Phone,
   Mail,
-  Send,
-  Eye,
+  Megaphone,
 } from 'lucide-react';
-import toast from 'react-hot-toast';
 import api from '../../lib/api';
-import Modal from '../../components/ui/Modal';
 import { PageLoader } from '../../components/ui/Loader';
-import { isValidEmailAddress } from '../../lib/utils';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -52,37 +48,6 @@ type CrmSociety = {
     currentPeriodEnd: string | null;
   } | null;
 };
-
-type CampaignMailResponse = {
-  intendedRecipientCount: number;
-  recipientCount: number;
-  sentCount: number;
-  failedCount: number;
-  failedRecipients: string[];
-  skippedCount: number;
-  targetMode: 'all' | 'specific';
-};
-
-type CampaignHistoryEntry = {
-  id: string;
-  targetMode: 'all' | 'specific';
-  subject: string;
-  intendedRecipientCount: number;
-  recipientCount: number;
-  sentCount: number;
-  failedCount: number;
-  skippedCount: number;
-  skippedReason: string | null;
-  failedRecipients: string[];
-  createdAt: string;
-  performedBy: {
-    id: string;
-    name: string;
-    email: string;
-  };
-};
-
-type CampaignTargetMode = 'all' | 'specific';
 
 // ── Sub-components ─────────────────────────────────────────────
 
@@ -123,16 +88,10 @@ export default function CrmSocietiesPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [premiumFilter, setPremiumFilter] = useState<'all' | 'true' | 'false' | 'trial' | 'override'>('all');
   const [exportLoading, setExportLoading] = useState(false);
-  const [showCampaignModal, setShowCampaignModal] = useState(false);
 
   const { data: societies = [], isLoading } = useQuery<CrmSociety[]>({
     queryKey: ['crm-societies'],
     queryFn: async () => (await api.get('/admin/crm/societies')).data,
-  });
-
-  const { data: campaignHistory = [] } = useQuery<CampaignHistoryEntry[]>({
-    queryKey: ['crm-campaign-history'],
-    queryFn: async () => (await api.get('/admin/crm/campaign-mails/history')).data,
   });
 
   const filtered = useMemo(() => {
@@ -205,11 +164,11 @@ export default function CrmSocietiesPage() {
         </button>
         <button
           type="button"
-          onClick={() => setShowCampaignModal(true)}
+          onClick={() => navigate('/crm/campaigns')}
           className="btn-primary flex items-center gap-2 text-sm self-start sm:self-auto"
         >
-          <Send className="w-4 h-4" />
-          Publish Mail
+          <Megaphone className="w-4 h-4" />
+          Campaigns
         </button>
       </div>
 
@@ -340,266 +299,6 @@ export default function CrmSocietiesPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl p-5 shadow-card space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-slate-800">Campaign history</p>
-            <p className="mt-1 text-xs text-slate-500">Recent publish mail runs including skipped recipients from unsubscribe preferences.</p>
-          </div>
-        </div>
-
-        {campaignHistory.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-400">
-            No publish mail history yet.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {campaignHistory.map((entry) => (
-              <div key={entry.id} className="rounded-2xl border border-slate-200 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">{entry.subject}</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {new Date(entry.createdAt).toLocaleString()} · {entry.performedBy.name} · {entry.targetMode === 'all' ? 'All users' : 'Specific emails'}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-[11px]">
-                    <span className="badge bg-slate-100 text-slate-600">Intended {entry.intendedRecipientCount}</span>
-                    <span className="badge bg-emerald-100 text-emerald-700">Sent {entry.sentCount}</span>
-                    <span className="badge bg-amber-100 text-amber-700">Skipped {entry.skippedCount}</span>
-                    <span className="badge bg-red-100 text-red-600">Failed {entry.failedCount}</span>
-                  </div>
-                </div>
-                {entry.skippedCount > 0 ? (
-                  <p className="mt-3 text-xs text-slate-500">
-                    {entry.skippedCount} recipient{entry.skippedCount === 1 ? '' : 's'} skipped due to unsubscribe preference.
-                  </p>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <CampaignMailModal isOpen={showCampaignModal} onClose={() => setShowCampaignModal(false)} />
     </div>
-  );
-}
-
-function parseRecipientEmails(value: string) {
-  return [...new Set(
-    value
-      .split(/[\n,;]+/)
-      .map((entry) => entry.trim().toLowerCase())
-      .filter(Boolean),
-  )];
-}
-
-function CampaignMailModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const [targetMode, setTargetMode] = useState<CampaignTargetMode>('all');
-  const [subject, setSubject] = useState('');
-  const [html, setHtml] = useState('');
-  const [recipientInput, setRecipientInput] = useState('');
-  const [showPreview, setShowPreview] = useState(false);
-
-  const recipientEmails = useMemo(() => parseRecipientEmails(recipientInput), [recipientInput]);
-  const invalidRecipientEmails = useMemo(
-    () => recipientEmails.filter((email) => !isValidEmailAddress(email)),
-    [recipientEmails],
-  );
-
-  const sendMutation = useMutation({
-    mutationFn: async () => {
-      const payload = {
-        targetMode,
-        subject: subject.trim(),
-        html,
-        recipientEmails: targetMode === 'specific' ? recipientEmails : undefined,
-      };
-
-      const { data } = await api.post<CampaignMailResponse>('/admin/crm/campaign-mails/send', payload);
-      return data;
-    },
-    onSuccess: (data) => {
-      const resultText = data.failedCount > 0 || data.skippedCount > 0
-        ? `Sent ${data.sentCount} of ${data.intendedRecipientCount} emails. ${data.skippedCount} skipped, ${data.failedCount} failed.`
-        : `Sent ${data.sentCount} emails successfully.`;
-      toast.success(resultText);
-      setSubject('');
-      setHtml('');
-      setRecipientInput('');
-      setTargetMode('all');
-      setShowPreview(false);
-      onClose();
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to send campaign mail');
-    },
-  });
-
-  function handleClose() {
-    if (sendMutation.isPending) return;
-    onClose();
-  }
-
-  function handleSend() {
-    if (!subject.trim()) {
-      toast.error('Subject is required.');
-      return;
-    }
-
-    if (!html.trim()) {
-      toast.error('HTML message is required.');
-      return;
-    }
-
-    if (targetMode === 'specific') {
-      if (recipientEmails.length === 0) {
-        toast.error('Add at least one recipient email.');
-        return;
-      }
-
-      if (invalidRecipientEmails.length > 0) {
-        toast.error('Fix invalid recipient email addresses before sending.');
-        return;
-      }
-    }
-
-    sendMutation.mutate();
-  }
-
-  return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="Publish Mail" size="xl">
-      <div className="space-y-5">
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-sm font-semibold text-slate-800">Campaign delivery</p>
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            Each recipient receives a separate email. HTML is sent as entered, and every publish mail includes an unsubscribe link automatically. Unsubscribed recipients are skipped only for publish mails, not for app emails.
-          </p>
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <div className="space-y-4">
-            <div>
-              <label className="label">Audience</label>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTargetMode('all')}
-                  className={targetMode === 'all' ? 'btn-primary text-sm' : 'btn-outline text-sm'}
-                >
-                  All active users
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTargetMode('specific')}
-                  className={targetMode === 'specific' ? 'btn-primary text-sm' : 'btn-outline text-sm'}
-                >
-                  Specific emails
-                </button>
-              </div>
-              <p className="mt-2 text-xs text-slate-500">
-                {targetMode === 'all'
-                  ? 'Sends to all active non-super-admin users across the platform, except recipients who unsubscribed from publish mails.'
-                  : 'Paste one or more email addresses separated by commas or new lines. Unsubscribed recipients are skipped automatically.'}
-              </p>
-            </div>
-
-            {targetMode === 'specific' ? (
-              <div>
-                <label className="label">Recipient Emails</label>
-                <textarea
-                  className="input min-h-[120px]"
-                  value={recipientInput}
-                  onChange={(event) => setRecipientInput(event.target.value)}
-                  placeholder={'person1@example.com\nperson2@example.com'}
-                />
-                <p className="mt-2 text-xs text-slate-500">Unique recipients detected: {recipientEmails.length}</p>
-                {invalidRecipientEmails.length > 0 ? (
-                  <p className="mt-1 text-xs text-red-500">Invalid emails: {invalidRecipientEmails.join(', ')}</p>
-                ) : null}
-              </div>
-            ) : null}
-
-            <div>
-              <label className="label">Subject</label>
-              <input
-                type="text"
-                className="input"
-                value={subject}
-                onChange={(event) => setSubject(event.target.value)}
-                placeholder="June release notes"
-              />
-            </div>
-
-            <div>
-              <label className="label">HTML Message</label>
-              <textarea
-                className="input min-h-[280px] font-mono text-[13px]"
-                value={html}
-                onChange={(event) => setHtml(event.target.value)}
-                placeholder={'<h1>What\'s new</h1><p>Share release notes, onboarding updates, or marketing announcements.</p>'}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4">
-              <div>
-                <p className="text-sm font-semibold text-slate-800">Preview</p>
-                <p className="mt-1 text-xs text-slate-500">Render the HTML exactly before sending.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPreview((current) => !current)}
-                className="btn-outline flex items-center gap-2 text-sm"
-              >
-                <Eye className="w-4 h-4" />
-                {showPreview ? 'Hide Preview' : 'Show Preview'}
-              </button>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="border-b border-slate-100 pb-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Subject</p>
-                <p className="mt-1 text-sm font-semibold text-slate-800">{subject.trim() || 'Email subject preview'}</p>
-              </div>
-
-              {showPreview ? (
-                <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-                  <iframe
-                    title="Campaign mail preview"
-                    sandbox=""
-                    srcDoc={html || '<div style="padding:24px;font-family:Arial,sans-serif;color:#64748b;">Your HTML preview will render here.</div>'}
-                    className="h-[420px] w-full bg-white"
-                  />
-                </div>
-              ) : (
-                <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-400">
-                  Enable preview to inspect the rendered HTML before sending.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-slate-500">
-            {targetMode === 'all'
-              ? 'Eligible active users will receive separate emails with a default unsubscribe link.'
-              : `${recipientEmails.length} unique recipient${recipientEmails.length === 1 ? '' : 's'} selected before unsubscribe filtering.`}
-          </p>
-          <div className="flex items-center gap-2 self-end">
-            <button type="button" onClick={handleClose} className="btn-outline text-sm" disabled={sendMutation.isPending}>
-              Cancel
-            </button>
-            <button type="button" onClick={handleSend} className="btn-primary flex items-center gap-2 text-sm" disabled={sendMutation.isPending}>
-              <Send className="w-4 h-4" />
-              {sendMutation.isPending ? 'Sending...' : 'Send Mail'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Modal>
   );
 }

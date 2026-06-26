@@ -235,6 +235,14 @@ enum CommunityType {
   TOWNSHIP
 }
 
+enum CampaignMailStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  COMPLETED_WITH_ERRORS
+  FAILED
+}
+
 // ─── SOCIETY / APARTMENT COMPLEX (TENANT) ───────────────
 // Each society is a separate tenant in the multi-tenant system.
 // When a new apartment registers, a new Society + Admin user is created.
@@ -1440,6 +1448,7 @@ model CrmCampaignHistory {
   targetMode             String
   subject                String
   html                   String
+  status                 CampaignMailStatus @default(COMPLETED)
   intendedRecipientCount Int
   recipientCount         Int
   sentCount              Int
@@ -1447,12 +1456,17 @@ model CrmCampaignHistory {
   skippedCount           Int
   skippedReason          String?
   requestedRecipients    String?
+  resolvedRecipients     String?
   failedRecipients       String?
+  processingStartedAt    DateTime?
+  completedAt            DateTime?
+  lastErrorMessage       String?
   createdAt              DateTime @default(now())
 
   performedBy            User     @relation("CrmCampaignPerformedBy", fields: [performedById], references: [id])
 
   @@index([performedById])
   @@index([createdAt])
+  @@index([status, createdAt])
   @@map("crm_campaign_history")
 }

@@ -12,6 +12,7 @@ export const ALL_SOCIETY_ROLES: Role[] = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY
 
 export type NavigationMenuId =
   | 'dashboard'
+  | 'campaigns'
   | 'community'
   | 'flats'
   | 'my-flat'

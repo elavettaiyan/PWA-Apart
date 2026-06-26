@@ -1,8 +1,9 @@
 import { Router, Response } from 'express';
 import { body, param, query } from 'express-validator';
-import { Prisma } from '@prisma/client';
+import { CampaignMailStatus, Prisma } from '@prisma/client';
 import prisma from '../../config/database';
 import { sendCampaignEmails } from '../../config/email';
+import runCampaignMailWorker from '../../jobs/campaignMailWorker';
 import { authenticate, authorize, AuthRequest, invalidateAuthCache } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import { computeTrialStatus } from '../premium/routes';
@@ -605,37 +606,40 @@ router.post(
         }
       }
 
-      const result = await sendCampaignEmails({
-        recipientEmails,
-        subject,
-        html,
-        unsubscribeBaseUrl: `${getServerPublicBaseUrl()}/api/public/unsubscribe/campaign-email`,
-        intendedRecipientCount,
-      });
-
-      await prisma.crmCampaignHistory.create({
+      const record = await prisma.crmCampaignHistory.create({
         data: {
           performedById: req.user!.id,
           targetMode,
           subject,
           html,
-          intendedRecipientCount: result.intendedRecipientCount,
-          recipientCount: result.recipientCount,
-          sentCount: result.sentCount,
-          failedCount: result.failedCount,
-          skippedCount: targetMode === 'all' ? result.intendedRecipientCount - result.recipientCount : skippedCount,
-          skippedReason: targetMode === 'all' && result.intendedRecipientCount > result.recipientCount ? 'unsubscribed' : skippedReason,
+          status: CampaignMailStatus.QUEUED,
+          intendedRecipientCount,
+          recipientCount: recipientEmails.length,
+          sentCount: 0,
+          failedCount: 0,
+          skippedCount: targetMode === 'all' ? intendedRecipientCount - recipientEmails.length : skippedCount,
+          skippedReason: targetMode === 'all' && intendedRecipientCount > recipientEmails.length ? 'unsubscribed' : skippedReason,
           requestedRecipients: requestedRecipients ? JSON.stringify(requestedRecipients) : null,
-          failedRecipients: result.failedRecipients.length > 0 ? JSON.stringify(result.failedRecipients) : null,
+          resolvedRecipients: JSON.stringify(recipientEmails),
+          failedRecipients: null,
         },
       });
 
+      runCampaignMailWorker().catch(() => {});
+
       return res.json({
-        ...result,
+        id: record.id,
+        intendedRecipientCount,
+        recipientCount: recipientEmails.length,
+        sentCount: 0,
+        failedCount: 0,
+        failedRecipients: [],
+        skippedCount: targetMode === 'all' ? intendedRecipientCount - recipientEmails.length : skippedCount,
         targetMode,
+        status: CampaignMailStatus.QUEUED,
       });
     } catch (error: any) {
-      return res.status(500).json({ error: error.message || 'Failed to send campaign email' });
+      return res.status(500).json({ error: error.message || 'Failed to queue campaign email' });
     }
   },
 );
@@ -660,6 +664,7 @@ router.get(
       return res.json(records.map((record) => ({
         ...record,
         requestedRecipients: record.requestedRecipients ? JSON.parse(record.requestedRecipients) : null,
+        resolvedRecipients: record.resolvedRecipients ? JSON.parse(record.resolvedRecipients) : [],
         failedRecipients: record.failedRecipients ? JSON.parse(record.failedRecipients) : [],
       })));
     } catch {

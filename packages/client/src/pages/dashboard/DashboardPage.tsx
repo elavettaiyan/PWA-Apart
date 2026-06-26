@@ -161,6 +161,25 @@ function SuperAdminDashboard() {
         <ChevronRight className="w-5 h-5 text-slate-300 shrink-0" />
       </button>
 
+      <button
+        type="button"
+        onClick={() => navigate('/crm/campaigns')}
+        className="w-full bg-white rounded-2xl p-5 shadow-card hover:shadow-card-hover transition-shadow text-left flex items-center justify-between gap-4"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-sky-50 flex items-center justify-center shrink-0">
+            <Megaphone className="w-6 h-6 text-sky-500" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-on-surface">Campaigns</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Queue publish mails, monitor 2-per-second delivery, and review campaign history
+            </p>
+          </div>
+        </div>
+        <ChevronRight className="w-5 h-5 text-slate-300 shrink-0" />
+      </button>
+
       {/* Users Table */}
       <div className="bg-white rounded-2xl p-6 shadow-card">
         <h2 className="text-lg font-headline font-bold text-on-surface mb-4">All User Registrations</h2>

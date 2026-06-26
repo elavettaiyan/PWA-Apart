@@ -19,6 +19,7 @@ import { canUseOwnerView, getDisplayUserForView, getRoleDisplayLabel, getRoleVie
 
 const navigationIcons: Record<NavigationMenuId, typeof LayoutDashboard> = {
   dashboard: LayoutDashboard,
+  campaigns: Megaphone,
   community: Megaphone,
   flats: Building2,
   'my-flat': Building2,
