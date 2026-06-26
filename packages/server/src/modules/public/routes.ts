@@ -67,7 +67,7 @@ function renderCampaignPreferencePage(input: {
         <div class="hero">
           <p style="margin:0 0 10px;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;">Mail Preferences</p>
           <h1 style="margin:0;font-size:30px;line-height:1.2;">${input.title}</h1>
-          <p style="margin:12px 0 0;font-size:15px;line-height:1.7;">Manage Dwell Hub publish mail preferences with clear confirmation.</p>
+          <p style="margin:12px 0 0;font-size:15px;line-height:1.7;">Manage your email preference with clear confirmation.</p>
         </div>
         <div class="body">
           <div class="status">
@@ -90,9 +90,6 @@ function renderCampaignPreferencePage(input: {
               ` : ''}
             </div>
           ` : ''}
-          <p class="muted" style="margin:24px 0 0;font-size:13px;">
-            Publish mails include updates such as release notes and marketing communications. Transactional app emails will continue regardless of this setting.
-          </p>
         </div>
       </div>
     </div>
@@ -118,8 +115,8 @@ router.get('/unsubscribe/campaign-email', async (req: Request, res: Response) =>
     return res.type('html').send(renderCampaignPreferencePage({
       title: user?.unsubscribedFromCampaignEmails ? 'You are already unsubscribed' : 'Confirm unsubscribe',
       description: user?.unsubscribedFromCampaignEmails
-        ? 'You are currently opted out of Dwell Hub publish mails. You can subscribe again at any time from this page.'
-        : 'Confirm that you want to stop receiving Dwell Hub publish mails such as release notes and marketing updates.',
+        ? 'You are currently unsubscribed. You can subscribe again at any time from this page.'
+        : 'Confirm that you want to unsubscribe from these emails.',
       email,
       unsubscribeToken: token,
       resubscribeToken,
@@ -148,7 +145,7 @@ router.post('/unsubscribe/campaign-email', async (req: Request, res: Response) =
 
     return res.type('html').send(renderCampaignPreferencePage({
       title: 'Unsubscribed successfully',
-      description: 'You will no longer receive Dwell Hub publish mails. Important transactional app emails will still continue.',
+      description: 'You have been unsubscribed successfully.',
       email,
       resubscribeToken,
       showActions: true,
@@ -177,8 +174,8 @@ router.get('/resubscribe/campaign-email', async (req: Request, res: Response) =>
     return res.type('html').send(renderCampaignPreferencePage({
       title: user?.unsubscribedFromCampaignEmails ? 'Re-subscribe to publish mails' : 'You are already subscribed',
       description: user?.unsubscribedFromCampaignEmails
-        ? 'Choose re-subscribe if you want to receive Dwell Hub release notes and marketing mails again.'
-        : 'This email address is already subscribed to Dwell Hub publish mails. You can unsubscribe from this page if needed.',
+        ? 'Choose re-subscribe if you want to receive these emails again.'
+        : 'This email address is already subscribed. You can unsubscribe from this page if needed.',
       email,
       unsubscribeToken,
       resubscribeToken: token,
@@ -207,7 +204,7 @@ router.post('/resubscribe/campaign-email', async (req: Request, res: Response) =
 
     return res.type('html').send(renderCampaignPreferencePage({
       title: 'Re-subscribed successfully',
-      description: 'You will start receiving Dwell Hub publish mails again. Transactional app emails were always unaffected.',
+      description: 'You have been subscribed again successfully.',
       email,
       unsubscribeToken,
       showActions: true,

@@ -137,7 +137,7 @@ export function appendCampaignEmailFooter(html: string, unsubscribeUrl: string) 
         </tr>
       </table>
       <div style="margin-top: 10px;">
-        <a href="${unsubscribeUrl}" style="color: #2563eb; text-decoration: underline;">Unsubscribe from publish mails</a>.
+        <a href="${unsubscribeUrl}" style="color: #2563eb; text-decoration: underline;">Unsubscribe</a>.
       </div>
       Transactional emails from the app will still be delivered.
     </div>`;
