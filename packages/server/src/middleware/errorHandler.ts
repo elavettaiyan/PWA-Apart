@@ -3,6 +3,7 @@ import multer from 'multer';
 import { validationResult } from 'express-validator';
 import logger from '../config/logger';
 import { UploadValidationError } from './upload';
+import { AppError, sendError } from '../lib/http';
 
 export const errorHandler = (
   err: Error,
@@ -18,7 +19,7 @@ export const errorHandler = (
       ip: req.ip,
     });
 
-    res.status(err.statusCode).json({ error: err.message });
+    sendError(res, err.statusCode, err.message);
     return;
   }
 
@@ -35,7 +36,27 @@ export const errorHandler = (
       ? 'Uploaded file is too large.'
       : err.message;
 
-    res.status(400).json({ error: message });
+    sendError(res, 400, message);
+    return;
+  }
+
+  if (err instanceof AppError) {
+    const level = err.statusCode >= 500 ? 'error' : 'warn';
+    logger[level]('Application error', {
+      error: err.message,
+      code: err.code,
+      statusCode: err.statusCode,
+      method: req.method,
+      url: req.originalUrl,
+      ip: req.ip,
+    });
+
+    sendError(
+      res,
+      err.statusCode,
+      err.expose ? err.message : 'Internal server error',
+      { code: err.code, errors: err.details },
+    );
     return;
   }
 
@@ -60,15 +81,17 @@ export const errorHandler = (
     ip: req.ip,
   });
 
-  res.status(500).json({
+  const body = {
     error: 'Internal server error',
     message: process.env.NODE_ENV === 'development' ? err.message : undefined,
-  });
+  };
+
+  res.status(500).json(body);
 };
 
 export const notFound = (req: Request, res: Response): void => {
   logger.warn(`Route not found: ${req.method} ${req.originalUrl}`);
-  res.status(404).json({ error: 'Route not found' });
+  sendError(res, 404, 'Route not found');
 };
 
 export const validate = (req: Request, res: Response, next: NextFunction): void => {
@@ -81,10 +104,7 @@ export const validate = (req: Request, res: Response, next: NextFunction): void 
       url: req.originalUrl,
       errors: errorList.map(e => ({ field: (e as any).path, msg: e.msg })),
     });
-    res.status(400).json({
-      error: firstError?.msg || 'Validation failed',
-      errors: errorList,
-    });
+    sendError(res, 400, firstError?.msg || 'Validation failed', { errors: errorList });
     return;
   }
   next();
