@@ -14,6 +14,79 @@ type PushPayload = {
   entityId?: string;
 };
 
+function buildNotificationKey(notification: {
+  type: string;
+  title: string;
+  body: string;
+  path: string | null;
+  route: string | null;
+  entityId: string | null;
+}) {
+  return [
+    notification.type,
+    notification.title,
+    notification.body,
+    notification.path || '',
+    notification.route || '',
+    notification.entityId || '',
+  ].join('::');
+}
+
+function serializeNotification(notification: {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  path: string | null;
+  route: string | null;
+  entityId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    ...notification,
+    createdAt: notification.createdAt.toISOString(),
+    updatedAt: notification.updatedAt.toISOString(),
+  };
+}
+
+export async function listRecentUserNotifications(input: { societyId?: string | null; userId?: string | null; limit?: unknown }) {
+  if (!input.societyId || !input.userId) {
+    return [];
+  }
+
+  const limit = Math.min(Math.max(Number(input.limit || 20), 1), 100);
+  const fetchLimit = Math.min(limit * 5, 250);
+
+  const notifications = await prisma.userNotification.findMany({
+    where: {
+      userId: input.userId,
+      societyId: input.societyId,
+    },
+    orderBy: { createdAt: 'desc' },
+    take: fetchLimit,
+  });
+
+  const uniqueNotifications = [] as typeof notifications;
+  const seenKeys = new Set<string>();
+
+  for (const notification of notifications) {
+    const key = buildNotificationKey(notification);
+    if (seenKeys.has(key)) {
+      continue;
+    }
+
+    seenKeys.add(key);
+    uniqueNotifications.push(notification);
+
+    if (uniqueNotifications.length >= limit) {
+      break;
+    }
+  }
+
+  return uniqueNotifications.map(serializeNotification);
+}
+
 export const DEFAULT_COMMUNITY_AUDIENCE_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT'] as const;
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];

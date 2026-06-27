@@ -1,206 +1,41 @@
 import { Prisma } from '@prisma/client';
 import { Response, Router } from 'express';
-import { body, param, query } from 'express-validator';
 import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest, FINANCIAL_ROLES, RESIDENT_ROLES } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 import { buildResidentBillFilter, canResidentAccessBill } from './scope';
-import { sendPaymentReceiptEmail, PaymentReceiptData } from '../../config/email';
 import { notifyBillGenerated, notifyPaymentSuccess } from '../notifications/service';
 import { allocatePayment } from '../collections/service';
+import { getSocietyId } from './permissions';
+import {
+  ALL_FLAT_TYPES,
+  buildMaintenanceLineItems,
+  getCachedConfigSummary,
+  getUserFlatIds,
+  getUserOwnedFlatIds,
+  invalidateConfigSummaryCache,
+  isUniqueConstraintError,
+  normalizeBillStatus,
+  normalizeSharedConfig,
+  nowMs,
+  resolveDueDateForPeriod,
+  sendBillingReceiptForPayment,
+  setCachedConfigSummary,
+} from './service';
+import {
+  billIdValidation,
+  configValidation,
+  customBillValidation,
+  generateBillsValidation,
+  lateFeeRunsValidation,
+  listBillsValidation,
+  manualPaymentValidation,
+  ownerSummaryValidation,
+} from './validation';
 
 const router = Router();
 router.use(authenticate);
-
-const nowMs = () => Date.now();
-
-// ── CONFIG SUMMARY CACHE ────────────────────────────────
-type ConfigSummaryCache = { data: any; expiresAt: number };
-const configSummaryCache = new Map<string, ConfigSummaryCache>();
-const CONFIG_SUMMARY_TTL = 60_000; // 60s
-
-function getCachedConfigSummary(societyId: string) {
-  const entry = configSummaryCache.get(societyId);
-  if (entry && entry.expiresAt > Date.now()) return entry.data;
-  configSummaryCache.delete(societyId);
-  return null;
-}
-
-function setCachedConfigSummary(societyId: string, data: any) {
-  configSummaryCache.set(societyId, { data, expiresAt: Date.now() + CONFIG_SUMMARY_TTL });
-}
-
-const ALL_FLAT_TYPES = [
-  'ONE_BHK',
-  'TWO_BHK',
-  'THREE_BHK',
-  'FOUR_BHK',
-  'STUDIO',
-  'PENTHOUSE',
-  'SHOP',
-  'OTHER',
-] as const;
-const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const BILL_KINDS = ['MAINTENANCE', 'OPENING_BALANCE', 'SPECIAL'] as const;
-const BILL_LINE_ITEM_CATEGORIES = ['MAINTENANCE_COMPONENT', 'OPENING_BALANCE', 'FINE', 'DAMAGE', 'COMMON_ITEM_BREAKAGE', 'OTHER'] as const;
-const CUSTOM_BILLING_MODES = ['OPENING_BALANCE', 'STANDALONE_SPECIAL'] as const;
-
-function getSocietyId(req: AuthRequest) {
-  return req.user!.role === 'SUPER_ADMIN'
-    ? (req.query.societyId as string) || req.body.societyId || req.user!.societyId
-    : req.user!.societyId;
-}
-
-function normalizeSharedConfig(societyId: string, configs: Array<any>) {
-  const activeConfigs = configs.filter((config) => config.isActive !== false);
-  const primaryConfig = activeConfigs[0];
-
-  return {
-    societyId,
-    isConfigured: activeConfigs.length > 0,
-    baseAmount: primaryConfig?.baseAmount ?? 0,
-    waterCharge: primaryConfig?.waterCharge ?? 0,
-    parkingCharge: primaryConfig?.parkingCharge ?? 0,
-    sinkingFund: primaryConfig?.sinkingFund ?? 0,
-    repairFund: primaryConfig?.repairFund ?? 0,
-    otherCharges: primaryConfig?.otherCharges ?? 0,
-    lateFeePerDay: primaryConfig?.lateFeePerDay ?? 0,
-    lateFeeAmount: primaryConfig?.lateFeeAmount ?? 0,
-    recurringLateFeeAmount: primaryConfig?.recurringLateFeeAmount ?? 0,
-    configuredFlatTypes: activeConfigs.map((config) => config.flatType),
-    totalMonthlyAmount:
-      (primaryConfig?.baseAmount ?? 0) +
-      (primaryConfig?.waterCharge ?? 0) +
-      (primaryConfig?.parkingCharge ?? 0) +
-      (primaryConfig?.sinkingFund ?? 0) +
-      (primaryConfig?.repairFund ?? 0) +
-      (primaryConfig?.otherCharges ?? 0),
-  };
-}
-
-function buildMaintenanceLineItems(config: {
-  baseAmount: number;
-  waterCharge: number;
-  parkingCharge: number;
-  sinkingFund: number;
-  repairFund: number;
-  otherCharges: number;
-}) {
-  return [
-    { label: 'Base Maintenance', amount: Number(config.baseAmount || 0) },
-    { label: 'Water Charge', amount: Number(config.waterCharge || 0) },
-    { label: 'Parking Charge', amount: Number(config.parkingCharge || 0) },
-    { label: 'Sinking Fund', amount: Number(config.sinkingFund || 0) },
-    { label: 'Repair Fund', amount: Number(config.repairFund || 0) },
-    { label: 'Other Charges', amount: Number(config.otherCharges || 0) },
-  ]
-    .filter((item) => item.amount > 0)
-    .map((item, index) => ({
-      label: item.label,
-      amount: item.amount,
-      category: 'MAINTENANCE_COMPONENT' as const,
-      sortOrder: index,
-    }));
-}
-
-function normalizeBillStatus(totalAmount: number, paidAmount: number, dueDate: Date) {
-  if (paidAmount >= totalAmount) return 'PAID';
-  if (paidAmount > 0) return 'PARTIAL';
-  return dueDate.getTime() < Date.now() ? 'OVERDUE' : 'PENDING';
-}
-
-function resolveDueDateForPeriod(month: number, year: number, dueDay: number) {
-  const normalizedDueDay = Math.min(Math.max(Number(dueDay || 10), 1), 28);
-  return new Date(year, month - 1, normalizedDueDay);
-}
-
-function buildBillLabel(bill: {
-  billKind?: string | null;
-  title?: string | null;
-  month?: number | null;
-  year?: number | null;
-  appliesToMonth?: number | null;
-  appliesToYear?: number | null;
-}) {
-  if (bill.title) return bill.title;
-  const labelMonth = bill.appliesToMonth ?? bill.month;
-  const labelYear = bill.appliesToYear ?? bill.year;
-
-  if (bill.billKind === 'OPENING_BALANCE') return 'Opening Balance';
-  if (bill.billKind === 'SPECIAL') return labelMonth && labelYear ? `Special Bill - ${labelMonth}/${labelYear}` : 'Special Bill';
-  return labelMonth && labelYear ? `Monthly Maintenance - ${labelMonth}/${labelYear}` : 'Maintenance Bill';
-}
-
-function buildBillPeriodText(bill: {
-  billKind?: string | null;
-  title?: string | null;
-  month?: number | null;
-  year?: number | null;
-  appliesToMonth?: number | null;
-  appliesToYear?: number | null;
-}) {
-  const labelMonth = bill.appliesToMonth ?? bill.month;
-  const labelYear = bill.appliesToYear ?? bill.year;
-  if (labelMonth && labelYear) return `${MONTH_NAMES[labelMonth - 1]} ${labelYear}`;
-  return buildBillLabel(bill);
-}
-
-async function sendBillingReceiptForPayment(paymentId: string) {
-  try {
-    const payment = await prisma.payment.findUnique({
-      where: { id: paymentId },
-      include: {
-        bill: {
-          include: {
-            flat: {
-              include: {
-                owner: true,
-                tenant: true,
-                block: { include: { society: true } },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!payment || payment.status !== 'SUCCESS') return;
-
-    const fullBill = payment.bill;
-    const flat = fullBill.flat;
-    const recipient = flat.tenant?.isActive && flat.tenant.email
-      ? { name: flat.tenant.name, email: flat.tenant.email }
-      : flat.owner && flat.owner.isActive !== false && flat.owner.email
-        ? { name: flat.owner.name, email: flat.owner.email }
-        : null;
-
-    if (!recipient) return;
-
-    const receiptData: PaymentReceiptData = {
-      userName: recipient.name,
-      flatNumber: flat.flatNumber,
-      blockName: flat.block.name,
-      societyName: flat.block.society.name,
-      billMonth: buildBillPeriodText(fullBill),
-      amount: payment.amount,
-      totalAmount: fullBill.totalAmount,
-      paidAmount: fullBill.paidAmount,
-      billStatus: fullBill.status,
-      method: payment.method,
-      transactionId: payment.transactionId || payment.receiptNo || payment.merchantTransId || undefined,
-      paidAt: payment.paidAt || new Date(),
-    };
-
-    await sendPaymentReceiptEmail(recipient.email, receiptData);
-  } catch (error: any) {
-    logger.error('Billing payment receipt email failed (non-blocking)', { paymentId, error: error.message });
-  }
-}
-
-function isUniqueConstraintError(error: unknown) {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
-}
 
 // ── GET MAINTENANCE CONFIGS ─────────────────────────────
 router.get('/config', async (req: AuthRequest, res: Response) => {
@@ -282,19 +117,7 @@ router.get('/config/summary', async (req: AuthRequest, res: Response) => {
 router.post(
   '/config',
   authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
-  [
-    body('societyId').isUUID(),
-    body('flatType').optional().isIn(ALL_FLAT_TYPES),
-    body('baseAmount').isFloat({ min: 0 }),
-    body('waterCharge').optional().isFloat({ min: 0 }),
-    body('parkingCharge').optional().isFloat({ min: 0 }),
-    body('sinkingFund').optional().isFloat({ min: 0 }),
-    body('repairFund').optional().isFloat({ min: 0 }),
-    body('otherCharges').optional().isFloat({ min: 0 }),
-    body('lateFeePerDay').optional().isFloat({ min: 0 }),
-    body('lateFeeAmount').optional().isFloat({ min: 0 }),
-    body('recurringLateFeeAmount').optional().isFloat({ min: 0 }),
-  ],
+  configValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -360,7 +183,7 @@ router.post(
       });
 
       const result = normalizeSharedConfig(societyId, configs);
-      configSummaryCache.delete(societyId); // Invalidate cache on config change
+      invalidateConfigSummaryCache(societyId);
       return res.status(201).json(result);
     } catch (error) {
       return res.status(500).json({ error: 'Failed to create maintenance config' });
@@ -372,7 +195,7 @@ router.post(
 router.post(
   '/generate',
   authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
-  [body('societyId').isUUID(), body('month').isInt({ min: 1, max: 12 }), body('year').isInt({ min: 2020 })],
+  generateBillsValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -565,16 +388,7 @@ router.post(
 router.post(
   '/custom',
   authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
-  [
-    body('mode').isIn(CUSTOM_BILLING_MODES as unknown as string[]),
-    body('amount').isFloat({ min: 1 }),
-    body('flatId').optional().isUUID(),
-    body('title').optional().isString().isLength({ min: 1, max: 120 }),
-    body('description').optional().isString().isLength({ max: 500 }),
-    body('notes').optional().isString().isLength({ max: 1000 }),
-    body('appliesToMonth').optional().isInt({ min: 1, max: 12 }),
-    body('appliesToYear').optional().isInt({ min: 2020 }),
-  ],
+  customBillValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -675,10 +489,7 @@ router.post(
 
 router.get(
   '/owner-summary',
-  [
-    query('month').optional().isInt({ min: 1, max: 12 }),
-    query('year').optional().isInt({ min: 2020 }),
-  ],
+  ownerSummaryValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -766,14 +577,7 @@ router.get(
 router.get(
   '/late-fee-runs',
   authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
-  [
-    query('page').optional().isInt({ min: 1 }),
-    query('limit').optional().isInt({ min: 1, max: 100 }),
-    query('success').optional().isIn(['true', 'false']),
-    query('triggerSource').optional().isIn(['MANUAL', 'SCHEDULED']),
-    query('startDate').optional().isISO8601(),
-    query('endDate').optional().isISO8601(),
-  ],
+  lateFeeRunsValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -834,14 +638,7 @@ router.get(
 // ── GET ALL BILLS ───────────────────────────────────────
 router.get(
   '/',
-  [
-    query('month').optional().isInt({ min: 1, max: 12 }),
-    query('year').optional().isInt({ min: 2020 }),
-    query('status').optional().isIn(['PENDING', 'PARTIAL', 'PAID', 'OVERDUE']),
-    query('billKind').optional().isIn(BILL_KINDS as unknown as string[]),
-    query('flatId').optional().isUUID(),
-    query('ownerView').optional().isBoolean(),
-  ],
+  listBillsValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     const requestStart = nowMs();
@@ -1077,7 +874,7 @@ router.get(
 );
 
 // ── GET SINGLE BILL ─────────────────────────────────────
-router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, res: Response) => {
+router.get('/:id', billIdValidation, validate, async (req: AuthRequest, res: Response) => {
   try {
     const bill = await prisma.maintenanceBill.findUnique({
       where: { id: req.params.id },
@@ -1114,11 +911,7 @@ router.get('/:id', [param('id').isUUID()], validate, async (req: AuthRequest, re
 router.post(
   '/:id/pay',
   authorize('SUPER_ADMIN', ...FINANCIAL_ROLES),
-  [
-    param('id').isUUID(),
-    body('amount').isFloat({ min: 1 }),
-    body('method').isIn(['CASH', 'CHEQUE', 'BANK_TRANSFER', 'UPI_OTHER']),
-  ],
+  manualPaymentValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -1180,30 +973,5 @@ router.post(
     }
   },
 );
-
-// Helper
-async function getUserFlatIds(userId: string, societyId: string) {
-  const [owners, tenants] = await Promise.all([
-    prisma.owner.findMany({
-      where: { userId, flat: { block: { societyId } } },
-      select: { flatId: true },
-    }),
-    prisma.tenant.findMany({
-      where: { userId, flat: { block: { societyId } } },
-      select: { flatId: true },
-    }),
-  ]);
-
-  return [...new Set([...owners.map((owner) => owner.flatId), ...tenants.map((tenant) => tenant.flatId)])];
-}
-
-async function getUserOwnedFlatIds(userId: string, societyId: string) {
-  const owners = await prisma.owner.findMany({
-    where: { userId, flat: { block: { societyId } } },
-    select: { flatId: true },
-  });
-
-  return [...new Set(owners.map((owner) => owner.flatId))];
-}
 
 export default router;

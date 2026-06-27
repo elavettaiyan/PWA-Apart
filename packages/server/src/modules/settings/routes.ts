@@ -1,6 +1,4 @@
 import { Router, Response } from 'express';
-import { body, param } from 'express-validator';
-import { Role } from '@prisma/client';
 import crypto from 'crypto';
 import prisma from '../../config/database';
 import { authenticate, authorize, AuthRequest, SOCIETY_ADMINS, invalidateAuthCache } from '../../middleware/auth';
@@ -8,286 +6,36 @@ import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
 import { runMemberRemoval } from '../members/removal';
 import runLateFeeWorker from '../../jobs/lateFeeWorker';
-
-const ASSIGNABLE_ROLES = ['SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'COMMITTEE_MEMBER', 'OWNER', 'SERVICE_STAFF'] as const;
-const DEFAULT_ADMIN_ASSIGNMENT_TYPE = 'PRESIDENT';
-const TRANSFERABLE_ADMIN_ASSIGNMENT_TYPES = new Set(['TEMPORARY', 'PRESIDENT']);
-
-// Max members allowed per committee role in a society (0 = unlimited)
-const ROLE_LIMITS: Partial<Record<string, number>> = {
-  ADMIN: 1,
-  SECRETARY: 1,
-  JOINT_SECRETARY: 2,
-  TREASURER: 1,
-};
-
-async function getCommitteeMemberLimit(societyId: string) {
-  const settings = await prisma.societySettings.findUnique({
-    where: { societyId },
-    select: { committeeMemberLimit: true },
-  });
-
-  return settings?.committeeMemberLimit ?? 0;
-}
+import { resolveSettingsSocietyId } from './permissions';
+import {
+  ConfigurableMenuRole,
+  getCommitteeMemberLimit,
+  getDefaultMenuIdsForRole,
+  getDefaultRedirectUrl,
+  getPhonePeAuthBaseUrl,
+  getRequestOrigin,
+  getRoleLimit,
+  getRoleMenuConfigResponse,
+  hasActiveOwnerRecord,
+  maskPaymentGatewayConfig,
+  normalizeAdminAssignmentType,
+  normalizeVisibleMenuIds,
+  syncUserPrimaryMembershipRole,
+  TRANSFERABLE_ADMIN_ASSIGNMENT_TYPES,
+} from './service';
+import {
+  communityProfileValidation,
+  memberRoleValidation,
+  memberUserIdValidation,
+  menuVisibilityValidation,
+  paymentGatewayValidation,
+  removeMemberValidation,
+  runLateFeesValidation,
+  societySettingsValidation,
+} from './validation';
 
 const router = Router();
 router.use(authenticate);
-
-function normalizeAdminAssignmentType(role: string, adminAssignmentType?: string | null) {
-  if (role !== 'ADMIN') return null;
-  return adminAssignmentType || DEFAULT_ADMIN_ASSIGNMENT_TYPE;
-}
-
-async function syncUserPrimaryMembershipRole(tx: any, userId: string) {
-  const [user, memberships] = await Promise.all([
-    tx.user.findUnique({
-      where: { id: userId },
-      select: { activeSocietyId: true, societyId: true },
-    }),
-    tx.userSocietyMembership.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'asc' },
-      select: { societyId: true, role: true },
-    }),
-  ]);
-
-  if (!user) return;
-
-  if (memberships.length === 0) {
-    await tx.user.update({
-      where: { id: userId },
-      data: {
-        role: 'OWNER',
-        societyId: null,
-        activeSocietyId: null,
-        isActive: false,
-      },
-    });
-    return;
-  }
-
-  const activeMembership = memberships.find((membership: any) => membership.societyId === user.activeSocietyId);
-  const defaultMembership = memberships.find((membership: any) => membership.societyId === user.societyId);
-  const fallbackMembership = activeMembership || defaultMembership || memberships[0];
-
-  await tx.user.update({
-    where: { id: userId },
-    data: {
-      role: fallbackMembership.role,
-      societyId: defaultMembership?.societyId || fallbackMembership.societyId,
-      activeSocietyId: activeMembership?.societyId || fallbackMembership.societyId,
-      isActive: true,
-    },
-  });
-}
-
-async function hasActiveOwnerRecord(tx: any, userId: string, societyId: string) {
-  const owner = await tx.owner.findFirst({
-    where: {
-      userId,
-      isActive: true,
-      flat: { block: { societyId } },
-    },
-    select: { id: true },
-  });
-
-  return Boolean(owner);
-}
-
-const MENU_CATALOG = [
-  { id: 'dashboard', label: 'Dashboard', href: '/' },
-  { id: 'community', label: 'Community', href: '/community' },
-  { id: 'flats', label: 'Flats & Residents', href: '/flats' },
-  { id: 'my-flat', label: 'My Flat', href: '/my-flat' },
-  { id: 'billing', label: 'Billing', href: '/billing' },
-  { id: 'complaints', label: 'Complaints', href: '/complaints' },
-  { id: 'gate-management', label: 'Gate Management', href: '/gate-management' },
-  { id: 'expenses', label: 'Expenses', href: '/expenses' },
-  { id: 'assets', label: 'Assets', href: '/assets' },
-  { id: 'reports', label: 'Reports', href: '/reports' },
-  { id: 'settings', label: 'Settings', href: '/settings' },
-] as const;
-
-const CONFIGURABLE_MENU_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'COMMITTEE_MEMBER', 'OWNER', 'TENANT'] as const;
-const ROLE_LABELS: Record<(typeof CONFIGURABLE_MENU_ROLES)[number], string> = {
-  ADMIN: 'Admin',
-  SECRETARY: 'Secretary',
-  JOINT_SECRETARY: 'Joint Secretary',
-  TREASURER: 'Treasurer',
-  COMMITTEE_MEMBER: 'Committee Member',
-  OWNER: 'Owner',
-  TENANT: 'Tenant',
-};
-
-type MenuId = (typeof MENU_CATALOG)[number]['id'];
-type ConfigurableMenuRole = (typeof CONFIGURABLE_MENU_ROLES)[number];
-
-const MENU_ID_SET = new Set<MenuId>(MENU_CATALOG.map((item) => item.id));
-
-const BASELINE_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, MenuId[]> = {
-  ADMIN: ['dashboard', 'my-flat', 'billing', 'settings'],
-  SECRETARY: ['dashboard', 'my-flat', 'billing', 'settings'],
-  JOINT_SECRETARY: ['dashboard', 'my-flat', 'billing'],
-  TREASURER: ['my-flat', 'billing', 'expenses', 'reports'],
-  COMMITTEE_MEMBER: ['dashboard'],
-  OWNER: ['my-flat', 'billing'],
-  TENANT: ['my-flat', 'billing'],
-};
-
-const DEFAULT_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, MenuId[]> = {
-  ADMIN: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'expenses', 'assets', 'reports', 'settings'],
-  SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'assets', 'reports', 'settings'],
-  JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'assets'],
-  TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
-  COMMITTEE_MEMBER: ['dashboard', 'community', 'my-flat', 'complaints'],
-  OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
-  TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
-};
-
-const ALLOWED_MENU_IDS_BY_ROLE: Record<ConfigurableMenuRole, MenuId[]> = {
-  ADMIN: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'expenses', 'assets', 'reports', 'settings'],
-  SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'expenses', 'assets', 'reports', 'settings'],
-  JOINT_SECRETARY: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'gate-management', 'expenses', 'assets', 'reports'],
-  TREASURER: ['dashboard', 'community', 'flats', 'my-flat', 'billing', 'complaints', 'expenses', 'reports'],
-  COMMITTEE_MEMBER: ['dashboard', 'community', 'my-flat', 'complaints'],
-  OWNER: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
-  TENANT: ['dashboard', 'community', 'my-flat', 'billing', 'complaints'],
-};
-
-const LEGACY_MENU_ID_MAP: Record<string, MenuId> = {
-  announcements: 'community',
-  events: 'community',
-  'entry-activity': 'community',
-};
-
-function getRequestOrigin(req: AuthRequest) {
-  const forwardedProto = req.get('x-forwarded-proto')?.split(',')[0]?.trim();
-  const forwardedHost = req.get('x-forwarded-host')?.split(',')[0]?.trim();
-  const protocol = forwardedProto || req.protocol;
-  const host = forwardedHost || req.get('host');
-
-  return host ? `${protocol}://${host}` : '';
-}
-
-function getDefaultRedirectUrl() {
-  return `${process.env.CLIENT_URL || 'http://localhost:5173'}/billing?payment=done`;
-}
-
-function getPhonePeAuthBaseUrl(environment: string) {
-  return environment === 'PRODUCTION'
-    ? 'https://api.phonepe.com/apis/identity-manager'
-    : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
-}
-
-function resolveSettingsSocietyId(req: AuthRequest, providedSocietyId?: string) {
-  if (req.user?.role === 'SUPER_ADMIN') {
-    return providedSocietyId || req.user.societyId || null;
-  }
-
-  return req.user?.societyId || null;
-}
-
-function isConfigurableMenuRole(value: string): value is ConfigurableMenuRole {
-  return (CONFIGURABLE_MENU_ROLES as readonly string[]).includes(value);
-}
-
-function parseVisibleMenuIds(rawValue?: string | null): MenuId[] {
-  if (!rawValue) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(rawValue);
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return normalizeMenuIds(parsed);
-  } catch {
-    return [];
-  }
-}
-
-function normalizeMenuIds(value: unknown): MenuId[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const normalized = value
-    .filter((item): item is string => typeof item === 'string')
-    .map((item) => LEGACY_MENU_ID_MAP[item] || item)
-    .filter((item): item is MenuId => MENU_ID_SET.has(item as MenuId));
-
-  return [...new Set(normalized)];
-}
-
-function normalizeVisibleMenuIds(role: ConfigurableMenuRole, value: unknown): MenuId[] {
-  const requestedIds = Array.isArray(value)
-    ? normalizeMenuIds(value)
-    : DEFAULT_MENU_IDS_BY_ROLE[role];
-
-  const mandatoryIds = new Set(BASELINE_MENU_IDS_BY_ROLE[role]);
-  const allowedIds = new Set(ALLOWED_MENU_IDS_BY_ROLE[role]);
-
-  const normalizedIds = [...new Set(requestedIds)].filter((item) => allowedIds.has(item));
-  for (const mandatoryId of mandatoryIds) {
-    if (!normalizedIds.includes(mandatoryId)) {
-      normalizedIds.push(mandatoryId);
-    }
-  }
-
-  return MENU_CATALOG.filter((item) => normalizedIds.includes(item.id)).map((item) => item.id);
-}
-
-function buildRoleMenuConfig(role: ConfigurableMenuRole, storedVisibleMenuIds: MenuId[]) {
-  const mandatoryMenuIds = BASELINE_MENU_IDS_BY_ROLE[role];
-  const defaultMenuIds = DEFAULT_MENU_IDS_BY_ROLE[role];
-  const allowedIds = ALLOWED_MENU_IDS_BY_ROLE[role];
-  const allowedIdSet = new Set<MenuId>(allowedIds);
-  const mandatoryIdSet = new Set<MenuId>(mandatoryMenuIds);
-  const defaultIdSet = new Set<MenuId>(defaultMenuIds);
-  const visibleMenuIds = normalizeVisibleMenuIds(role, storedVisibleMenuIds.length > 0 ? storedVisibleMenuIds : defaultMenuIds);
-  const visibleIdSet = new Set<MenuId>(visibleMenuIds);
-
-  return {
-    role,
-    roleLabel: ROLE_LABELS[role],
-    mandatoryMenuIds,
-    defaultMenuIds,
-    visibleMenuIds,
-    menuItems: MENU_CATALOG.map((item) => ({
-      id: item.id,
-      label: item.label,
-      href: item.href,
-      allowed: allowedIdSet.has(item.id),
-      mandatory: mandatoryIdSet.has(item.id),
-      enabled: visibleIdSet.has(item.id),
-      defaultEnabled: defaultIdSet.has(item.id),
-      selectable: allowedIdSet.has(item.id) && !mandatoryIdSet.has(item.id),
-    })),
-  };
-}
-
-async function getRoleMenuConfigResponse(societyId: string) {
-  const configs = await prisma.societyRoleMenuConfig.findMany({
-    where: {
-      societyId,
-      role: { in: [...CONFIGURABLE_MENU_ROLES] as Role[] },
-    },
-  });
-
-  const configMap = new Map<ConfigurableMenuRole, MenuId[]>();
-  for (const config of configs) {
-    if (isConfigurableMenuRole(config.role)) {
-      configMap.set(config.role, parseVisibleMenuIds(config.visibleMenuIds));
-    }
-  }
-
-  return {
-    societyId,
-    configurableRoles: CONFIGURABLE_MENU_ROLES.map((role) => buildRoleMenuConfig(role, configMap.get(role) || [])),
-  };
-}
 
 router.get('/menu-visibility', async (req: AuthRequest, res: Response) => {
   try {
@@ -305,10 +53,7 @@ router.use(authorize('SUPER_ADMIN', ...SOCIETY_ADMINS));
 
 router.put(
   '/menu-visibility/:role',
-  [
-    param('role').isIn([...CONFIGURABLE_MENU_ROLES]).withMessage('Invalid role'),
-    body('visibleMenuIds').isArray().withMessage('visibleMenuIds must be an array'),
-  ],
+  menuVisibilityValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -317,7 +62,7 @@ router.put(
       if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
       const visibleMenuIds = normalizeVisibleMenuIds(role, req.body.visibleMenuIds);
-      const defaultMenuIds = DEFAULT_MENU_IDS_BY_ROLE[role];
+      const defaultMenuIds = getDefaultMenuIdsForRole(role);
       const isDefaultConfig =
         visibleMenuIds.length === defaultMenuIds.length &&
         visibleMenuIds.every((menuId, index) => menuId === defaultMenuIds[index]);
@@ -385,14 +130,7 @@ router.get('/payment-gateway', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Mask the salt key for display (show only last 4 chars)
-    const masked = {
-      ...config,
-      saltKey: config.saltKey ? `${'•'.repeat(Math.max(0, config.saltKey.length - 4))}${config.saltKey.slice(-4)}` : '',
-      saltKeySet: !!config.saltKey,
-      clientSecret: config.clientSecret ? `${'•'.repeat(Math.max(0, config.clientSecret.length - 4))}${config.clientSecret.slice(-4)}` : '',
-      clientSecretSet: !!config.clientSecret,
-    };
+    const masked = maskPaymentGatewayConfig(config);
 
     return res.json({ exists: true, config: masked });
   } catch (error) {
@@ -404,17 +142,7 @@ router.get('/payment-gateway', async (req: AuthRequest, res: Response) => {
 // ── CREATE/UPDATE PHONEPE CONFIG ────────────────────────
 router.post(
   '/payment-gateway',
-  [
-    body('merchantId').isString().notEmpty().withMessage('Merchant ID is required'),
-    body('clientId').optional({ values: 'falsy' }).isString(),
-    body('clientSecret').optional({ values: 'falsy' }).isString(),
-    body('clientVersion').optional().isInt({ min: 1 }),
-    body('saltKey').optional({ values: 'falsy' }).isString(),
-    body('saltIndex').optional().isInt({ min: 1 }),
-    body('environment').isIn(['UAT', 'PRODUCTION']).withMessage('Environment must be UAT or PRODUCTION'),
-    body('redirectUrl').optional({ values: 'falsy' }).isURL({ require_tld: false }),
-    body('callbackUrl').optional({ values: 'falsy' }).isURL({ require_tld: false }),
-  ],
+  paymentGatewayValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -487,13 +215,7 @@ router.post(
 
       return res.json({
         message: 'Payment gateway configuration saved successfully',
-        config: {
-          ...config,
-          saltKey: `${'•'.repeat(Math.max(0, config.saltKey.length - 4))}${config.saltKey.slice(-4)}`,
-          saltKeySet: !!config.saltKey,
-          clientSecret: config.clientSecret ? `${'•'.repeat(Math.max(0, config.clientSecret.length - 4))}${config.clientSecret.slice(-4)}` : '',
-          clientSecretSet: !!config.clientSecret,
-        },
+        config: maskPaymentGatewayConfig(config),
       });
     } catch (error) {
       logger.error('Failed to save payment config:', error);
@@ -718,10 +440,7 @@ router.get('/members', async (req: AuthRequest, res: Response) => {
 // ── CHANGE MEMBER ROLE ──────────────────────────────────
 router.patch(
   '/members/:userId/role',
-  [
-    param('userId').isUUID(),
-    body('role').isIn([...ASSIGNABLE_ROLES]).withMessage('Invalid role'),
-  ],
+  memberRoleValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -747,7 +466,7 @@ router.patch(
       }
 
       // Enforce role limits (only when assigning TO a limited role)
-      const limit = newRole === 'COMMITTEE_MEMBER' ? await getCommitteeMemberLimit(societyId) : ROLE_LIMITS[newRole];
+      const limit = newRole === 'COMMITTEE_MEMBER' ? await getCommitteeMemberLimit(societyId) : getRoleLimit(newRole);
       if (limit) {
         const currentCount = await prisma.userSocietyMembership.count({
           where: { societyId, role: newRole as any },
@@ -788,7 +507,7 @@ router.patch(
 
 router.post(
   '/members/:userId/transfer-president',
-  [param('userId').isUUID()],
+  memberUserIdValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -907,10 +626,7 @@ router.post(
 
 router.delete(
   '/members/:userId',
-  [
-    param('userId').isUUID(),
-    body('reason').trim().notEmpty().withMessage('Reason is required'),
-  ],
+  removeMemberValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -1069,15 +785,7 @@ router.put(
   '/community-profile',
   authenticate,
   authorize(...SOCIETY_ADMINS),
-  [
-    body('name').optional().trim().notEmpty().withMessage('Community name cannot be empty'),
-    body('communityType').optional().isIn(['APARTMENT', 'VILLA', 'GATED_COMMUNITY', 'TOWNSHIP']).withMessage('Invalid community type'),
-    body('address').optional().trim().notEmpty().withMessage('Address cannot be empty'),
-    body('city').optional().trim().notEmpty().withMessage('City cannot be empty'),
-    body('state').optional().trim().notEmpty().withMessage('State cannot be empty'),
-    body('pincode').optional().trim().matches(/^\d{6}$/).withMessage('Pincode must be 6 digits'),
-    body('totalUnits').optional({ nullable: true }).isInt({ min: 0 }).withMessage('Total units must be a non-negative integer'),
-  ],
+  communityProfileValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -1162,21 +870,7 @@ router.get('/society-settings', async (req: AuthRequest, res: Response) => {
 
 router.put(
   '/society-settings',
-  [
-    body('societyId').optional().isUUID(),
-    body('lateFeeEnabled').optional().isBoolean(),
-    body('lateFeeMode').optional().isIn(['PER_DAY', 'ONE_TIME_PER_BILL', 'RECURRING']),
-    body('recurringLateFeeFrequency').optional().isIn(['DAILY', 'MONTHLY']),
-    body('gracePeriodDays').optional().isInt({ min: 0 }),
-    body('dueDay').optional().isInt({ min: 1, max: 28 }),
-    body('committeeMemberLimit').optional().isInt({ min: 0 }),
-    body('partialPaymentAllowed').optional().isBoolean(),
-    body('advancePaymentAllowed').optional().isBoolean(),
-    body('autoAdjustAdvance').optional().isBoolean(),
-    body('supportsPets').optional().isBoolean(),
-    body('configuredFlatTypes').optional().isArray(),
-    body('configuredFlatTypes.*').optional().isIn(['ONE_BHK', 'TWO_BHK', 'THREE_BHK', 'FOUR_BHK', 'STUDIO', 'PENTHOUSE', 'SHOP', 'OTHER']),
-  ],
+  societySettingsValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -1242,7 +936,7 @@ router.put(
 
 router.post(
   '/society-settings/run-late-fees',
-  [body('societyId').optional().isUUID()],
+  runLateFeesValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
