@@ -5,6 +5,7 @@ import { config } from '../config';
 import prisma from '../config/database';
 import logger from '../config/logger';
 import { buildPremiumLifecycleMessage, ensurePremiumLifecycleForSociety, shouldBlockPremiumRole } from '../modules/premium/lifecycle';
+import { sendError } from '../lib/http';
 
 // ─── ROLE GROUPS ────────────────────────────────────────
 export const SOCIETY_ADMINS = ['ADMIN', 'SECRETARY'] as const;
@@ -12,6 +13,24 @@ export const SOCIETY_MANAGERS = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY'] as con
 export const FINANCIAL_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'] as const;
 export const RESIDENT_ROLES = ['OWNER', 'TENANT'] as const;
 export const ALL_SOCIETY_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT', 'SERVICE_STAFF'] as const;
+
+type AuthFailureStatus = 401 | 403;
+
+const AUTH_ERROR_MESSAGES = {
+  accessTokenRequired: 'Access token required',
+  authenticationRequired: 'Authentication required',
+  inactiveUser: 'User not found or inactive',
+  invalidToken: 'Invalid or expired token',
+  insufficientPermissions: 'Insufficient permissions',
+} as const;
+
+const sendAuthError = (res: Response, statusCode: AuthFailureStatus, message: string, code?: string): void => {
+  sendError(res, statusCode, message, { code });
+};
+
+export const hasAnyRole = (role: string, allowedRoles: readonly string[]): boolean => {
+  return allowedRoles.includes(role);
+};
 
 export interface AuthRequest extends Request {
   user?: {
@@ -87,7 +106,7 @@ export const authenticate = async (
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       logger.warn('Auth: Missing or invalid token header', { url: req.originalUrl, ip: req.ip });
-      res.status(401).json({ error: 'Access token required' });
+      sendAuthError(res, 401, AUTH_ERROR_MESSAGES.accessTokenRequired);
       return;
     }
 
@@ -105,7 +124,7 @@ export const authenticate = async (
 
     if (!user || !user.isActive) {
       logger.warn('Auth: User not found or inactive', { userId: decoded.userId, url: req.originalUrl });
-      res.status(401).json({ error: 'User not found or inactive' });
+      sendAuthError(res, 401, AUTH_ERROR_MESSAGES.inactiveUser);
       return;
     }
 
@@ -131,18 +150,22 @@ export const authenticate = async (
       const lifecycleMessage = buildPremiumLifecycleMessage(lifecycle);
 
       if (lifecycle.stage === 'ARCHIVED') {
-        res.status(403).json({
-          error: lifecycleMessage || 'This society account has been archived due to long overdue Premium renewal.',
-          code: 'SOCIETY_ARCHIVED',
-        });
+        sendAuthError(
+          res,
+          403,
+          lifecycleMessage || 'This society account has been archived due to long overdue Premium renewal.',
+          'SOCIETY_ARCHIVED',
+        );
         return;
       }
 
       if (shouldBlockPremiumRole(effectiveRole, lifecycle)) {
-        res.status(403).json({
-          error: lifecycleMessage || 'Your role access is temporarily blocked until Premium renewal payment is completed by Admin.',
-          code: 'PREMIUM_ROLE_LOGIN_BLOCKED',
-        });
+        sendAuthError(
+          res,
+          403,
+          lifecycleMessage || 'Your role access is temporarily blocked until Premium renewal payment is completed by Admin.',
+          'PREMIUM_ROLE_LOGIN_BLOCKED',
+        );
         return;
       }
 
@@ -173,29 +196,31 @@ export const authenticate = async (
     next();
   } catch (error: any) {
     logger.warn('Auth: Token verification failed', { error: error.message, url: req.originalUrl });
-    res.status(401).json({ error: 'Invalid or expired token' });
+    sendAuthError(res, 401, AUTH_ERROR_MESSAGES.invalidToken);
   }
 };
 
-export const authorize = (...roles: string[]) => {
+export const requireAnyRole = (...roles: string[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
       logger.warn('Authorize: No user on request', { url: req.originalUrl });
-      res.status(401).json({ error: 'Authentication required' });
+      sendAuthError(res, 401, AUTH_ERROR_MESSAGES.authenticationRequired);
       return;
     }
 
-    if (!roles.includes(req.user.role)) {
+    if (!hasAnyRole(req.user.role, roles)) {
       logger.warn('Authorize: Insufficient permissions', {
         userId: req.user.id,
         role: req.user.role,
         required: roles,
         url: req.originalUrl,
       });
-      res.status(403).json({ error: 'Insufficient permissions' });
+      sendAuthError(res, 403, AUTH_ERROR_MESSAGES.insufficientPermissions);
       return;
     }
 
     next();
   };
 };
+
+export const authorize = requireAnyRole;
