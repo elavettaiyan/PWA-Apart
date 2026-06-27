@@ -1,97 +1,20 @@
 import { Response, Router } from 'express';
-import { body, param, query } from 'express-validator';
-import prisma from '../../config/database';
 import logger from '../../config/logger';
 import { authenticate, authorize, AuthRequest, SOCIETY_MANAGERS } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import { getFileUrl, upload } from '../../middleware/upload';
-import { DEFAULT_COMMUNITY_AUDIENCE_ROLES, sendAnnouncementBroadcast } from '../notifications/service';
+import { sendCreated, sendOk } from '../../lib/http';
+import { resolveSocietyId } from './permissions';
+import { createAnnouncement, deleteAnnouncement, findAnnouncementInSociety, listAnnouncements, parseRoles, pinAnnouncement, updateAnnouncementReadState } from './service';
+import { announcementIdValidation, announcementReadStateValidation, createAnnouncementValidation, listAnnouncementsValidation, pinAnnouncementValidation } from './validation';
 
 const router = Router();
 
 router.use(authenticate);
 
-function resolveSocietyId(req: AuthRequest, providedSocietyId?: string) {
-  if (req.user?.role === 'SUPER_ADMIN') {
-    return providedSocietyId || req.user.societyId || null;
-  }
-
-  return req.user?.societyId || null;
-}
-
-function parseRoles(value: unknown) {
-  const allowedRoles = new Set(DEFAULT_COMMUNITY_AUDIENCE_ROLES as readonly string[]);
-
-  const normalize = (roles: unknown[]) => {
-    const filtered = roles.filter((role): role is string => typeof role === 'string' && allowedRoles.has(role));
-    return [...new Set(filtered)];
-  };
-
-  if (Array.isArray(value)) {
-    return normalize(value);
-  }
-
-  if (typeof value !== 'string' || value.trim().length === 0) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(value);
-    if (Array.isArray(parsed)) {
-      return normalize(parsed);
-    }
-  } catch {
-    return normalize(value.split(',').map((item) => item.trim()));
-  }
-
-  return [];
-}
-
-function parseImages(value?: string | null) {
-  if (!value) {
-    return [] as string[];
-  }
-
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string' && item.length > 0) : [];
-  } catch {
-    return [];
-  }
-}
-
-function mapAnnouncement(record: any) {
-  const readAt = Array.isArray(record.readStates) && record.readStates.length > 0
-    ? record.readStates[0]?.readAt || null
-    : null;
-
-  return {
-    id: record.id,
-    societyId: record.societyId,
-    createdById: record.createdById,
-    title: record.title,
-    message: record.message,
-    path: record.path,
-    images: parseImages(record.images),
-    targetRoles: parseRoles(record.targetRoles),
-    sentCount: record.sentCount,
-    isPinned: Boolean(record.isPinned),
-    pinnedAt: record.pinnedAt,
-    isRead: Boolean(readAt),
-    readAt,
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
-    createdBy: record.createdBy ? {
-      id: record.createdBy.id,
-      name: record.createdBy.name,
-      role: record.createdBy.role,
-    } : undefined,
-  };
-}
-
 router.get(
   '/',
-  [query('societyId').optional().isUUID()],
+  listAnnouncementsValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     const societyId = resolveSocietyId(req, req.query.societyId as string | undefined);
@@ -99,22 +22,9 @@ router.get(
       return res.status(400).json({ error: 'Society ID required' });
     }
 
-    const announcements = await prisma.announcementBroadcast.findMany({
-      where: { societyId },
-      include: {
-        createdBy: { select: { id: true, name: true, role: true } },
-        readStates: req.user?.id
-          ? {
-              where: { userId: req.user.id },
-              select: { readAt: true },
-              take: 1,
-            }
-          : false,
-      },
-      orderBy: [{ isPinned: 'desc' }, { pinnedAt: 'desc' }, { createdAt: 'desc' }],
-    });
+    const announcements = await listAnnouncements(societyId, req.user?.id);
 
-    return res.json(announcements.map(mapAnnouncement));
+    return sendOk(res, announcements);
   },
 );
 
@@ -122,12 +32,7 @@ router.post(
   '/',
   authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
   upload.array('images', 4),
-  [
-    body('societyId').optional().isUUID(),
-    body('title').trim().notEmpty().withMessage('Title is required'),
-    body('message').trim().notEmpty().withMessage('Message is required'),
-    body('path').optional({ values: 'falsy' }).isString(),
-  ],
+  createAnnouncementValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -163,7 +68,7 @@ router.post(
         })),
       });
 
-      const result = await sendAnnouncementBroadcast({
+      const announcement = await createAnnouncement({
         societyId,
         createdById: req.user!.id,
         title: req.body.title,
@@ -173,21 +78,7 @@ router.post(
         roles,
       });
 
-      const announcement = await prisma.announcementBroadcast.findUnique({
-        where: { id: result.broadcastId },
-        include: {
-          createdBy: { select: { id: true, name: true, role: true } },
-        },
-      });
-
-      return res.status(201).json({
-        ...mapAnnouncement(announcement),
-        push: {
-          sentCount: result.sentCount,
-          failedCount: result.failedCount,
-          configured: result.configured,
-        },
-      });
+      return sendCreated(res, announcement);
     } catch (error: any) {
       logger.error('Announcement create request failed', {
         error: error.message,
@@ -205,7 +96,7 @@ router.post(
 router.delete(
   '/:id',
   authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
-  [param('id').isUUID()],
+  announcementIdValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     const societyId = resolveSocietyId(req);
@@ -213,24 +104,21 @@ router.delete(
       return res.status(400).json({ error: 'Society ID required' });
     }
 
-    const announcement = await prisma.announcementBroadcast.findFirst({
-      where: { id: req.params.id, societyId },
-      select: { id: true },
-    });
+    const announcement = await findAnnouncementInSociety(req.params.id, societyId);
 
     if (!announcement) {
       return res.status(404).json({ error: 'Announcement not found' });
     }
 
-    await prisma.announcementBroadcast.delete({ where: { id: announcement.id } });
-    return res.json({ message: 'Announcement deleted successfully' });
+    await deleteAnnouncement(announcement.id);
+    return sendOk(res, { message: 'Announcement deleted successfully' });
   },
 );
 
 router.patch(
   '/:id/pin',
   authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
-  [param('id').isUUID(), body('isPinned').isBoolean().withMessage('isPinned must be a boolean')],
+  pinAnnouncementValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     const societyId = resolveSocietyId(req);
@@ -238,40 +126,21 @@ router.patch(
       return res.status(400).json({ error: 'Society ID required' });
     }
 
-    const announcement = await prisma.announcementBroadcast.findFirst({
-      where: { id: req.params.id, societyId },
-      select: { id: true },
-    });
+    const announcement = await findAnnouncementInSociety(req.params.id, societyId);
 
     if (!announcement) {
       return res.status(404).json({ error: 'Announcement not found' });
     }
 
-    const updatedAnnouncement = await prisma.announcementBroadcast.update({
-      where: { id: announcement.id },
-      data: {
-        isPinned: req.body.isPinned,
-        pinnedAt: req.body.isPinned ? new Date() : null,
-      },
-      include: {
-        createdBy: { select: { id: true, name: true, role: true } },
-        readStates: req.user?.id
-          ? {
-              where: { userId: req.user.id },
-              select: { readAt: true },
-              take: 1,
-            }
-          : false,
-      },
-    });
+    const updatedAnnouncement = await pinAnnouncement(announcement.id, req.body.isPinned, req.user?.id);
 
-    return res.json(mapAnnouncement(updatedAnnouncement));
+    return sendOk(res, updatedAnnouncement);
   },
 );
 
 router.patch(
   '/:id/read-state',
-  [param('id').isUUID(), body('isRead').isBoolean().withMessage('isRead must be a boolean')],
+  announcementReadStateValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     const societyId = resolveSocietyId(req);
@@ -279,52 +148,15 @@ router.patch(
       return res.status(400).json({ error: 'Society ID required' });
     }
 
-    const announcement = await prisma.announcementBroadcast.findFirst({
-      where: { id: req.params.id, societyId },
-      select: { id: true },
-    });
+    const announcement = await findAnnouncementInSociety(req.params.id, societyId);
 
     if (!announcement) {
       return res.status(404).json({ error: 'Announcement not found' });
     }
 
-    if (req.body.isRead) {
-      await prisma.announcementReadState.upsert({
-        where: {
-          announcementId_userId: {
-            announcementId: announcement.id,
-            userId: req.user.id,
-          },
-        },
-        update: { readAt: new Date() },
-        create: {
-          announcementId: announcement.id,
-          userId: req.user.id,
-          readAt: new Date(),
-        },
-      });
-    } else {
-      await prisma.announcementReadState.deleteMany({
-        where: {
-          announcementId: announcement.id,
-          userId: req.user.id,
-        },
-      });
-    }
+    const updatedAnnouncement = await updateAnnouncementReadState(announcement.id, req.user.id, req.body.isRead);
 
-    const updatedAnnouncement = await prisma.announcementBroadcast.findUnique({
-      where: { id: announcement.id },
-      include: {
-        createdBy: { select: { id: true, name: true, role: true } },
-        readStates: {
-          where: { userId: req.user.id },
-          select: { readAt: true },
-          take: 1,
-        },
-      },
-    });
-
-    return res.json(mapAnnouncement(updatedAnnouncement));
+    return sendOk(res, updatedAnnouncement);
   },
 );
 
