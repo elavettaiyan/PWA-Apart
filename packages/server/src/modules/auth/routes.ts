@@ -2,7 +2,6 @@ import { Request, Response, Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { body } from 'express-validator';
 import { config } from '../../config';
 import prisma from '../../config/database';
 import logger from '../../config/logger';
@@ -11,77 +10,32 @@ import { authenticate, AuthRequest, invalidateAuthCache } from '../../middleware
 import { sendDeleteAccountOtpEmail, sendPasswordResetEmail, sendRegistrationEmail, sendRegistrationOtpEmail } from '../../config/email';
 import { buildPremiumLifecycleMessage, ensurePremiumLifecycleForSociety, shouldBlockPremiumRole, shouldWarnPremiumRole } from '../premium/lifecycle';
 import { TRIAL_DAYS } from '../premium/routes';
+import {
+  ACCOUNT_DELETION_ALLOWED_ROLES,
+  buildSocietyScopedUserPayload,
+  DEFAULT_ADMIN_ASSIGNMENT_TYPE,
+  detectClientMedium,
+  generateTokens,
+  normalizeAdminAssignmentType,
+  OWNER_VIEW_ELIGIBLE_ROLES,
+  REVIEW_DELETE_ACCOUNT_OTP,
+} from './service';
+import {
+  changePasswordValidation,
+  deleteAccountVerifyOtpValidation,
+  deletePushTokenValidation,
+  forgotPasswordValidation,
+  loginValidation,
+  pushTokenRegistrationValidation,
+  registerSocietyValidation,
+  registerUserValidation,
+  resetPasswordValidation,
+  switchSocietyValidation,
+  verifyRegistrationOtpValidation,
+} from './validation';
 
 const router = Router();
 const TRIAL_DURATION_MS = TRIAL_DAYS * 24 * 60 * 60 * 1000;
-const ACCOUNT_DELETION_ALLOWED_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER', 'TENANT', 'SERVICE_STAFF'] as const;
-const REVIEW_DELETE_ACCOUNT_OTP = '123456';
-const OWNER_VIEW_ELIGIBLE_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'];
-const DEFAULT_ADMIN_ASSIGNMENT_TYPE = 'PRESIDENT';
-
-function normalizeAdminAssignmentType(role: string, adminAssignmentType?: string | null) {
-  if (role !== 'ADMIN') return null;
-  return adminAssignmentType || DEFAULT_ADMIN_ASSIGNMENT_TYPE;
-}
-
-function buildSocietyScopedUserPayload(args: {
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    phone?: string | null;
-    role: string;
-    specialization?: string | null;
-    societyId?: string | null;
-    activeSocietyId?: string | null;
-    mustChangePassword?: boolean | null;
-    skipAccountDeletionVerification?: boolean | null;
-    owners: Array<{ flat: any | null; isActive?: boolean | null }>;
-    tenants: Array<{ flat: any | null; isActive?: boolean | null }>;
-    societyMemberships: Array<{
-      societyId: string;
-      role: string;
-      adminAssignmentType?: string | null;
-      adminAssignedAt?: Date | null;
-      society: { id: string; name: string };
-    }>;
-  };
-}) {
-  const activeSocietyId = args.user.activeSocietyId || args.user.societyId || args.user.societyMemberships[0]?.societyId || null;
-  const flatFromOwners = args.user.owners.find((owner) => owner.isActive !== false && owner.flat?.block?.societyId === activeSocietyId)?.flat || null;
-  const flatFromTenants = args.user.tenants.find((tenant) => tenant.isActive !== false && tenant.flat?.block?.societyId === activeSocietyId)?.flat || null;
-  const activeMembership = activeSocietyId
-    ? args.user.societyMemberships.find((membership) => membership.societyId === activeSocietyId)
-    : null;
-  const effectiveRole = args.user.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : (activeMembership?.role || args.user.role);
-  const adminAssignmentType = normalizeAdminAssignmentType(effectiveRole, activeMembership?.adminAssignmentType);
-  const canUseOwnerView = OWNER_VIEW_ELIGIBLE_ROLES.includes(effectiveRole) && Boolean(flatFromOwners);
-
-  return {
-    id: args.user.id,
-    email: args.user.email,
-    name: args.user.name,
-    phone: args.user.phone || undefined,
-    role: effectiveRole,
-    specialization: args.user.specialization,
-    societyId: activeSocietyId,
-    activeSocietyId,
-    flat: flatFromOwners || flatFromTenants || null,
-    flatRelation: flatFromOwners ? 'OWNER' : flatFromTenants ? 'TENANT' : null,
-    canUseOwnerView,
-    adminAssignmentType,
-    adminAssignedAt: activeMembership?.adminAssignedAt || null,
-    isTemporaryAdmin: adminAssignmentType === 'TEMPORARY',
-    mustChangePassword: Boolean(args.user.mustChangePassword),
-    skipAccountDeletionVerification: Boolean(args.user.skipAccountDeletionVerification),
-    societies: args.user.societyMemberships.map((membership) => ({
-      id: membership.society.id,
-      name: membership.society.name,
-      role: membership.role,
-      adminAssignmentType: normalizeAdminAssignmentType(membership.role, membership.adminAssignmentType),
-    })),
-  };
-}
 
 async function findUserByEmailInsensitive(tx: any, email: string, options: Record<string, any> = {}) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
@@ -124,19 +78,6 @@ async function ensureMembership(
       adminAssignedAt: adminAssignmentType ? new Date() : null,
     },
   });
-}
-
-type ClientMedium = 'web' | 'android' | 'ios';
-
-function detectClientMedium(req: Request, requestedMedium?: string): ClientMedium {
-  if (requestedMedium === 'web' || requestedMedium === 'android' || requestedMedium === 'ios') {
-    return requestedMedium;
-  }
-
-  const userAgent = (req.get('user-agent') || '').toLowerCase();
-  if (userAgent.includes('android')) return 'android';
-  if (userAgent.includes('iphone') || userAgent.includes('ipad') || userAgent.includes('ios')) return 'ios';
-  return 'web';
 }
 
 // ── OTP STORE ───────────────────────────────────────────
@@ -264,24 +205,7 @@ setInterval(cleanupExpiredOtps, 5 * 60 * 1000);
 // ── SEND REGISTRATION OTP ───────────────────────────────
 router.post(
   '/register-society/send-otp',
-  [
-    body('societyName').trim().notEmpty().withMessage('Community name is required'),
-    body('communityType').optional().isIn(['APARTMENT', 'VILLA', 'GATED_COMMUNITY', 'TOWNSHIP']).withMessage('Invalid community type'),
-    body('address').trim().notEmpty().withMessage('Address is required'),
-    body('city').trim().notEmpty().withMessage('City is required'),
-    body('state').trim().notEmpty().withMessage('State is required'),
-    body('pincode').trim().isLength({ min: 6, max: 6 }).withMessage('Valid 6-digit pincode is required'),
-    body('adminName').trim().notEmpty().withMessage('Admin name is required'),
-    body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }).withMessage('Valid email is required'),
-    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
-      .matches(/[A-Z]/).withMessage('Password must contain an uppercase letter')
-      .matches(/[a-z]/).withMessage('Password must contain a lowercase letter')
-      .matches(/[0-9]/).withMessage('Password must contain a number'),
-    body('phone')
-      .optional({ values: 'falsy' })
-      .isMobilePhone('en-IN')
-      .withMessage('Phone must be a valid mobile number'),
-  ],
+  registerSocietyValidation,
   validate,
   async (req: Request, res: Response) => {
     try {
@@ -317,10 +241,7 @@ router.post(
 // ── VERIFY REGISTRATION OTP & CREATE SOCIETY ────────────
 router.post(
   '/register-society/verify-otp',
-  [
-    body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }).withMessage('Valid email is required'),
-    body('otp').trim().isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits'),
-  ],
+  verifyRegistrationOtpValidation,
   validate,
   async (req: Request, res: Response) => {
     try {
@@ -402,24 +323,7 @@ router.post(
 // ── REGISTER SOCIETY (Legacy — kept for backward compatibility) ──
 router.post(
   '/register-society',
-  [
-    body('societyName').trim().notEmpty().withMessage('Community name is required'),
-    body('communityType').optional().isIn(['APARTMENT', 'VILLA', 'GATED_COMMUNITY', 'TOWNSHIP']).withMessage('Invalid community type'),
-    body('address').trim().notEmpty().withMessage('Address is required'),
-    body('city').trim().notEmpty().withMessage('City is required'),
-    body('state').trim().notEmpty().withMessage('State is required'),
-    body('pincode').trim().isLength({ min: 6, max: 6 }).withMessage('Valid 6-digit pincode is required'),
-    body('adminName').trim().notEmpty().withMessage('Admin name is required'),
-    body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }).withMessage('Valid email is required'),
-    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
-      .matches(/[A-Z]/).withMessage('Password must contain an uppercase letter')
-      .matches(/[a-z]/).withMessage('Password must contain a lowercase letter')
-      .matches(/[0-9]/).withMessage('Password must contain a number'),
-    body('phone')
-      .optional({ values: 'falsy' })
-      .isMobilePhone('en-IN')
-      .withMessage('Phone must be a valid mobile number'),
-  ],
+  registerSocietyValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -507,17 +411,7 @@ router.post(
 // ── REGISTER USER ───────────────────────────────────────
 router.post(
   '/register',
-  [
-    body('email').isEmail().withMessage('Valid email is required').normalizeEmail({ gmail_remove_dots: false }),
-    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
-    body('name').trim().notEmpty().withMessage('Name is required'),
-    body('phone')
-      .optional({ values: 'falsy' })
-      .isMobilePhone('en-IN')
-      .withMessage('Phone must be a valid mobile number'),
-    body('role').optional({ values: 'falsy' }).isIn(['OWNER', 'TENANT']).withMessage('Role must be OWNER or TENANT'),
-    body('societyId').optional({ values: 'falsy' }).isUUID().withMessage('Invalid society ID'),
-  ],
+  registerUserValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -561,11 +455,7 @@ router.post(
 // ── LOGIN ───────────────────────────────────────────────
 router.post(
   '/login',
-  [
-    body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }),
-    body('password').notEmpty(),
-    body('clientMedium').optional().isIn(['web', 'android', 'ios']),
-  ],
+  loginValidation,
   validate,
   async (req: Request, res: Response) => {
     try {
@@ -873,7 +763,7 @@ router.get('/my-societies', authenticate, async (req: AuthRequest, res: Response
 router.post(
   '/switch-society',
   authenticate,
-  [body('societyId').isUUID().withMessage('Valid societyId is required')],
+  switchSocietyValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -934,12 +824,7 @@ router.post(
 router.post(
   '/push-tokens',
   authenticate,
-  [
-    body('token').isString().trim().notEmpty().withMessage('Push token is required'),
-    body('platform').isIn(['android', 'ios']).withMessage('Supported push platforms are android and ios'),
-    body('societyIds').optional().isArray().withMessage('societyIds must be an array'),
-    body('societyIds.*').optional().isUUID().withMessage('Each societyId must be a valid UUID'),
-  ],
+  pushTokenRegistrationValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -1018,7 +903,7 @@ router.post(
 router.delete(
   '/push-tokens',
   authenticate,
-  [body('token').isString().trim().notEmpty().withMessage('Push token is required')],
+  deletePushTokenValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -1087,7 +972,7 @@ router.post(
 router.post(
   '/delete-account/verify-otp',
   authenticate,
-  [body('otp').trim().isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits')],
+  deleteAccountVerifyOtpValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -1148,13 +1033,7 @@ router.post(
 router.post(
   '/change-password',
   authenticate,
-  [
-    body('currentPassword').notEmpty().withMessage('Current password is required'),
-    body('newPassword').isLength({ min: 8 }).withMessage('New password must be at least 8 characters')
-      .matches(/[A-Z]/).withMessage('Password must contain an uppercase letter')
-      .matches(/[a-z]/).withMessage('Password must contain a lowercase letter')
-      .matches(/[0-9]/).withMessage('Password must contain a number'),
-  ],
+  changePasswordValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -1186,9 +1065,7 @@ router.post(
 // ── FORGOT PASSWORD (public) ────────────────────────────
 router.post(
   '/forgot-password',
-  [
-    body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }).withMessage('Valid email is required'),
-  ],
+  forgotPasswordValidation,
   validate,
   async (req: Request, res: Response) => {
     try {
@@ -1242,13 +1119,7 @@ router.post(
 // ── RESET PASSWORD (public, using token) ────────────────
 router.post(
   '/reset-password',
-  [
-    body('token').notEmpty().withMessage('Reset token is required'),
-    body('newPassword').isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
-      .matches(/[A-Z]/).withMessage('Password must contain an uppercase letter')
-      .matches(/[a-z]/).withMessage('Password must contain a lowercase letter')
-      .matches(/[0-9]/).withMessage('Password must contain a number'),
-  ],
+  resetPasswordValidation,
   validate,
   async (req: Request, res: Response) => {
     try {
@@ -1288,22 +1159,5 @@ router.post(
     }
   },
 );
-
-// ── HELPER ──────────────────────────────────────────────
-function generateTokens(user: { id: string; email: string; role: string; societyId?: string | null }) {
-  const accessToken = jwt.sign(
-    { userId: user.id, email: user.email, role: user.role, societyId: user.societyId },
-    config.jwt.secret,
-    { expiresIn: config.jwt.expiresIn },
-  );
-
-  const refreshToken = jwt.sign(
-    { userId: user.id },
-    config.jwt.refreshSecret,
-    { expiresIn: config.jwt.refreshExpiresIn },
-  );
-
-  return { accessToken, refreshToken };
-}
 
 export default router;

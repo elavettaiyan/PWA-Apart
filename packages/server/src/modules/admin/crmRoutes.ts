@@ -1,88 +1,34 @@
 import { Router, Response } from 'express';
-import { body, param, query } from 'express-validator';
-import { CampaignMailStatus, Prisma } from '@prisma/client';
+import { CampaignMailStatus } from '@prisma/client';
 import prisma from '../../config/database';
-import { sendCampaignEmails } from '../../config/email';
 import runCampaignMailWorker from '../../jobs/campaignMailWorker';
 import { authenticate, authorize, AuthRequest, invalidateAuthCache } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import { computeTrialStatus } from '../premium/routes';
-import { config } from '../../config';
+import { CampaignTargetMode, escapeCsvValue, logCrmAction, parseCampaignHistoryRecord, SOCIETY_CRM_SELECT } from './crmService';
+import {
+  campaignMailHistoryValidation,
+  crmPaymentsValidation,
+  crmSocietyIdValidation,
+  deleteCrmUserValidation,
+  listCrmSocietiesValidation,
+  sendCampaignMailValidation,
+  updateCrmMetaValidation,
+  updateCrmPremiumOverrideValidation,
+  updateCrmSocietyStatusValidation,
+  updateCrmTrialValidation,
+} from './crmValidation';
 
 const router = Router();
 
 router.use(authenticate);
 router.use(authorize('SUPER_ADMIN'));
 
-type CampaignTargetMode = 'all' | 'specific';
-
-function getServerPublicBaseUrl() {
-  const publicServerUrl = config.publicServerUrl.replace(/\/$/, '');
-  if (publicServerUrl.includes('localhost:4000')) {
-    return 'http://localhost:4000';
-  }
-
-  return publicServerUrl;
-}
-
-// ── HELPERS ────────────────────────────────────────────────────
-
-async function logCrmAction(
-  performedById: string,
-  societyId: string,
-  action: string,
-  description?: string,
-  metadata?: Record<string, unknown>,
-) {
-  await prisma.crmActionLog.create({
-    data: {
-      societyId,
-      performedById,
-      action,
-      description: description ?? null,
-      metadata: metadata ? (metadata as Prisma.InputJsonValue) : Prisma.DbNull,
-    },
-  });
-}
-
-const SOCIETY_CRM_SELECT = {
-  id: true,
-  name: true,
-  communityType: true,
-  city: true,
-  state: true,
-  pincode: true,
-  address: true,
-  registrationNo: true,
-  isActive: true,
-  isPremium: true,
-  hadPremiumSubscription: true,
-  premiumOverrideUntil: true,
-  trialStartedAt: true,
-  trialEndsAt: true,
-  crmNotes: true,
-  crmTags: true,
-  createdAt: true,
-  updatedAt: true,
-  _count: {
-    select: {
-      users: true,
-      blocks: true,
-      complaints: true,
-      expenses: true,
-    },
-  },
-} as const;
-
 // ── GET /admin/crm/societies ────────────────────────────────────
 // Enhanced list for CRM table with admin contact and subscription status.
 router.get(
   '/societies',
-  [
-    query('search').optional().trim(),
-    query('status').optional().isIn(['active', 'inactive']),
-    query('premium').optional().isIn(['true', 'false', 'trial', 'override']),
-  ],
+  listCrmSocietiesValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -177,7 +123,7 @@ router.get(
 // Full detail for a single society.
 router.get(
   '/societies/:id',
-  [param('id').isUUID()],
+  crmSocietyIdValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -256,7 +202,7 @@ router.get(
 // Activate or deactivate a society.
 router.patch(
   '/societies/:id/status',
-  [param('id').isUUID(), body('isActive').isBoolean()],
+  updateCrmSocietyStatusValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -295,7 +241,7 @@ router.patch(
 // Extend or set trial expiry date.
 router.patch(
   '/societies/:id/trial',
-  [param('id').isUUID(), body('trialEndsAt').isISO8601()],
+  updateCrmTrialValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -337,7 +283,7 @@ router.patch(
 // Manually grant or remove premium override.
 router.patch(
   '/societies/:id/premium-override',
-  [param('id').isUUID(), body('premiumOverrideUntil').optional({ nullable: true }).isISO8601()],
+  updateCrmPremiumOverrideValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -379,12 +325,7 @@ router.patch(
 // Update internal CRM notes and tags.
 router.patch(
   '/societies/:id/crm-meta',
-  [
-    param('id').isUUID(),
-    body('crmNotes').optional({ nullable: true }).isString(),
-    body('crmTags').optional().isArray(),
-    body('crmTags.*').optional().isString().trim().notEmpty(),
-  ],
+  updateCrmMetaValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -427,11 +368,7 @@ router.patch(
 // Paginated payment history for all premium subscriptions.
 router.get(
   '/societies/:id/payments',
-  [
-    param('id').isUUID(),
-    query('page').optional().isInt({ min: 1 }).toInt(),
-    query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
-  ],
+  crmPaymentsValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -485,7 +422,7 @@ router.get(
 // Audit log for all super admin actions on this society.
 router.get(
   '/societies/:id/audit',
-  [param('id').isUUID()],
+  crmSocietyIdValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -516,7 +453,7 @@ router.get(
 // List all active users belonging to a society.
 router.get(
   '/societies/:id/users',
-  [param('id').isUUID()],
+  crmSocietyIdValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -550,13 +487,7 @@ router.get(
 // Send a separate HTML email to all active users or a specific email list.
 router.post(
   '/campaign-mails/send',
-  [
-    body('targetMode').isIn(['all', 'specific']),
-    body('subject').trim().notEmpty().withMessage('Subject is required'),
-    body('html').isString().trim().notEmpty().withMessage('HTML message is required'),
-    body('recipientEmails').optional().isArray({ min: 1 }).withMessage('Recipient emails must be a non-empty array'),
-    body('recipientEmails.*').optional().isEmail().withMessage('Each recipient email must be valid').normalizeEmail({ gmail_remove_dots: false }),
-  ],
+  sendCampaignMailValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -646,7 +577,7 @@ router.post(
 
 router.get(
   '/campaign-mails/history',
-  [query('limit').optional().isInt({ min: 1, max: 100 }).toInt()],
+  campaignMailHistoryValidation,
   validate,
   async (_req: AuthRequest, res: Response) => {
     try {
@@ -661,12 +592,7 @@ router.get(
         take: limit,
       });
 
-      return res.json(records.map((record) => ({
-        ...record,
-        requestedRecipients: record.requestedRecipients ? JSON.parse(record.requestedRecipients) : null,
-        resolvedRecipients: record.resolvedRecipients ? JSON.parse(record.resolvedRecipients) : [],
-        failedRecipients: record.failedRecipients ? JSON.parse(record.failedRecipients) : [],
-      })));
+      return res.json(records.map(parseCampaignHistoryRecord));
     } catch {
       return res.status(500).json({ error: 'Failed to fetch campaign mail history' });
     }
@@ -678,7 +604,7 @@ router.get(
 // Cannot delete another SUPER_ADMIN.
 router.delete(
   '/users/:userId',
-  [param('userId').isUUID()],
+  deleteCrmUserValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -795,15 +721,6 @@ router.get('/export', async (_req: AuthRequest, res: Response) => {
       'Registered At',
     ];
 
-    const escape = (v: string | null | undefined) => {
-      if (v == null) return '';
-      const str = String(v);
-      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    };
-
     const rows = societies.map((s) => {
       const contact = s.users[0];
       const sub = s.premiumSubscriptions[0];
@@ -816,19 +733,19 @@ router.get('/export', async (_req: AuthRequest, res: Response) => {
             ? 'Trial'
             : 'Free';
       return [
-        escape(s.name),
-        escape(s.city),
-        escape(s.state),
-        escape(contact?.name),
-        escape(contact?.email),
-        escape(contact?.phone),
+        escapeCsvValue(s.name),
+        escapeCsvValue(s.city),
+        escapeCsvValue(s.state),
+        escapeCsvValue(contact?.name),
+        escapeCsvValue(contact?.email),
+        escapeCsvValue(contact?.phone),
         s.isActive ? 'Active' : 'Inactive',
         premiumStatus,
-        escape(s.premiumOverrideUntil?.toISOString().slice(0, 10)),
-        escape(s.trialEndsAt?.toISOString().slice(0, 10)),
-        escape(sub?.status),
-        escape(s.crmTags.join('; ')),
-        escape(s.createdAt.toISOString().slice(0, 10)),
+        escapeCsvValue(s.premiumOverrideUntil?.toISOString().slice(0, 10)),
+        escapeCsvValue(s.trialEndsAt?.toISOString().slice(0, 10)),
+        escapeCsvValue(sub?.status),
+        escapeCsvValue(s.crmTags.join('; ')),
+        escapeCsvValue(s.createdAt.toISOString().slice(0, 10)),
       ].join(',');
     });
 
