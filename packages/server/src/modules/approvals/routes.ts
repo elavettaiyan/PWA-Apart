@@ -1,9 +1,9 @@
 import { Response, Router } from 'express';
-import { body, param, query } from 'express-validator';
 import { ApprovalActionType, ApprovalStatus } from '@prisma/client';
 import { authenticate, authorize, AuthRequest, SOCIETY_MANAGERS } from '../../middleware/auth';
 import { validate } from '../../middleware/errorHandler';
 import logger from '../../config/logger';
+import { sendOk } from '../../lib/http';
 import { COMMUNITY_READ_ITEM_TYPES, setCommunityItemReadState } from '../communityReadState/service';
 import {
   approveApprovalRequest,
@@ -13,29 +13,23 @@ import {
   rejectApprovalRequest,
   upsertApprovalConfig,
 } from './service';
+import { resolveSocietyId } from './permissions';
+import {
+  approvalConfigValidation,
+  approvalIdValidation,
+  approvalReadStateValidation,
+  listApprovalsValidation,
+  resolveApprovalValidation,
+  updateApprovalConfigValidation,
+} from './validation';
 
 const router = Router();
-const APPROVAL_ACTION_TYPES: ApprovalActionType[] = ['TENANT_REGISTRATION', 'TENANT_PROFILE_CHANGE'];
-const APPROVAL_STATUSES: ApprovalStatus[] = ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'];
-const APPROVAL_ALLOWED_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', 'OWNER'] as const;
 
 router.use(authenticate);
 
-function resolveSocietyId(req: AuthRequest, providedSocietyId?: string) {
-  if (req.user?.role === 'SUPER_ADMIN') {
-    return providedSocietyId || req.user.activeSocietyId || req.user.societyId || null;
-  }
-
-  return req.user?.activeSocietyId || req.user?.societyId || null;
-}
-
 router.get(
   '/',
-  [
-    query('societyId').optional().isUUID(),
-    query('status').optional().isIn(APPROVAL_STATUSES),
-    query('actionType').optional().isIn(APPROVAL_ACTION_TYPES),
-  ],
+  listApprovalsValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -52,7 +46,7 @@ router.get(
         actionType: req.query.actionType as ApprovalActionType | undefined,
       });
 
-      return res.json(requests);
+      return sendOk(res, requests);
     } catch (error: any) {
       logger.error('Failed to list approval requests', { error: error.message, userId: req.user?.id });
       return res.status(500).json({ error: 'Failed to fetch approval requests' });
@@ -62,7 +56,7 @@ router.get(
 
 router.get(
   '/config/:actionType',
-  [param('actionType').isIn(APPROVAL_ACTION_TYPES), query('societyId').optional().isUUID()],
+  approvalConfigValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -71,7 +65,7 @@ router.get(
         return res.status(400).json({ error: 'Society ID required' });
       }
 
-      return res.json(await getApprovalConfig(societyId, req.params.actionType as ApprovalActionType));
+      return sendOk(res, await getApprovalConfig(societyId, req.params.actionType as ApprovalActionType));
     } catch (error: any) {
       logger.error('Failed to fetch approval config', { error: error.message, userId: req.user?.id });
       return res.status(500).json({ error: 'Failed to fetch approval config' });
@@ -81,7 +75,7 @@ router.get(
 
 router.get(
   '/:id',
-  [param('id').isUUID(), query('societyId').optional().isUUID()],
+  approvalIdValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -101,7 +95,7 @@ router.get(
         return res.status(404).json({ error: 'Approval request not found' });
       }
 
-      return res.json(request);
+      return sendOk(res, request);
     } catch (error: any) {
       if (error.message === 'FORBIDDEN') {
         return res.status(403).json({ error: 'Access denied' });
@@ -114,7 +108,7 @@ router.get(
 
 router.patch(
   '/:id/read-state',
-  [param('id').isUUID(), body('isRead').isBoolean().withMessage('isRead must be a boolean'), query('societyId').optional().isUUID()],
+  approvalReadStateValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -152,7 +146,7 @@ router.patch(
         userRole: req.user.role,
       });
 
-      return res.json(updated);
+      return sendOk(res, updated);
     } catch (error: any) {
       if (error.message === 'FORBIDDEN') {
         return res.status(403).json({ error: 'Not allowed to view this approval request' });
@@ -167,13 +161,7 @@ router.patch(
 router.put(
   '/config/:actionType',
   authorize('SUPER_ADMIN', ...SOCIETY_MANAGERS),
-  [
-    param('actionType').isIn(APPROVAL_ACTION_TYPES),
-    body('societyId').optional().isUUID(),
-    body('enabled').isBoolean().withMessage('enabled must be a boolean'),
-    body('approverRoles').optional().isArray().withMessage('approverRoles must be an array'),
-    body('approverRoles.*').optional().isIn([...APPROVAL_ALLOWED_ROLES]).withMessage('Invalid approver role'),
-  ],
+  updateApprovalConfigValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -189,7 +177,7 @@ router.put(
         approverRoles: req.body.approverRoles,
       });
 
-      return res.json(config);
+      return sendOk(res, config);
     } catch (error: any) {
       logger.error('Failed to update approval config', { error: error.message, userId: req.user?.id });
       return res.status(500).json({ error: 'Failed to update approval config' });
@@ -199,11 +187,7 @@ router.put(
 
 router.patch(
   '/:id/approve',
-  [
-    param('id').isUUID(),
-    body('societyId').optional().isUUID(),
-    body('comment').optional({ values: 'falsy' }).trim().isLength({ max: 500 }).withMessage('Comment is too long'),
-  ],
+  resolveApprovalValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -221,7 +205,7 @@ router.patch(
         comment: req.body.comment,
       });
 
-      return res.json(request);
+      return sendOk(res, request);
     } catch (error: any) {
       if (error.message === 'NOT_FOUND') {
         return res.status(404).json({ error: 'Approval request not found' });
@@ -243,11 +227,7 @@ router.patch(
 
 router.patch(
   '/:id/reject',
-  [
-    param('id').isUUID(),
-    body('societyId').optional().isUUID(),
-    body('comment').optional({ values: 'falsy' }).trim().isLength({ max: 500 }).withMessage('Comment is too long'),
-  ],
+  resolveApprovalValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -265,7 +245,7 @@ router.patch(
         comment: req.body.comment,
       });
 
-      return res.json(request);
+      return sendOk(res, request);
     } catch (error: any) {
       if (error.message === 'NOT_FOUND') {
         return res.status(404).json({ error: 'Approval request not found' });
