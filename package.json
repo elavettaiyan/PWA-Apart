@@ -16,6 +16,8 @@
     "build": "npm run build:server && npm run build:client",
     "build:server": "npm --prefix packages/server run generate && npm --prefix packages/server run build",
     "build:client": "npm --prefix packages/client run build",
+    "test": "npm --prefix packages/server test",
+    "certify": "npm run build:server && npm --prefix packages/server test && npm run build:client && npm --prefix packages/marketing run build",
     "db:migrate": "npm --prefix packages/server run db:migrate",
     "db:seed": "npm --prefix packages/server run db:seed",
     "db:studio": "npm --prefix packages/server run db:studio",
