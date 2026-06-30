@@ -22,6 +22,12 @@ export const phonePeSdkConfirmValidation = [
   body('state').optional().isString(),
 ];
 
+export const razorpayVerifyValidation = [
+  body('gatewayOrderId').isString().notEmpty(),
+  body('gatewayPaymentId').isString().notEmpty(),
+  body('signature').isString().notEmpty(),
+];
+
 export const paymentHistoryValidation = [
   query('page').optional().isInt({ min: 1 }).toInt(),
   query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),

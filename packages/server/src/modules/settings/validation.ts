@@ -9,10 +9,14 @@ export const menuVisibilityValidation = [
 ];
 
 export const paymentGatewayValidation = [
-  body('merchantId').isString().notEmpty().withMessage('Merchant ID is required'),
+  body('gateway').isIn(['PHONEPE', 'RAZORPAY']).withMessage('Gateway must be PHONEPE or RAZORPAY'),
+  body('merchantId').optional({ values: 'falsy' }).isString(),
   body('clientId').optional({ values: 'falsy' }).isString(),
   body('clientSecret').optional({ values: 'falsy' }).isString(),
   body('clientVersion').optional().isInt({ min: 1 }),
+  body('keyId').optional({ values: 'falsy' }).isString(),
+  body('keySecret').optional({ values: 'falsy' }).isString(),
+  body('webhookSecret').optional({ values: 'falsy' }).isString(),
   body('saltKey').optional({ values: 'falsy' }).isString(),
   body('saltIndex').optional().isInt({ min: 1 }),
   body('environment').isIn(['UAT', 'PRODUCTION']).withMessage('Environment must be UAT or PRODUCTION'),

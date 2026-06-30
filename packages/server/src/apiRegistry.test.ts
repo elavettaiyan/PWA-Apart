@@ -46,6 +46,15 @@ describe('API registry certification', () => {
     assert.ok(webhookIndex < jsonParserIndex, 'Premium webhook must stay before express.json() for signature verification');
   });
 
+  it('keeps raw maintenance Razorpay webhook registration before JSON parsing', () => {
+    const webhookIndex = indexSource.indexOf("app.post('/api/payments/razorpay/webhook'");
+    const jsonParserIndex = indexSource.indexOf('app.use(express.json');
+
+    assert.ok(webhookIndex >= 0, 'Maintenance Razorpay webhook route should be registered');
+    assert.ok(jsonParserIndex >= 0, 'JSON parser should be registered');
+    assert.ok(webhookIndex < jsonParserIndex, 'Maintenance Razorpay webhook must stay before express.json() for signature verification');
+  });
+
   it('mounts CRM routes before generic admin routes', () => {
     const crmIndex = indexSource.indexOf("app.use('/api/admin/crm'");
     const adminIndex = indexSource.indexOf("app.use('/api/admin'");

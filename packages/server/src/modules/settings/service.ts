@@ -153,6 +153,12 @@ export function getPhonePeAuthBaseUrl(environment: string) {
     : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
 }
 
+export function getPhonePeBaseUrl(environment: string) {
+  return environment === 'PRODUCTION'
+    ? 'https://api.phonepe.com/apis/hermes'
+    : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
+}
+
 export function maskPaymentGatewayConfig(config: any) {
   return {
     ...config,
@@ -160,6 +166,10 @@ export function maskPaymentGatewayConfig(config: any) {
     saltKeySet: !!config.saltKey,
     clientSecret: config.clientSecret ? `${'•'.repeat(Math.max(0, config.clientSecret.length - 4))}${config.clientSecret.slice(-4)}` : '',
     clientSecretSet: !!config.clientSecret,
+    keySecret: config.keySecret ? `${'•'.repeat(Math.max(0, config.keySecret.length - 4))}${config.keySecret.slice(-4)}` : '',
+    keySecretSet: !!config.keySecret,
+    webhookSecret: config.webhookSecret ? `${'•'.repeat(Math.max(0, config.webhookSecret.length - 4))}${config.webhookSecret.slice(-4)}` : '',
+    webhookSecretSet: !!config.webhookSecret,
   };
 }
 

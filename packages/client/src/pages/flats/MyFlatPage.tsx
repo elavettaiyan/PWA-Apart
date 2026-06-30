@@ -1489,6 +1489,7 @@ function normalizeTenantForm(form: TenantFormData, options?: { requireContactDet
 function getPaymentMethodLabel(method: PaymentMethod) {
   const labels: Record<PaymentMethod, string> = {
     PHONEPE: 'PhonePe',
+    RAZORPAY: 'Razorpay',
     CASH: 'Cash',
     CHEQUE: 'Cheque',
     BANK_TRANSFER: 'Bank Transfer',

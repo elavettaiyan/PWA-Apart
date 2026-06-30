@@ -26,14 +26,19 @@ import { SOCIETY_ADMINS } from '../../types';
 import ManageStaffPanel from '../../components/settings/ManageStaffPanel';
 
 
-interface PhonePeConfig {
+interface PaymentGatewayConfig {
   id?: string;
-  gateway: string;
+  gateway: 'PHONEPE' | 'RAZORPAY';
   merchantId: string;
   clientId?: string;
   clientSecret?: string;
   clientSecretSet?: boolean;
   clientVersion?: number;
+  keyId?: string;
+  keySecret?: string;
+  keySecretSet?: boolean;
+  webhookSecret?: string;
+  webhookSecretSet?: boolean;
   saltKey: string;
   saltKeySet?: boolean;
   saltIndex: number;
@@ -56,9 +61,17 @@ interface TestResult {
     environment?: string;
     baseUrl?: string;
     phonePeMessage?: string;
+    razorpayMessage?: string;
     error?: string;
   };
 }
+
+type PaymentGatewayResponse = {
+  exists: boolean;
+  activeGateway: 'PHONEPE' | 'RAZORPAY' | null;
+  config: PaymentGatewayConfig;
+  configs: Record<'PHONEPE' | 'RAZORPAY', PaymentGatewayConfig & { exists?: boolean }>;
+};
 
 const FLAT_TYPE_OPTIONS: Array<{ value: FlatType; label: string }> = [
   { value: 'ONE_BHK', label: '1 BHK' },
@@ -92,14 +105,24 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const activeSocietyId = user?.activeSocietyId || user?.societyId || '';
+  const [selectedGateway, setSelectedGateway] = useState<'PHONEPE' | 'RAZORPAY'>('PHONEPE');
+  const [pendingGateway, setPendingGateway] = useState<'PHONEPE' | 'RAZORPAY' | null>(null);
+  const [showGatewaySwitchConfirm, setShowGatewaySwitchConfirm] = useState(false);
+  const [showGatewayActivationConfirm, setShowGatewayActivationConfirm] = useState(false);
   const [showSaltKey, setShowSaltKey] = useState(false);
   const [showClientSecret, setShowClientSecret] = useState(false);
+  const [showKeySecret, setShowKeySecret] = useState(false);
+  const [showWebhookSecret, setShowWebhookSecret] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [form, setForm] = useState({
+    gateway: 'PHONEPE' as 'PHONEPE' | 'RAZORPAY',
     merchantId: '',
     clientId: '',
     clientSecret: '',
     clientVersion: '1',
+    keyId: '',
+    keySecret: '',
+    webhookSecret: '',
     saltKey: '',
     saltIndex: '1',
     environment: 'UAT',
@@ -129,7 +152,7 @@ export default function SettingsPage() {
     setPreferredGateLanguages(parseGateRegionalLanguages(stored));
   }, []);
 
-  const { data, isLoading } = useQuery<{ exists: boolean; config: PhonePeConfig }>({
+  const { data, isLoading } = useQuery<PaymentGatewayResponse>({
     queryKey: ['payment-gateway-config'],
     queryFn: async () => (await api.get('/settings/payment-gateway')).data,
     enabled: isAdmin,
@@ -209,18 +232,26 @@ export default function SettingsPage() {
 
   // Populate form when data loads
   useEffect(() => {
-    if (data?.config) {
+    if (data?.configs) {
+      const activeGateway = data.activeGateway || 'PHONEPE';
+      const nextConfig = data.configs[activeGateway] || data.config;
+      setSelectedGateway(activeGateway);
       setForm({
-        merchantId: data.config.merchantId || '',
-        clientId: data.config.clientId || '',
+        gateway: activeGateway,
+        merchantId: nextConfig.merchantId || '',
+        clientId: nextConfig.clientId || '',
         clientSecret: '',
-        clientVersion: String(data.config.clientVersion || 1),
-        saltKey: data.exists ? '' : '', // Don't pre-fill masked key
-        saltIndex: String(data.config.saltIndex || 1),
-        environment: data.config.environment || 'UAT',
-        redirectUrl: data.config.redirectUrl || '',
-        callbackUrl: data.config.callbackUrl || '',
+        clientVersion: String(nextConfig.clientVersion || 1),
+        keyId: nextConfig.keyId || '',
+        keySecret: '',
+        webhookSecret: '',
+        saltKey: '',
+        saltIndex: String(nextConfig.saltIndex || 1),
+        environment: nextConfig.environment || 'UAT',
+        redirectUrl: nextConfig.redirectUrl || '',
+        callbackUrl: nextConfig.callbackUrl || '',
       });
+      setHasChanges(false);
     }
   }, [data]);
 
@@ -236,7 +267,7 @@ export default function SettingsPage() {
   });
 
   const testMutation = useMutation({
-    mutationFn: () => api.post('/settings/payment-gateway/test'),
+    mutationFn: () => api.post('/settings/payment-gateway/test', { gateway: selectedGateway }),
     onSuccess: (res) => {
       setTestResult(res.data);
       queryClient.invalidateQueries({ queryKey: ['payment-gateway-config'] });
@@ -253,7 +284,7 @@ export default function SettingsPage() {
   });
 
   const toggleMutation = useMutation({
-    mutationFn: () => api.patch('/settings/payment-gateway/toggle'),
+    mutationFn: () => api.patch('/settings/payment-gateway/toggle', { gateway: selectedGateway }),
     onSuccess: (res) => {
       toast.success(res.data.message);
       queryClient.invalidateQueries({ queryKey: ['payment-gateway-config'] });
@@ -455,6 +486,60 @@ export default function SettingsPage() {
     setTestResult(null);
   };
 
+  const applyGatewaySelection = (gateway: 'PHONEPE' | 'RAZORPAY') => {
+    if (!data?.configs) return;
+    const nextConfig = data.configs[gateway];
+    setSelectedGateway(gateway);
+    setForm({
+      gateway,
+      merchantId: nextConfig?.merchantId || '',
+      clientId: nextConfig?.clientId || '',
+      clientSecret: '',
+      clientVersion: String(nextConfig?.clientVersion || 1),
+      keyId: nextConfig?.keyId || '',
+      keySecret: '',
+      webhookSecret: '',
+      saltKey: '',
+      saltIndex: String(nextConfig?.saltIndex || 1),
+      environment: nextConfig?.environment || (gateway === 'PHONEPE' ? 'UAT' : 'PRODUCTION'),
+      redirectUrl: nextConfig?.redirectUrl || '',
+      callbackUrl: nextConfig?.callbackUrl || '',
+    });
+    setHasChanges(false);
+    setTestResult(null);
+  };
+
+  const handleGatewaySelection = (gateway: 'PHONEPE' | 'RAZORPAY') => {
+    if (gateway === selectedGateway) return;
+    if (hasChanges) {
+      setPendingGateway(gateway);
+      setShowGatewaySwitchConfirm(true);
+      return;
+    }
+    applyGatewaySelection(gateway);
+  };
+
+  const confirmGatewaySelection = () => {
+    if (!pendingGateway) return;
+    applyGatewaySelection(pendingGateway);
+    setPendingGateway(null);
+    setShowGatewaySwitchConfirm(false);
+  };
+
+  const closeGatewaySelectionConfirm = () => {
+    setPendingGateway(null);
+    setShowGatewaySwitchConfirm(false);
+  };
+
+  const handleGatewayActivationRequest = () => {
+    setShowGatewayActivationConfirm(true);
+  };
+
+  const confirmGatewayActivation = () => {
+    toggleMutation.mutate();
+    setShowGatewayActivationConfirm(false);
+  };
+
   const sendDeleteAccountOtpMutation = useMutation({
     mutationFn: async () => (await api.post('/auth/delete-account/send-otp')).data,
     onSuccess: (response) => {
@@ -518,31 +603,56 @@ export default function SettingsPage() {
   };
 
   const handleSave = () => {
-    if (!form.merchantId.trim()) return toast.error('Merchant ID is required');
-    if ((form.clientId.trim() && !form.clientSecret.trim() && !cfg?.clientSecretSet) || (!form.clientId.trim() && form.clientSecret.trim())) {
-      return toast.error('Client ID and Client Secret must be provided together');
-    }
     const parsedSaltIndex = parseInt(form.saltIndex, 10);
-    if (!Number.isFinite(parsedSaltIndex) || parsedSaltIndex < 1) return toast.error('Salt Index must be 1 or greater');
     const parsedClientVersion = parseInt(form.clientVersion, 10);
-    if (!Number.isFinite(parsedClientVersion) || parsedClientVersion < 1) return toast.error('Client Version must be 1 or greater');
+    const currentConfig = data?.configs?.[selectedGateway];
+
+    if (selectedGateway === 'PHONEPE') {
+      if (!form.merchantId.trim()) return toast.error('Merchant ID is required');
+      if ((form.clientId.trim() && !form.clientSecret.trim() && !currentConfig?.clientSecretSet) || (!form.clientId.trim() && form.clientSecret.trim())) {
+        return toast.error('Client ID and Client Secret must be provided together');
+      }
+      if (!Number.isFinite(parsedSaltIndex) || parsedSaltIndex < 1) return toast.error('Salt Index must be 1 or greater');
+      if (!Number.isFinite(parsedClientVersion) || parsedClientVersion < 1) return toast.error('Client Version must be 1 or greater');
+    } else {
+      if (!form.keyId.trim() && !currentConfig?.keyId) {
+        return toast.error('Razorpay Key ID is required');
+      }
+      if (!form.keySecret.trim() && !currentConfig?.keySecretSet) {
+        return toast.error('Razorpay Key Secret is required');
+      }
+      if ((form.keyId.trim() && !form.keySecret.trim() && !currentConfig?.keySecretSet) || (!form.keyId.trim() && form.keySecret.trim())) {
+        return toast.error('Razorpay Key ID and Key Secret must be provided together');
+      }
+    }
 
     const payload: any = {
+      gateway: selectedGateway,
       merchantId: form.merchantId,
-      clientId: form.clientId.trim(),
-      clientVersion: parsedClientVersion,
-      saltIndex: parsedSaltIndex,
       environment: form.environment,
       redirectUrl: form.redirectUrl,
       callbackUrl: form.callbackUrl,
+      isActive: true,
     };
 
-    // Keep existing stored salt key when editing and input is left blank.
-    if (form.saltKey.trim()) {
-      payload.saltKey = form.saltKey.trim();
-    }
-    if (form.clientSecret.trim()) {
-      payload.clientSecret = form.clientSecret.trim();
+    if (selectedGateway === 'PHONEPE') {
+      payload.clientId = form.clientId.trim();
+      payload.clientVersion = parsedClientVersion;
+      payload.saltIndex = parsedSaltIndex;
+      if (form.saltKey.trim()) {
+        payload.saltKey = form.saltKey.trim();
+      }
+      if (form.clientSecret.trim()) {
+        payload.clientSecret = form.clientSecret.trim();
+      }
+    } else {
+      payload.keyId = form.keyId.trim();
+      if (form.keySecret.trim()) {
+        payload.keySecret = form.keySecret.trim();
+      }
+      if (form.webhookSecret.trim()) {
+        payload.webhookSecret = form.webhookSecret.trim();
+      }
     }
 
     saveMutation.mutate(payload);
@@ -580,7 +690,12 @@ export default function SettingsPage() {
   if (isAdmin && isLoading) return <PageLoader />;
 
   const cfg = data?.config;
-  const isConfigured = data?.exists;
+  const selectedConfig: (PaymentGatewayConfig & { exists?: boolean }) | undefined = data?.configs?.[selectedGateway] || cfg;
+  const isConfigured = Boolean(selectedConfig?.exists || selectedConfig?.id || (data?.activeGateway === selectedGateway && data?.exists));
+  const isSelectedGatewayActive = data?.activeGateway === selectedGateway && !!selectedConfig?.isActive;
+  const selectedGatewayGuideUrl = selectedGateway === 'PHONEPE'
+    ? 'https://developer.phonepe.com/payment-gateway/website-integration/standard-checkout/api-integration/api-reference/authorization'
+    : 'https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/' ;
 
   return (
     <div>
@@ -1002,22 +1117,36 @@ export default function SettingsPage() {
 
       <SettingsAccordion
         title="Payment Gateway"
-        description="Configure PhonePe Android SDK credentials and optional legacy web redirect fields"
+        description="Choose the active maintenance payment gateway and configure its credentials"
         icon={CreditCard}
         iconWrapperClassName="group-open:bg-rose-100"
         iconClassName="group-open:text-rose-800"
       >
       <div className="space-y-6">
+        <div className="space-y-2">
+          <label className="label">Payment Gateway</label>
+          <div className="relative max-w-md">
+            <select
+              className="input appearance-none pr-10"
+              value={selectedGateway}
+              onChange={(e) => handleGatewaySelection(e.target.value as 'PHONEPE' | 'RAZORPAY')}
+            >
+              <option value="PHONEPE">PhonePe</option>
+              <option value="RAZORPAY">Razorpay</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
+          </div>
+        </div>
+
         <div className="flex items-center justify-between mb-6">
-          {/* Status Badge */}
           <div className="flex items-center gap-3">
             {isConfigured && (
               <button
-                onClick={() => toggleMutation.mutate()}
+                onClick={handleGatewayActivationRequest}
                 disabled={toggleMutation.isPending}
                 className="flex items-center gap-2 text-sm font-medium"
               >
-                {cfg?.isActive ? (
+                {isSelectedGatewayActive ? (
                   <>
                     <ToggleRight className="w-8 h-8 text-emerald-700" />
                     <span className="text-emerald-700">Active</span>
@@ -1025,7 +1154,7 @@ export default function SettingsPage() {
                 ) : (
                   <>
                     <ToggleLeft className="w-8 h-8 text-outline" />
-                    <span className="text-on-surface-variant">Disabled</span>
+                    <span className="text-on-surface-variant">Set as active gateway</span>
                   </>
                 )}
               </button>
@@ -1039,71 +1168,60 @@ export default function SettingsPage() {
         </div>
 
         {/* Last Test Status */}
-        {isConfigured && cfg?.lastTestedAt && (
+        {isConfigured && selectedConfig?.lastTestedAt && (
           <div
             className={cn(
               'flex items-center gap-2 p-3 rounded-lg mb-6 text-sm',
-              cfg.lastTestOk
+              selectedConfig.lastTestOk
                 ? 'bg-emerald-50 text-emerald-900'
                 : 'bg-rose-50 text-rose-900',
             )}
           >
-            {cfg.lastTestOk ? (
+            {selectedConfig.lastTestOk ? (
               <CheckCircle2 className="w-4 h-4 shrink-0" />
             ) : (
               <XCircle className="w-4 h-4 shrink-0" />
             )}
             <span>
-              Last test: {cfg.lastTestOk ? 'Passed' : 'Failed'} —{' '}
-              {new Date(cfg.lastTestedAt).toLocaleString()}
+              Last test: {selectedConfig.lastTestOk ? 'Passed' : 'Failed'} —{' '}
+              {new Date(selectedConfig.lastTestedAt).toLocaleString()}
             </span>
           </div>
         )}
 
         {/* Form */}
         <div className="space-y-5">
-          <div className="rounded-xl border border-outline-variant/15 bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant">
-            <p className="font-semibold text-on-surface">Required for Android SDK checkout</p>
-            <p className="mt-1">Merchant ID, Client ID, Client Secret, and Client Version.</p>
-            <p className="mt-2 font-semibold text-on-surface">Optional for legacy web redirect</p>
-            <p className="mt-1">Salt Key, Salt Index, Redirect URL, and Callback URL are only needed if you still want PhonePe web redirect payments outside the Android app.</p>
-          </div>
-
-          {/* Environment Selector */}
           <div>
             <label className="label">Environment</label>
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="flex gap-8 border-b border-slate-200">
               {['UAT', 'PRODUCTION'].map((env) => (
                 <button
                   key={env}
                   type="button"
                   onClick={() => handleChange('environment', env)}
                   className={cn(
-                    'flex-1 px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all',
+                    'pb-3 text-sm transition-colors',
                     form.environment === env
-                      ? env === 'PRODUCTION'
-                        ? 'border-error bg-error-container text-error'
-                        : 'border-primary bg-primary-container text-primary'
-                      : 'border-outline-variant/15 bg-white text-on-surface-variant hover:border-outline-variant',
+                      ? 'border-b-2 border-blue-600 font-bold text-blue-600'
+                      : 'font-medium text-slate-500 hover:text-slate-800',
                   )}
                 >
-                  <div className="flex items-center justify-center gap-2">
-                    {env === 'UAT' ? <Zap className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
-                    {env === 'UAT' ? 'Sandbox (UAT)' : 'Production (Live)'}
-                  </div>
-                  <p className="text-xs mt-1 font-normal opacity-70">
-                    {env === 'UAT' ? 'For testing with test credentials' : 'Real payments — use with caution'}
-                  </p>
+                  {env === 'UAT' ? 'Sandbox (UAT)' : 'Production (Live)'}
                 </button>
               ))}
             </div>
+            <p className="mt-2 text-xs text-on-surface-variant">
+              {form.environment === 'UAT'
+                ? 'Use test credentials and non-production callbacks while validating the setup.'
+                : 'Real payments will be processed in this mode.'}
+            </p>
           </div>
 
           {form.environment === 'PRODUCTION' && (
             <div className="flex items-center gap-2 p-3 rounded-lg bg-error-container text-error text-sm">
               <ShieldCheck className="w-4 h-4 shrink-0" />
               <span>
-                <strong>Production mode:</strong> Real money will be charged. Make sure your PhonePe merchant account is fully activated.
+                <strong>Production mode:</strong> Real money will be charged. Make sure your {selectedGateway === 'PHONEPE' ? 'PhonePe merchant account' : 'Razorpay account'} is fully activated.
               </span>
             </div>
           )}
@@ -1111,15 +1229,20 @@ export default function SettingsPage() {
           {/* Merchant and SDK credentials */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="label">Merchant ID <span className="text-error">*</span></label>
+              <label className="label">{selectedGateway === 'PHONEPE' ? 'Merchant ID' : 'Merchant Label'} {selectedGateway === 'PHONEPE' ? <span className="text-error">*</span> : null}</label>
               <input
                 className="input"
                 value={form.merchantId}
                 onChange={(e) => handleChange('merchantId', e.target.value)}
-                placeholder="e.g., MERCHANTUAT"
+                placeholder={selectedGateway === 'PHONEPE' ? 'e.g., MERCHANTUAT' : 'Optional internal label'}
               />
-              <p className="text-xs text-outline mt-1">Required for Android SDK and legacy web redirect flows</p>
+              <p className="text-xs text-outline mt-1">
+                {selectedGateway === 'PHONEPE'
+                  ? 'Required for Android SDK and legacy web redirect flows'
+                  : 'Optional. Use this only if you want an internal label for this Razorpay setup.'}
+              </p>
             </div>
+            {selectedGateway === 'PHONEPE' ? (
             <div>
               <label className="label">Client ID <span className="text-error">*</span></label>
               <input
@@ -1130,6 +1253,19 @@ export default function SettingsPage() {
               />
               <p className="text-xs text-outline mt-1">Required for PhonePe Android SDK auth token flow</p>
             </div>
+            ) : (
+            <div>
+              <label className="label">Razorpay Key ID <span className="text-error">*</span></label>
+              <input
+                className="input"
+                value={form.keyId}
+                onChange={(e) => handleChange('keyId', e.target.value)}
+                placeholder="rzp_live_xxxxx or rzp_test_xxxxx"
+              />
+              <p className="text-xs text-outline mt-1">Required to launch Razorpay checkout.</p>
+            </div>
+            )}
+            {selectedGateway === 'PHONEPE' ? (
             <div>
               <label className="label">Salt Key</label>
               <div className="relative">
@@ -1148,15 +1284,40 @@ export default function SettingsPage() {
                   {showSaltKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              {isConfigured && cfg?.saltKeySet && (
+              {isConfigured && selectedConfig?.saltKeySet && (
                 <p className="text-xs text-warning mt-1">
                   Current key is already saved. Leave this blank to keep it, or enter a new value to rotate it.
                 </p>
               )}
-              {!cfg?.saltKeySet && (
+              {!selectedConfig?.saltKeySet && (
                 <p className="text-xs text-outline mt-1">Optional. Only needed for non-Android PhonePe redirect payments.</p>
               )}
             </div>
+            ) : (
+            <div>
+              <label className="label">Webhook Secret</label>
+              <div className="relative">
+                <input
+                  className="input pr-10"
+                  type={showWebhookSecret ? 'text' : 'password'}
+                  value={form.webhookSecret}
+                  onChange={(e) => handleChange('webhookSecret', e.target.value)}
+                  placeholder={selectedConfig?.webhookSecretSet ? 'Leave blank to keep existing webhook secret' : 'Recommended for webhook verification'}
+                />
+                <button
+                  type="button"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 p-2 text-outline hover:text-on-surface-variant touch-manipulation"
+                  onClick={() => setShowWebhookSecret(!showWebhookSecret)}
+                >
+                  {showWebhookSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {selectedConfig?.webhookSecretSet && (
+                <p className="text-xs text-warning mt-1">Current webhook secret is already saved. Leave blank to keep it, or enter a new one to rotate it.</p>
+              )}
+            </div>
+            )}
+            {selectedGateway === 'PHONEPE' ? (
             <div>
               <label className="label">Client Secret <span className="text-error">*</span></label>
               <div className="relative">
@@ -1165,7 +1326,7 @@ export default function SettingsPage() {
                   type={showClientSecret ? 'text' : 'password'}
                   value={form.clientSecret}
                   onChange={(e) => handleChange('clientSecret', e.target.value)}
-                  placeholder={cfg?.clientSecretSet ? 'Leave blank to keep existing client secret' : 'Your PhonePe client secret'}
+                  placeholder={selectedConfig?.clientSecretSet ? 'Leave blank to keep existing client secret' : 'Your PhonePe client secret'}
                 />
                 <button
                   type="button"
@@ -1175,18 +1336,43 @@ export default function SettingsPage() {
                   {showClientSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              {cfg?.clientSecretSet && (
+              {selectedConfig?.clientSecretSet && (
                 <p className="text-xs text-warning mt-1">
                   Current client secret is already saved. Leave this blank to keep it, or enter a new value to rotate it.
                 </p>
               )}
-              {!cfg?.clientSecretSet && (
+              {!selectedConfig?.clientSecretSet && (
                 <p className="text-xs text-outline mt-1">Required together with Client ID for Android SDK checkout.</p>
               )}
             </div>
+            ) : (
+            <div>
+              <label className="label">Razorpay Key Secret <span className="text-error">*</span></label>
+              <div className="relative">
+                <input
+                  className="input pr-10"
+                  type={showKeySecret ? 'text' : 'password'}
+                  value={form.keySecret}
+                  onChange={(e) => handleChange('keySecret', e.target.value)}
+                  placeholder={selectedConfig?.keySecretSet ? 'Leave blank to keep existing key secret' : 'Your Razorpay key secret'}
+                />
+                <button
+                  type="button"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 p-2 text-outline hover:text-on-surface-variant touch-manipulation"
+                  onClick={() => setShowKeySecret(!showKeySecret)}
+                >
+                  {showKeySecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {selectedConfig?.keySecretSet && (
+                <p className="text-xs text-warning mt-1">Current key secret is already saved. Leave blank to keep it, or enter a new value to rotate it.</p>
+              )}
+            </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {selectedGateway === 'PHONEPE' ? (
             <div>
               <label className="label">Salt Index</label>
               <input
@@ -1198,8 +1384,10 @@ export default function SettingsPage() {
               />
               <p className="text-xs text-outline mt-1">Optional. Used only with Salt Key for legacy web redirect flow.</p>
             </div>
+            ) : null}
             <div>
-              <label className="label">Client Version <span className="text-error">*</span></label>
+              <label className="label">{selectedGateway === 'PHONEPE' ? 'Client Version' : 'Environment'} {selectedGateway === 'PHONEPE' ? <span className="text-error">*</span> : null}</label>
+              {selectedGateway === 'PHONEPE' ? (
               <input
                 className="input w-full sm:w-32"
                 type="number"
@@ -1207,7 +1395,14 @@ export default function SettingsPage() {
                 onChange={(e) => handleChange('clientVersion', e.target.value)}
                 min={1}
               />
-              <p className="text-xs text-outline mt-1">Required for SDK auth token generation. Usually 1 unless PhonePe assigned a different version.</p>
+              ) : (
+              <input
+                className="input w-full"
+                value={form.environment}
+                disabled
+              />
+              )}
+              <p className="text-xs text-outline mt-1">{selectedGateway === 'PHONEPE' ? 'Required for SDK auth token generation. Usually 1 unless PhonePe assigned a different version.' : 'Razorpay runs against its hosted API environment.'}</p>
             </div>
           </div>
 
@@ -1226,7 +1421,7 @@ export default function SettingsPage() {
                   onChange={(e) => handleChange('redirectUrl', e.target.value)}
                   placeholder="Where users return after payment"
                 />
-                <p className="text-xs text-outline mt-1">Optional. Used only for legacy web redirect payments.</p>
+                <p className="text-xs text-outline mt-1">Used when the user returns to the app after checkout.</p>
               </div>
               <div>
                 <label className="label">Callback URL (Server-to-Server)</label>
@@ -1236,7 +1431,7 @@ export default function SettingsPage() {
                   onChange={(e) => handleChange('callbackUrl', e.target.value)}
                   placeholder="Server callback endpoint"
                 />
-                <p className="text-xs text-outline mt-1">Optional for SDK-only Android use. Needed for legacy web redirect callback handling.</p>
+                <p className="text-xs text-outline mt-1">Server callback endpoint for gateway status/webhook updates.</p>
               </div>
             </div>
           </details>
@@ -1286,67 +1481,67 @@ export default function SettingsPage() {
       {testResult && (
         <div
           className={cn(
-            'rounded-2xl border border-outline-variant/15 bg-surface-container-low p-5',
-            testResult.success ? 'ring-2 ring-tertiary/20' : 'ring-2 ring-error/20',
+            'rounded-xl border px-4 py-3',
+            testResult.success
+              ? 'border-emerald-200 bg-emerald-50/70'
+              : 'border-rose-200 bg-rose-50/70',
           )}
         >
           <div className="flex items-start gap-3">
             {testResult.success ? (
-              <CheckCircle2 className="w-6 h-6 text-emerald-700 shrink-0 mt-0.5" />
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
             ) : (
-              <XCircle className="w-6 h-6 text-error shrink-0 mt-0.5" />
+              <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-700" />
             )}
             <div className="flex-1">
               <h3
                 className={cn(
-                  'font-semibold',
-                  testResult.success ? 'text-emerald-700' : 'text-rose-700',
+                  'text-sm font-semibold',
+                  testResult.success ? 'text-emerald-800' : 'text-rose-800',
                 )}
               >
-                {testResult.success ? 'Test Passed ✓' : 'Test Failed ✗'}
+                {testResult.success ? 'Connection test passed' : 'Connection test failed'}
               </h3>
-              <p className="text-sm text-on-surface-variant mt-1">{testResult.message}</p>
+              <p className="mt-1 text-sm text-on-surface-variant">{testResult.message}</p>
 
               {testResult.details && (
-                <div className="mt-3 bg-surface-container-low rounded-lg p-3">
-                  <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-on-surface-variant">
                     {testResult.details.httpStatus && (
                       <div>
-                        <span className="text-on-surface-variant">HTTP Status:</span>{' '}
+                        <span>HTTP Status:</span>{' '}
                         <span className="font-mono font-medium">{testResult.details.httpStatus}</span>
                       </div>
                     )}
                     {testResult.details.code && (
                       <div>
-                        <span className="text-on-surface-variant">Response Code:</span>{' '}
+                        <span>Response Code:</span>{' '}
                         <span className="font-mono font-medium">{testResult.details.code}</span>
                       </div>
                     )}
                     {testResult.details.responseTime && (
                       <div>
-                        <span className="text-on-surface-variant">Response Time:</span>{' '}
+                        <span>Response Time:</span>{' '}
                         <span className="font-mono font-medium">{testResult.details.responseTime}</span>
                       </div>
                     )}
                     {testResult.details.environment && (
                       <div>
-                        <span className="text-on-surface-variant">Environment:</span>{' '}
+                        <span>Environment:</span>{' '}
                         <span className="font-mono font-medium">{testResult.details.environment}</span>
                       </div>
                     )}
                     {testResult.details.phonePeMessage && (
-                      <div className="col-span-2">
-                        <span className="text-on-surface-variant">PhonePe Message:</span>{' '}
+                      <div className="basis-full">
+                        <span>PhonePe Message:</span>{' '}
                         <span className="font-mono text-xs">{testResult.details.phonePeMessage}</span>
                       </div>
                     )}
                     {testResult.details.error && (
-                      <div className="col-span-2">
-                        <span className="text-on-surface-variant">Error:</span>{' '}
-                        <span className="font-mono text-xs text-error">{testResult.details.error}</span>
+                      <div className="basis-full">
+                        <span>Error:</span>{' '}
+                        <span className="font-mono text-xs text-rose-700">{testResult.details.error}</span>
                       </div>
                     )}
-                  </div>
                 </div>
               )}
             </div>
@@ -1356,23 +1551,89 @@ export default function SettingsPage() {
 
       {/* Info Card */}
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-        <h3 className="text-sm font-semibold text-slate-900 mb-2">📘 PhonePe credential guide</h3>
-        <ol className="text-sm text-slate-700 space-y-1.5 list-decimal list-inside">
-          <li>Sign up on <a href="https://www.phonepe.com/business" target="_blank" rel="noopener noreferrer" className="underline font-medium">PhonePe Business</a></li>
-          <li>Complete KYC and business verification</li>
-          <li>Navigate to <strong>Developer Settings → API Keys</strong></li>
-          <li>For Android SDK checkout, copy <strong>Merchant ID</strong>, <strong>Client ID</strong>, <strong>Client Secret</strong>, and <strong>Client Version</strong></li>
-          <li>Copy <strong>Salt Key</strong> and <strong>Salt Index</strong> only if you still want legacy web redirect payments</li>
-          <li>For testing, use the UAT sandbox credentials provided by PhonePe</li>
-        </ol>
-        <div className="mt-3 p-3 bg-white/60 rounded-lg text-xs font-mono text-slate-600">
-            <p><strong>Sandbox note:</strong></p>
-            <p>Use the UAT Merchant ID, Client ID, Client Secret, and Client Version issued to your own PhonePe merchant account for Android SDK checkout.</p>
-            <p>Use Salt Key and Salt Index only when you need legacy web redirect support.</p>
-            <p>Do not rely on shared sample credentials because they may be expired, disabled, or rate-limited.</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 className="mb-1 text-sm font-semibold text-slate-900">Integration guide</h3>
+            <p className="text-sm text-slate-700">
+              {selectedGateway === 'PHONEPE'
+                ? 'See the official PhonePe setup guide for credential generation, sandbox access, and optional redirect support.'
+                : 'See the official Razorpay setup guide for API keys, test mode, webhook setup, and checkout configuration.'}
+            </p>
+          </div>
+          <a
+            href={selectedGatewayGuideUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center rounded-xl border border-outline-variant/20 bg-white px-4 py-2 text-sm font-medium text-primary transition-colors hover:border-primary/20"
+          >
+            Open {selectedGateway === 'PHONEPE' ? 'PhonePe' : 'Razorpay'} Guide
+          </a>
+        </div>
+        <div className="mt-4 rounded-xl bg-white/60 p-4 text-xs text-slate-600">
+          <p className="font-semibold text-slate-800">Quick reference</p>
+          <p className="mt-1">
+            {selectedGateway === 'PHONEPE'
+              ? 'Required: Merchant ID, Client ID, Client Secret, Client Version. Optional: Salt Key, Salt Index, Redirect URL, Callback URL.'
+              : 'Required: Key ID and Key Secret. Recommended: Webhook Secret. Optional: Merchant Label, Redirect URL and Callback URL.'}
+          </p>
         </div>
       </div>
       </SettingsAccordion>
+
+      <Modal
+        isOpen={showGatewaySwitchConfirm}
+        onClose={closeGatewaySelectionConfirm}
+        title="Discard current gateway changes?"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            You have unsaved changes for {selectedGateway === 'PHONEPE' ? 'PhonePe' : 'Razorpay'}. Switching the dropdown now will discard those edits from the form.
+          </div>
+          <p className="text-sm text-on-surface-variant">
+            Continue only if you intentionally want to switch to {pendingGateway === 'PHONEPE' ? 'PhonePe' : 'Razorpay'} settings without saving the current form.
+          </p>
+          <div className="flex justify-end gap-3">
+            <button type="button" className="btn-secondary" onClick={closeGatewaySelectionConfirm}>Cancel</button>
+            <button type="button" className="btn-primary" onClick={confirmGatewaySelection}>Switch Gateway</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showGatewayActivationConfirm}
+        onClose={() => {
+          if (toggleMutation.isPending) return;
+          setShowGatewayActivationConfirm(false);
+        }}
+        title={isSelectedGatewayActive ? 'Confirm active gateway status' : `Activate ${selectedGateway === 'PHONEPE' ? 'PhonePe' : 'Razorpay'}?`}
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+            {isSelectedGatewayActive
+              ? `${selectedGateway === 'PHONEPE' ? 'PhonePe' : 'Razorpay'} is already the active resident payment gateway.`
+              : `Residents will start using ${selectedGateway === 'PHONEPE' ? 'PhonePe' : 'Razorpay'} for maintenance payments after this change.`}
+          </div>
+          {!isSelectedGatewayActive ? (
+            <p className="text-sm text-on-surface-variant">
+              Make this change only after you have saved the credentials, selected the correct environment, and verified a connection test. Existing payment history stays intact, but all new resident payments will use the newly active gateway.
+            </p>
+          ) : (
+            <p className="text-sm text-on-surface-variant">
+              No gateway change will happen. Close this dialog if you only wanted to review the current active status.
+            </p>
+          )}
+          <div className="flex justify-end gap-3">
+            <button type="button" className="btn-secondary" onClick={() => setShowGatewayActivationConfirm(false)} disabled={toggleMutation.isPending}>Cancel</button>
+            {!isSelectedGatewayActive ? (
+              <button type="button" className="btn-primary" onClick={confirmGatewayActivation} disabled={toggleMutation.isPending}>
+                {toggleMutation.isPending ? 'Updating...' : 'Confirm Gateway Change'}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </Modal>
 
       <SettingsAccordion
         title="Collections & Billing"

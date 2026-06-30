@@ -382,7 +382,7 @@ export interface MaintenanceBill {
 // ─── PAYMENT ────────────────────────────────────────────
 
 export type PaymentStatus = 'INITIATED' | 'SUCCESS' | 'FAILED' | 'REFUNDED';
-export type PaymentMethod = 'PHONEPE' | 'CASH' | 'CHEQUE' | 'BANK_TRANSFER' | 'UPI_OTHER' | 'ADVANCE';
+export type PaymentMethod = 'PHONEPE' | 'RAZORPAY' | 'CASH' | 'CHEQUE' | 'BANK_TRANSFER' | 'UPI_OTHER' | 'ADVANCE';
 
 export interface Payment {
   id: string;
@@ -393,6 +393,8 @@ export interface Payment {
   transactionId?: string;
   merchantTransId?: string;
   gatewayRefId?: string;
+  gatewayOrderId?: string;
+  gatewayPaymentId?: string;
   receiptNo?: string;
   paidAt?: string;
   createdAt?: string;
@@ -470,6 +472,8 @@ export interface PaymentReceiptDetails {
   transactionId?: string;
   merchantTransId?: string;
   gatewayRefId?: string;
+  gatewayOrderId?: string;
+  gatewayPaymentId?: string;
   receiptNo?: string;
   paidAt?: string;
   createdAt?: string;

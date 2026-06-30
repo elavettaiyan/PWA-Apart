@@ -43,9 +43,11 @@ describe('route module certification', () => {
   }
 
   it('exposes special route handlers used by server bootstrap', () => {
+    const paymentsSource = readSource('modules/payments/routes.ts');
     const premiumSource = readSource('modules/premium/routes.ts');
     const assetsSource = readSource('modules/assets/routes.ts');
 
+    assert.match(paymentsSource, /export\s+(async\s+)?function\s+maintenanceRazorpayWebhookHandler|export\s+const\s+maintenanceRazorpayWebhookHandler/);
     assert.match(premiumSource, /export\s+(async\s+)?function\s+premiumWebhookHandler|export\s+const\s+premiumWebhookHandler/);
     assert.match(assetsSource, /export\s+(async\s+)?function\s+sendServiceDueReminders|export\s+const\s+sendServiceDueReminders|export\s*\{\s*sendServiceDueReminders\s*\}/);
   });

@@ -13,6 +13,7 @@ import type { PaymentHistoryItem, PaymentMethod, PaymentReceiptDetails } from '.
 const FINANCIAL_ROLES = ['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'];
 const METHOD_LABELS: Record<PaymentMethod, string> = {
   PHONEPE: 'PhonePe',
+  RAZORPAY: 'Razorpay',
   CASH: 'Cash',
   CHEQUE: 'Cheque',
   BANK_TRANSFER: 'Bank Transfer',
@@ -31,6 +32,7 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 const METHOD_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: 'All Methods' },
   { value: 'PHONEPE', label: 'PhonePe' },
+  { value: 'RAZORPAY', label: 'Razorpay' },
   { value: 'CASH', label: 'Cash' },
   { value: 'CHEQUE', label: 'Cheque' },
   { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
@@ -141,7 +143,7 @@ export default function PaymentHistoryPage() {
         toast.error('Payment confirmed as failed.');
         queryClient.invalidateQueries({ queryKey: ['payment-history'] });
       } else {
-        toast('Payment is still pending with PhonePe.', { icon: '⏳' });
+        toast('Payment is still pending with the gateway.', { icon: '⏳' });
       }
     } catch {
       toast.error('Could not check payment status. Please try again.');
@@ -262,7 +264,7 @@ export default function PaymentHistoryPage() {
                   <th className="text-right">Amount</th>
                   <th>Method</th>
                   <th>Status</th>
-                  <th>PhonePe Txn ID</th>
+                  <th>Gateway Payment ID</th>
                   <th>Gateway Ref</th>
                   <th></th>
                 </tr>
@@ -355,6 +357,7 @@ export default function PaymentHistoryPage() {
                 <div className="text-xs text-base-content/60 space-y-0.5">
                   <p>{p.paidAt ? formatDate(p.paidAt) : formatDate(p.createdAt ?? '')} · {METHOD_LABELS[p.method] ?? p.method}</p>
                   {p.transactionId && <p>PhonePe: <span className="font-mono">{p.transactionId}</span></p>}
+                                    {(p.gatewayPaymentId || p.transactionId) && <p>Gateway Payment: <span className="font-mono">{p.gatewayPaymentId ?? p.transactionId}</span></p>}
                   {p.gatewayRefId && <p>Ref: <span className="font-mono">{p.gatewayRefId}</span></p>}
                 </div>
                 {p.status === 'SUCCESS' && (

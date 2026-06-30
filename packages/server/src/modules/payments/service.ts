@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { config } from '../../config';
 import prisma from '../../config/database';
 import logger from '../../config/logger';
@@ -9,6 +10,40 @@ export const SINGLE_PHONEPE_SDK_NOTE = `PHONEPE${PHONEPE_SDK_MARKER}`;
 
 const phonePeAuthTokenCache = new Map<string, { accessToken: string; expiresAt: number }>();
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+export type PaymentGatewayKind = 'PHONEPE' | 'RAZORPAY';
+
+export type PhonePeGatewayConfig = {
+  gateway: 'PHONEPE';
+  merchantId: string;
+  clientId: string;
+  clientSecret: string;
+  clientVersion: number;
+  saltKey: string;
+  saltIndex: number;
+  environment: string;
+  baseUrl: string;
+  redirectUrl: string;
+  callbackUrl: string;
+  source: 'database' | 'environment';
+  isActive?: boolean;
+};
+
+export type RazorpayGatewayConfig = {
+  gateway: 'RAZORPAY';
+  merchantId: string;
+  keyId: string;
+  keySecret: string;
+  webhookSecret: string;
+  environment: string;
+  baseUrl: string;
+  redirectUrl: string;
+  callbackUrl: string;
+  source: 'database' | 'environment';
+  isActive?: boolean;
+};
+
+export type ResolvedGatewayConfig = PhonePeGatewayConfig | RazorpayGatewayConfig;
 
 export function bulkRef(merchantTransId: string) {
   return `${BULK_REF_PREFIX}${merchantTransId}`;
@@ -43,16 +78,80 @@ function getPhonePeAuthBaseUrl(environment: string) {
     : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
 }
 
-export async function getPhonePeConfig(societyId: string | null) {
+function getPhonePeBaseUrl(environment: string) {
+  return environment === 'PRODUCTION'
+    ? 'https://api.phonepe.com/apis/hermes'
+    : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
+}
+
+function getDefaultRazorpayRedirectUrl() {
+  return `${config.clientUrl}/billing?payment=done`;
+}
+
+function getDefaultRazorpayCallbackUrl() {
+  return `${config.publicServerUrl}/api/payments/razorpay/webhook`;
+}
+
+async function getGatewayConfigFromDatabase(societyId: string, gateway: PaymentGatewayKind, includeInactive = false) {
+  return prisma.paymentGatewayConfig.findUnique({
+    where: { societyId_gateway: { societyId, gateway } },
+  });
+}
+
+export async function getActivePaymentGatewayConfig(societyId: string | null): Promise<ResolvedGatewayConfig> {
   if (societyId) {
-    const dbConfig = await prisma.paymentGatewayConfig.findUnique({
-      where: { societyId_gateway: { societyId, gateway: 'PHONEPE' } },
+    const activeConfig = await prisma.paymentGatewayConfig.findFirst({
+      where: { societyId, isActive: true },
+      orderBy: { updatedAt: 'desc' },
     });
-    if (dbConfig && dbConfig.isActive) {
+
+    if (activeConfig?.gateway === 'RAZORPAY') {
       return {
+        gateway: 'RAZORPAY',
+        merchantId: activeConfig.merchantId,
+        keyId: activeConfig.keyId || '',
+        keySecret: activeConfig.keySecret || '',
+        webhookSecret: activeConfig.webhookSecret || '',
+        environment: activeConfig.environment,
+        baseUrl: activeConfig.baseUrl || config.razorpay.baseUrl,
+        redirectUrl: activeConfig.redirectUrl || getDefaultRazorpayRedirectUrl(),
+        callbackUrl: activeConfig.callbackUrl || getDefaultRazorpayCallbackUrl(),
+        source: 'database',
+        isActive: activeConfig.isActive,
+      };
+    }
+
+    if (activeConfig?.gateway === 'PHONEPE') {
+      return {
+        gateway: 'PHONEPE',
+        merchantId: activeConfig.merchantId,
+        clientId: activeConfig.clientId || '',
+        clientSecret: activeConfig.clientSecret || '',
+        clientVersion: activeConfig.clientVersion,
+        saltKey: activeConfig.saltKey,
+        saltIndex: activeConfig.saltIndex,
+        environment: activeConfig.environment,
+        baseUrl: activeConfig.baseUrl,
+        redirectUrl: activeConfig.redirectUrl,
+        callbackUrl: activeConfig.callbackUrl,
+        source: 'database',
+        isActive: activeConfig.isActive,
+      };
+    }
+  }
+
+  return getPhonePeConfig(societyId);
+}
+
+export async function getPhonePeConfig(societyId: string | null, options?: { includeInactive?: boolean }): Promise<PhonePeGatewayConfig> {
+  if (societyId) {
+    const dbConfig = await getGatewayConfigFromDatabase(societyId, 'PHONEPE', options?.includeInactive);
+    if (dbConfig && (options?.includeInactive || dbConfig.isActive)) {
+      return {
+        gateway: 'PHONEPE',
         merchantId: dbConfig.merchantId,
-        clientId: dbConfig.clientId,
-        clientSecret: dbConfig.clientSecret,
+        clientId: dbConfig.clientId || '',
+        clientSecret: dbConfig.clientSecret || '',
         clientVersion: dbConfig.clientVersion,
         saltKey: dbConfig.saltKey,
         saltIndex: dbConfig.saltIndex,
@@ -61,11 +160,13 @@ export async function getPhonePeConfig(societyId: string | null) {
         redirectUrl: dbConfig.redirectUrl,
         callbackUrl: dbConfig.callbackUrl,
         source: 'database' as const,
+        isActive: dbConfig.isActive,
       };
     }
   }
 
   return {
+    gateway: 'PHONEPE',
     merchantId: config.phonepe.merchantId,
     clientId: config.phonepe.clientId,
     clientSecret: config.phonepe.clientSecret,
@@ -78,6 +179,114 @@ export async function getPhonePeConfig(societyId: string | null) {
     callbackUrl: config.phonepe.callbackUrl,
     source: 'environment' as const,
   };
+}
+
+export async function getRazorpayConfig(societyId: string | null, options?: { includeInactive?: boolean }): Promise<RazorpayGatewayConfig> {
+  if (societyId) {
+    const dbConfig = await getGatewayConfigFromDatabase(societyId, 'RAZORPAY', options?.includeInactive);
+    if (dbConfig && (options?.includeInactive || dbConfig.isActive)) {
+      return {
+        gateway: 'RAZORPAY',
+        merchantId: dbConfig.merchantId,
+        keyId: dbConfig.keyId || '',
+        keySecret: dbConfig.keySecret || '',
+        webhookSecret: dbConfig.webhookSecret || '',
+        environment: dbConfig.environment,
+        baseUrl: dbConfig.baseUrl || config.razorpay.baseUrl,
+        redirectUrl: dbConfig.redirectUrl || getDefaultRazorpayRedirectUrl(),
+        callbackUrl: dbConfig.callbackUrl || getDefaultRazorpayCallbackUrl(),
+        source: 'database' as const,
+        isActive: dbConfig.isActive,
+      };
+    }
+  }
+
+  return {
+    gateway: 'RAZORPAY',
+    merchantId: '',
+    keyId: config.razorpay.keyId,
+    keySecret: config.razorpay.keySecret,
+    webhookSecret: config.razorpay.webhookSecret,
+    environment: 'PRODUCTION',
+    baseUrl: config.razorpay.baseUrl,
+    redirectUrl: getDefaultRazorpayRedirectUrl(),
+    callbackUrl: getDefaultRazorpayCallbackUrl(),
+    source: 'environment' as const,
+  };
+}
+
+export async function createRazorpayOrder(
+  pgConfig: RazorpayGatewayConfig,
+  payload: Record<string, unknown>,
+) {
+  if (!pgConfig.keyId || !pgConfig.keySecret) {
+    throw new Error('Razorpay credentials are not configured');
+  }
+
+  const credentials = Buffer.from(`${pgConfig.keyId}:${pgConfig.keySecret}`).toString('base64');
+  const response = await fetch(`${pgConfig.baseUrl}/orders`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Basic ${credentials}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await response.text();
+  const data = text ? JSON.parse(text) as Record<string, any> : {};
+
+  if (!response.ok || !data.id) {
+    throw new Error(data?.error?.description || data?.message || 'Failed to create Razorpay order');
+  }
+
+  return data;
+}
+
+export async function fetchRazorpayPayment(
+  pgConfig: RazorpayGatewayConfig,
+  paymentId: string,
+) {
+  if (!pgConfig.keyId || !pgConfig.keySecret) {
+    throw new Error('Razorpay credentials are not configured');
+  }
+
+  const credentials = Buffer.from(`${pgConfig.keyId}:${pgConfig.keySecret}`).toString('base64');
+  const response = await fetch(`${pgConfig.baseUrl}/payments/${paymentId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Basic ${credentials}`,
+    },
+  });
+
+  const text = await response.text();
+  const data = text ? JSON.parse(text) as Record<string, any> : {};
+
+  if (!response.ok || !data.id) {
+    throw new Error(data?.error?.description || data?.message || 'Failed to fetch Razorpay payment');
+  }
+
+  return data;
+}
+
+export function verifyRazorpaySignature({
+  orderId,
+  paymentId,
+  signature,
+  secret,
+}: {
+  orderId: string;
+  paymentId: string;
+  signature: string;
+  secret: string;
+}) {
+  const expectedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(`${orderId}|${paymentId}`)
+    .digest('hex');
+
+  return expectedSignature === signature;
 }
 
 async function getPhonePeAuthToken(pgConfig: Awaited<ReturnType<typeof getPhonePeConfig>>) {

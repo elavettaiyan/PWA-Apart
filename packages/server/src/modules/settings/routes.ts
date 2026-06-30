@@ -13,6 +13,7 @@ import {
   getDefaultMenuIdsForRole,
   getDefaultRedirectUrl,
   getPhonePeAuthBaseUrl,
+  getPhonePeBaseUrl,
   getRequestOrigin,
   getRoleLimit,
   getRoleMenuConfigResponse,
@@ -96,126 +97,215 @@ router.put(
   },
 );
 
-// ── GET PHONEPE CONFIG ──────────────────────────────────
+function getPaymentGatewaySocietyId(req: AuthRequest, candidate?: string) {
+  return req.user!.role === 'SUPER_ADMIN'
+    ? candidate || req.user!.societyId
+    : req.user!.societyId;
+}
+
+function buildDefaultGatewayConfigs(requestOrigin: string) {
+  return {
+    PHONEPE: {
+      gateway: 'PHONEPE',
+      merchantId: '',
+      clientId: '',
+      clientSecret: '',
+      clientVersion: 1,
+      keyId: '',
+      keySecret: '',
+      webhookSecret: '',
+      saltKey: '',
+      saltIndex: 1,
+      environment: 'UAT',
+      baseUrl: getPhonePeBaseUrl('UAT'),
+      redirectUrl: getDefaultRedirectUrl(),
+      callbackUrl: requestOrigin ? `${requestOrigin}/api/payments/phonepe/callback` : '',
+      isActive: false,
+      exists: false,
+    },
+    RAZORPAY: {
+      gateway: 'RAZORPAY',
+      merchantId: '',
+      clientId: '',
+      clientSecret: '',
+      clientVersion: 1,
+      keyId: '',
+      keySecret: '',
+      webhookSecret: '',
+      saltKey: '',
+      saltIndex: 1,
+      environment: 'PRODUCTION',
+      baseUrl: 'https://api.razorpay.com/v1',
+      redirectUrl: getDefaultRedirectUrl(),
+      callbackUrl: requestOrigin ? `${requestOrigin}/api/payments/razorpay/webhook` : '',
+      isActive: false,
+      exists: false,
+    },
+  };
+}
+
 router.get('/payment-gateway', async (req: AuthRequest, res: Response) => {
   try {
-    const societyId = req.user!.role === 'SUPER_ADMIN'
-      ? (req.query.societyId as string) || req.user!.societyId
-      : req.user!.societyId;
+    const societyId = getPaymentGatewaySocietyId(req, req.query.societyId as string | undefined);
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
-    const config = await prisma.paymentGatewayConfig.findUnique({
-      where: { societyId_gateway: { societyId, gateway: 'PHONEPE' } },
+    const requestOrigin = getRequestOrigin(req);
+    const defaults = buildDefaultGatewayConfigs(requestOrigin);
+    const configs = await prisma.paymentGatewayConfig.findMany({
+      where: { societyId },
+      orderBy: { gateway: 'asc' },
     });
 
-    if (!config) {
-      const requestOrigin = getRequestOrigin(req);
-
-      return res.json({
-        exists: false,
-        config: {
-          gateway: 'PHONEPE',
-          merchantId: '',
-          clientId: '',
-          clientSecret: '',
-          clientVersion: 1,
-          saltKey: '',
-          saltIndex: 1,
-          environment: 'UAT',
-          baseUrl: 'https://api-preprod.phonepe.com/apis/pg-sandbox',
-          redirectUrl: getDefaultRedirectUrl(),
-          callbackUrl: requestOrigin ? `${requestOrigin}/api/payments/phonepe/callback` : '',
-          isActive: false,
-        },
-      });
+    for (const gatewayConfig of configs) {
+      defaults[gatewayConfig.gateway] = {
+        ...defaults[gatewayConfig.gateway],
+        ...maskPaymentGatewayConfig(gatewayConfig),
+        merchantId: gatewayConfig.gateway === 'RAZORPAY' && gatewayConfig.merchantId === 'maintenance'
+          ? ''
+          : gatewayConfig.merchantId,
+        exists: true,
+      };
     }
 
-    const masked = maskPaymentGatewayConfig(config);
+    const activeGateway = configs.find((item) => item.isActive)?.gateway ?? null;
 
-    return res.json({ exists: true, config: masked });
+    return res.json({
+      exists: configs.length > 0,
+      activeGateway,
+      configs: defaults,
+      config: activeGateway ? defaults[activeGateway] : defaults.PHONEPE,
+    });
   } catch (error) {
     logger.error('Failed to fetch payment config:', error);
     return res.status(500).json({ error: 'Failed to fetch payment gateway config' });
   }
 });
 
-// ── CREATE/UPDATE PHONEPE CONFIG ────────────────────────
 router.post(
   '/payment-gateway',
   paymentGatewayValidation,
   validate,
   async (req: AuthRequest, res: Response) => {
     try {
-      const societyId = req.user!.role === 'SUPER_ADMIN'
-        ? req.body.societyId || req.user!.societyId
-        : req.user!.societyId;
+      const societyId = getPaymentGatewaySocietyId(req, req.body.societyId);
       if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
-      const { merchantId, clientId, clientSecret, clientVersion, saltKey, saltIndex, environment, redirectUrl, callbackUrl } = req.body;
+      const {
+        gateway,
+        merchantId,
+        clientId,
+        clientSecret,
+        clientVersion,
+        keyId,
+        keySecret,
+        webhookSecret,
+        saltKey,
+        saltIndex,
+        environment,
+        redirectUrl,
+        callbackUrl,
+        isActive,
+      } = req.body;
       const requestOrigin = getRequestOrigin(req);
 
       const existing = await prisma.paymentGatewayConfig.findUnique({
-        where: { societyId_gateway: { societyId, gateway: 'PHONEPE' } },
+        where: { societyId_gateway: { societyId, gateway } },
       });
 
       const normalizedClientId = typeof clientId === 'string' ? clientId.trim() : '';
       const normalizedClientSecret = typeof clientSecret === 'string' ? clientSecret.trim() : '';
-      if ((normalizedClientId && !normalizedClientSecret && !existing?.clientSecret) || (!normalizedClientId && normalizedClientSecret)) {
+      const normalizedMerchantId = typeof merchantId === 'string' ? merchantId.trim() : '';
+      const normalizedKeyId = typeof keyId === 'string' ? keyId.trim() : '';
+      const normalizedKeySecret = typeof keySecret === 'string' ? keySecret.trim() : '';
+      const normalizedWebhookSecret = typeof webhookSecret === 'string' ? webhookSecret.trim() : '';
+
+      if (gateway === 'PHONEPE' && !normalizedMerchantId) {
+        return res.status(400).json({ error: 'Merchant ID is required' });
+      }
+
+      if (gateway === 'PHONEPE' && ((normalizedClientId && !normalizedClientSecret && !existing?.clientSecret) || (!normalizedClientId && normalizedClientSecret))) {
         return res.status(400).json({ error: 'Client ID and Client Secret must be provided together' });
       }
 
-      // Determine base URL from environment
-      const baseUrl =
-        environment === 'PRODUCTION'
-          ? 'https://api.phonepe.com/apis/hermes'
-          : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
+      if (gateway === 'RAZORPAY') {
+        if (!normalizedKeyId && !existing?.keyId) {
+          return res.status(400).json({ error: 'Razorpay Key ID is required' });
+        }
 
-      const resolvedCallbackUrl = callbackUrl || (requestOrigin ? `${requestOrigin}/api/payments/phonepe/callback` : '');
-      const resolvedSaltKey = saltKey || existing?.saltKey || '';
-      const resolvedClientId = normalizedClientId || existing?.clientId || '';
-      const resolvedClientSecret = normalizedClientSecret || existing?.clientSecret || '';
+        if (!normalizedKeySecret && !existing?.keySecret) {
+          return res.status(400).json({ error: 'Razorpay Key Secret is required' });
+        }
 
-      const config = await prisma.paymentGatewayConfig.upsert({
-        where: { societyId_gateway: { societyId, gateway: 'PHONEPE' } },
-        update: {
-          gateway: 'PHONEPE',
-          merchantId,
-          clientId: resolvedClientId || null,
-          clientSecret: resolvedClientSecret || null,
-          clientVersion: Number(clientVersion) > 0 ? Number(clientVersion) : existing?.clientVersion || 1,
-          saltKey: resolvedSaltKey,
-          saltIndex: saltIndex || 1,
-          environment,
-          baseUrl,
-          redirectUrl: redirectUrl || getDefaultRedirectUrl(),
-          callbackUrl: resolvedCallbackUrl,
-          isActive: true,
-        },
-        create: {
-          societyId,
-          gateway: 'PHONEPE',
-          merchantId,
-          clientId: resolvedClientId || null,
-          clientSecret: resolvedClientSecret || null,
-          clientVersion: Number(clientVersion) > 0 ? Number(clientVersion) : 1,
-          saltKey: resolvedSaltKey,
-          saltIndex: saltIndex || 1,
-          environment,
-          baseUrl,
-          redirectUrl: redirectUrl || getDefaultRedirectUrl(),
-          callbackUrl: resolvedCallbackUrl,
-          isActive: true,
-        },
+        if ((normalizedKeyId && !normalizedKeySecret && !existing?.keySecret) || (!normalizedKeyId && normalizedKeySecret)) {
+          return res.status(400).json({ error: 'Razorpay Key ID and Key Secret must be provided together' });
+        }
+      }
+
+      const resolvedCallbackUrl = callbackUrl || (requestOrigin
+        ? gateway === 'PHONEPE'
+          ? `${requestOrigin}/api/payments/phonepe/callback`
+          : `${requestOrigin}/api/payments/razorpay/webhook`
+        : '');
+
+      const resolvedConfig = await prisma.$transaction(async (tx) => {
+        const desiredActive = isActive !== false;
+
+        if (desiredActive) {
+          await tx.paymentGatewayConfig.updateMany({
+            where: { societyId, gateway: { not: gateway } },
+            data: { isActive: false },
+          });
+        }
+
+        return tx.paymentGatewayConfig.upsert({
+          where: { societyId_gateway: { societyId, gateway } },
+          update: {
+            gateway,
+            merchantId: normalizedMerchantId,
+            clientId: normalizedClientId || existing?.clientId || null,
+            clientSecret: normalizedClientSecret || existing?.clientSecret || null,
+            clientVersion: Number(clientVersion) > 0 ? Number(clientVersion) : existing?.clientVersion || 1,
+            keyId: normalizedKeyId || existing?.keyId || null,
+            keySecret: normalizedKeySecret || existing?.keySecret || null,
+            webhookSecret: normalizedWebhookSecret || existing?.webhookSecret || null,
+            saltKey: saltKey || existing?.saltKey || '',
+            saltIndex: saltIndex || existing?.saltIndex || 1,
+            environment,
+            baseUrl: gateway === 'PHONEPE' ? getPhonePeBaseUrl(environment) : 'https://api.razorpay.com/v1',
+            redirectUrl: redirectUrl || existing?.redirectUrl || getDefaultRedirectUrl(),
+            callbackUrl: resolvedCallbackUrl,
+            isActive: desiredActive,
+          },
+          create: {
+            societyId,
+            gateway,
+            merchantId: normalizedMerchantId,
+            clientId: normalizedClientId || null,
+            clientSecret: normalizedClientSecret || null,
+            clientVersion: Number(clientVersion) > 0 ? Number(clientVersion) : 1,
+            keyId: normalizedKeyId || null,
+            keySecret: normalizedKeySecret || null,
+            webhookSecret: normalizedWebhookSecret || null,
+            saltKey: saltKey || '',
+            saltIndex: saltIndex || 1,
+            environment,
+            baseUrl: gateway === 'PHONEPE' ? getPhonePeBaseUrl(environment) : 'https://api.razorpay.com/v1',
+            redirectUrl: redirectUrl || getDefaultRedirectUrl(),
+            callbackUrl: resolvedCallbackUrl,
+            isActive: isActive !== false,
+          },
+        });
       });
 
-      logger.info(`PhonePe config updated for society ${societyId}`, {
-        callbackUrl: config.callbackUrl,
-        saltKeyUpdated: !!saltKey,
+      logger.info(`Payment gateway config updated for society ${societyId}`, {
+        gateway,
+        callbackUrl: resolvedConfig.callbackUrl,
       });
 
       return res.json({
         message: 'Payment gateway configuration saved successfully',
-        config: maskPaymentGatewayConfig(config),
+        activeGateway: resolvedConfig.isActive ? resolvedConfig.gateway : null,
+        config: maskPaymentGatewayConfig(resolvedConfig),
       });
     } catch (error) {
       logger.error('Failed to save payment config:', error);
@@ -224,41 +314,60 @@ router.post(
   },
 );
 
-// ── TOGGLE ACTIVE ───────────────────────────────────────
 router.patch('/payment-gateway/toggle', async (req: AuthRequest, res: Response) => {
   try {
-    const societyId = req.user!.role === 'SUPER_ADMIN'
-      ? req.body.societyId || req.user!.societyId
-      : req.user!.societyId;
+    const societyId = getPaymentGatewaySocietyId(req, req.body.societyId);
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
+    const gateway = req.body.gateway;
+    if (gateway !== 'PHONEPE' && gateway !== 'RAZORPAY') {
+      return res.status(400).json({ error: 'Gateway must be PHONEPE or RAZORPAY' });
+    }
+
     const existing = await prisma.paymentGatewayConfig.findUnique({
-      where: { societyId_gateway: { societyId, gateway: 'PHONEPE' } },
+      where: { societyId_gateway: { societyId, gateway } },
     });
 
     if (!existing) return res.status(404).json({ error: 'No config found. Please configure first.' });
 
-    const updated = await prisma.paymentGatewayConfig.update({
-      where: { id: existing.id },
-      data: { isActive: !existing.isActive },
+    const targetState = !existing.isActive;
+    const updated = await prisma.$transaction(async (tx) => {
+      if (targetState) {
+        await tx.paymentGatewayConfig.updateMany({
+          where: { societyId, gateway: { not: gateway } },
+          data: { isActive: false },
+        });
+      }
+
+      return tx.paymentGatewayConfig.update({
+        where: { id: existing.id },
+        data: { isActive: targetState },
+      });
     });
 
-    return res.json({ message: `PhonePe ${updated.isActive ? 'enabled' : 'disabled'}`, isActive: updated.isActive });
+    return res.json({
+      message: `${gateway} ${updated.isActive ? 'enabled' : 'disabled'}`,
+      gateway,
+      isActive: updated.isActive,
+      activeGateway: updated.isActive ? gateway : null,
+    });
   } catch (error) {
     return res.status(500).json({ error: 'Failed to toggle payment gateway' });
   }
 });
 
-// ── TEST PHONEPE CONNECTION ─────────────────────────────
 router.post('/payment-gateway/test', async (req: AuthRequest, res: Response) => {
   try {
-    const societyId = req.user!.role === 'SUPER_ADMIN'
-      ? req.body.societyId || req.user!.societyId
-      : req.user!.societyId;
+    const societyId = getPaymentGatewaySocietyId(req, req.body.societyId);
     if (!societyId) return res.status(400).json({ error: 'Society ID required' });
 
+    const gateway = req.body.gateway;
+    if (gateway !== 'PHONEPE' && gateway !== 'RAZORPAY') {
+      return res.status(400).json({ error: 'Gateway must be PHONEPE or RAZORPAY' });
+    }
+
     const pgConfig = await prisma.paymentGatewayConfig.findUnique({
-      where: { societyId_gateway: { societyId, gateway: 'PHONEPE' } },
+      where: { societyId_gateway: { societyId, gateway } },
     });
 
     if (!pgConfig) {
@@ -266,6 +375,51 @@ router.post('/payment-gateway/test', async (req: AuthRequest, res: Response) => 
     }
 
     const startTime = Date.now();
+
+    if (gateway === 'RAZORPAY') {
+      if (!pgConfig.keyId || !pgConfig.keySecret) {
+        return res.json({
+          success: false,
+          message: 'Razorpay Key ID and Key Secret are required.',
+          details: {
+            environment: pgConfig.environment,
+            baseUrl: pgConfig.baseUrl,
+          },
+        });
+      }
+
+      const credentials = Buffer.from(`${pgConfig.keyId}:${pgConfig.keySecret}`).toString('base64');
+      const response = await fetch(`${pgConfig.baseUrl}/orders?count=1`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${credentials}`,
+        },
+      });
+
+      const responseTime = Date.now() - startTime;
+      const responseData = await response.json() as { error?: { description?: string } };
+      const isCredentialsValid = response.ok;
+
+      await prisma.paymentGatewayConfig.update({
+        where: { id: pgConfig.id },
+        data: { lastTestedAt: new Date(), lastTestOk: isCredentialsValid },
+      });
+
+      return res.json({
+        success: isCredentialsValid,
+        message: isCredentialsValid
+          ? 'Razorpay credentials are valid.'
+          : 'Razorpay authentication failed. Check Key ID and Key Secret.',
+        details: {
+          httpStatus: response.status,
+          responseTime: `${responseTime}ms`,
+          environment: pgConfig.environment,
+          baseUrl: pgConfig.baseUrl,
+          razorpayMessage: responseData.error?.description || '',
+        },
+      });
+    }
 
     if (pgConfig.clientId && pgConfig.clientSecret) {
       const requestBody = new URLSearchParams({
@@ -317,7 +471,6 @@ router.post('/payment-gateway/test', async (req: AuthRequest, res: Response) => 
       });
     }
 
-    // Fallback for legacy redirect credentials when SDK client credentials are not configured.
     const testMerchantTransId = `TEST_${Date.now()}`;
     const endpoint = `/pg/v1/status/${pgConfig.merchantId}/${testMerchantTransId}`;
     const data = '' + endpoint + pgConfig.saltKey;
@@ -335,7 +488,6 @@ router.post('/payment-gateway/test', async (req: AuthRequest, res: Response) => 
 
     const responseTime = Date.now() - startTime;
     const responseData = await response.json() as { code?: string; message?: string };
-
     const code = responseData.code || '';
     const isCredentialsValid =
       code === 'TRANSACTION_NOT_FOUND' ||
@@ -350,7 +502,6 @@ router.post('/payment-gateway/test', async (req: AuthRequest, res: Response) => 
       response.status === 401 ||
       response.status === 403;
 
-    // Update test results in DB
     await prisma.paymentGatewayConfig.update({
       where: { id: pgConfig.id },
       data: { lastTestedAt: new Date(), lastTestOk: isCredentialsValid },
@@ -384,13 +535,12 @@ router.post('/payment-gateway/test', async (req: AuthRequest, res: Response) => 
       },
     });
   } catch (error: any) {
-    logger.error('PhonePe test failed:', error);
+    logger.error('Payment gateway test failed:', error);
 
-    // Network errors
     if (error.cause?.code === 'ENOTFOUND' || error.cause?.code === 'ECONNREFUSED') {
       return res.json({
         success: false,
-        message: 'Cannot reach PhonePe servers. Check your internet connection and base URL.',
+        message: 'Cannot reach payment gateway servers. Check your internet connection and base URL.',
         details: { error: error.message },
       });
     }

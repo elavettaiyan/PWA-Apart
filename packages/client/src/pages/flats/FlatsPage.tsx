@@ -402,7 +402,7 @@ export default function FlatsPage() {
   const [pendingRazorpayPayload, setPendingRazorpayPayload] = useState<any>(null);
 
   const verifyMutation = useMutation({
-    mutationFn: (payload: { razorpay_payment_id: string; razorpay_subscription_id: string; razorpay_signature: string }) =>
+    mutationFn: (payload: { razorpay_payment_id: string; razorpay_subscription_id?: string; razorpay_signature: string }) =>
       api.post('/premium/verify', payload),
     onSuccess: () => {
       toast.success('Premium activated successfully');

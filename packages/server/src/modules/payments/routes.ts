@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Request, Response, Router } from 'express';
 import type { Prisma } from '@prisma/client';
 import prisma from '../../config/database';
@@ -12,9 +13,13 @@ import {
   bulkRef,
   buildReceiptText,
   createPhonePeSdkOrder,
+  createRazorpayOrder,
+  fetchRazorpayPayment,
   fetchPhonePeSdkOrderStatus,
+  getActivePaymentGatewayConfig,
   getBulkPaymentNotes,
   getPhonePeConfig,
+  getRazorpayConfig,
   getSocietySettings,
   getUserFlatIds,
   getUserOwnedFlatIds,
@@ -22,6 +27,7 @@ import {
   isPhonePeSdkFlow,
   sendReceiptForPayment,
   SINGLE_PHONEPE_SDK_NOTE,
+  verifyRazorpaySignature,
   withSdkMarker,
 } from './service';
 import {
@@ -31,9 +37,34 @@ import {
   paymentHistoryValidation,
   paymentReportValidation,
   phonePeSdkConfirmValidation,
+  razorpayVerifyValidation,
 } from './validation';
 
 const router = Router();
+
+type MaintenanceGatewayPaymentStatus = 'SUCCESS' | 'FAILED';
+
+export function classifyMaintenanceRazorpayProviderStatus(status?: string | null): MaintenanceGatewayPaymentStatus | null {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'captured' || normalized === 'authorized') return 'SUCCESS';
+  if (normalized === 'failed') return 'FAILED';
+  return null;
+}
+
+export function classifyMaintenanceRazorpayWebhookEvent(event?: string | null): MaintenanceGatewayPaymentStatus | null {
+  if (event === 'payment.captured' || event === 'payment.authorized') return 'SUCCESS';
+  if (event === 'payment.failed') return 'FAILED';
+  return null;
+}
+
+export function buildMaintenanceRazorpayWebhookEventKey(event?: string | null, gatewayOrderId?: string | null, gatewayPaymentId?: string | null) {
+  return [event || 'unknown', gatewayOrderId || 'no-order', gatewayPaymentId || 'no-payment'].join(':');
+}
+
+export function verifyMaintenanceRazorpayWebhookSignature(rawBody: Buffer, signature: string, secret: string) {
+  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+  return expected === signature;
+}
 
 async function markPaymentSuccess(paymentId: string, transactionId: string | undefined, phonepePayload: unknown, gatewayRefId?: string) {
   // Mark payment SUCCESS in a guarded update, then allocate the amount to bills.
@@ -56,7 +87,9 @@ async function markPaymentSuccess(paymentId: string, transactionId: string | und
     data: {
       status: 'SUCCESS',
       transactionId,
+      gatewayPaymentId: existingPayment.method === 'RAZORPAY' ? transactionId : undefined,
       gatewayRefId: gatewayRefId ?? undefined,
+      gatewayResponse: JSON.stringify(phonepePayload),
       phonepeResponse: JSON.stringify(phonepePayload),
       paidAt: new Date(),
     },
@@ -107,7 +140,9 @@ async function markBulkPaymentsSuccess(merchantTransId: string, transactionId: s
         data: {
           status: 'SUCCESS',
           transactionId: payment.merchantTransId === merchantTransId ? transactionId : undefined,
+          gatewayPaymentId: payment.method === 'RAZORPAY' ? transactionId : undefined,
           gatewayRefId: gatewayRefId ?? undefined,
+          gatewayResponse: JSON.stringify(phonepePayload),
           phonepeResponse: JSON.stringify(phonepePayload),
           paidAt: new Date(),
         },
@@ -155,10 +190,601 @@ async function markBulkPaymentsFailed(merchantTransId: string, phonepePayload: u
     },
     data: {
       status: 'FAILED',
+      gatewayResponse: JSON.stringify(phonepePayload),
       phonepeResponse: JSON.stringify(phonepePayload),
     },
   });
 }
+
+async function markPaymentFailed(paymentId: string, payload: unknown) {
+  await prisma.payment.updateMany({
+    where: { id: paymentId, status: { notIn: ['SUCCESS', 'FAILED'] } },
+    data: {
+      status: 'FAILED',
+      gatewayResponse: JSON.stringify(payload),
+      phonepeResponse: JSON.stringify(payload),
+    },
+  });
+}
+
+function getRazorpayGatewayRef(paymentData: any) {
+  return paymentData?.acquirer_data?.rrn || paymentData?.acquirer_data?.upi_transaction_id || paymentData?.acquirer_data?.bank_transaction_id || undefined;
+}
+
+export async function maintenanceRazorpayWebhookHandler(req: Request, res: Response) {
+  let webhookEventId: string | undefined;
+
+  try {
+    const signature = req.headers['x-razorpay-signature'];
+    if (typeof signature !== 'string') {
+      return res.status(400).json({ error: 'Missing webhook signature' });
+    }
+
+    const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(JSON.stringify(req.body || {}));
+    const payload = JSON.parse(rawBody.toString('utf8'));
+    const event = payload?.event as string | undefined;
+    const paymentEntity = payload?.payload?.payment?.entity as Record<string, any> | undefined;
+    const orderEntity = payload?.payload?.order?.entity as Record<string, any> | undefined;
+    const gatewayPaymentId = paymentEntity?.id as string | undefined;
+    const gatewayOrderId = (paymentEntity?.order_id || orderEntity?.id) as string | undefined;
+
+    if (!gatewayOrderId && !gatewayPaymentId) {
+      return res.status(400).json({ error: 'Invalid Razorpay webhook payload' });
+    }
+
+    const payment = await prisma.payment.findFirst({
+      where: {
+        method: 'RAZORPAY',
+        OR: [
+          gatewayOrderId ? { gatewayOrderId } : undefined,
+          gatewayPaymentId ? { gatewayPaymentId } : undefined,
+        ].filter(Boolean) as Prisma.PaymentWhereInput[],
+      },
+      include: {
+        bill: {
+          include: { flat: { include: { block: true } } },
+        },
+      },
+    });
+
+    if (!payment) {
+      return res.status(404).json({ error: 'Payment not found' });
+    }
+
+    const societyId = payment.bill.flat.block.societyId;
+    const pgConfig = await getRazorpayConfig(societyId, { includeInactive: true });
+    if (!pgConfig.webhookSecret) {
+      return res.status(503).json({ error: 'Razorpay webhook secret is not configured' });
+    }
+
+    if (!verifyMaintenanceRazorpayWebhookSignature(rawBody, signature, pgConfig.webhookSecret)) {
+      logger.warn('Razorpay maintenance webhook signature mismatch', { gatewayOrderId, gatewayPaymentId });
+      return res.status(400).json({ error: 'Invalid webhook signature' });
+    }
+
+    const eventKey = buildMaintenanceRazorpayWebhookEventKey(event, gatewayOrderId || payment.gatewayOrderId, gatewayPaymentId || payment.gatewayPaymentId);
+    const payloadStr = JSON.stringify(payload).slice(0, 4000);
+
+    try {
+      const webhookEvent = await prisma.webhookEvent.create({
+        data: {
+          id: uuidv4(),
+          source: 'razorpay_maintenance',
+          eventKey,
+          merchantTransId: payment.merchantTransId,
+          payload: payloadStr,
+          status: 'processing',
+        },
+        select: { id: true },
+      });
+      webhookEventId = webhookEvent.id;
+    } catch (dupErr: any) {
+      if (dupErr?.code === 'P2002') {
+        logger.info('Razorpay maintenance webhook duplicate — ignoring', { eventKey, gatewayOrderId, gatewayPaymentId });
+        return res.json({ received: true, duplicate: true });
+      }
+      throw dupErr;
+    }
+
+    const classifiedEvent = classifyMaintenanceRazorpayWebhookEvent(event);
+    const gatewayRefId = getRazorpayGatewayRef(paymentEntity);
+
+    if (gatewayPaymentId) {
+      await prisma.payment.updateMany({
+        where: {
+          method: 'RAZORPAY',
+          OR: [
+            gatewayOrderId ? { gatewayOrderId } : undefined,
+            payment.gatewayPaymentId ? { gatewayPaymentId: payment.gatewayPaymentId } : undefined,
+          ].filter(Boolean) as Prisma.PaymentWhereInput[],
+        },
+        data: {
+          gatewayPaymentId,
+          gatewayResponse: JSON.stringify(payload),
+          phonepeResponse: JSON.stringify(payload),
+        },
+      });
+    }
+
+    if (classifiedEvent === 'SUCCESS') {
+      if (isBulkPayment(payment.notes)) {
+        const bulkMerchantTransId = payment.merchantTransId || (payment.notes ? payment.notes.replace(/^BULK:/, '') : '');
+        const result = await markBulkPaymentsSuccess(bulkMerchantTransId, gatewayPaymentId, payload, gatewayRefId);
+        for (const paymentId of result.processedPaymentIds) {
+          sendReceiptForPayment(paymentId).catch(() => {});
+          notifyPaymentSuccess(paymentId).catch(() => {});
+        }
+      } else {
+        const result = await markPaymentSuccess(payment.id, gatewayPaymentId, payload, gatewayRefId);
+        if (!result.alreadyProcessed) {
+          sendReceiptForPayment(payment.id).catch(() => {});
+          notifyPaymentSuccess(payment.id).catch(() => {});
+        }
+      }
+    } else if (classifiedEvent === 'FAILED') {
+      if (isBulkPayment(payment.notes)) {
+        const bulkMerchantTransId = payment.merchantTransId || (payment.notes ? payment.notes.replace(/^BULK:/, '') : '');
+        await markBulkPaymentsFailed(bulkMerchantTransId, payload);
+      } else {
+        await markPaymentFailed(payment.id, payload);
+      }
+    }
+
+    if (webhookEventId) {
+      await prisma.webhookEvent.update({ where: { id: webhookEventId }, data: { status: 'processed' } });
+    }
+
+    return res.json({ received: true, ignored: classifiedEvent === null });
+  } catch (error: any) {
+    logger.error('Razorpay maintenance webhook error', { error: error?.message });
+    if (webhookEventId) {
+      await prisma.webhookEvent.update({ where: { id: webhookEventId }, data: { status: 'error', error: String(error?.message ?? error) } }).catch(() => {});
+    }
+    return res.status(500).json({ error: 'Webhook processing failed' });
+  }
+}
+
+router.get('/active-gateway', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const societyId = req.user!.societyId;
+    if (!societyId) return res.status(400).json({ error: 'Society ID required' });
+
+    const gatewayConfig = await getActivePaymentGatewayConfig(societyId);
+    return res.json({
+      gateway: gatewayConfig.gateway,
+      isActive: gatewayConfig.isActive !== false,
+    });
+  } catch (error) {
+    logger.error('Active payment gateway error:', error);
+    return res.status(500).json({ error: 'Failed to fetch active payment gateway' });
+  }
+});
+
+router.post(
+  '/razorpay/initiate',
+  authenticate,
+  initiatePhonePePaymentValidation,
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const bill = await prisma.maintenanceBill.findUnique({
+        where: { id: req.body.billId },
+        include: { flat: { include: { owner: true, block: true } } },
+      });
+
+      if (!bill) return res.status(404).json({ error: 'Bill not found' });
+      if (bill.status === 'PAID') return res.status(400).json({ error: 'Bill already paid' });
+
+      const billSocietyId = bill.flat.block.societyId;
+      if (req.user!.role !== 'SUPER_ADMIN' && req.user!.societyId !== billSocietyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if (req.user!.role === 'OWNER' || req.user!.role === 'TENANT') {
+        const userFlatIds = await getUserFlatIds(req.user!.id, req.user!.societyId ?? null);
+        if (!userFlatIds.includes(bill.flatId)) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+      }
+
+      const pgConfig = await getRazorpayConfig(billSocietyId);
+      if (!pgConfig.keyId || !pgConfig.keySecret) {
+        return res.status(400).json({ error: 'Razorpay is not configured. Ask your admin to update payment gateway settings.' });
+      }
+
+      const amountToPay = Number((bill.totalAmount - bill.paidAmount).toFixed(2));
+      const merchantTransId = `RZP${Date.now()}${uuidv4().slice(0, 8).toUpperCase()}`;
+
+      const payment = await prisma.payment.create({
+        data: {
+          billId: bill.id,
+          amount: amountToPay,
+          method: 'RAZORPAY',
+          status: 'INITIATED',
+          merchantTransId,
+        },
+      });
+
+      const order = await createRazorpayOrder(pgConfig, {
+        amount: Math.round(amountToPay * 100),
+        currency: 'INR',
+        receipt: merchantTransId,
+        notes: {
+          paymentId: payment.id,
+          billId: bill.id,
+          userId: req.user!.id,
+          societyId: billSocietyId,
+        },
+      });
+
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          gatewayOrderId: String(order.id),
+          gatewayResponse: JSON.stringify(order),
+        },
+      });
+
+      return res.json({
+        success: true,
+        gateway: 'RAZORPAY',
+        paymentId: payment.id,
+        merchantTransId,
+        gatewayOrderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        keyId: pgConfig.keyId,
+        name: 'Dwell Hub',
+        description: `Maintenance payment for bill ${bill.id}`,
+      });
+    } catch (error: any) {
+      logger.error('Razorpay payment error:', error);
+      return res.status(500).json({ error: error.message || 'Payment initiation failed' });
+    }
+  },
+);
+
+router.post(
+  '/razorpay/initiate-amount',
+  authenticate,
+  initiatePhonePeAmountValidation,
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { flatId } = req.body;
+      const requestedAmount = Number(req.body.amount);
+
+      const flat = await prisma.flat.findUnique({
+        where: { id: flatId },
+        include: { block: true },
+      });
+
+      if (!flat) return res.status(404).json({ error: 'Flat not found' });
+
+      const societyId = flat.block.societyId;
+      if (req.user!.role !== 'SUPER_ADMIN' && req.user!.societyId !== societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if (req.user!.role === 'OWNER' || req.user!.role === 'TENANT') {
+        const userFlatIds = await getUserFlatIds(req.user!.id, req.user!.societyId ?? null);
+        if (!userFlatIds.includes(flatId)) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+      }
+
+      const settings = await getSocietySettings(societyId);
+      const bills = await prisma.maintenanceBill.findMany({
+        where: { flatId },
+        orderBy: [{ year: 'asc' }, { month: 'asc' }],
+      });
+
+      const outstandingBills = bills.filter((bill) => Number((bill.totalAmount - bill.paidAmount).toFixed(2)) > 0);
+      const anchorBill = outstandingBills[0] ?? bills[bills.length - 1];
+      if (!anchorBill) {
+        return res.status(400).json({ error: 'No bills found for this flat' });
+      }
+
+      const totalOutstanding = Number(
+        outstandingBills.reduce((sum, bill) => sum + Math.max(0, bill.totalAmount - bill.paidAmount), 0).toFixed(2),
+      );
+
+      if (settings?.partialPaymentAllowed === false && requestedAmount < totalOutstanding) {
+        return res.status(400).json({ error: 'Partial payments are disabled for this association' });
+      }
+
+      if (settings?.advancePaymentAllowed === false && requestedAmount > totalOutstanding) {
+        return res.status(400).json({ error: 'Advance payments are disabled for this association' });
+      }
+
+      const pgConfig = await getRazorpayConfig(societyId, { includeInactive: true });
+      if (!pgConfig.keyId || !pgConfig.keySecret) {
+        return res.status(400).json({ error: 'Razorpay is not configured. Ask your admin to update payment gateway settings.' });
+      }
+
+      const merchantTransId = `RZA${Date.now()}${uuidv4().slice(0, 8).toUpperCase()}`;
+      const payment = await prisma.payment.create({
+        data: {
+          billId: anchorBill.id,
+          amount: requestedAmount,
+          method: 'RAZORPAY',
+          status: 'INITIATED',
+          merchantTransId,
+          notes: 'AUTO_ALLOCATE',
+        },
+      });
+
+      const order = await createRazorpayOrder(pgConfig, {
+        amount: Math.round(requestedAmount * 100),
+        currency: 'INR',
+        receipt: merchantTransId,
+        notes: {
+          paymentId: payment.id,
+          billId: anchorBill.id,
+          flatId,
+          userId: req.user!.id,
+          societyId,
+        },
+      });
+
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          gatewayOrderId: String(order.id),
+          gatewayResponse: JSON.stringify(order),
+        },
+      });
+
+      return res.json({
+        success: true,
+        gateway: 'RAZORPAY',
+        paymentId: payment.id,
+        merchantTransId,
+        gatewayOrderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        keyId: pgConfig.keyId,
+        name: 'Dwell Hub',
+        description: 'Maintenance payment',
+      });
+    } catch (error: any) {
+      logger.error('Razorpay amount-based payment error:', error);
+      return res.status(500).json({ error: error.message || 'Payment initiation failed' });
+    }
+  },
+);
+
+router.post(
+  '/razorpay/initiate-bulk',
+  authenticate,
+  initiateBulkPhonePePaymentValidation,
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const incomingBillIds: unknown[] = Array.isArray(req.body.billIds) ? req.body.billIds : [];
+      const billIds = Array.from(new Set(incomingBillIds)).filter((id): id is string => typeof id === 'string');
+
+      if (billIds.length < 2) {
+        return res.status(400).json({ error: 'Select at least two bills for bulk payment' });
+      }
+
+      type BillWithFlat = Prisma.MaintenanceBillGetPayload<{ include: { flat: { include: { block: true } } } }>;
+      const bills: BillWithFlat[] = await prisma.maintenanceBill.findMany({
+        where: { id: { in: billIds } },
+        include: { flat: { include: { block: true } } },
+      });
+
+      if (bills.length !== billIds.length) {
+        return res.status(404).json({ error: 'One or more bills were not found' });
+      }
+
+      const societyIds = new Set(bills.map((bill) => bill.flat.block.societyId));
+      if (societyIds.size !== 1) {
+        return res.status(400).json({ error: 'Bulk payment supports bills from one society only' });
+      }
+
+      const targetSocietyId = bills[0].flat.block.societyId;
+      if (req.user!.role !== 'SUPER_ADMIN' && req.user!.societyId !== targetSocietyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if (req.user!.role === 'OWNER' || req.user!.role === 'TENANT') {
+        const userFlatIds = await getUserFlatIds(req.user!.id, req.user!.societyId ?? null);
+        const hasForeignBill = bills.some((bill) => !userFlatIds.includes(bill.flatId));
+        if (hasForeignBill) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+      }
+
+      const payableBills = bills
+        .map((bill) => ({
+          bill,
+          dueAmount: Math.max(bill.totalAmount - bill.paidAmount, 0),
+        }))
+        .filter((row) => row.dueAmount > 0 && row.bill.status !== 'PAID');
+
+      if (payableBills.length < 2) {
+        return res.status(400).json({ error: 'Select at least two unpaid bills for bulk payment' });
+      }
+
+      const pgConfig = await getRazorpayConfig(targetSocietyId);
+      if (!pgConfig.keyId || !pgConfig.keySecret) {
+        return res.status(400).json({ error: 'Razorpay is not configured. Ask your admin to update payment gateway settings.' });
+      }
+
+      const merchantTransId = `RZB${Date.now()}${uuidv4().slice(0, 8).toUpperCase()}`;
+      const bulkReference = bulkRef(merchantTransId);
+      const totalAmount = payableBills.reduce((sum, row) => sum + row.dueAmount, 0);
+
+      await prisma.$transaction(async (tx) => {
+        for (let index = 0; index < payableBills.length; index++) {
+          const row = payableBills[index];
+          await tx.payment.create({
+            data: {
+              billId: row.bill.id,
+              amount: row.dueAmount,
+              method: 'RAZORPAY',
+              status: 'INITIATED',
+              merchantTransId: index === 0 ? merchantTransId : null,
+              notes: bulkReference,
+            },
+          });
+        }
+      });
+
+      const order = await createRazorpayOrder(pgConfig, {
+        amount: Math.round(totalAmount * 100),
+        currency: 'INR',
+        receipt: merchantTransId,
+        notes: {
+          merchantTransId,
+          billCount: String(payableBills.length),
+          userId: req.user!.id,
+          societyId: targetSocietyId,
+        },
+      });
+
+      await prisma.payment.updateMany({
+        where: {
+          OR: [
+            { merchantTransId },
+            { notes: bulkReference },
+          ],
+        },
+        data: {
+          gatewayOrderId: String(order.id),
+          gatewayResponse: JSON.stringify(order),
+        },
+      });
+
+      return res.json({
+        success: true,
+        gateway: 'RAZORPAY',
+        merchantTransId,
+        gatewayOrderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        billCount: payableBills.length,
+        totalAmount,
+        keyId: pgConfig.keyId,
+        name: 'Dwell Hub',
+        description: `Bulk maintenance payment for ${payableBills.length} bills`,
+      });
+    } catch (error: any) {
+      logger.error('Razorpay bulk payment error:', error);
+      return res.status(500).json({ error: error.message || 'Bulk payment initiation failed' });
+    }
+  },
+);
+
+router.post(
+  '/razorpay/verify',
+  authenticate,
+  razorpayVerifyValidation,
+  validate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { gatewayOrderId, gatewayPaymentId, signature } = req.body;
+
+      const payment = await prisma.payment.findFirst({
+        where: { gatewayOrderId },
+        include: {
+          bill: {
+            include: { flat: { include: { block: true } } },
+          },
+        },
+      });
+
+      if (!payment) {
+        return res.status(404).json({ error: 'Payment not found' });
+      }
+
+      const societyId = payment.bill.flat.block.societyId;
+      if (req.user!.role !== 'SUPER_ADMIN' && societyId !== req.user!.societyId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if (req.user!.role === 'OWNER' || req.user!.role === 'TENANT') {
+        const userFlatIds = await getUserFlatIds(req.user!.id, req.user!.societyId ?? null);
+        if (!userFlatIds.includes(payment.bill.flatId)) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+      }
+
+      const pgConfig = await getRazorpayConfig(societyId);
+      if (!pgConfig.keySecret) {
+        return res.status(400).json({ error: 'Razorpay is not configured. Ask your admin to update payment gateway settings.' });
+      }
+
+      const isValid = verifyRazorpaySignature({
+        orderId: gatewayOrderId,
+        paymentId: gatewayPaymentId,
+        signature,
+        secret: pgConfig.keySecret,
+      });
+
+      if (!isValid) {
+        await markPaymentFailed(payment.id, { error: 'Invalid Razorpay signature', gatewayOrderId, gatewayPaymentId });
+        return res.status(400).json({ status: 'FAILED', error: 'Invalid payment signature' });
+      }
+
+      const paymentData = await fetchRazorpayPayment(pgConfig, gatewayPaymentId);
+      const status = String(paymentData.status || '').toLowerCase();
+      const gatewayRefId = getRazorpayGatewayRef(paymentData);
+
+      if (status === 'captured' || status === 'authorized') {
+        if (isBulkPayment(payment.notes)) {
+          const bulkMerchantTransId = payment.merchantTransId || (payment.notes ? payment.notes.replace(/^BULK:/, '') : '');
+          const result = await markBulkPaymentsSuccess(bulkMerchantTransId, gatewayPaymentId, paymentData, gatewayRefId);
+          await prisma.payment.updateMany({
+            where: { gatewayOrderId },
+            data: { gatewayPaymentId },
+          });
+
+          for (const paymentId of result.processedPaymentIds) {
+            sendReceiptForPayment(paymentId).catch(() => {});
+            notifyPaymentSuccess(paymentId).catch(() => {});
+          }
+
+          return res.json({ status: 'SUCCESS', bulkProcessedCount: result.processedCount });
+        }
+
+        const result = await markPaymentSuccess(payment.id, gatewayPaymentId, paymentData, gatewayRefId);
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: { gatewayPaymentId },
+        });
+        if (!result.alreadyProcessed) {
+          sendReceiptForPayment(payment.id).catch(() => {});
+          notifyPaymentSuccess(payment.id).catch(() => {});
+        }
+        return res.json({ status: 'SUCCESS', alreadyProcessed: result.alreadyProcessed });
+      }
+
+      if (status === 'failed') {
+        if (isBulkPayment(payment.notes)) {
+          await markBulkPaymentsFailed(payment.merchantTransId || (payment.notes ? payment.notes.replace(/^BULK:/, '') : ''), paymentData);
+        } else {
+          await markPaymentFailed(payment.id, paymentData);
+        }
+        return res.json({ status: 'FAILED' });
+      }
+
+      await prisma.payment.updateMany({
+        where: { gatewayOrderId },
+        data: {
+          gatewayPaymentId,
+          gatewayResponse: JSON.stringify(paymentData),
+        },
+      });
+
+      return res.json({ status: payment.status, paymentStatus: paymentData.status || 'created' });
+    } catch (error: any) {
+      logger.error('Razorpay verify error:', error);
+      return res.status(500).json({ error: error.message || 'Failed to verify payment' });
+    }
+  },
+);
 
 // ── INITIATE PHONEPE PAYMENT ────────────────────────────
 
@@ -928,10 +1554,16 @@ router.get(
   authenticate,
   async (req: AuthRequest, res) => {
     try {
-      const { merchantTransId } = req.params;
+      const paymentRef = req.params.merchantTransId;
 
-      const payment = await prisma.payment.findUnique({
-        where: { merchantTransId },
+      const payment = await prisma.payment.findFirst({
+        where: {
+          OR: [
+            { merchantTransId: paymentRef },
+            { gatewayOrderId: paymentRef },
+            { gatewayPaymentId: paymentRef },
+          ],
+        },
         include: {
           bill: {
             include: { flat: { include: { block: { select: { id: true, name: true, societyId: true } } } } },
@@ -958,20 +1590,22 @@ router.get(
 
       // If still INITIATED, check with PhonePe
       if (payment.status === 'INITIATED') {
-        // Determine societyId from bill's flat block
         const societyId = payment.bill?.flat?.block?.societyId || req.user!.societyId;
-        const pgConfig = await getPhonePeConfig(societyId ?? null);
+        if (payment.method === 'RAZORPAY') {
+          if (!payment.gatewayPaymentId) {
+            return res.json(payment);
+          }
 
-        if (isPhonePeSdkFlow(payment.notes)) {
           try {
-            const statusData = await fetchPhonePeSdkOrderStatus(pgConfig, merchantTransId);
+            const pgConfig = await getRazorpayConfig(societyId ?? null, { includeInactive: true });
+            const paymentData = await fetchRazorpayPayment(pgConfig, payment.gatewayPaymentId);
+            const paymentStatus = classifyMaintenanceRazorpayProviderStatus(paymentData.status);
+            const gatewayRefId = getRazorpayGatewayRef(paymentData);
 
-            if (statusData.state === 'COMPLETED') {
-              const transactionId = statusData.paymentDetails?.[0]?.transactionId;
-              const polledGatewayRefId: string | undefined = (statusData.paymentDetails?.[0] as any)?.providerReferenceId ?? undefined;
-
+            if (paymentStatus === 'SUCCESS') {
               if (isBulkPayment(payment.notes)) {
-                const result = await markBulkPaymentsSuccess(merchantTransId, transactionId, statusData, polledGatewayRefId);
+                const bulkMerchantTransId = payment.merchantTransId || (payment.notes ? payment.notes.replace(/^BULK:/, '') : '');
+                const result = await markBulkPaymentsSuccess(bulkMerchantTransId, payment.gatewayPaymentId, paymentData, gatewayRefId);
 
                 for (const paymentId of result.processedPaymentIds) {
                   sendReceiptForPayment(paymentId).catch(() => {});
@@ -980,7 +1614,7 @@ router.get(
                 return res.json({ ...payment, status: 'SUCCESS', bulkProcessedCount: result.processedCount });
               }
 
-              const result = await markPaymentSuccess(payment.id, transactionId, statusData, polledGatewayRefId);
+              const result = await markPaymentSuccess(payment.id, payment.gatewayPaymentId, paymentData, gatewayRefId);
               if (!result.alreadyProcessed) {
                 sendReceiptForPayment(payment.id).catch(() => {});
                 notifyPaymentSuccess(payment.id).catch(() => {});
@@ -988,65 +1622,104 @@ router.get(
               return res.json({ ...payment, status: 'SUCCESS', alreadyProcessed: result.alreadyProcessed });
             }
 
-            if (statusData.state === 'FAILED') {
+            if (paymentStatus === 'FAILED') {
               if (isBulkPayment(payment.notes)) {
-                await markBulkPaymentsFailed(merchantTransId, statusData);
+                const bulkMerchantTransId = payment.merchantTransId || (payment.notes ? payment.notes.replace(/^BULK:/, '') : '');
+                await markBulkPaymentsFailed(bulkMerchantTransId, paymentData);
               } else {
-                await prisma.payment.updateMany({
-                  where: { id: payment.id, status: { notIn: ['SUCCESS', 'FAILED'] } },
-                  data: {
-                    status: 'FAILED',
-                    phonepeResponse: JSON.stringify(statusData),
-                  },
-                });
+                await markPaymentFailed(payment.id, paymentData);
               }
-
               return res.json({ ...payment, status: 'FAILED' });
             }
           } catch (e) {
-            logger.warn('SDK status check to PhonePe failed:', e);
+            logger.warn('Status check to Razorpay failed:', e);
           }
         } else {
-          const checksum = generateChecksum(
-            '',
-            `/pg/v1/status/${pgConfig.merchantId}/${merchantTransId}`,
-            pgConfig.saltKey,
-            pgConfig.saltIndex,
-          );
+          const pgConfig = await getPhonePeConfig(societyId ?? null);
 
-          try {
-            const statusResponse = await fetch(
-              `${pgConfig.baseUrl}/pg/v1/status/${pgConfig.merchantId}/${merchantTransId}`,
-              {
-                method: 'GET',
-                headers: { 'X-VERIFY': checksum, 'X-MERCHANT-ID': pgConfig.merchantId },
-              },
+          if (isPhonePeSdkFlow(payment.notes)) {
+            try {
+              const statusData = await fetchPhonePeSdkOrderStatus(pgConfig, payment.merchantTransId || paymentRef);
+
+              if (statusData.state === 'COMPLETED') {
+                const transactionId = statusData.paymentDetails?.[0]?.transactionId;
+                const polledGatewayRefId: string | undefined = (statusData.paymentDetails?.[0] as any)?.providerReferenceId ?? undefined;
+
+                if (isBulkPayment(payment.notes)) {
+                  const bulkMerchantTransId = payment.merchantTransId || paymentRef;
+                  const result = await markBulkPaymentsSuccess(bulkMerchantTransId, transactionId, statusData, polledGatewayRefId);
+
+                  for (const paymentId of result.processedPaymentIds) {
+                    sendReceiptForPayment(paymentId).catch(() => {});
+                    notifyPaymentSuccess(paymentId).catch(() => {});
+                  }
+                  return res.json({ ...payment, status: 'SUCCESS', bulkProcessedCount: result.processedCount });
+                }
+
+                const result = await markPaymentSuccess(payment.id, transactionId, statusData, polledGatewayRefId);
+                if (!result.alreadyProcessed) {
+                  sendReceiptForPayment(payment.id).catch(() => {});
+                  notifyPaymentSuccess(payment.id).catch(() => {});
+                }
+                return res.json({ ...payment, status: 'SUCCESS', alreadyProcessed: result.alreadyProcessed });
+              }
+
+              if (statusData.state === 'FAILED') {
+                if (isBulkPayment(payment.notes)) {
+                  const bulkMerchantTransId = payment.merchantTransId || paymentRef;
+                  await markBulkPaymentsFailed(bulkMerchantTransId, statusData);
+                } else {
+                  await markPaymentFailed(payment.id, statusData);
+                }
+
+                return res.json({ ...payment, status: 'FAILED' });
+              }
+            } catch (e) {
+              logger.warn('SDK status check to PhonePe failed:', e);
+            }
+          } else {
+            const merchantTransId = payment.merchantTransId || paymentRef;
+            const checksum = generateChecksum(
+              '',
+              `/pg/v1/status/${pgConfig.merchantId}/${merchantTransId}`,
+              pgConfig.saltKey,
+              pgConfig.saltIndex,
             );
 
-            const statusData: any = await statusResponse.json();
+            try {
+              const statusResponse = await fetch(
+                `${pgConfig.baseUrl}/pg/v1/status/${pgConfig.merchantId}/${merchantTransId}`,
+                {
+                  method: 'GET',
+                  headers: { 'X-VERIFY': checksum, 'X-MERCHANT-ID': pgConfig.merchantId },
+                },
+              );
 
-            if (statusData.code === 'PAYMENT_SUCCESS') {
-              const redirectGatewayRefId: string | undefined = statusData.data?.providerReferenceId ?? undefined;
+              const statusData: any = await statusResponse.json();
 
-              if (isBulkPayment(payment.notes)) {
-                const result = await markBulkPaymentsSuccess(merchantTransId, statusData.data?.transactionId, statusData, redirectGatewayRefId);
+              if (statusData.code === 'PAYMENT_SUCCESS') {
+                const redirectGatewayRefId: string | undefined = statusData.data?.providerReferenceId ?? undefined;
 
-                for (const paymentId of result.processedPaymentIds) {
-                  sendReceiptForPayment(paymentId).catch(() => {});
-                  notifyPaymentSuccess(paymentId).catch(() => {});
+                if (isBulkPayment(payment.notes)) {
+                  const result = await markBulkPaymentsSuccess(merchantTransId, statusData.data?.transactionId, statusData, redirectGatewayRefId);
+
+                  for (const paymentId of result.processedPaymentIds) {
+                    sendReceiptForPayment(paymentId).catch(() => {});
+                    notifyPaymentSuccess(paymentId).catch(() => {});
+                  }
+                  return res.json({ ...payment, status: 'SUCCESS', bulkProcessedCount: result.processedCount });
                 }
-                return res.json({ ...payment, status: 'SUCCESS', bulkProcessedCount: result.processedCount });
-              }
 
-              const result = await markPaymentSuccess(payment.id, statusData.data?.transactionId, statusData, redirectGatewayRefId);
-              if (!result.alreadyProcessed) {
-                sendReceiptForPayment(payment.id).catch(() => {});
-                notifyPaymentSuccess(payment.id).catch(() => {});
+                const result = await markPaymentSuccess(payment.id, statusData.data?.transactionId, statusData, redirectGatewayRefId);
+                if (!result.alreadyProcessed) {
+                  sendReceiptForPayment(payment.id).catch(() => {});
+                  notifyPaymentSuccess(payment.id).catch(() => {});
+                }
+                return res.json({ ...payment, status: 'SUCCESS', alreadyProcessed: result.alreadyProcessed });
               }
-              return res.json({ ...payment, status: 'SUCCESS', alreadyProcessed: result.alreadyProcessed });
+            } catch (e) {
+              logger.warn('Status check to PhonePe failed:', e);
             }
-          } catch (e) {
-            logger.warn('Status check to PhonePe failed:', e);
           }
         }
       }
@@ -1127,6 +1800,8 @@ router.get(
             transactionId: true,
             merchantTransId: true,
             gatewayRefId: true,
+            gatewayOrderId: true,
+            gatewayPaymentId: true,
             receiptNo: true,
             paidAt: true,
             createdAt: true,
@@ -1212,6 +1887,8 @@ router.get('/receipt/:id', authenticate, async (req: AuthRequest, res: Response)
       transactionId: payment.transactionId,
       merchantTransId: payment.merchantTransId,
       gatewayRefId: payment.gatewayRefId,
+      gatewayOrderId: payment.gatewayOrderId,
+      gatewayPaymentId: payment.gatewayPaymentId,
       receiptNo: payment.receiptNo,
       paidAt: payment.paidAt,
       createdAt: payment.createdAt,
@@ -1285,7 +1962,7 @@ router.get(
       }
 
       const where: Prisma.PaymentWhereInput = {
-        method: 'PHONEPE',
+        method: { in: ['PHONEPE', 'RAZORPAY'] },
         bill: { flat: { block: { societyId } } },
       };
 
@@ -1314,10 +1991,13 @@ router.get(
           id: true,
           billId: true,
           amount: true,
+          method: true,
           status: true,
           transactionId: true,
           merchantTransId: true,
           gatewayRefId: true,
+          gatewayOrderId: true,
+          gatewayPaymentId: true,
           paidAt: true,
           createdAt: true,
           bill: {
@@ -1343,7 +2023,7 @@ router.get(
 
       if (isCsvExport) {
         const MONTH_NAMES_REPORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        const csvHeader = 'Date,Society,Block,Flat,Month,Year,Amount (₹),Merchant Txn ID,PhonePe Txn ID,Gateway Ref ID,Status\n';
+        const csvHeader = 'Date,Society,Block,Flat,Month,Year,Amount (₹),Gateway,Merchant Txn ID,Gateway Order ID,Gateway Payment ID,Gateway Ref ID,Status\n';
         const csvRows = payments.map((p) => {
           const date = p.paidAt ? new Date(p.paidAt).toLocaleDateString('en-IN') : new Date(p.createdAt).toLocaleDateString('en-IN');
           const society = p.bill.flat.block.society.name.replace(/,/g, ' ');
@@ -1351,7 +2031,7 @@ router.get(
           const flat = p.bill.flat.flatNumber.replace(/,/g, ' ');
           const month = p.bill.month ? MONTH_NAMES_REPORT[p.bill.month - 1] : 'Custom';
           const year = p.bill.year ?? '';
-          return `${date},${society},${block},${flat},${month},${year},${p.amount.toFixed(2)},${p.merchantTransId ?? ''},${p.transactionId ?? ''},${p.gatewayRefId ?? ''},${p.status}`;
+          return `${date},${society},${block},${flat},${month},${year},${p.amount.toFixed(2)},${p.method},${p.merchantTransId ?? ''},${p.gatewayOrderId ?? ''},${p.gatewayPaymentId ?? p.transactionId ?? ''},${p.gatewayRefId ?? ''},${p.status}`;
         }).join('\n');
 
         const today = new Date().toISOString().slice(0, 10);

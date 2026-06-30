@@ -8,6 +8,7 @@ import { formatCurrency, formatDate, getStatusColor, getMonthName, cn } from '..
 import { PageLoader, EmptyState } from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
 import { initPhonePeSdk, startPhonePeCheckout } from '../../lib/phonePeNative';
+import { openRazorpayOrderCheckout } from '../../lib/razorpay';
 import { isNativeAndroid, isNativeIos } from '../../lib/platform';
 import { useAuthStore } from '../../store/authStore';
 import { isOwnerViewActive } from '../../lib/ownerView';
@@ -146,6 +147,7 @@ function getBillLineItems(bill: MaintenanceBill): MaintenanceBillLineItem[] {
 function getPaymentMethodLabel(method: PaymentMethod) {
   const labels: Record<PaymentMethod, string> = {
     PHONEPE: 'PhonePe',
+    RAZORPAY: 'Razorpay',
     CASH: 'Cash',
     CHEQUE: 'Cheque',
     BANK_TRANSFER: 'Bank Transfer',
@@ -181,12 +183,13 @@ export default function BillingPage() {
   const txnStatusCheckRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
   const { user, viewMode } = useAuthStore();
+  const societyContextId = user?.activeSocietyId || user?.societyId || 'no-society';
   const ownerViewActive = isOwnerViewActive(user, viewMode);
   const isFinancialAdmin = user?.role === 'SUPER_ADMIN' || (['ADMIN', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER'] as string[]).includes(user?.role || '');
   const residentBillingView = ownerViewActive || user?.role === 'OWNER' || user?.role === 'TENANT';
   const ownerFacingBillingView = residentBillingView;
   const shouldApplyMonthYear = ownerFacingBillingView ? false : isFinancialAdmin && (billKindFilter === 'ALL' || billKindFilter === 'MAINTENANCE');
-  const billsBaseKey = ['bills', user?.id || 'anonymous', user?.societyId || 'no-society'];
+  const billsBaseKey = ['bills', user?.id || 'anonymous', societyContextId];
   const billsQueryKey = [
     ...billsBaseKey,
     ownerViewActive ? 'owner-view' : isFinancialAdmin ? 'admin' : 'resident',
@@ -195,7 +198,7 @@ export default function BillingPage() {
     shouldApplyMonthYear ? month : 'all-months',
     shouldApplyMonthYear ? year : 'all-years',
   ];
-  const configBaseKey = ['billing-config', user?.id || 'anonymous', user?.societyId || 'no-society'];
+  const configBaseKey = ['billing-config', user?.id || 'anonymous', societyContextId];
   const ownerSummaryBaseKey = ['owner-billing-summary'];
 
   const billsEndpoint = (() => {
@@ -230,20 +233,27 @@ export default function BillingPage() {
   });
 
   const { data: societySettings } = useQuery<SocietyBillingSettings>({
-    queryKey: ['society-settings-billing', user?.societyId || 'no-society'],
+    queryKey: ['society-settings-billing', societyContextId],
     queryFn: async () => (await api.get('/settings/society-settings')).data,
     enabled: !!user,
     retry: false,
   });
 
+  const { data: activeGatewayData } = useQuery<{ gateway: 'PHONEPE' | 'RAZORPAY'; isActive: boolean }>({
+    queryKey: ['active-payment-gateway', societyContextId],
+    queryFn: async () => (await api.get('/payments/active-gateway')).data,
+    enabled: !!user,
+    retry: false,
+  });
+
   const { data: ownerSummary } = useQuery<OwnerBillingSummary>({
-    queryKey: ['owner-billing-summary', user?.id || 'anonymous', user?.societyId || 'no-society', month, year],
+    queryKey: ['owner-billing-summary', user?.id || 'anonymous', societyContextId, month, year],
     queryFn: async () => (await api.get(`/billing/owner-summary?month=${month}&year=${year}`)).data,
     enabled: !!user && ownerFacingBillingView,
   });
 
   const { data: flatOptions = [] } = useQuery<FlatOption[]>({
-    queryKey: ['flat-options', user?.societyId || 'no-society'],
+    queryKey: ['flat-options', societyContextId],
     queryFn: async () => (await api.get('/flats/options')).data,
     enabled: isFinancialAdmin && !ownerFacingBillingView,
   });
@@ -388,7 +398,7 @@ export default function BillingPage() {
     queryClient.invalidateQueries({ queryKey: ownerSummaryBaseKey });
   };
 
-  const confirmPhonePeStatus = async (paymentRef: string, updateUrl: boolean) => {
+  const confirmPaymentStatus = async (paymentRef: string, updateUrl: boolean) => {
     const maxAttempts = 10;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -434,6 +444,48 @@ export default function BillingPage() {
     }
 
     return 'PENDING';
+  };
+
+  const openRazorpayCheckout = async (payload: any) => {
+    try {
+      await openRazorpayOrderCheckout({
+        key: payload.keyId,
+        orderId: payload.gatewayOrderId,
+        amount: payload.amount,
+        currency: payload.currency || 'INR',
+        name: payload.name || 'Dwell Hub',
+        description: payload.description || 'Maintenance payment',
+        prefill: { name: user?.name, email: user?.email, contact: user?.phone },
+        notes: { paymentId: payload.paymentId || '', merchantTransId: payload.merchantTransId || '' },
+        onSuccess: async (response) => {
+          try {
+            const { data } = await api.post('/payments/razorpay/verify', {
+              gatewayOrderId: response.razorpay_order_id || payload.gatewayOrderId,
+              gatewayPaymentId: response.razorpay_payment_id,
+              signature: response.razorpay_signature,
+            });
+
+            if (data?.status === 'SUCCESS') {
+              toast.success('Payment successful. Bill status updated.');
+              handleResidentPaymentSuccess();
+              return;
+            }
+
+            if (data?.status === 'FAILED') {
+              toast.error('Payment failed. Please try again.');
+              return;
+            }
+
+            await confirmPaymentStatus(response.razorpay_order_id || payload.gatewayOrderId, false);
+          } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Failed to verify payment');
+          }
+        },
+        onDismiss: () => toast('Payment checkout was closed before completion.'),
+      });
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to open Razorpay checkout');
+    }
   };
 
   const handleNativePhonePeCheckout = async (payload: any) => {
@@ -505,22 +557,28 @@ export default function BillingPage() {
 
       // Fallback: poll status endpoint if sdk-confirm had a network/server error
       console.info('[PhonePe] falling back to status polling');
-      await confirmPhonePeStatus(payload.merchantTransId, false);
+      await confirmPaymentStatus(payload.merchantTransId, false);
     } catch (err: any) {
       console.error('[PhonePe] native checkout error', err);
       toast.error(err?.message || 'PhonePe payment failed. Please try again.');
     }
   };
 
-  const handlePhonePePay = async (billId: string) => {
+  const handleBillPayment = async (billId: string) => {
     try {
-      const { data } = await api.post('/payments/phonepe/initiate', {
-        billId,
-        nativeSdk: isNativeAndroid() || isNativeIos(),
-      });
+      const gateway = activeGatewayData?.gateway || 'PHONEPE';
+      const endpoint = gateway === 'RAZORPAY' ? '/payments/razorpay/initiate' : '/payments/phonepe/initiate';
+      const payload = gateway === 'PHONEPE'
+        ? { billId, nativeSdk: isNativeAndroid() || isNativeIos() }
+        : { billId };
+      const { data } = await api.post(endpoint, payload);
+
+      if (data?.gateway === 'RAZORPAY' || data?.gatewayOrderId) {
+        await openRazorpayCheckout(data);
+        return;
+      }
 
       if (data?.nativeSdk) {
-        // Native checkout handles its own errors and toasts internally
         await handleNativePhonePeCheckout(data);
         return;
       }
@@ -532,27 +590,32 @@ export default function BillingPage() {
 
       toast.error('Failed to get payment URL');
     } catch (error: any) {
-      // Only catches server-side initiation errors, not native plugin errors
       const msg = error.response?.data?.error;
-      console.error('[PhonePe] initiate error', { status: error.response?.status, msg, raw: error.message });
+      console.error('[Billing] initiate error', { status: error.response?.status, msg, raw: error.message });
       toast.error(msg || error.message || 'Payment initiation failed');
     }
   };
 
-  const handlePhonePeBulkPay = async (billIds: string[]) => {
+  const handleBulkPayment = async (billIds: string[]) => {
     try {
       if (billIds.length < 2) {
         toast.error('Select at least 2 bills for bulk payment');
         return;
       }
 
-      const { data } = await api.post('/payments/phonepe/initiate-bulk', {
-        billIds,
-        nativeSdk: isNativeAndroid() || isNativeIos(),
-      });
+      const gateway = activeGatewayData?.gateway || 'PHONEPE';
+      const endpoint = gateway === 'RAZORPAY' ? '/payments/razorpay/initiate-bulk' : '/payments/phonepe/initiate-bulk';
+      const payload = gateway === 'PHONEPE'
+        ? { billIds, nativeSdk: isNativeAndroid() || isNativeIos() }
+        : { billIds };
+      const { data } = await api.post(endpoint, payload);
+
+      if (data?.gateway === 'RAZORPAY' || data?.gatewayOrderId) {
+        await openRazorpayCheckout(data);
+        return;
+      }
 
       if (data?.nativeSdk) {
-        // Native checkout handles its own errors and toasts internally
         await handleNativePhonePeCheckout(data);
         return;
       }
@@ -564,14 +627,13 @@ export default function BillingPage() {
 
       toast.error('Failed to get bulk payment URL');
     } catch (error: any) {
-      // Only catches server-side initiation errors, not native plugin errors
       const msg = error.response?.data?.error;
-      console.error('[PhonePe] bulk initiate error', { status: error.response?.status, msg, raw: error.message });
+      console.error('[Billing] bulk initiate error', { status: error.response?.status, msg, raw: error.message });
       toast.error(msg || error.message || 'Bulk payment initiation failed');
     }
   };
 
-  const handlePhonePeAmountPay = async () => {
+  const handleAmountPayment = async () => {
     try {
       const amount = Number(paymentAmount);
       if (!residentFlatId) {
@@ -583,11 +645,17 @@ export default function BillingPage() {
         return;
       }
 
-      const { data } = await api.post('/payments/phonepe/initiate-amount', {
-        flatId: residentFlatId,
-        amount,
-        nativeSdk: isNativeAndroid() || isNativeIos(),
-      });
+      const gateway = activeGatewayData?.gateway || 'PHONEPE';
+      const endpoint = gateway === 'RAZORPAY' ? '/payments/razorpay/initiate-amount' : '/payments/phonepe/initiate-amount';
+      const payload = gateway === 'PHONEPE'
+        ? { flatId: residentFlatId, amount, nativeSdk: isNativeAndroid() || isNativeIos() }
+        : { flatId: residentFlatId, amount };
+      const { data } = await api.post(endpoint, payload);
+
+      if (data?.gateway === 'RAZORPAY' || data?.gatewayOrderId) {
+        await openRazorpayCheckout(data);
+        return;
+      }
 
       if (data?.nativeSdk) {
         await handleNativePhonePeCheckout(data);
@@ -602,7 +670,7 @@ export default function BillingPage() {
       toast.error('Failed to get payment URL');
     } catch (error: any) {
       const msg = error.response?.data?.error;
-      console.error('[PhonePe] amount initiate error', { status: error.response?.status, msg, raw: error.message });
+      console.error('[Billing] amount initiate error', { status: error.response?.status, msg, raw: error.message });
       toast.error(msg || error.message || 'Payment initiation failed');
     }
   };
@@ -615,7 +683,7 @@ export default function BillingPage() {
 
     const checkStatus = async () => {
       if (!isCancelled) {
-        await confirmPhonePeStatus(txnId, true);
+        await confirmPaymentStatus(txnId, true);
       }
     };
 
@@ -849,9 +917,9 @@ export default function BillingPage() {
               <button
                 type="button"
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
-                onClick={handlePhonePeAmountPay}
+                onClick={handleAmountPayment}
               >
-                <CreditCard className="h-4 w-4" /> Pay Amount
+                <CreditCard className="h-4 w-4" /> Pay
               </button>
             </div>
           ) : (
@@ -954,7 +1022,7 @@ export default function BillingPage() {
                                 ? 'bg-blue-600 text-white shadow-sm hover:bg-blue-700'
                                 : 'bg-slate-900 text-white hover:bg-slate-800'
                             )}
-                            onClick={() => handlePhonePePay(bill.id)}
+                            onClick={() => handleBillPayment(bill.id)}
                           >
                             <CreditCard className="h-3 w-3" /> Pay
                           </button>
@@ -1047,9 +1115,9 @@ export default function BillingPage() {
                                         ? 'bg-blue-600 px-3 py-2 text-sm text-white shadow-sm hover:bg-blue-700'
                                         : 'bg-slate-900 px-3 py-1.5 text-xs text-white hover:bg-slate-800'
                                     )}
-                                    onClick={() => handlePhonePePay(bill.id)}
+                                    onClick={() => handleBillPayment(bill.id)}
                                   >
-                                  <CreditCard className="h-3 w-3" /> {ownerFacingBillingView ? 'Pay' : 'PhonePe'}
+                                  <CreditCard className="h-3 w-3" /> Pay
                                 </button>
                               </>
                             ) : null}

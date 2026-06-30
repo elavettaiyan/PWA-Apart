@@ -105,7 +105,7 @@ export default function PaymentReportPage() {
           <div>
             <h1 className="page-title mb-0">Online Payment Report</h1>
             <p className="text-sm text-base-content/60 mt-0.5">
-              {ownerViewActive ? `Owner-view PhonePe payments — ${data?.total ?? 0} records` : `PhonePe payment reconciliation — ${data?.total ?? 0} records`}
+              {ownerViewActive ? `Owner-view online payments — ${data?.total ?? 0} records` : `Online payment reconciliation — ${data?.total ?? 0} records`}
             </p>
           </div>
         </div>
@@ -164,7 +164,7 @@ export default function PaymentReportPage() {
         <EmptyState
           icon={FileText}
           title="No online payments found"
-          description="No PhonePe payments match your filters."
+          description="No online gateway payments match your filters."
         />
       ) : (
         <>
@@ -177,8 +177,9 @@ export default function PaymentReportPage() {
                   <th>Flat / Block</th>
                   <th>Period</th>
                   <th className="text-right">Amount</th>
+                  <th>Gateway</th>
                   <th>Merchant Txn ID</th>
-                  <th>PhonePe Txn ID</th>
+                  <th>Gateway Payment ID</th>
                   <th>Gateway Ref ID</th>
                   <th>Status</th>
                 </tr>
@@ -197,11 +198,12 @@ export default function PaymentReportPage() {
                       {getBillPeriodLabel(p.bill)}
                     </td>
                     <td className="text-right font-medium">{formatCurrency(p.amount)}</td>
+                    <td>{p.method}</td>
                     <td>
                       <span className="font-mono text-xs text-base-content/70">{p.merchantTransId ?? '—'}</span>
                     </td>
                     <td>
-                      <span className="font-mono text-xs text-base-content/70">{p.transactionId ?? '—'}</span>
+                      <span className="font-mono text-xs text-base-content/70">{p.gatewayPaymentId ?? p.transactionId ?? '—'}</span>
                     </td>
                     <td>
                       <span className="font-mono text-xs font-semibold text-primary">{p.gatewayRefId ?? '—'}</span>
@@ -235,8 +237,9 @@ export default function PaymentReportPage() {
                 </div>
                 <div className="text-xs text-base-content/60 space-y-0.5">
                   <p>{p.paidAt ? formatDate(p.paidAt) : formatDate(p.createdAt ?? '')}</p>
+                  <p>Gateway: <span className="font-semibold">{p.method}</span></p>
                   {p.merchantTransId && <p>Merchant: <span className="font-mono">{p.merchantTransId}</span></p>}
-                  {p.transactionId && <p>PhonePe: <span className="font-mono">{p.transactionId}</span></p>}
+                  {(p.gatewayPaymentId || p.transactionId) && <p>Gateway Payment: <span className="font-mono">{p.gatewayPaymentId ?? p.transactionId}</span></p>}
                   {p.gatewayRefId && (
                     <p>Gateway Ref: <span className="font-mono font-semibold text-primary">{p.gatewayRefId}</span></p>
                   )}

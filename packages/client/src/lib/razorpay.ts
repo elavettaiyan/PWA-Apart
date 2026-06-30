@@ -1,12 +1,16 @@
 type RazorpayCheckoutResponse = {
   razorpay_payment_id: string;
-  razorpay_subscription_id: string;
+  razorpay_subscription_id?: string;
+  razorpay_order_id?: string;
   razorpay_signature: string;
 };
 
 type RazorpayCheckoutOptions = {
   key: string;
-  subscriptionId: string;
+  subscriptionId?: string;
+  orderId?: string;
+  amount?: number;
+  currency?: string;
   name: string;
   description: string;
   prefill?: {
@@ -61,6 +65,9 @@ export async function openRazorpaySubscriptionCheckout(options: RazorpayCheckout
   const instance = new window.Razorpay({
     key: options.key,
     subscription_id: options.subscriptionId,
+    order_id: options.orderId,
+    amount: options.amount,
+    currency: options.currency,
     name: options.name,
     description: options.description,
     prefill: options.prefill,
@@ -74,4 +81,8 @@ export async function openRazorpaySubscriptionCheckout(options: RazorpayCheckout
 
   instance.open();
   return instance;
+}
+
+export async function openRazorpayOrderCheckout(options: RazorpayCheckoutOptions) {
+  return openRazorpaySubscriptionCheckout(options);
 }

@@ -12,7 +12,7 @@ import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 import authRoutes from './modules/auth/routes';
 import flatRoutes from './modules/flats/routes';
 import billingRoutes from './modules/billing/routes';
-import paymentRoutes from './modules/payments/routes';
+import paymentRoutes, { maintenanceRazorpayWebhookHandler } from './modules/payments/routes';
 import complaintRoutes from './modules/complaints/routes';
 import expenseRoutes from './modules/expenses/routes';
 import associationRoutes from './modules/association/routes';
@@ -159,6 +159,7 @@ const registerLimiter = rateLimit({
 // Razorpay webhooks require the raw body for signature verification, so this
 // route must be registered before the global JSON parser.
 app.post('/api/premium/webhook', express.raw({ type: 'application/json', limit: '1mb' }), premiumWebhookHandler);
+app.post('/api/payments/razorpay/webhook', express.raw({ type: 'application/json', limit: '1mb' }), maintenanceRazorpayWebhookHandler);
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));

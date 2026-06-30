@@ -92,6 +92,7 @@ enum PaymentStatus {
 
 enum PaymentMethod {
   PHONEPE
+  RAZORPAY
   CASH
   CHEQUE
   BANK_TRANSFER
@@ -101,6 +102,7 @@ enum PaymentMethod {
 
 enum PaymentGateway {
   PHONEPE
+  RAZORPAY
 }
 
 enum PaymentGatewayEnv {
@@ -970,6 +972,9 @@ model Payment {
   transactionId     String?       @unique
   merchantTransId   String?       @unique
   gatewayRefId      String?       // PhonePe providerReferenceId (UTR / bank ref)
+  gatewayOrderId    String?       @unique
+  gatewayPaymentId  String?       @unique
+  gatewayResponse   String?
   phonepeResponse   String?
   receiptNo         String?
   paidAt            DateTime?
@@ -983,6 +988,8 @@ model Payment {
   @@index([status, paidAt])
   @@index([notes])
   @@index([gatewayRefId])
+  @@index([gatewayOrderId])
+  @@index([gatewayPaymentId])
   @@map("payments")
 }
 
@@ -1313,6 +1320,9 @@ model PaymentGatewayConfig {
   clientId      String?
   clientSecret  String?
   clientVersion Int               @default(1)
+  keyId         String?
+  keySecret     String?
+  webhookSecret String?
   saltKey       String
   saltIndex     Int               @default(1)
   environment   PaymentGatewayEnv @default(UAT)
