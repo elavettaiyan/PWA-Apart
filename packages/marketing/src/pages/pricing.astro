@@ -1,0 +1,17 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/Header.astro';
+import Comparison from '../components/Comparison.astro';
+import Footer from '../components/Footer.astro';
+
+const title = 'Pricing & Comparison | Dwell Hub';
+const description = 'Compare Dwell Hub pricing with other apartment management apps. Transparent ₹20/flat/month with all features included.';
+---
+
+<Layout title={title} description={description}>
+  <Header />
+  <main>
+    <Comparison />
+  </main>
+  <Footer />
+</Layout>

@@ -1,53 +1,47 @@
 ---
 const roles = [
   {
-    icon: 'admin_panel_settings',
-    title: 'Secretary / Admin',
-    description: 'Full society overview — manage flats, handle complaints, update bylaws, oversee staff, and monitor gate activity. Your dashboard shows occupancy, pending issues, and recent entry records across the entire complex.',
-    highlights: ['Flat & resident management', 'Complaint resolution', 'Bylaw editing', 'Entry activity oversight'],
+    icon: 'apartment',
+    title: 'Replace paper & WhatsApp',
+    bullets: ['Move from notebooks to digital records', 'Stop chasing dues on WhatsApp', 'One source of truth for the committee', 'Residents self-serve their own data'],
   },
   {
-    icon: 'account_balance',
-    title: 'Treasurer',
-    description: 'Complete financial command — generate monthly bills, track collections, monitor expenses, and export P&L statements for your AGM. Defaulter reports are ready when you need them.',
-    highlights: ['Bill generation', 'Collection tracking', 'Expense ledger', 'Defaulter reports'],
+    icon: 'groups',
+    title: '20 to 100+ flats',
+    bullets: ['Designed for small & medium societies', 'Scales to larger communities too', 'Committee and resident-ready', 'Multi-society support built in'],
   },
   {
-    icon: 'group',
-    title: 'Owners & Tenants',
-    description: 'Self-service access to flat details, bill history, and online payments. Lodge complaints, check bylaws, and manage tenant information — without calling the office.',
-    highlights: ['Bill payments', 'Complaint filing', 'Flat details', 'Tenant management'],
-  },
-  {
-    icon: 'shield_person',
-    title: 'Security / Service Staff',
-    description: 'Security and service staff can capture visitor and delivery entries with flat-level mapping, mobile details, purpose tracking, and exit updates. The workflow is built for quick action at the gate without losing audit visibility.',
-    highlights: ['Visitor entry capture', 'Delivery logging', 'Flat mapping', 'Exit status updates'],
+    icon: 'rocket_launch',
+    title: 'Start in minutes',
+    bullets: ['Import flats from Excel', 'No training needed for residents', 'Add features as you grow', '₹20/flat/month — no surprises'],
   },
 ];
 ---
 
-<section class="bg-surface-container-low py-24 px-8">
+<section id="benefits" class="py-16 px-6">
   <div class="max-w-7xl mx-auto">
-    <div class="mb-20 text-center lg:text-left max-w-2xl">
-      <p class="text-xs font-bold tracking-widest uppercase text-primary mb-4 font-label">Role-Based Access</p>
-      <h2 class="text-4xl font-extrabold text-primary tracking-tight mb-4 font-headline">Built for your committee.</h2>
-      <p class="text-on-surface-variant font-body">Every committee member gets exactly the tools they need. No more, no less.</p>
+    <div class="mb-12 text-center max-w-2xl mx-auto">
+      <p class="text-xs font-bold tracking-widest uppercase text-accent mb-3 font-label">Why Dwell Hub</p>
+      <h2 class="text-4xl font-extrabold text-primary tracking-tight mb-3 font-headline">Digitize your society in 3 steps.</h2>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
       {roles.map((role) => (
-        <div class="bg-surface-container-lowest p-10 rounded-xl transition-all duration-300 hover:translate-y-[-4px]">
-          <div class="w-12 h-12 bg-primary/5 rounded-xl flex items-center justify-center mb-6">
-            <span class="material-symbols-outlined text-primary text-3xl">{role.icon}</span>
+        <div class="bg-white p-6 rounded-2xl border border-slate-100 transition-all duration-300 hover:translate-y-[-2px] hover:shadow-lg hover:border-accent/20 group">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-accent/8 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-accent/12 transition-colors">
+              <span class="material-symbols-outlined text-accent text-2xl">{role.icon}</span>
+            </div>
+            <h3 class="text-base font-bold text-primary font-headline">{role.title}</h3>
           </div>
-          <h3 class="text-xl font-bold text-primary mb-3 font-headline">{role.title}</h3>
-          <p class="text-on-surface-variant text-sm leading-relaxed font-body mb-6">{role.description}</p>
-          <div class="flex flex-wrap gap-2">
-            {role.highlights.map((tag) => (
-              <span class="text-xs font-medium text-on-tertiary-container bg-tertiary-container/10 px-3 py-1 rounded-full font-label">{tag}</span>
+          <ul class="space-y-2">
+            {role.bullets.map((bullet) => (
+              <li class="flex items-start gap-2 text-sm text-on-surface-variant font-body">
+                <span class="material-symbols-outlined text-[14px] text-emerald-500 mt-0.5 flex-shrink-0">check</span>
+                <span>{bullet}</span>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       ))}
     </div>

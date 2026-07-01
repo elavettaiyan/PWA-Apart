@@ -1,83 +1,83 @@
 ---
 const faqs = [
   {
-    question: 'How much does a 50-flat society cost each month?',
-    answer: 'A 50-flat community costs ₹1,000/month on Dwell Hub. That includes the core society management workflows committees usually need, such as maintenance billing, complaints, visitor management, reports, and resident self-service.',
+    question: 'How much does it cost?',
+    answer: '₹20 per flat per month. A 50-flat society pays ₹1,000/month. All core features included — no extra module charges.',
   },
   {
-    question: 'Do you offer a free trial?',
-    answer: 'Yes. Every new society starts with a 30-day free trial — no payment details required. During the trial you can add up to 50 flats and use all features. After the trial, subscribe at ₹20/flat/month to continue, or stay on the free tier with up to 5 flats at no cost.',
+    question: 'Is there a free trial?',
+    answer: 'Yes — 30 days, no payment required. Full access to all features with up to 50 flats.',
   },
   {
-    question: 'How secure is our society data?',
-    answer: 'We utilize bank-grade 256-bit encryption and ISO-certified data centers. Your community data is siloed and protected by rigorous access control protocols.',
+    question: 'How secure is our data?',
+    answer: '256-bit encryption, ISO-certified data centers, siloed per society, and strict access controls.',
   },
   {
-    question: 'Can we import our existing flat data?',
-    answer: 'Yes. Upload your flat inventory via Excel with flat numbers, types, and floor details. The system maps blocks, floors, and units automatically — most societies are fully set up within an hour.',
+    question: 'Can we import existing flat data?',
+    answer: 'Yes. Upload your Excel file and get started in minutes.',
   },
   {
-    question: 'Can residents pay via credit cards?',
-    answer: 'Yes, we support all major credit/debit cards, UPI, and net banking via PhonePe. Payments reconcile instantly and residents can track their payment history from their dashboard.',
+    question: 'What payment methods do residents get?',
+    answer: 'UPI, credit/debit cards, and net banking via PhonePe. Payments reconcile instantly.',
   },
   {
-    question: 'Does Dwell Hub work on mobile devices?',
-    answer: 'Absolutely. Dwell Hub has dedicated Android and iOS apps available on the Google Play Store and Apple App Store, so residents, admins, and staff can access the platform directly from their mobile devices.',
+    question: 'Which devices are supported?',
+    answer: 'Android app, iOS app, and web browser. Works on mobile and desktop.',
   },
   {
-    question: 'What reports can we generate for our AGM?',
-    answer: 'Dwell Hub generates P&L statements, collection reports with payment-status breakdowns, defaulter lists with outstanding amounts per flat, and category-wise expense summaries. All reports are filterable by date range.',
+    question: 'What reports can we generate?',
+    answer: 'P&L statements, collection reports, defaulter lists, and expense summaries. All filterable by date range and ready for AGM.',
   },
   {
     question: 'How are committee roles handled?',
-    answer: 'The platform supports distinct roles for Secretary, Joint Secretary, Treasurer, and Admin — each with appropriate permissions. Committee members access only the tools relevant to their responsibilities.',
+    answer: '9 distinct roles including Secretary, Treasurer, Admin, and Committee Members — each with appropriate permissions.',
   },
   {
-    question: 'Can we track visitors and deliveries at the gate?',
-    answer: 'Yes. Dwell Hub includes visitor management and gate management for recording visitor and delivery entries with flat mapping, key contact details, purpose tracking, exit updates, and role-based visibility. Security or service staff can log entries quickly, while admins can review entry activity across the society.',
+    question: 'Is there a lock-in contract?',
+    answer: 'No. Cancel anytime. No annual contracts or exit fees.',
   },
   {
-    question: 'How do I get started with my society?',
-    answer: 'Click "Get Started" and fill in your society details. After setup, you can add blocks, flats, and residents from the dashboard. The platform is designed for fast self-serve onboarding with support available by email when needed.',
+    question: 'How do I get started?',
+    answer: 'Click "Get Started", add your society details, import flats, and you\'re live. Takes under 10 minutes.',
   },
 ];
 ---
 
-<section id="faq" class="py-24 px-8 max-w-7xl mx-auto">
-  <div class="grid grid-cols-1 lg:grid-cols-12 gap-16">
+<section id="faq" class="py-16 px-6 max-w-7xl mx-auto">
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-12">
     <div class="lg:col-span-4">
-      <h2 class="text-4xl font-extrabold text-primary tracking-tight mb-6 font-headline">Curated Answers</h2>
-      <p class="text-on-surface-variant font-body mb-8">Quick resolutions for common resident inquiries regarding our platform and services.</p>
+      <p class="text-xs font-bold tracking-widest uppercase text-accent mb-3 font-label">FAQ</p>
+      <h2 class="text-4xl font-extrabold text-primary tracking-tight mb-6 font-headline">Frequently Asked</h2>
 
-      <div class="space-y-4">
-        <div class="bg-surface-container-low rounded-xl p-5">
-          <p class="text-xs font-bold tracking-widest uppercase text-primary mb-3 font-label">Support Desk</p>
-          <a href="mailto:support@dwellhub.in" class="text-primary font-headline font-bold text-base break-all hover:opacity-75 transition-opacity">
+      <div class="space-y-3">
+        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100">
+          <p class="text-[10px] font-bold tracking-widest uppercase text-accent mb-2 font-label">Support Desk</p>
+          <a href="mailto:support@dwellhub.in" class="text-primary font-headline font-bold text-sm break-all hover:text-accent transition-colors">
             support@dwellhub.in
           </a>
-          <p class="text-sm text-on-surface-variant font-body mt-2">
-            Product help, onboarding questions, billing clarifications, and resident support.
+          <p class="text-xs text-on-surface-variant font-body mt-1.5">
+            Product help &amp; billing questions
           </p>
         </div>
 
-        <div class="bg-surface-container-low rounded-xl p-5">
-          <p class="text-xs font-bold tracking-widest uppercase text-primary mb-3 font-label">Marketing Desk</p>
-          <a href="mailto:marketing@dwellhub.in" class="text-primary font-headline font-bold text-base break-all hover:opacity-75 transition-opacity">
+        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100">
+          <p class="text-[10px] font-bold tracking-widest uppercase text-accent mb-2 font-label">Marketing Desk</p>
+          <a href="mailto:marketing@dwellhub.in" class="text-primary font-headline font-bold text-sm break-all hover:text-accent transition-colors">
             marketing@dwellhub.in
           </a>
-          <p class="text-sm text-on-surface-variant font-body mt-2">
-            Partnerships, demos, campaigns, and society outreach requests.
+          <p class="text-xs text-on-surface-variant font-body mt-1.5">
+            Partnerships &amp; demo requests
           </p>
         </div>
       </div>
     </div>
 
-    <div class="lg:col-span-8 space-y-4">
+    <div class="lg:col-span-8 space-y-3">
       {faqs.map((faq) => (
-        <details class="group bg-surface-container-low rounded-xl p-6 open:bg-surface-container-high transition-colors">
-          <summary class="flex justify-between items-center font-bold text-primary cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+        <details class="group bg-white rounded-2xl p-5 border border-slate-100 open:border-accent/20 open:shadow-sm transition-all">
+          <summary class="flex justify-between items-center font-bold text-primary cursor-pointer list-none [&::-webkit-details-marker]:hidden text-sm">
             <span>{faq.question}</span>
-            <span class="material-symbols-outlined group-open:rotate-180 transition-transform">expand_more</span>
+            <span class="material-symbols-outlined text-accent group-open:rotate-180 transition-transform">expand_more</span>
           </summary>
           <div class="mt-4 text-on-surface-variant leading-relaxed text-sm font-body">
             {faq.answer}

@@ -1,36 +1,41 @@
 ---
 const features = [
-  { icon: 'receipt_long', title: 'Maintenance Billing & Invoicing', description: 'Maintenance billing software for apartments and societies — configure per-flat-type charges (base amount, water, parking, sinking fund) and generate bills for the entire society in one click. Late fees calculated automatically.' },
-  { icon: 'payments', title: 'Online Payments', description: 'Collect maintenance dues online via PhonePe — UPI, cards, and net banking. Payments reconcile instantly with automated status updates per flat.' },
-  { icon: 'assignment_late', title: 'Complaint Tracking', description: 'Residents raise tickets with priority levels, categories, and image attachments. Track every complaint from open to resolved with a clear status workflow.' },
-  { icon: 'shield', title: 'Visitor & Gate Management', description: 'Visitor management software for apartments — record visitor and delivery entries at the security desk with flat mapping, purpose tracking, mobile details, and photo capture support. Active visitors can be marked out when they leave.' },
-  { icon: 'account_balance_wallet', title: 'Expense Management', description: 'Log society expenses across 14 categories — maintenance, salaries, electricity, security, and more. Attach receipts and track vendor payouts.' },
-  { icon: 'gavel', title: 'Bylaws & Documents', description: 'Publish society rules organized by category with effective dates and penalty amounts. Residents access the latest bylaws anytime from their dashboard.' },
-  { icon: 'bar_chart', title: 'Financial Reports', description: 'Generate P&L statements, collection reports with payment breakdowns, and category-wise expense summaries. Filter by date range for AGM-ready data.' },
-  { icon: 'warning', title: 'Defaulter Tracking', description: 'See outstanding balances per flat, pending months, and owner contact details at a glance — everything your treasurer needs before the next AGM.' },
-  { icon: 'home', title: 'Resident Self-Service', description: 'Owners and tenants view their flat details, bill history, and payment status independently. Manage tenant information without calling the secretary.' },
-  { icon: 'apartment', title: 'Flat & Block Management', description: 'Set up your society in minutes. Import flats via Excel, organize by blocks and floors, and track occupancy status across all units.' },
-  { icon: 'engineering', title: 'Staff Directory', description: 'Maintain a directory of service professionals — electricians, plumbers, security, cleaners — with specialization and contact details for quick access.' },
-  { icon: 'construction', title: 'Asset Management', description: 'Track society assets — lifts, water tanks, generators, fire safety equipment — with scheduled service jobs, maintenance history, and status tracking across monthly, quarterly, or yearly cycles.' },
-  { icon: 'groups', title: 'Community Hub', description: 'Share announcements and events with residents in a unified community feed. Keep everyone informed about meetings, festivals, maintenance schedules, and important notices.' },
+  { icon: 'receipt_long', title: 'Billing & Payments', bullets: ['Auto-generate monthly bills', 'Track paid & pending dues', 'UPI, cards & net banking via PhonePe', 'Auto late-fee calculation'] },
+  { icon: 'group', title: 'Residents & Flats', bullets: ['Flat, owner & tenant records', 'Excel import for quick setup', 'Occupancy & block management', 'Tenant agreement tracking'] },
+  { icon: 'shield', title: 'Visitors & Gate', bullets: ['Visitor entry with flat mapping', 'Delivery logging & photo capture', 'Exit tracking & purpose logging', 'Security staff app access'] },
+  { icon: 'assignment_late', title: 'Complaints & Requests', bullets: ['Raise issues with images', 'Priority & category tags', 'Status workflow to resolution', 'Timeline & comment tracking'] },
+  { icon: 'campaign', title: 'Community Hub', bullets: ['Announcements & notices', 'Events & meeting updates', 'Surveys & resident polls', 'Approval workflows'] },
+  { icon: 'bar_chart', title: 'Reports & Accounts', bullets: ['P&L statements for AGM', 'Collection & defaulter reports', 'Expense tracking by category', 'Date-range filtering & export'] },
+  { icon: 'engineering', title: 'Staff & Assets', bullets: ['Service staff directory', 'Asset inventory per block', 'Staff specialization tracking', 'Multi-society staff sharing'] },
+  { icon: 'gavel', title: 'Bylaws & Documents', bullets: ['Society bylaws repository', 'Tenant agreements & uploads', 'Committee meeting minutes', 'Role-based document access'] },
 ];
 ---
 
-<section id="features" class="bg-surface-container-low py-24 px-8">
+<section id="features" class="bg-slate-50/50 py-16 px-6">
   <div class="max-w-7xl mx-auto">
-    <div class="mb-20 text-center lg:text-left max-w-2xl">
-      <h2 class="text-4xl font-extrabold text-primary tracking-tight mb-4 font-headline uppercase">Complete Society Management Toolkit</h2>
-      <p class="text-on-surface-variant font-body">A curated suite of apartment and society management tools — maintenance billing, online payments, visitor &amp; gate management, complaints, expenses, and AGM-ready reports — designed to streamline community operations without visual clutter.</p>
+    <div class="mb-12 text-center max-w-2xl mx-auto">
+      <p class="text-xs font-bold tracking-widest uppercase text-accent mb-3 font-label">Core Features</p>
+      <h2 class="text-4xl font-extrabold text-primary tracking-tight mb-3 font-headline">Everything your apartment needs.</h2>
+      <p class="text-on-surface-variant font-body text-sm">All core modules included from day one. No add-on fees.</p>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 [&>*:last-child:nth-child(3n+1)]:md:col-start-2 [&>*:last-child:nth-child(3n+1)]:lg:col-start-2">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {features.map((feature) => (
-        <div class="bg-surface-container-lowest p-10 rounded-xl transition-all duration-300 hover:translate-y-[-4px]">
-          <div class="w-12 h-12 bg-primary/5 rounded-xl flex items-center justify-center mb-6">
-            <span class="material-symbols-outlined text-primary text-3xl">{feature.icon}</span>
+        <div class="bg-white p-5 rounded-2xl border border-slate-100 transition-all duration-300 hover:translate-y-[-2px] hover:shadow-lg hover:border-accent/20 group">
+          <div class="flex items-center gap-2.5 mb-3.5">
+            <div class="w-9 h-9 bg-accent/8 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-accent/12 transition-colors">
+              <span class="material-symbols-outlined text-accent text-xl">{feature.icon}</span>
+            </div>
+            <h3 class="text-sm font-bold text-primary font-headline">{feature.title}</h3>
           </div>
-          <h3 class="text-xl font-bold text-primary mb-3 font-headline">{feature.title}</h3>
-          <p class="text-on-surface-variant text-sm leading-relaxed font-body">{feature.description}</p>
+          <ul class="space-y-1.5">
+            {feature.bullets.map((bullet) => (
+              <li class="flex items-start gap-2 text-[13px] text-on-surface-variant font-body leading-snug">
+                <span class="w-1 h-1 rounded-full bg-accent/50 mt-[7px] flex-shrink-0"></span>
+                <span>{bullet}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       ))}
     </div>
