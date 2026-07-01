@@ -319,6 +319,8 @@ export default function SettingsPage() {
     name: '', communityType: 'APARTMENT', address: '', city: '', state: '', pincode: '', totalUnits: '',
   });
   const [cpDirty, setCpDirty] = useState(false);
+  const [cpPincodeLookupState, setCpPincodeLookupState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [cpPincodeLookupMessage, setCpPincodeLookupMessage] = useState('');
   const [communitySettingsSaving, setCommunitySettingsSaving] = useState(false);
   const [configuredFlatTypes, setConfiguredFlatTypes] = useState<FlatType[]>([]);
   const [flatTypesDirty, setFlatTypesDirty] = useState(false);
@@ -335,8 +337,67 @@ export default function SettingsPage() {
         pincode: communityProfile.pincode || '',
         totalUnits: communityProfile.totalUnits != null ? String(communityProfile.totalUnits) : '',
       });
+      setCpPincodeLookupState('idle');
+      setCpPincodeLookupMessage('');
     }
   }, [communityProfile]);
+
+  useEffect(() => {
+    const trimmedPincode = cpForm.pincode.trim();
+
+    if (!isCommunityInfoEditing || trimmedPincode.length === 0) {
+      setCpPincodeLookupState('idle');
+      setCpPincodeLookupMessage('');
+      return;
+    }
+
+    if (!/^\d{6}$/.test(trimmedPincode)) {
+      setCpPincodeLookupState('idle');
+      setCpPincodeLookupMessage('');
+      return;
+    }
+
+    let cancelled = false;
+
+    async function lookupPincode() {
+      setCpPincodeLookupState('loading');
+      setCpPincodeLookupMessage('Looking up city and state...');
+
+      try {
+        const response = await fetch(`https://api.postalpincode.in/pincode/${trimmedPincode}`);
+        const payload = await response.json();
+        const firstResult = Array.isArray(payload) ? payload[0] : null;
+        const firstOffice = firstResult?.PostOffice?.[0];
+
+        if (cancelled) return;
+
+        if (!firstOffice?.District || !firstOffice?.State) {
+          setCpPincodeLookupState('error');
+          setCpPincodeLookupMessage('Could not find city and state for this pincode.');
+          return;
+        }
+
+        setCpForm((prev) => ({
+          ...prev,
+          city: firstOffice.District,
+          state: firstOffice.State,
+        }));
+        setCpDirty(true);
+        setCpPincodeLookupState('success');
+        setCpPincodeLookupMessage(`Auto-filled ${firstOffice.District}, ${firstOffice.State}.`);
+      } catch {
+        if (cancelled) return;
+        setCpPincodeLookupState('error');
+        setCpPincodeLookupMessage('Unable to look up this pincode right now.');
+      }
+    }
+
+    lookupPincode();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cpForm.pincode, isCommunityInfoEditing]);
 
   useEffect(() => {
     if (societySettings) {
@@ -356,8 +417,14 @@ export default function SettingsPage() {
   });
 
   const handleCpChange = (field: string, value: string) => {
-    setCpForm((prev) => ({ ...prev, [field]: value }));
+    const nextValue = field === 'pincode' ? value.replace(/\D/g, '').slice(0, 6) : value;
+    setCpForm((prev) => ({ ...prev, [field]: nextValue }));
     setCpDirty(true);
+
+    if (field === 'pincode' && nextValue.length < 6) {
+      setCpPincodeLookupState('idle');
+      setCpPincodeLookupMessage('');
+    }
   };
 
   const buildCommunityProfilePayload = () => {
@@ -408,6 +475,8 @@ export default function SettingsPage() {
       totalUnits: communityProfile?.totalUnits != null ? String(communityProfile.totalUnits) : '',
     });
     setCpDirty(false);
+    setCpPincodeLookupState('idle');
+    setCpPincodeLookupMessage('');
   };
 
   const handleCommunityInfoSave = () => {
@@ -797,6 +866,11 @@ export default function SettingsPage() {
                       onChange={(e) => handleCpChange('pincode', e.target.value)}
                       maxLength={6}
                     />
+                    {cpPincodeLookupMessage ? (
+                      <p className={`mt-2 text-[11px] font-medium ${cpPincodeLookupState === 'error' ? 'text-red-500' : cpPincodeLookupState === 'success' ? 'text-emerald-600' : 'text-slate-500'}`}>
+                        {cpPincodeLookupMessage}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
 

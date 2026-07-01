@@ -7,6 +7,7 @@ import api from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 
 type Step = 'form' | 'otp';
+type PincodeLookupState = 'idle' | 'loading' | 'success' | 'error';
 
 export default function RegisterPage() {
   const legalBaseUrl = 'https://dwellhub.in';
@@ -26,6 +27,8 @@ export default function RegisterPage() {
   const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [pincodeLookupState, setPincodeLookupState] = useState<PincodeLookupState>('idle');
+  const [pincodeLookupMessage, setPincodeLookupMessage] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [resendCooldown, setResendCooldown] = useState(0);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -41,8 +44,72 @@ export default function RegisterPage() {
     return () => clearTimeout(timer);
   }, [resendCooldown]);
 
+  useEffect(() => {
+    const trimmedPincode = form.pincode.trim();
+
+    if (trimmedPincode.length === 0) {
+      setPincodeLookupState('idle');
+      setPincodeLookupMessage('');
+      return;
+    }
+
+    if (!/^\d{6}$/.test(trimmedPincode)) {
+      setPincodeLookupState('idle');
+      setPincodeLookupMessage('');
+      return;
+    }
+
+    let cancelled = false;
+
+    async function lookupPincode() {
+      setPincodeLookupState('loading');
+      setPincodeLookupMessage('Looking up city and state...');
+
+      try {
+        const response = await fetch(`https://api.postalpincode.in/pincode/${trimmedPincode}`);
+        const payload = await response.json();
+        const firstResult = Array.isArray(payload) ? payload[0] : null;
+        const firstOffice = firstResult?.PostOffice?.[0];
+
+        if (cancelled) return;
+
+        if (!firstOffice?.District || !firstOffice?.State) {
+          setPincodeLookupState('error');
+          setPincodeLookupMessage('Could not find city and state for this pincode.');
+          return;
+        }
+
+        setForm((prev) => ({
+          ...prev,
+          city: firstOffice.District,
+          state: firstOffice.State,
+        }));
+        setPincodeLookupState('success');
+        setPincodeLookupMessage(`Auto-filled ${firstOffice.District}, ${firstOffice.State}.`);
+      } catch {
+        if (cancelled) return;
+        setPincodeLookupState('error');
+        setPincodeLookupMessage('Unable to look up this pincode right now.');
+      }
+    }
+
+    lookupPincode();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.pincode]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    const nextValue = name === 'pincode' ? value.replace(/\D/g, '').slice(0, 6) : value;
+
+    setForm((prev) => ({ ...prev, [name]: nextValue }));
+
+    if (name === 'pincode' && nextValue.length < 6) {
+      setPincodeLookupState('idle');
+      setPincodeLookupMessage('');
+    }
   };
 
   const handleSendOtp = async (e: React.FormEvent) => {
@@ -190,9 +257,7 @@ export default function RegisterPage() {
 
             {step === 'form' ? (
           <form onSubmit={handleSendOtp} className="space-y-4">
-            {/* Society Details */}
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 space-y-3 sm:p-5">
-              <p className="text-sm font-semibold text-primary">Community Details</p>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 space-y-4 sm:p-5">
               <div>
                 <label className="label">Community Name *</label>
                 <input
@@ -204,20 +269,6 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   required
                 />
-              </div>
-              <div>
-                <label className="label">Community Type</label>
-                <select
-                  name="communityType"
-                  className="input"
-                  value={form.communityType}
-                  onChange={(e) => setForm((prev) => ({ ...prev, communityType: e.target.value }))}
-                >
-                  <option value="APARTMENT">Apartment / Society</option>
-                  <option value="VILLA">Villa Community</option>
-                  <option value="GATED_COMMUNITY">Gated Community</option>
-                  <option value="TOWNSHIP">Township</option>
-                </select>
               </div>
               <div>
                 <label className="label">Address *</label>
@@ -268,13 +319,16 @@ export default function RegisterPage() {
                     onChange={handleChange}
                     required
                   />
+                  {pincodeLookupMessage ? (
+                    <p className={`mt-2 text-[11px] font-medium ${pincodeLookupState === 'error' ? 'text-red-500' : pincodeLookupState === 'success' ? 'text-emerald-600' : 'text-slate-500'}`}>
+                      {pincodeLookupMessage}
+                    </p>
+                  ) : null}
                 </div>
               </div>
-            </div>
 
-            {/* Admin Account */}
-            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 space-y-3 sm:p-5">
-              <p className="text-sm font-semibold text-primary">Admin Account</p>
+              <div className="h-px bg-slate-200/80" />
+
               <div>
                 <label className="label">Your Name *</label>
                 <input
