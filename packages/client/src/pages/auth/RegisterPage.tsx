@@ -7,7 +7,45 @@ import api from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 
 type Step = 'form' | 'otp';
-type PincodeLookupState = 'idle' | 'loading' | 'success' | 'error';
+
+const INDIAN_STATES = [
+  'Andhra Pradesh',
+  'Arunachal Pradesh',
+  'Assam',
+  'Bihar',
+  'Chhattisgarh',
+  'Goa',
+  'Gujarat',
+  'Haryana',
+  'Himachal Pradesh',
+  'Jharkhand',
+  'Karnataka',
+  'Kerala',
+  'Madhya Pradesh',
+  'Maharashtra',
+  'Manipur',
+  'Meghalaya',
+  'Mizoram',
+  'Nagaland',
+  'Odisha',
+  'Punjab',
+  'Rajasthan',
+  'Sikkim',
+  'Tamil Nadu',
+  'Telangana',
+  'Tripura',
+  'Uttar Pradesh',
+  'Uttarakhand',
+  'West Bengal',
+  'Andaman and Nicobar Islands',
+  'Chandigarh',
+  'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi',
+  'Jammu and Kashmir',
+  'Ladakh',
+  'Lakshadweep',
+  'Puducherry',
+];
 
 export default function RegisterPage() {
   const legalBaseUrl = 'https://dwellhub.in';
@@ -27,8 +65,6 @@ export default function RegisterPage() {
   const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [pincodeLookupState, setPincodeLookupState] = useState<PincodeLookupState>('idle');
-  const [pincodeLookupMessage, setPincodeLookupMessage] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [resendCooldown, setResendCooldown] = useState(0);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -47,24 +83,11 @@ export default function RegisterPage() {
   useEffect(() => {
     const trimmedPincode = form.pincode.trim();
 
-    if (trimmedPincode.length === 0) {
-      setPincodeLookupState('idle');
-      setPincodeLookupMessage('');
-      return;
-    }
-
-    if (!/^\d{6}$/.test(trimmedPincode)) {
-      setPincodeLookupState('idle');
-      setPincodeLookupMessage('');
-      return;
-    }
+    if (trimmedPincode.length === 0 || !/^\d{6}$/.test(trimmedPincode)) return;
 
     let cancelled = false;
 
     async function lookupPincode() {
-      setPincodeLookupState('loading');
-      setPincodeLookupMessage('Looking up city and state...');
-
       try {
         const response = await fetch(`https://api.postalpincode.in/pincode/${trimmedPincode}`);
         const payload = await response.json();
@@ -73,23 +96,15 @@ export default function RegisterPage() {
 
         if (cancelled) return;
 
-        if (!firstOffice?.District || !firstOffice?.State) {
-          setPincodeLookupState('error');
-          setPincodeLookupMessage('Could not find city and state for this pincode.');
-          return;
-        }
+        if (!firstOffice?.District || !firstOffice?.State) return;
 
         setForm((prev) => ({
           ...prev,
           city: firstOffice.District,
           state: firstOffice.State,
         }));
-        setPincodeLookupState('success');
-        setPincodeLookupMessage(`Auto-filled ${firstOffice.District}, ${firstOffice.State}.`);
       } catch {
         if (cancelled) return;
-        setPincodeLookupState('error');
-        setPincodeLookupMessage('Unable to look up this pincode right now.');
       }
     }
 
@@ -100,16 +115,11 @@ export default function RegisterPage() {
     };
   }, [form.pincode]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     const nextValue = name === 'pincode' ? value.replace(/\D/g, '').slice(0, 6) : value;
 
     setForm((prev) => ({ ...prev, [name]: nextValue }));
-
-    if (name === 'pincode' && nextValue.length < 6) {
-      setPincodeLookupState('idle');
-      setPincodeLookupMessage('');
-    }
   };
 
   const handleSendOtp = async (e: React.FormEvent) => {
@@ -284,6 +294,19 @@ export default function RegisterPage() {
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
+                  <label className="label">Pincode *</label>
+                  <input
+                    type="text"
+                    name="pincode"
+                    className="input"
+                    placeholder="600001"
+                    maxLength={6}
+                    value={form.pincode}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+                <div>
                   <label className="label">City *</label>
                   <input
                     type="text"
@@ -297,33 +320,18 @@ export default function RegisterPage() {
                 </div>
                 <div>
                   <label className="label">State *</label>
-                  <input
-                    type="text"
+                  <select
                     name="state"
                     className="input"
-                    placeholder="Tamil Nadu"
                     value={form.state}
                     onChange={handleChange}
                     required
-                  />
-                </div>
-                <div>
-                  <label className="label">Pincode *</label>
-                  <input
-                    type="text"
-                    name="pincode"
-                    className="input"
-                    placeholder="600001"
-                    maxLength={6}
-                    value={form.pincode}
-                    onChange={handleChange}
-                    required
-                  />
-                  {pincodeLookupMessage ? (
-                    <p className={`mt-2 text-[11px] font-medium ${pincodeLookupState === 'error' ? 'text-red-500' : pincodeLookupState === 'success' ? 'text-emerald-600' : 'text-slate-500'}`}>
-                      {pincodeLookupMessage}
-                    </p>
-                  ) : null}
+                  >
+                    <option value="">Select state</option>
+                    {INDIAN_STATES.map((stateName) => (
+                      <option key={stateName} value={stateName}>{stateName}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
