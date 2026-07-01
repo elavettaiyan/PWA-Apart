@@ -441,8 +441,8 @@ export default function RegisterPage() {
               <div className="absolute -top-16 right-0 h-56 w-56 rounded-full bg-indigo-200/35 blur-3xl" />
               <div className="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-emerald-100/60 blur-3xl" />
 
-              <div className="relative z-10 flex h-full flex-col justify-between">
-                <div>
+              <div className="relative z-10 flex h-full flex-col gap-10">
+                <div className="max-w-md">
                   <span className="inline-flex items-center rounded-full bg-white px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-widest text-[#4f46e5] shadow-sm">
                     Fast onboarding
                   </span>
@@ -454,7 +454,7 @@ export default function RegisterPage() {
                   </p>
                 </div>
 
-                <div className="mt-10 space-y-4">
+                <div className="space-y-4 max-w-md">
                   <div className="rounded-2xl border border-white/70 bg-white/90 p-5 shadow-sm">
                     <p className="text-[11px] font-bold uppercase tracking-widest text-[#4f46e5] font-label">What you get</p>
                     <ul className="mt-3 space-y-2.5 text-sm text-on-surface-variant">
