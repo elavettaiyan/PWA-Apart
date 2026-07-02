@@ -201,17 +201,9 @@ export default function LoginPage() {
         <div className="absolute bottom-0 left-0 -ml-10 -mb-10 h-64 w-64 rounded-full bg-white/5 blur-2xl"></div>
         <div className="absolute top-1/2 left-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/5 blur-3xl"></div>
         <div className="relative z-10 w-full max-w-xl text-white">
-          <div className="flex items-center gap-4">
-            <div className="flex h-24 w-24 items-center justify-center rounded-[2rem] bg-white shadow-[0_22px_60px_-24px_rgba(0,0,0,0.45)] ring-1 ring-white/35">
-              <BrandMark size={56} className="text-primary" />
-            </div>
-            <div>
-              <span className="auth-hero-badge">Resident access</span>
-              <p className="mt-3 text-sm font-semibold uppercase tracking-[0.28em] text-white/55">Dwell Hub</p>
-            </div>
-          </div>
+          <span className="auth-hero-badge">Resident access</span>
 
-          <h2 className="editorial-title mt-10 max-w-lg text-5xl font-extrabold leading-[1.05] text-white">
+          <h2 className="editorial-title mt-8 max-w-lg text-5xl font-extrabold leading-[1.05] text-white">
             Community management,
             <span className="mt-2 block text-primary-fixed">made clearer.</span>
           </h2>
