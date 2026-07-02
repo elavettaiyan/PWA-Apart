@@ -32,14 +32,16 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="auth-screen min-h-screen flex">
       <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
-        <div className="w-full max-w-md">
-          <div className="flex items-center gap-3 mb-10">
-            <BrandMark size={48} className="rounded-2xl" />
+        <div className="auth-surface w-full max-w-md p-8 sm:p-10">
+          <div className="auth-brand-lockup mb-10">
+            <span className="auth-brand-frame">
+              <BrandMark size={40} />
+            </span>
             <div>
-              <h1 className="text-2xl font-extrabold text-primary font-headline tracking-tight">Dwell Hub</h1>
-              <p className="text-[10px] text-outline font-bold uppercase tracking-widest">Management Portal</p>
+              <h1 className="auth-brand-wordmark">Dwell Hub</h1>
+              <p className="auth-brand-caption">Password Recovery</p>
             </div>
           </div>
 
@@ -66,7 +68,7 @@ export default function ForgotPasswordPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="btn-gradient w-full py-3"
+                  className="btn-primary btn-lg w-full shadow-sm hover:shadow-card-hover"
                 >
                   {loading ? 'Sending...' : 'Send Reset Link'}
                 </button>
@@ -74,8 +76,8 @@ export default function ForgotPasswordPage() {
             </>
           ) : (
             <div className="text-center">
-              <div className="w-16 h-16 bg-tertiary-container rounded-full flex items-center justify-center mx-auto mb-4">
-                <Mail className="w-8 h-8 text-emerald-700" />
+              <div className="w-16 h-16 bg-secondary-container rounded-full flex items-center justify-center mx-auto mb-4">
+                <Mail className="w-8 h-8 text-secondary" />
               </div>
               <h2 className="text-xl font-semibold text-on-surface mb-2">Check Your Email</h2>
               <p className="text-sm text-on-surface-variant mb-6">
@@ -113,7 +115,7 @@ export default function ForgotPasswordPage() {
           <div className="mt-6 text-center">
             <Link
               to="/login"
-              className="text-sm text-on-surface-variant hover:text-on-surface-variant font-medium inline-flex items-center gap-1"
+              className="text-sm text-secondary hover:text-secondary/80 font-medium inline-flex items-center gap-1"
             >
               <ArrowLeft className="w-4 h-4" /> Back to Login
             </Link>
@@ -121,15 +123,16 @@ export default function ForgotPasswordPage() {
         </div>
       </div>
 
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-primary to-secondary relative overflow-hidden items-center justify-center p-12">
-        <div className="absolute top-20 -left-20 w-72 h-72 bg-primary-container/20 rounded-full blur-3xl" />
-        <div className="absolute bottom-10 right-10 w-56 h-56 bg-tertiary/10 rounded-full blur-2xl" />
+      <div className="auth-hero-panel">
+        <div className="absolute top-20 -left-20 w-72 h-72 bg-secondary-container/15 rounded-full blur-3xl" />
+        <div className="absolute bottom-10 right-10 w-56 h-56 bg-tertiary-fixed/12 rounded-full blur-2xl" />
         <div className="relative text-center text-white max-w-md">
-          <div className="w-20 h-20 mx-auto mb-8 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center">
-            <BrandMark size={48} />
+          <div className="w-20 h-20 mx-auto mb-8 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center ring-1 ring-white/10">
+            <BrandMark size={48} className="text-white" />
           </div>
-          <h2 className="font-manrope text-4xl font-extrabold tracking-tight mb-3">Don't <span className="italic text-primary-fixed">Worry</span></h2>
-          <p className="text-on-primary/50 text-sm leading-relaxed">
+          <span className="auth-hero-badge">Recovery flow</span>
+          <h2 className="font-manrope text-4xl font-extrabold tracking-tight mb-3 mt-5">Don't <span className="italic text-primary-fixed">Worry</span></h2>
+          <p className="text-white/70 text-sm leading-relaxed">
             We'll help you reset your password and get back to managing your community.
           </p>
         </div>

@@ -57,14 +57,16 @@ export default function ChangePasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="auth-screen min-h-screen flex">
       <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
-        <div className="w-full max-w-md">
-          <div className="flex items-center gap-3 mb-10">
-            <BrandMark size={48} className="rounded-2xl" />
+        <div className="auth-surface w-full max-w-md p-8 sm:p-10">
+          <div className="auth-brand-lockup mb-10">
+            <span className="auth-brand-frame">
+              <BrandMark size={40} />
+            </span>
             <div>
-              <h1 className="text-2xl font-extrabold text-primary font-headline tracking-tight">Dwell Hub</h1>
-              <p className="text-[10px] text-outline font-bold uppercase tracking-widest">Management Portal</p>
+              <h1 className="auth-brand-wordmark">Dwell Hub</h1>
+              <p className="auth-brand-caption">Secure Account</p>
             </div>
           </div>
 
@@ -141,7 +143,7 @@ export default function ChangePasswordPage() {
                 { check: passwordChecks.match, label: 'Passwords match' },
                 { check: passwordChecks.notSame, label: 'New password differs from current' },
               ].map(({ check, label }) => (
-                <div key={label} className={`flex items-center gap-2 text-xs ${check ? 'text-emerald-700' : 'text-outline'}`}>
+                <div key={label} className={`flex items-center gap-2 text-xs ${check ? 'text-secondary' : 'text-outline'}`}>
                   <CheckCircle className="w-3.5 h-3.5" />
                   <span>{label}</span>
                 </div>
@@ -151,7 +153,7 @@ export default function ChangePasswordPage() {
             <button
               type="submit"
               disabled={loading || !allValid}
-              className="btn-gradient w-full py-3 disabled:opacity-50"
+              className="btn-primary btn-lg w-full shadow-sm hover:shadow-card-hover disabled:opacity-50"
             >
               {loading ? 'Changing...' : 'Set New Password & Continue'}
             </button>
@@ -159,15 +161,16 @@ export default function ChangePasswordPage() {
         </div>
       </div>
 
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-primary to-secondary relative overflow-hidden items-center justify-center p-12">
-        <div className="absolute top-20 -left-20 w-72 h-72 bg-primary-container/20 rounded-full blur-3xl" />
-        <div className="absolute bottom-10 right-10 w-56 h-56 bg-tertiary/10 rounded-full blur-2xl" />
+      <div className="auth-hero-panel">
+        <div className="absolute top-20 -left-20 w-72 h-72 bg-secondary-container/15 rounded-full blur-3xl" />
+        <div className="absolute bottom-10 right-10 w-56 h-56 bg-tertiary-fixed/12 rounded-full blur-2xl" />
         <div className="relative text-center text-white max-w-md">
-          <div className="w-20 h-20 mx-auto mb-8 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center">
+          <div className="w-20 h-20 mx-auto mb-8 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center ring-1 ring-white/10">
             <ShieldAlert className="w-10 h-10 text-white/90" />
           </div>
-          <h2 className="font-manrope text-4xl font-extrabold tracking-tight mb-3">Stay <span className="italic text-primary-fixed">Secure</span></h2>
-          <p className="text-on-primary/50 text-sm leading-relaxed">
+          <span className="auth-hero-badge">Security step</span>
+          <h2 className="font-manrope text-4xl font-extrabold tracking-tight mb-3 mt-5">Stay <span className="italic text-primary-fixed">Secure</span></h2>
+          <p className="text-white/70 text-sm leading-relaxed">
             Choose a strong password that only you know. This keeps your account safe.
           </p>
         </div>

@@ -77,26 +77,31 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-primary to-secondary">
-      <div className="hidden lg:flex flex-1 items-center justify-center p-12 relative overflow-hidden">
-        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-64 h-64 bg-tertiary-fixed/5 rounded-full blur-2xl"></div>
+    <div className="auth-screen min-h-screen flex">
+      <div className="auth-hero-panel">
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-secondary-container/15 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-64 h-64 bg-tertiary-fixed/10 rounded-full blur-2xl"></div>
         <div className="relative z-10 max-w-md text-white">
-          <BrandMark size={64} className="rounded-2xl mb-6" />
-          <h1 className="editorial-title text-4xl font-extrabold tracking-tight">Admin Portal</h1>
-          <p className="mt-4 text-sm leading-6 text-primary-fixed/60">
+          <div className="w-20 h-20 bg-white/12 backdrop-blur-lg rounded-3xl flex items-center justify-center mb-8 shadow-lg ring-1 ring-white/10">
+            <BrandMark size={48} className="text-white" />
+          </div>
+          <span className="auth-hero-badge">Admin access</span>
+          <h1 className="editorial-title text-4xl font-extrabold tracking-tight mt-5">Admin portal</h1>
+          <p className="mt-4 text-sm leading-6 text-white/70">
             Sign in with an admin account. This portal only accepts ADMIN and SUPER_ADMIN roles.
           </p>
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 bg-surface">
-        <div className="w-full max-w-md">
-          <div className="flex items-center gap-3 mb-10">
-            <BrandMark size={48} className="rounded-2xl" />
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
+        <div className="auth-surface w-full max-w-md p-8 sm:p-10">
+          <div className="auth-brand-lockup mb-10">
+            <span className="auth-brand-frame">
+              <BrandMark size={40} />
+            </span>
             <div>
-              <h1 className="text-2xl font-extrabold text-primary font-headline tracking-tight">Dwell Hub</h1>
-              <p className="text-[10px] text-outline font-bold uppercase tracking-widest">Admin Access</p>
+              <h1 className="auth-brand-wordmark">Dwell Hub</h1>
+              <p className="auth-brand-caption">Admin Access</p>
             </div>
           </div>
 
@@ -137,12 +142,12 @@ export default function AdminLoginPage() {
               </div>
             </div>
 
-            <button type="submit" disabled={loading} className="btn-gradient w-full py-3">
+            <button type="submit" disabled={loading} className="btn-primary btn-lg w-full shadow-sm hover:shadow-card-hover">
               {loading ? 'Signing in...' : 'Open Admin Portal'}
             </button>
           </form>
 
-          <div className="mt-6 rounded-2xl bg-surface-container-low px-4 py-3">
+          <div className="mt-6 rounded-2xl border border-outline-variant/55 bg-surface-container-low px-4 py-3">
             <p className="text-[10px] font-bold uppercase tracking-widest text-outline">Credential source</p>
             <p className="mt-1 text-sm text-on-surface-variant">
               Admin accounts are created during society registration or by existing admins.
@@ -150,7 +155,7 @@ export default function AdminLoginPage() {
           </div>
 
           <div className="mt-5 text-center">
-            <Link to="/login" className="text-sm font-medium text-primary hover:text-primary">
+            <Link to="/login" className="text-sm font-medium text-secondary hover:text-secondary/80">
               Resident login
             </Link>
           </div>

@@ -52,6 +52,53 @@ html {
     letter-spacing: -0.025em;
   }
 
+  .auth-screen {
+    background: radial-gradient(circle at top, rgba(0, 196, 180, 0.08), transparent 30%), linear-gradient(180deg, #f8fafc 0%, #ffffff 42%, #f8fafc 100%);
+  }
+
+  .auth-surface {
+    @apply rounded-[2rem] border border-outline-variant/55 bg-white;
+    box-shadow: 0 24px 80px -32px rgba(10, 37, 64, 0.18);
+  }
+
+  .auth-brand-lockup {
+    @apply inline-flex items-center gap-3.5 text-on-surface font-headline;
+  }
+
+  .auth-brand-frame {
+    @apply inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-surface-container-low ring-1 ring-outline-variant/60 shadow-sm;
+  }
+
+  .auth-brand-wordmark {
+    @apply text-2xl font-black tracking-[-0.03em];
+  }
+
+  .auth-brand-caption {
+    @apply text-[10px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant;
+  }
+
+  .auth-kicker {
+    @apply inline-flex items-center rounded-full bg-secondary-container/70 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-widest text-secondary font-label;
+  }
+
+  .auth-hero-panel {
+    @apply hidden lg:flex flex-1 items-center justify-center overflow-hidden p-12 text-white relative;
+    background: linear-gradient(145deg, #0A2540 0%, #0D3561 58%, #0F766E 138%);
+  }
+
+  .auth-hero-badge {
+    @apply inline-flex items-center rounded-full px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-widest text-white shadow-sm;
+    background-color: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .auth-hero-card {
+    @apply rounded-2xl border p-5 backdrop-blur-sm;
+    border-color: rgba(255, 255, 255, 0.15);
+    background-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 30px -16px rgba(0, 0, 0, 0.22);
+  }
+
   /* Buttons — modern clean design system */
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.97];

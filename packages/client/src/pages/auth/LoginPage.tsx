@@ -80,20 +80,22 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="auth-screen min-h-screen flex">
       {/* Left: Form */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 bg-white">
-        <div className="w-full max-w-md">
-          <div className="flex items-center gap-3 mb-10">
-            <BrandMark size={44} className="rounded-2xl" />
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
+        <div className="auth-surface w-full max-w-md p-8 sm:p-10">
+          <div className="auth-brand-lockup mb-10">
+            <span className="auth-brand-frame">
+              <BrandMark size={40} />
+            </span>
             <div>
-              <h1 className="text-xl font-extrabold text-on-surface font-headline tracking-tight">Dwell Hub</h1>
-              <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Community Console</p>
+              <h1 className="auth-brand-wordmark">Dwell Hub</h1>
+              <p className="auth-brand-caption">Resident Login</p>
             </div>
           </div>
 
           <h2 className="editorial-title text-3xl font-extrabold text-on-surface mb-1">Welcome back</h2>
-          <p className="text-sm text-slate-500 mb-8">Sign in to manage your community</p>
+          <p className="text-sm text-on-surface-variant mb-8">Sign in to manage your community</p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
@@ -122,7 +124,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-slate-600 touch-manipulation"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 p-2 text-outline hover:text-on-surface-variant touch-manipulation"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -132,7 +134,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-gradient w-full py-3.5 rounded-2xl text-base"
+              className="btn-primary btn-lg w-full shadow-sm hover:shadow-card-hover"
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
@@ -140,7 +142,7 @@ export default function LoginPage() {
             <div className="text-right">
               <Link
                 to="/forgot-password"
-                className="text-sm text-primary hover:text-primary/80 font-medium"
+                className="text-sm text-secondary hover:text-secondary/80 font-medium"
               >
                 Forgot Password?
               </Link>
@@ -150,7 +152,7 @@ export default function LoginPage() {
             {!registerCommunityRestriction && (
               <Link
                 to="/register"
-                className="text-sm text-primary hover:text-primary/80 font-medium"
+                className="text-sm text-secondary hover:text-secondary/80 font-medium"
               >
                 Register a new community →
               </Link>
@@ -158,10 +160,10 @@ export default function LoginPage() {
           </div>
 
           {!isNativePlatform() && (
-            <div className="mt-8 rounded-2xl border border-primary/15 bg-primary/[0.03] p-4">
+            <div className="mt-8 rounded-2xl border border-outline-variant/55 bg-surface-container-low p-4">
               <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <Smartphone className="w-4.5 h-4.5 text-primary" />
+                <div className="w-9 h-9 rounded-xl bg-secondary-container/70 flex items-center justify-center shrink-0 mt-0.5">
+                  <Smartphone className="w-4.5 h-4.5 text-secondary" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-on-surface">Get the mobile app</p>
@@ -171,7 +173,7 @@ export default function LoginPage() {
                       href="https://play.google.com/store/apps/details?id=com.resilynk.mobile&pcampaignid=web_share"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-on-surface px-3.5 py-2 text-xs font-semibold text-white hover:bg-on-surface/85 transition-colors"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-white hover:bg-primary/90 transition-colors"
                     >
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M3.609 1.814 13.792 12 3.61 22.186a.996.996 0 0 1-.61-.92V2.734a1 1 0 0 1 .609-.92ZM14.852 13.06l2.29 2.29-11.678 6.57 9.388-8.86ZM20.166 10.834l-2.57 1.445-2.537-2.28 2.536-2.278 2.57 1.445a1.25 1.25 0 0 1 0 1.668ZM5.464 2.08l11.678 6.57-2.29 2.29L5.464 2.08Z"/></svg>
                       Google Play
@@ -180,7 +182,7 @@ export default function LoginPage() {
                       href="https://apps.apple.com/in/app/dwell-hub/id6764814825"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-on-surface px-3.5 py-2 text-xs font-semibold text-white hover:bg-on-surface/85 transition-colors"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-white hover:bg-primary/90 transition-colors"
                     >
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
                       App Store
@@ -194,16 +196,17 @@ export default function LoginPage() {
       </div>
 
       {/* Right: Decorative Panel — vibrant blue gradient */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-primary to-secondary items-center justify-center p-12 relative overflow-hidden">
-        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
+      <div className="auth-hero-panel">
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-secondary-container/15 rounded-full blur-3xl"></div>
         <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-64 h-64 bg-white/5 rounded-full blur-2xl"></div>
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-white/5 rounded-full blur-3xl"></div>
         <div className="relative z-10 text-center text-white max-w-md">
-          <div className="w-20 h-20 bg-white/15 backdrop-blur-lg rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg">
-            <BrandMark size={48} />
+          <div className="w-20 h-20 bg-white/12 backdrop-blur-lg rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg ring-1 ring-white/10">
+            <BrandMark size={48} className="text-white" />
           </div>
-          <h2 className="editorial-title text-4xl font-extrabold mb-4 leading-tight">Community<br/>Management,<br/><em className="not-italic text-white/80">Made Clearer.</em></h2>
-          <p className="text-white/50 leading-relaxed mt-6">
+          <span className="auth-hero-badge">Resident access</span>
+          <h2 className="editorial-title text-4xl font-extrabold mb-4 mt-5 leading-tight">Community<br/>Management,<br/><em className="not-italic text-primary-fixed">Made Clearer.</em></h2>
+          <p className="text-white/70 leading-relaxed mt-6">
             Complete solution for community management — billing,
             complaints, expenses, and reports all in one place.
           </p>

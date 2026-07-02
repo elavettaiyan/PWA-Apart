@@ -243,20 +243,22 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(99,102,241,0.10),_transparent_30%),linear-gradient(180deg,_#f8fafc_0%,_#ffffff_45%,_#f8fafc_100%)]">
+    <div className="auth-screen min-h-screen">
       <div className="mx-auto flex min-h-screen max-w-7xl items-center px-6 py-16 sm:px-8 lg:px-10">
         <div className="grid w-full gap-8 lg:grid-cols-[1.08fr_0.92fr] lg:gap-10">
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.18)] sm:p-8 lg:p-10">
-            <div className="flex items-center gap-3 mb-8">
-              <BrandMark size={48} className="rounded-2xl" />
+          <div className="auth-surface p-6 sm:p-8 lg:p-10">
+            <div className="auth-brand-lockup mb-8">
+              <span className="auth-brand-frame">
+                <BrandMark size={40} />
+              </span>
               <div>
-                <h1 className="text-2xl font-extrabold text-primary font-headline tracking-tight">Dwell Hub</h1>
-                <p className="text-[10px] text-[#4f46e5] font-bold uppercase tracking-widest">Register Community</p>
+                <h1 className="auth-brand-wordmark">Dwell Hub</h1>
+                <p className="auth-brand-caption">Register Community</p>
               </div>
             </div>
 
             <div className="mb-8">
-              <span className="inline-flex items-center rounded-full bg-indigo-50 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-widest text-[#4f46e5] font-label">
+              <span className="auth-kicker">
                 Society onboarding
               </span>
               <h2 className="mt-4 text-3xl font-extrabold text-primary font-headline tracking-tight sm:text-4xl">Create your community workspace</h2>
@@ -267,7 +269,7 @@ export default function RegisterPage() {
 
             {step === 'form' ? (
           <form onSubmit={handleSendOtp} className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 space-y-4 sm:p-5">
+            <div className="rounded-2xl border border-outline-variant/55 bg-surface-container-low p-4 space-y-4 sm:p-5">
               <div>
                 <label className="label">Community Name *</label>
                 <input
@@ -335,7 +337,7 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              <div className="h-px bg-slate-200/80" />
+              <div className="h-px bg-outline-variant/80" />
 
               <div>
                 <label className="label">Your Name *</label>
@@ -401,7 +403,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+            <label className="flex items-start gap-3 rounded-2xl border border-outline-variant/55 bg-white p-4">
               <input
                 type="checkbox"
                 className="mt-1 h-4 w-4 rounded border-outline-variant/30 text-primary focus:ring-primary"
@@ -425,7 +427,7 @@ export default function RegisterPage() {
               </span>
             </label>
 
-            <button type="submit" disabled={loading} className="w-full rounded-2xl bg-[#4f46e5] py-3 text-sm font-semibold text-white transition-all hover:bg-[#4338ca] hover:shadow-lg hover:shadow-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-70">
+            <button type="submit" disabled={loading} className="btn-primary btn-lg w-full shadow-sm hover:shadow-card-hover disabled:cursor-not-allowed disabled:opacity-70">
               {loading ? 'Sending verification code...' : (
                 <span className="inline-flex items-center gap-2">Verify Email & Register <ArrowRight className="w-4 h-4" /></span>
               )}
@@ -438,8 +440,8 @@ export default function RegisterPage() {
               </button>
 
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center">
-                  <Mail className="w-6 h-6 text-primary" />
+                <div className="w-12 h-12 bg-secondary-container/70 rounded-2xl flex items-center justify-center">
+                  <Mail className="w-6 h-6 text-secondary" />
                 </div>
                 <div>
                   <h2 className="editorial-title text-2xl font-extrabold text-on-surface">Check your email</h2>
@@ -462,12 +464,12 @@ export default function RegisterPage() {
                       value={digit}
                       onChange={(e) => handleOtpChange(i, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                      className="w-12 h-14 sm:w-14 sm:h-16 text-center text-2xl font-bold rounded-2xl border-2 border-slate-200 bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                      className="w-12 h-14 sm:w-14 sm:h-16 text-center text-2xl font-bold rounded-2xl border-2 border-outline-variant bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                     />
                   ))}
                 </div>
 
-                <button type="submit" disabled={loading || otp.join('').length !== 6} className="mb-4 w-full rounded-2xl bg-[#4f46e5] py-3 text-sm font-semibold text-white transition-all hover:bg-[#4338ca] hover:shadow-lg hover:shadow-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-70">
+                <button type="submit" disabled={loading || otp.join('').length !== 6} className="btn-primary btn-lg mb-4 w-full shadow-sm hover:shadow-card-hover disabled:cursor-not-allowed disabled:opacity-70">
                   {loading ? 'Verifying...' : 'Verify & Create Community'}
                 </button>
 
@@ -498,14 +500,14 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div className="hidden overflow-hidden rounded-[2rem] border border-indigo-100 bg-indigo-50/70 p-8 lg:block lg:p-10">
+          <div className="auth-hero-panel rounded-[2rem] border-0 p-8 lg:block lg:p-10">
             <div className="relative h-full">
-              <div className="absolute -top-16 right-0 h-56 w-56 rounded-full bg-indigo-200/35 blur-3xl" />
-              <div className="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-emerald-100/60 blur-3xl" />
+            <div className="absolute -top-16 right-0 h-56 w-56 rounded-full bg-secondary-container/20 blur-3xl" />
+            <div className="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-tertiary-fixed/15 blur-3xl" />
 
               <div className="relative z-10 flex h-full flex-col gap-10">
                 <div className="max-w-md">
-                  <span className="inline-flex items-center rounded-full bg-white px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-widest text-[#4f46e5] shadow-sm">
+                  <span className="auth-hero-badge">
                     Fast onboarding
                   </span>
                   <h2 className="mt-5 text-4xl font-extrabold leading-tight text-primary font-headline">
@@ -517,25 +519,25 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="space-y-4 max-w-md">
-                  <div className="rounded-2xl border border-white/70 bg-white/90 p-5 shadow-sm">
-                    <p className="text-[11px] font-bold uppercase tracking-widest text-[#4f46e5] font-label">What you get</p>
-                    <ul className="mt-3 space-y-2.5 text-sm text-on-surface-variant">
-                      <li className="flex items-start gap-2.5"><span className="mt-0.5 text-emerald-500">•</span><span>Dedicated workspace for your community</span></li>
-                      <li className="flex items-start gap-2.5"><span className="mt-0.5 text-emerald-500">•</span><span>Blocks, flats, owners, tenants, and staff</span></li>
-                      <li className="flex items-start gap-2.5"><span className="mt-0.5 text-emerald-500">•</span><span>Billing, complaints, expenses, and AGM-ready reports</span></li>
+                  <div className="auth-hero-card">
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-white/70 font-label">What you get</p>
+                    <ul className="mt-3 space-y-2.5 text-sm">
+                      <li className="flex items-start gap-2.5 text-white/85"><span className="mt-0.5 text-secondary-fixed">•</span><span>Dedicated workspace for your community</span></li>
+                      <li className="flex items-start gap-2.5 text-white/85"><span className="mt-0.5 text-secondary-fixed">•</span><span>Blocks, flats, owners, tenants, and staff</span></li>
+                      <li className="flex items-start gap-2.5 text-white/85"><span className="mt-0.5 text-secondary-fixed">•</span><span>Billing, complaints, expenses, and AGM-ready reports</span></li>
                     </ul>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="rounded-2xl bg-white p-5 shadow-sm">
-                      <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 font-label">Trial</p>
-                      <p className="mt-2 text-2xl font-extrabold text-primary font-headline">30 days</p>
-                      <p className="mt-1 text-xs text-on-surface-variant">Full product access</p>
+                    <div className="auth-hero-card">
+                      <p className="text-[11px] font-bold uppercase tracking-widest text-white/65 font-label">Trial</p>
+                      <p className="mt-2 text-2xl font-extrabold text-white font-headline">30 days</p>
+                      <p className="mt-1 text-xs text-white/80">Full product access</p>
                     </div>
-                    <div className="rounded-2xl bg-[#4f46e5] p-5 shadow-sm">
-                      <p className="text-[11px] font-bold uppercase tracking-widest text-indigo-200 font-label">Pricing</p>
+                    <div className="rounded-2xl bg-secondary p-5 shadow-sm shadow-teal">
+                      <p className="text-[11px] font-bold uppercase tracking-widest text-white/70 font-label">Pricing</p>
                       <p className="mt-2 text-2xl font-extrabold text-white font-headline">₹20 / flat</p>
-                      <p className="mt-1 text-xs text-indigo-100">No lock-in</p>
+                      <p className="mt-1 text-xs text-white/80">No lock-in</p>
                     </div>
                   </div>
                 </div>

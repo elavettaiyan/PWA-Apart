@@ -249,18 +249,19 @@ export default function Layout({ children }: LayoutProps) {
       {/* Sidebar — Clean white design (desktop & mobile drawer) */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-72 max-w-[88vw] bg-white border-r border-slate-100 flex flex-col transform transition-transform lg:static lg:z-0 lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 w-72 max-w-[88vw] bg-white border-r border-outline-variant/55 flex flex-col transform transition-transform lg:static lg:z-0 lg:translate-x-0',
           sidebarOpen ? 'block translate-x-0' : 'hidden -translate-x-full lg:block',
         )}
       >
         <div className="flex flex-col h-full p-5 space-y-1" style={{ paddingTop: 'calc(1.25rem + var(--sat))' }}>
           {/* Logo */}
           <div className="mb-6 px-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <BrandMark size={36} className="rounded-xl text-primary" />
+            <div className="auth-brand-lockup gap-3">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-surface-container-low ring-1 ring-outline-variant/60 shadow-sm">
+                <BrandMark size={32} className="text-primary" />
+              </span>
               <div>
-                <h1 className="font-headline font-extrabold text-primary text-xl tracking-tight">Dwell Hub</h1>
-                <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-0.5">Community Console</p>
+                <h1 className="text-[1.1rem] font-black leading-none tracking-[-0.03em]">Dwell Hub</h1>
               </div>
             </div>
             <button className="lg:hidden p-1 rounded-lg hover:bg-slate-50" onClick={() => setSidebarOpen(false)}>
@@ -326,9 +327,14 @@ export default function Layout({ children }: LayoutProps) {
             >
               <Menu className="w-5 h-5 text-slate-500" />
             </button>
-            <div>
-              <span className="font-headline text-lg font-bold tracking-tight text-primary block leading-none">Dwell Hub</span>
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">{roleDisplayLabel}</span>
+            <div className="flex items-center gap-2.5">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-surface-container-low ring-1 ring-outline-variant/60 shadow-sm">
+                <BrandMark size={28} className="text-primary" />
+              </span>
+              <div>
+                <span className="font-headline text-lg font-bold tracking-tight text-primary block leading-none">Dwell Hub</span>
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">{roleDisplayLabel}</span>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
