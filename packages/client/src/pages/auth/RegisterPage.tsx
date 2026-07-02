@@ -510,10 +510,10 @@ export default function RegisterPage() {
                   <span className="auth-hero-badge">
                     Fast onboarding
                   </span>
-                  <h2 className="mt-5 text-4xl font-extrabold leading-tight text-primary font-headline">
+                  <h2 className="mt-5 text-4xl font-extrabold leading-tight text-white font-headline">
                     Launch your society workspace in minutes.
                   </h2>
-                  <p className="mt-4 max-w-md text-base leading-7 text-on-surface-variant">
+                  <p className="mt-4 max-w-md text-base leading-7 text-white/72">
                     The same clean experience as the marketing site, but focused on getting your committee live quickly.
                   </p>
                 </div>
