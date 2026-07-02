@@ -197,50 +197,93 @@ export default function LoginPage() {
 
       {/* Right: Decorative Panel — vibrant blue gradient */}
       <div className="auth-hero-panel">
-        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-secondary-container/15 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-64 h-64 bg-white/5 rounded-full blur-2xl"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-white/5 rounded-full blur-3xl"></div>
-        <div className="relative z-10 text-center text-white max-w-md">
-          <div className="w-20 h-20 bg-white/12 backdrop-blur-lg rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg ring-1 ring-white/10">
-            <BrandMark size={48} className="text-white" />
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 h-96 w-96 rounded-full bg-secondary-container/15 blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 -ml-10 -mb-10 h-64 w-64 rounded-full bg-white/5 blur-2xl"></div>
+        <div className="absolute top-1/2 left-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/5 blur-3xl"></div>
+        <div className="relative z-10 w-full max-w-xl text-white">
+          <div className="flex items-center gap-4">
+            <div className="flex h-24 w-24 items-center justify-center rounded-[2rem] bg-white shadow-[0_22px_60px_-24px_rgba(0,0,0,0.45)] ring-1 ring-white/35">
+              <BrandMark size={56} className="text-primary" />
+            </div>
+            <div>
+              <span className="auth-hero-badge">Resident access</span>
+              <p className="mt-3 text-sm font-semibold uppercase tracking-[0.28em] text-white/55">Dwell Hub</p>
+            </div>
           </div>
-          <span className="auth-hero-badge">Resident access</span>
-          <h2 className="editorial-title text-4xl font-extrabold mb-4 mt-5 leading-tight">Community<br/>Management,<br/><em className="not-italic text-primary-fixed">Made Clearer.</em></h2>
-          <p className="text-white/70 leading-relaxed mt-6">
-            Complete solution for community management — billing,
-            complaints, expenses, and reports all in one place.
+
+          <h2 className="editorial-title mt-10 max-w-lg text-5xl font-extrabold leading-[1.05] text-white">
+            Community management,
+            <span className="mt-2 block text-primary-fixed">made clearer.</span>
+          </h2>
+
+          <p className="mt-6 max-w-lg text-base leading-7 text-white/74">
+            Complete solution for billing, complaints, visitors, reports, and everyday society operations in one place.
           </p>
 
+          <div className="mt-8 grid max-w-lg grid-cols-3 gap-3 text-left">
+            <div className="auth-hero-card px-4 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">Billing</p>
+              <p className="mt-2 text-sm font-semibold text-white/90">Collections and dues</p>
+            </div>
+            <div className="auth-hero-card px-4 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">Visitors</p>
+              <p className="mt-2 text-sm font-semibold text-white/90">Gate and entry flow</p>
+            </div>
+            <div className="auth-hero-card px-4 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">Reports</p>
+              <p className="mt-2 text-sm font-semibold text-white/90">Board-ready visibility</p>
+            </div>
+          </div>
+
           {!isNativePlatform() && (
-            <div className="mt-10 rounded-[1.75rem] border border-white/12 bg-white/10 p-5 text-left backdrop-blur-sm shadow-[0_18px_50px_-28px_rgba(0,0,0,0.45)]">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/14 ring-1 ring-white/12">
-                  <Smartphone className="h-4.5 w-4.5 text-primary-fixed" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-white">Get the mobile app</p>
-                  <p className="mt-1 text-sm leading-6 text-white/72">Faster access with push notifications and offline support.</p>
-                  <div className="mt-4 flex flex-wrap items-center gap-3">
-                    <a
-                      href="https://play.google.com/store/apps/details?id=com.resilynk.mobile&pcampaignid=web_share"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-xs font-semibold text-primary hover:bg-primary-fixed transition-colors"
-                    >
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M3.609 1.814 13.792 12 3.61 22.186a.996.996 0 0 1-.61-.92V2.734a1 1 0 0 1 .609-.92ZM14.852 13.06l2.29 2.29-11.678 6.57 9.388-8.86ZM20.166 10.834l-2.57 1.445-2.537-2.28 2.536-2.278 2.57 1.445a1.25 1.25 0 0 1 0 1.668ZM5.464 2.08l11.678 6.57-2.29 2.29L5.464 2.08Z"/></svg>
-                      Google Play
-                    </a>
-                    <a
-                      href="https://apps.apple.com/in/app/dwell-hub/id6764814825"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-xs font-semibold text-primary hover:bg-primary-fixed transition-colors"
-                    >
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-                      App Store
-                    </a>
+            <div className="mt-10 max-w-lg rounded-[1.85rem] border border-white/12 bg-white/10 p-6 text-left backdrop-blur-md shadow-[0_26px_70px_-34px_rgba(0,0,0,0.5)]">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-secondary-container/18 ring-1 ring-white/12">
+                    <Smartphone className="h-5 w-5 text-primary-fixed" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/55">Mobile app</p>
+                    <p className="mt-2 text-lg font-bold text-white">Keep Dwell Hub on your phone</p>
+                    <p className="mt-2 max-w-sm text-sm leading-6 text-white/72">
+                      Faster access, push notifications, and smoother day-to-day society workflows.
+                    </p>
                   </div>
                 </div>
+                <span className="rounded-full bg-primary-fixed/16 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-fixed">
+                  iOS + Android
+                </span>
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <a
+                  href="https://play.google.com/store/apps/details?id=com.resilynk.mobile&pcampaignid=web_share"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group rounded-2xl bg-white px-4 py-3 text-primary shadow-[0_12px_30px_-22px_rgba(0,0,0,0.45)] transition-all hover:-translate-y-0.5 hover:bg-primary-fixed"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M3.609 1.814 13.792 12 3.61 22.186a.996.996 0 0 1-.61-.92V2.734a1 1 0 0 1 .609-.92ZM14.852 13.06l2.29 2.29-11.678 6.57 9.388-8.86ZM20.166 10.834l-2.57 1.445-2.537-2.28 2.536-2.278 2.57 1.445a1.25 1.25 0 0 1 0 1.668ZM5.464 2.08l11.678 6.57-2.29 2.29L5.464 2.08Z"/></svg>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/55">Download on</p>
+                      <p className="text-sm font-bold text-primary">Google Play</p>
+                    </div>
+                  </div>
+                </a>
+                <a
+                  href="https://apps.apple.com/in/app/dwell-hub/id6764814825"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group rounded-2xl bg-white px-4 py-3 text-primary shadow-[0_12px_30px_-22px_rgba(0,0,0,0.45)] transition-all hover:-translate-y-0.5 hover:bg-primary-fixed"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/55">Download on</p>
+                      <p className="text-sm font-bold text-primary">App Store</p>
+                    </div>
+                  </div>
+                </a>
               </div>
             </div>
           )}
