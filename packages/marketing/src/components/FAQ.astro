@@ -50,7 +50,7 @@ const faqs = [
       <h2 class="text-4xl font-extrabold text-primary tracking-tight mb-6 font-headline">Frequently Asked</h2>
 
       <div class="space-y-3">
-        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100">
+        <div class="bg-secondary-container/35 rounded-2xl p-5 border border-secondary-fixed-dim/55">
           <p class="text-[10px] font-bold tracking-widest uppercase text-accent mb-2 font-label">Support Desk</p>
           <a href="mailto:support@dwellhub.in" class="text-primary font-headline font-bold text-sm break-all hover:text-accent transition-colors">
             support@dwellhub.in
@@ -60,7 +60,7 @@ const faqs = [
           </p>
         </div>
 
-        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100">
+        <div class="bg-tertiary-fixed/35 rounded-2xl p-5 border border-tertiary-fixed-dim/55">
           <p class="text-[10px] font-bold tracking-widest uppercase text-accent mb-2 font-label">Marketing Desk</p>
           <a href="mailto:marketing@dwellhub.in" class="text-primary font-headline font-bold text-sm break-all hover:text-accent transition-colors">
             marketing@dwellhub.in
@@ -74,7 +74,7 @@ const faqs = [
 
     <div class="lg:col-span-8 space-y-3">
       {faqs.map((faq) => (
-        <details class="group bg-white rounded-2xl p-5 border border-slate-100 open:border-accent/20 open:shadow-sm transition-all">
+        <details class="group bg-white rounded-2xl p-5 border border-outline-variant/55 open:border-secondary/25 open:bg-secondary-container/12 open:shadow-sm transition-all">
           <summary class="flex justify-between items-center font-bold text-primary cursor-pointer list-none [&::-webkit-details-marker]:hidden text-sm">
             <span>{faq.question}</span>
             <span class="material-symbols-outlined text-accent group-open:rotate-180 transition-transform">expand_more</span>

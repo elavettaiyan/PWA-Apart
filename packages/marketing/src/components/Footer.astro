@@ -4,20 +4,20 @@ const marketingSiteUrl = 'https://dwellhub.in';
 ---
 
 <!-- Final CTA -->
-<section id="contact" class="px-6 pb-20 pt-16 bg-slate-50">
+<section id="contact" class="px-6 pb-20 pt-16 bg-surface-container-low">
   <div class="max-w-3xl mx-auto text-center">
-    <p class="text-xs font-bold tracking-widest uppercase text-[#4f46e5] mb-3 font-label">Get Started</p>
+    <p class="text-xs font-bold tracking-widest uppercase text-accent mb-3 font-label">Get Started</p>
     <h2 class="text-4xl lg:text-5xl font-extrabold text-primary mb-5 font-headline leading-tight">
       Ready to digitize your society?
     </h2>
     <ul class="text-on-surface-variant font-body text-sm space-y-2.5 mb-8 inline-block text-left">
-      <li class="flex items-center gap-2.5"><span class="material-symbols-outlined text-sm text-emerald-500">check_circle</span>Full product access from day one</li>
-      <li class="flex items-center gap-2.5"><span class="material-symbols-outlined text-sm text-emerald-500">check_circle</span>No credit card required</li>
-      <li class="flex items-center gap-2.5"><span class="material-symbols-outlined text-sm text-emerald-500">check_circle</span>Up to 50 flats in free trial</li>
-      <li class="flex items-center gap-2.5"><span class="material-symbols-outlined text-sm text-emerald-500">check_circle</span>Cancel anytime, no lock-in</li>
+      <li class="flex items-center gap-2.5"><span class="material-symbols-outlined text-sm text-primary">check_circle</span>Full product access from day one</li>
+      <li class="flex items-center gap-2.5"><span class="material-symbols-outlined text-sm text-primary">check_circle</span>No credit card required</li>
+      <li class="flex items-center gap-2.5"><span class="material-symbols-outlined text-sm text-primary">check_circle</span>Up to 50 flats in free trial</li>
+      <li class="flex items-center gap-2.5"><span class="material-symbols-outlined text-sm text-primary">check_circle</span>Cancel anytime, no lock-in</li>
     </ul>
     <div>
-      <a href={`${appUrl}/register`} class="inline-block bg-[#4f46e5] text-white px-10 py-4 rounded-full font-bold text-lg tracking-wide hover:bg-[#4338ca] hover:shadow-lg hover:shadow-indigo-500/25 transition-all">
+      <a href={`${appUrl}/register`} class="inline-block bg-primary text-white px-10 py-4 rounded-full font-bold text-lg tracking-wide hover:bg-primary-container hover:shadow-lg hover:shadow-primary/20 transition-all">
         Start Free Trial
       </a>
     </div>
@@ -25,21 +25,26 @@ const marketingSiteUrl = 'https://dwellhub.in';
 </section>
 
 <!-- Footer -->
-<footer class="w-full border-t border-slate-100 bg-white">
+<footer class="w-full border-t border-outline-variant/55 bg-white">
   <div class="flex flex-col gap-10 px-12 py-16 w-full max-w-7xl mx-auto">
     <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-10">
       <div class="flex flex-col gap-4">
-        <div class="text-lg font-black text-primary font-headline">Dwell Hub</div>
-        <p class="text-slate-500 font-label text-xs uppercase tracking-widest font-semibold">&copy; {new Date().getFullYear()} Dwell Hub. Society Management, Made Simpler.</p>
+        <div class="inline-flex items-center gap-3.5 text-on-surface font-headline">
+          <span class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-surface-container-low ring-1 ring-outline-variant/60 shadow-sm">
+            <img src="/favicon.svg" alt="Dwell Hub logo" class="h-10 w-10 rounded-xl" />
+          </span>
+          <span class="text-[1.15rem] font-black leading-none tracking-[-0.03em]">Dwell Hub</span>
+        </div>
+        <p class="text-on-surface-variant font-label text-xs uppercase tracking-widest font-semibold">&copy; {new Date().getFullYear()} Dwell Hub. Society Management, Made Simpler.</p>
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:min-w-[30rem]">
-        <a href="mailto:support@dwellhub.in" class="bg-surface-container-lowest rounded-xl px-5 py-4 border border-primary/5 hover:border-primary/15 transition-colors">
-          <p class="text-[11px] font-label uppercase tracking-widest font-semibold text-slate-500 mb-2">Support</p>
+        <a href="mailto:support@dwellhub.in" class="bg-secondary-container/28 rounded-xl px-5 py-4 border border-secondary-fixed-dim/55 hover:border-secondary/25 transition-colors">
+          <p class="text-[11px] font-label uppercase tracking-widest font-semibold text-secondary mb-2">Support</p>
           <p class="text-primary font-headline font-bold">support@dwellhub.in</p>
         </a>
-        <a href="mailto:marketing@dwellhub.in" class="bg-surface-container-lowest rounded-xl px-5 py-4 border border-primary/5 hover:border-primary/15 transition-colors">
-          <p class="text-[11px] font-label uppercase tracking-widest font-semibold text-slate-500 mb-2">Marketing</p>
+        <a href="mailto:marketing@dwellhub.in" class="bg-tertiary-fixed/28 rounded-xl px-5 py-4 border border-tertiary-fixed-dim/55 hover:border-tertiary/25 transition-colors">
+          <p class="text-[11px] font-label uppercase tracking-widest font-semibold text-tertiary mb-2">Marketing</p>
           <p class="text-primary font-headline font-bold">marketing@dwellhub.in</p>
         </a>
       </div>
@@ -47,12 +52,12 @@ const marketingSiteUrl = 'https://dwellhub.in';
 
     <div class="flex flex-col md:flex-row justify-between items-center gap-6">
       <div class="flex flex-wrap gap-8">
-        <a class="font-label text-xs uppercase tracking-widest font-semibold text-slate-500 hover:text-tertiary transition-colors" href={`${marketingSiteUrl}/privacy`}>Privacy Policy</a>
-        <a class="font-label text-xs uppercase tracking-widest font-semibold text-slate-500 hover:text-tertiary transition-colors" href={`${marketingSiteUrl}/terms`}>Terms of Service</a>
-        <a class="font-label text-xs uppercase tracking-widest font-semibold text-slate-500 hover:text-tertiary transition-colors" href={`${marketingSiteUrl}/refund-policy`}>Refund Policy</a>
+        <a class="font-label text-xs uppercase tracking-widest font-semibold text-on-surface-variant hover:text-tertiary transition-colors" href={`${marketingSiteUrl}/privacy`}>Privacy Policy</a>
+        <a class="font-label text-xs uppercase tracking-widest font-semibold text-on-surface-variant hover:text-tertiary transition-colors" href={`${marketingSiteUrl}/terms`}>Terms of Service</a>
+        <a class="font-label text-xs uppercase tracking-widest font-semibold text-on-surface-variant hover:text-tertiary transition-colors" href={`${marketingSiteUrl}/refund-policy`}>Refund Policy</a>
       </div>
 
-      <p class="text-xs text-slate-500 font-body text-center md:text-right">
+      <p class="text-xs text-on-surface-variant font-body text-center md:text-right">
         Reach the right team directly for product support or growth conversations.
       </p>
     </div>

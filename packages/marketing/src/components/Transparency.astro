@@ -23,7 +23,7 @@ const reports = [
 ];
 ---
 
-<section class="py-16 px-6 bg-slate-50/50">
+<section class="py-16 px-6 bg-surface-container-low">
   <div class="max-w-7xl mx-auto">
     <div class="text-center max-w-2xl mx-auto mb-12">
       <p class="text-xs font-bold tracking-widest uppercase text-accent mb-3 font-label">Financial Clarity</p>
@@ -33,15 +33,15 @@ const reports = [
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
       {reports.map((report) => (
-        <div class="bg-white p-5 rounded-2xl border border-slate-100 hover:border-accent/20 hover:shadow-md transition-all group text-center">
-          <div class="w-11 h-11 bg-accent/8 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:bg-accent/12 transition-colors">
-            <span class="material-symbols-outlined text-accent text-2xl">{report.icon}</span>
+        <div class="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/55 hover:border-secondary/20 hover:shadow-md transition-all group text-center">
+          <div class="w-11 h-11 bg-secondary-container/55 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:bg-secondary-container/80 transition-colors">
+            <span class="material-symbols-outlined text-secondary text-2xl">{report.icon}</span>
           </div>
           <h3 class="text-sm font-bold text-primary font-headline mb-2">{report.title}</h3>
           <ul class="space-y-1 text-left">
             {report.bullets.map((bullet) => (
               <li class="flex items-start gap-2 text-[13px] text-on-surface-variant font-body">
-                <span class="w-1 h-1 rounded-full bg-accent/50 mt-[7px] flex-shrink-0"></span>
+                <span class="w-1 h-1 rounded-full bg-secondary/55 mt-[7px] flex-shrink-0"></span>
                 <span>{bullet}</span>
               </li>
             ))}
@@ -51,10 +51,10 @@ const reports = [
     </div>
 
     <div class="max-w-lg mx-auto text-center">
-      <div class="bg-[#4f46e5] rounded-2xl p-8 shadow-lg shadow-indigo-500/20">
-        <p class="text-[11px] font-bold tracking-widest uppercase text-indigo-200 font-label mb-2">Transparent Pricing</p>
+      <div class="bg-gradient-to-br from-primary to-primary-container rounded-2xl p-8 shadow-xl shadow-primary/25">
+        <p class="text-[11px] font-bold tracking-widest uppercase text-primary-fixed font-label mb-2">Transparent Pricing</p>
         <p class="text-3xl font-extrabold text-white font-headline leading-tight">₹20 / flat / month</p>
-        <p class="mt-2 text-sm text-indigo-100 font-body">All features included. No setup fee. No lock-in.</p>
+        <p class="mt-2 text-sm text-primary-fixed font-body">All features included. No setup fee. No lock-in.</p>
         <a href="/pricing" class="inline-flex items-center gap-2 mt-4 text-sm font-semibold text-white/90 hover:text-white transition-colors">
           Compare with other apps <span class="material-symbols-outlined text-base">arrow_forward</span>
         </a>

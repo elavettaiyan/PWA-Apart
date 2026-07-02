@@ -1,17 +1,17 @@
 ---
 const features = [
-  { icon: 'receipt_long', title: 'Billing & Payments', bullets: ['Auto-generate monthly bills', 'Track paid & pending dues', 'UPI, cards & net banking via PhonePe', 'Auto late-fee calculation'] },
-  { icon: 'group', title: 'Residents & Flats', bullets: ['Flat, owner & tenant records', 'Excel import for quick setup', 'Occupancy & block management', 'Tenant agreement tracking'] },
-  { icon: 'shield', title: 'Visitors & Gate', bullets: ['Visitor entry with flat mapping', 'Delivery logging & photo capture', 'Exit tracking & purpose logging', 'Security staff app access'] },
-  { icon: 'assignment_late', title: 'Complaints & Requests', bullets: ['Raise issues with images', 'Priority & category tags', 'Status workflow to resolution', 'Timeline & comment tracking'] },
-  { icon: 'campaign', title: 'Community Hub', bullets: ['Announcements & notices', 'Events & meeting updates', 'Surveys & resident polls', 'Approval workflows'] },
-  { icon: 'bar_chart', title: 'Reports & Accounts', bullets: ['P&L statements for AGM', 'Collection & defaulter reports', 'Expense tracking by category', 'Date-range filtering & export'] },
-  { icon: 'engineering', title: 'Staff & Assets', bullets: ['Service staff directory', 'Asset inventory per block', 'Staff specialization tracking', 'Multi-society staff sharing'] },
-  { icon: 'gavel', title: 'Bylaws & Documents', bullets: ['Society bylaws repository', 'Tenant agreements & uploads', 'Committee meeting minutes', 'Role-based document access'] },
+  { icon: 'receipt_long', title: 'Billing & Payments', tone: 'primary', bullets: ['Auto-generate monthly bills', 'Track paid & pending dues', 'UPI, cards & net banking via PhonePe', 'Auto late-fee calculation'] },
+  { icon: 'group', title: 'Residents & Flats', tone: 'secondary', bullets: ['Flat, owner & tenant records', 'Excel import for quick setup', 'Occupancy & block management', 'Tenant agreement tracking'] },
+  { icon: 'shield', title: 'Visitors & Gate', tone: 'tertiary', bullets: ['Visitor entry with flat mapping', 'Delivery logging & photo capture', 'Exit tracking & purpose logging', 'Security staff app access'] },
+  { icon: 'assignment_late', title: 'Complaints & Requests', tone: 'primary', bullets: ['Raise issues with images', 'Priority & category tags', 'Status workflow to resolution', 'Timeline & comment tracking'] },
+  { icon: 'campaign', title: 'Community Hub', tone: 'secondary', bullets: ['Announcements & notices', 'Events & meeting updates', 'Surveys & resident polls', 'Approval workflows'] },
+  { icon: 'bar_chart', title: 'Reports & Accounts', tone: 'tertiary', bullets: ['P&L statements for AGM', 'Collection & defaulter reports', 'Expense tracking by category', 'Date-range filtering & export'] },
+  { icon: 'engineering', title: 'Staff & Assets', tone: 'primary', bullets: ['Service staff directory', 'Asset inventory per block', 'Staff specialization tracking', 'Multi-society staff sharing'] },
+  { icon: 'gavel', title: 'Bylaws & Documents', tone: 'secondary', bullets: ['Society bylaws repository', 'Tenant agreements & uploads', 'Committee meeting minutes', 'Role-based document access'] },
 ];
 ---
 
-<section id="features" class="bg-slate-50/50 py-16 px-6">
+<section id="features" class="bg-secondary-container/18 py-16 px-6">
   <div class="max-w-7xl mx-auto">
     <div class="mb-12 text-center max-w-2xl mx-auto">
       <p class="text-xs font-bold tracking-widest uppercase text-accent mb-3 font-label">Core Features</p>
@@ -21,17 +21,37 @@ const features = [
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {features.map((feature) => (
-        <div class="bg-white p-5 rounded-2xl border border-slate-100 transition-all duration-300 hover:translate-y-[-2px] hover:shadow-lg hover:border-accent/20 group">
+        <div class:list={[
+          'p-5 rounded-2xl border transition-all duration-300 hover:translate-y-[-2px] hover:shadow-lg group',
+          feature.tone === 'primary' && 'bg-white border-outline-variant/55 hover:border-primary/20',
+          feature.tone === 'secondary' && 'bg-secondary-container/25 border-secondary-fixed-dim/55 hover:border-secondary/25',
+          feature.tone === 'tertiary' && 'bg-tertiary-fixed/25 border-tertiary-fixed-dim/55 hover:border-tertiary/25',
+        ]}>
           <div class="flex items-center gap-2.5 mb-3.5">
-            <div class="w-9 h-9 bg-accent/8 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-accent/12 transition-colors">
-              <span class="material-symbols-outlined text-accent text-xl">{feature.icon}</span>
+            <div class:list={[
+              'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors',
+              feature.tone === 'primary' && 'bg-primary-fixed/35 group-hover:bg-primary-fixed/55',
+              feature.tone === 'secondary' && 'bg-white/70 group-hover:bg-white',
+              feature.tone === 'tertiary' && 'bg-white/75 group-hover:bg-white',
+            ]}>
+              <span class:list={[
+                'material-symbols-outlined text-xl',
+                feature.tone === 'primary' && 'text-primary',
+                feature.tone === 'secondary' && 'text-secondary',
+                feature.tone === 'tertiary' && 'text-tertiary',
+              ]}>{feature.icon}</span>
             </div>
             <h3 class="text-sm font-bold text-primary font-headline">{feature.title}</h3>
           </div>
           <ul class="space-y-1.5">
             {feature.bullets.map((bullet) => (
               <li class="flex items-start gap-2 text-[13px] text-on-surface-variant font-body leading-snug">
-                <span class="w-1 h-1 rounded-full bg-accent/50 mt-[7px] flex-shrink-0"></span>
+                <span class:list={[
+                  'w-1 h-1 rounded-full mt-[7px] flex-shrink-0',
+                  feature.tone === 'primary' && 'bg-primary/55',
+                  feature.tone === 'secondary' && 'bg-secondary/55',
+                  feature.tone === 'tertiary' && 'bg-tertiary/55',
+                ]}></span>
                 <span>{bullet}</span>
               </li>
             ))}

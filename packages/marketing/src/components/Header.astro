@@ -12,16 +12,19 @@ const navItems = [
 ];
 ---
 
-<nav class="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-2xl border-b border-slate-200/60 transition-all duration-300">
+<nav class="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-2xl border-b border-outline-variant/60 transition-all duration-300">
   <div class="flex items-center justify-between px-6 py-3 max-w-7xl mx-auto">
-    <a href="/" class="text-xl font-extrabold tracking-tight text-primary font-headline">
-      Dwell Hub
+    <a href="/" class="inline-flex items-center gap-3.5 text-on-surface font-headline">
+      <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-container-low ring-1 ring-outline-variant/60 shadow-sm">
+        <img src="/favicon.svg" alt="Dwell Hub logo" class="h-9 w-9 rounded-xl" />
+      </span>
+      <span class="text-[1.15rem] font-black leading-none tracking-[-0.03em]">Dwell Hub</span>
     </a>
 
-    <div class="hidden md:flex items-center gap-1 bg-slate-100/80 rounded-full px-2 py-1.5">
+    <div class="hidden md:flex items-center gap-1 bg-surface-container-low/90 rounded-full px-2 py-1.5">
       {navItems.map((item) => (
         <a
-          class="marketing-nav-link font-headline text-[13px] tracking-wide font-medium text-slate-500 px-4 py-1.5 rounded-full hover:text-primary hover:bg-white transition-all duration-200"
+          class="marketing-nav-link font-headline text-[13px] tracking-wide font-medium text-on-surface-variant px-4 py-1.5 rounded-full hover:text-primary hover:bg-white transition-all duration-200"
           href={item.href}
           data-section={item.id}
         >
@@ -31,10 +34,10 @@ const navItems = [
     </div>
 
     <div class="flex items-center gap-3">
-      <a href={`${appUrl}/login`} class="hidden sm:inline font-headline text-[13px] tracking-wide font-medium text-slate-500 hover:text-primary transition-colors">
+      <a href={`${appUrl}/login`} class="hidden sm:inline font-headline text-[13px] tracking-wide font-medium text-on-surface-variant hover:text-primary transition-colors">
         Login
       </a>
-      <a href={`${appUrl}/register`} class="bg-[#4f46e5] text-white px-5 py-2.5 rounded-full font-headline text-[13px] tracking-wide font-semibold hover:bg-[#4338ca] hover:shadow-lg hover:shadow-indigo-500/25 transition-all">
+      <a href={`${appUrl}/register`} class="bg-primary text-white px-5 py-2.5 rounded-full font-headline text-[13px] tracking-wide font-semibold hover:bg-primary-container hover:shadow-lg hover:shadow-primary/20 transition-all">
         Get Started
       </a>
     </div>
@@ -43,7 +46,7 @@ const navItems = [
 
 <script>
   const activeClasses = ['text-primary', 'bg-white', 'shadow-sm'];
-  const inactiveClasses = ['text-slate-500'];
+  const inactiveClasses = ['text-on-surface-variant'];
 
   const links = Array.from(document.querySelectorAll('.marketing-nav-link'));
   const sections = links

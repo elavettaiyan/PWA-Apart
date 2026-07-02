@@ -21,6 +21,9 @@ const { eyebrow, title, intro, effectiveDate, sections } = Astro.props;
   <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
     <aside class="lg:col-span-4 lg:sticky lg:top-28 space-y-8">
       <div>
+        <div class="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-[1.25rem] bg-surface-container-low ring-1 ring-outline-variant/60 shadow-sm">
+          <img src="/favicon.svg" alt="Dwell Hub logo" class="h-11 w-11 rounded-xl" />
+        </div>
         <p class="text-xs font-bold tracking-widest uppercase text-primary mb-4 font-label">{eyebrow}</p>
         <h1 class="text-4xl lg:text-5xl font-extrabold text-primary tracking-tight mb-5 font-headline leading-tight">{title}</h1>
         <p class="text-on-surface-variant font-body leading-relaxed">{intro}</p>
